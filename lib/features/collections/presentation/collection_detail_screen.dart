@@ -1,6 +1,8 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/services/mock_data_service.dart';
+import 'package:grazia_stones/core/theme/glass_theme.dart';
 import 'package:grazia_stones/core/theme/text_styles.dart';
 import 'package:grazia_stones/shared/widgets/grazia_app_bar.dart';
 import 'package:grazia_stones/shared/widgets/stone_grid_tile.dart';
@@ -26,63 +28,116 @@ class CollectionDetailScreen extends StatelessWidget {
     final icon = _icons[collectionId] ?? '🪨';
 
     return Scaffold(
-      backgroundColor: AppColors.charcoal,
+      backgroundColor: AppColors.surfaceDark,
       appBar: GraziaAppBar(
         title: collection.name.toUpperCase(),
         actions: [
           IconButton(
-            icon: const Icon(Icons.filter_list, color: AppColors.textSecondary),
+            icon: const Icon(Icons.filter_list_rounded, color: AppColors.textSecondary),
             onPressed: () {},
           ),
         ],
       ),
       body: Column(
         children: [
-          Container(
+          // ── Glass Header Card ──
+          Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            child: Row(
-              children: [
-                Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    gradient: AppColors.goldGradient,
-                    borderRadius: BorderRadius.circular(14),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: GlassTheme.blurMedium, sigmaY: GlassTheme.blurMedium),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: GlassTheme.glassHeavy.copyWith(
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Center(
-                    child: Text(icon, style: const TextStyle(fontSize: 30)),
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
                     children: [
-                      Text(
-                        collection.name.toUpperCase(),
-                        style: GraziaTextStyles.titleMedium,
+                      // Gold gradient icon container with glow
+                      Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          gradient: AppColors.goldGradient,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.gold.withOpacity(0.25),
+                              blurRadius: 16,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Text(icon, style: const TextStyle(fontSize: 30)),
+                        ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        collection.description,
-                        style: GraziaTextStyles.bodySmall.copyWith(
-                          color: AppColors.textTertiary,
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              collection.name.toUpperCase(),
+                              style: GraziaTextStyles.titleMedium,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              collection.description,
+                              style: GraziaTextStyles.bodySmall.copyWith(
+                                color: AppColors.textTertiary,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            // Stone count badge
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: AppColors.white.withOpacity(GlassTheme.opacityLight),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: AppColors.white.withOpacity(GlassTheme.borderThin),
+                                  width: GlassTheme.borderThin,
+                                ),
+                              ),
+                              child: Text(
+                                '${stones.length} stones',
+                                style: GraziaTextStyles.bodySmall.copyWith(
+                                  color: AppColors.gold,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
-              ],
+              ),
             ),
           ),
+
+          // ── Stone Grid ──
           Expanded(
             child: stones.isEmpty
                 ? Center(
-                    child: Text(
-                      'No stones in this collection yet',
-                      style: GraziaTextStyles.bodyMedium.copyWith(
-                        color: AppColors.textTertiary,
-                      ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 80,
+                          height: 80,
+                          decoration: GlassTheme.glassMedium.copyWith(shape: BoxShape.circle),
+                          child: const Icon(Icons.collections_bookmark_outlined, size: 36, color: AppColors.textTertiary),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No stones in this collection yet',
+                          style: GraziaTextStyles.titleSmall.copyWith(color: AppColors.textSecondary),
+                        ),
+                      ],
                     ),
                   )
                 : GridView.builder(

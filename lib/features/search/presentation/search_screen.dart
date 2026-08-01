@@ -1,9 +1,12 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/constants/app_dimensions.dart';
+import 'package:grazia_stones/core/theme/glass_theme.dart';
 import 'package:grazia_stones/core/theme/text_styles.dart';
 import 'package:grazia_stones/core/services/mock_data_service.dart';
 import 'package:grazia_stones/core/models/stone.dart';
+import 'package:grazia_stones/shared/widgets/grazia_app_bar.dart';
 import 'package:grazia_stones/features/stone_detail/presentation/stone_detail_screen.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -108,47 +111,53 @@ class _SearchScreenState extends State<SearchScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.surfaceDark,
-      appBar: AppBar(
-        backgroundColor: AppColors.charcoal,
-        title: const Text('Search Stones', style: TextStyle(color: Colors.white)),
-        iconTheme: const IconThemeData(color: Colors.white),
+      appBar: GraziaAppBar(
+        title: 'SEARCH',
       ),
       body: Column(
         children: [
+          // ── Glass Search Field ──
           Padding(
-            padding: const EdgeInsets.all(AppDimensions.spacingL),
-            child: TextField(
-              controller: _searchController,
-              style: const TextStyle(color: AppColors.textPrimary),
-              decoration: InputDecoration(
-                hintText: 'Search by name, collection, or material...',
-                hintStyle: const TextStyle(color: AppColors.textTertiary),
-                prefixIcon: const Icon(Icons.search, color: AppColors.textTertiary),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear, color: AppColors.textTertiary),
-                        onPressed: () => _searchController.clear(),
-                      )
-                    : null,
-                filled: true,
-                fillColor: AppColors.charcoal,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                  borderSide: const BorderSide(color: AppColors.borderSubtle),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                  borderSide: const BorderSide(color: AppColors.borderSubtle),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                  borderSide: const BorderSide(color: AppColors.gold, width: 2),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: GlassTheme.blurLight, sigmaY: GlassTheme.blurLight),
+                child: Container(
+                  decoration: GlassTheme.glassLight.copyWith(
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    style: GraziaTextStyles.bodyMedium.copyWith(color: AppColors.textPrimary),
+                    decoration: InputDecoration(
+                      hintText: 'Search stones, collections, materials...',
+                      hintStyle: GraziaTextStyles.bodyMedium.copyWith(color: AppColors.textTertiary),
+                      prefixIcon: const Icon(Icons.search_rounded, color: AppColors.gold, size: 22),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear_rounded, color: AppColors.textTertiary, size: 20),
+                              onPressed: () => _searchController.clear(),
+                            )
+                          : null,
+                      filled: true,
+                      fillColor: Colors.transparent,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
+
+          const SizedBox(height: 12),
+
+          // ── Glass Filter Chips ──
           SizedBox(
-            height: 40,
+            height: 44,
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(horizontal: AppDimensions.spacingM),
               scrollDirection: Axis.horizontal,
@@ -157,160 +166,254 @@ class _SearchScreenState extends State<SearchScreen> {
               itemBuilder: (context, index) {
                 final filter = _allFilters[index];
                 final isSelected = _selectedFilters.contains(filter);
-                return FilterChip(
-                  label: Text(
-                    filter,
-                    style: TextStyle(
-                      color: isSelected ? Colors.white : AppColors.textPrimary,
-                      fontSize: 12,
+
+                return AnimatedContainer(
+                  duration: GlassTheme.durationFast,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(22),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppColors.gold.withOpacity(0.25)
+                              : AppColors.white.withOpacity(GlassTheme.opacityLight),
+                          borderRadius: BorderRadius.circular(22),
+                          border: Border.all(
+                            color: isSelected
+                                ? AppColors.gold.withOpacity(0.6)
+                                : AppColors.white.withOpacity(GlassTheme.borderThin),
+                            width: GlassTheme.borderThin,
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            filter,
+                            style: GraziaTextStyles.bodySmall.copyWith(
+                              color: isSelected ? AppColors.gold : AppColors.textSecondary,
+                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                  selected: isSelected,
-                  selectedColor: AppColors.gold,
-                  backgroundColor: AppColors.charcoal,
-                  side: BorderSide(
-                    color: isSelected ? AppColors.gold : AppColors.borderSubtle,
-                  ),
-                  onSelected: (selected) {
-                    setState(() {
-                      if (filter == 'All') {
-                        _selectedFilters = ['All'];
-                      } else {
-                        _selectedFilters.remove('All');
-                        if (selected) {
-                          _selectedFilters.add(filter);
-                        } else {
-                          _selectedFilters.remove(filter);
-                        }
-                      }
-                      _filterStones();
-                    });
-                  },
                 );
               },
             ),
           ),
-          const SizedBox(height: AppDimensions.spacingM),
+
+          const SizedBox(height: 12),
+
+          // ── Results Count ──
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Text(
+                  '${_filteredStones.length} stones found',
+                  style: GraziaTextStyles.bodySmall.copyWith(color: AppColors.textTertiary),
+                ),
+                const Spacer(),
+                if (_selectedFilters.isNotEmpty)
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedFilters = [];
+                        _filterStones();
+                      });
+                    },
+                    child: Text(
+                      'Clear filters',
+                      style: GraziaTextStyles.bodySmall.copyWith(
+                        color: AppColors.gold,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // ── Glass Results List ──
           Expanded(
             child: _filteredStones.isEmpty
                 ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          Icons.search_off,
-                          size: 64,
-                          color: AppColors.textTertiary.withOpacity(0.5),
+                        Container(
+                          width: 80,
+                          height: 80,
+                          decoration: GlassTheme.glassMedium.copyWith(
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.search_off_rounded, size: 36, color: AppColors.textTertiary),
                         ),
                         const SizedBox(height: AppDimensions.spacingM),
                         Text(
                           'No stones found',
-                          style: AppTextStyles.headlineSmall.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
+                          style: GraziaTextStyles.titleSmall.copyWith(color: AppColors.textSecondary),
                         ),
-                        const SizedBox(height: AppDimensions.spacingS),
+                        const SizedBox(height: AppDimensions.spacingXxs),
                         Text(
                           'Try adjusting your search or filters',
-                          style: AppTextStyles.bodyMedium.copyWith(
-                            color: AppColors.textTertiary,
-                          ),
+                          style: GraziaTextStyles.bodySmall.copyWith(color: AppColors.textTertiary),
                         ),
                       ],
                     ),
                   )
                 : ListView.builder(
-                    padding: const EdgeInsets.all(AppDimensions.spacingM),
+                    padding: const EdgeInsets.all(16),
                     itemCount: _filteredStones.length,
                     itemBuilder: (context, index) {
                       final stone = _filteredStones[index];
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: AppDimensions.spacingM),
-                        color: AppColors.charcoal,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                        ),
-                        child: InkWell(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => StoneDetailScreen(stoneId: stone.id),
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                            child: Container(
+                              decoration: GlassTheme.glassMedium.copyWith(
+                                borderRadius: BorderRadius.circular(16),
                               ),
-                            );
-                          },
-                          borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                          child: Padding(
-                            padding: const EdgeInsets.all(AppDimensions.spacingM),
-                            child: Row(
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
-                                  child: Image.network(
-                                    stone.imageUrl ?? '',
-                                    width: 80,
-                                    height: 80,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return Container(
-                                        width: 80,
-                                        height: 80,
-                                        color: AppColors.surfaceLight,
-                                        child: const Icon(Icons.image, color: AppColors.textTertiary),
-                                      );
-                                    },
-                                  ),
-                                ),
-                                const SizedBox(width: AppDimensions.spacingM),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        stone.name,
-                                        style: AppTextStyles.titleMedium.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                          color: AppColors.textPrimary,
-                                        ),
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => StoneDetailScreen(stoneId: stone.id),
                                       ),
-                                      const SizedBox(height: AppDimensions.spacingXxs),
-                                      Text(
-                                        stone.collection,
-                                        style: AppTextStyles.bodySmall.copyWith(
-                                          color: AppColors.textSecondary,
-                                        ),
-                                      ),
-                                      const SizedBox(height: AppDimensions.spacingXxs),
-                                      Row(
-                                        children: [
-                                          const Icon(Icons.star, color: AppColors.gold, size: 14),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            stone.rating.toString(),
-                                            style: AppTextStyles.bodySmall.copyWith(
-                                              color: AppColors.textSecondary,
-                                            ),
+                                    );
+                                  },
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(14),
+                                    child: Row(
+                                      children: [
+                                        // Stone image with glass overlay
+                                        ClipRRect(
+                                          borderRadius: BorderRadius.circular(12),
+                                          child: Stack(
+                                            children: [
+                                              Image.network(
+                                                stone.imageUrl ?? '',
+                                                width: 80,
+                                                height: 80,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (context, error, stackTrace) {
+                                                  return Container(
+                                                    width: 80,
+                                                    height: 80,
+                                                    color: AppColors.surfaceLight,
+                                                    child: const Icon(Icons.image, color: AppColors.textTertiary),
+                                                  );
+                                                },
+                                              ),
+                                              // Glass shimmer overlay
+                                              Positioned.fill(
+                                                child: DecoratedBox(
+                                                  decoration: BoxDecoration(
+                                                    gradient: LinearGradient(
+                                                      begin: Alignment.topLeft,
+                                                      end: Alignment.bottomRight,
+                                                      colors: [
+                                                        Colors.white.withOpacity(0.1),
+                                                        Colors.transparent,
+                                                        Colors.white.withOpacity(0.05),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                          const SizedBox(width: AppDimensions.spacingS),
-                                          Text(
-                                            stone.finish,
-                                            style: AppTextStyles.bodySmall.copyWith(
-                                              color: AppColors.textTertiary,
-                                            ),
+                                        ),
+                                        const SizedBox(width: 14),
+                                        // Info
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                stone.name,
+                                                style: GraziaTextStyles.titleSmall.copyWith(
+                                                  color: AppColors.textPrimary,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                stone.collection,
+                                                style: GraziaTextStyles.bodySmall.copyWith(
+                                                  color: AppColors.textSecondary,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 6),
+                                              Row(
+                                                children: [
+                                                  const Icon(Icons.star_rounded, color: AppColors.gold, size: 14),
+                                                  const SizedBox(width: 3),
+                                                  Text(
+                                                    stone.rating.toString(),
+                                                    style: GraziaTextStyles.bodySmall.copyWith(
+                                                      color: AppColors.textSecondary,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 10),
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                    decoration: BoxDecoration(
+                                                      color: AppColors.white.withOpacity(0.06),
+                                                      borderRadius: BorderRadius.circular(8),
+                                                      border: Border.all(
+                                                        color: AppColors.white.withOpacity(0.08),
+                                                        width: 0.5,
+                                                      ),
+                                                    ),
+                                                    child: Text(
+                                                      stone.finish,
+                                                      style: GraziaTextStyles.bodySmall.copyWith(
+                                                        color: AppColors.textTertiary,
+                                                        fontSize: 10,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
                                           ),
-                                        ],
-                                      ),
-                                    ],
+                                        ),
+                                        // Price
+                                        Column(
+                                          crossAxisAlignment: CrossAxisAlignment.end,
+                                          children: [
+                                            Text(
+                                              '\$${stone.pricePerSqFt.toStringAsFixed(0)}',
+                                              style: GraziaTextStyles.titleSmall.copyWith(
+                                                color: AppColors.gold,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            Text(
+                                              'per sq ft',
+                                              style: GraziaTextStyles.bodySmall.copyWith(
+                                                color: AppColors.textTertiary,
+                                                fontSize: 10,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
-                                Text(
-                                  '\$${stone.pricePerSqFt.toStringAsFixed(0)}',
-                                  style: AppTextStyles.titleMedium.copyWith(
-                                    color: AppColors.gold,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
                           ),
                         ),
