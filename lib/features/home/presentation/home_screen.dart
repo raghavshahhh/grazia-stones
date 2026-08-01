@@ -1,6 +1,8 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/constants/app_strings.dart';
+import 'package:grazia_stones/core/services/mock_data_service.dart';
 import 'package:grazia_stones/core/widgets/animated_widgets.dart';
 import 'package:grazia_stones/shared/widgets/grazia_app_bar.dart';
 import 'package:grazia_stones/shared/widgets/grazia_bottom_nav.dart';
@@ -10,8 +12,8 @@ import 'package:grazia_stones/features/home/presentation/widgets/home_quick_acti
 import 'package:grazia_stones/features/home/presentation/widgets/home_collection_strip.dart';
 import 'package:grazia_stones/features/home/presentation/widgets/home_trending_grid.dart';
 import 'package:grazia_stones/features/collections/presentation/collection_list_screen.dart';
-import 'package:grazia_stones/features/ai_viz/presentation/ai_viz_screen.dart';
 import 'package:grazia_stones/features/cart/presentation/cart_screen.dart';
+import 'package:grazia_stones/features/live_ai/presentation/live_ai_screen.dart';
 import 'package:grazia_stones/features/profile/presentation/profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -43,7 +45,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 1:
         return const CollectionListScreen();
       case 2:
-        return const AIScreen();
+        return const LiveAIScreen();
       case 3:
         return const CartScreen();
       case 4:
@@ -57,15 +59,21 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.charcoal,
+      extendBody: true,
       appBar: _currentNavIndex == 0
           ? GraziaAppBar(
               title: AppStrings.appName,
               actions: [
-                IconButton(
-                  icon: const Icon(Icons.notifications_outlined,
-                      color: AppColors.textSecondary),
-                  onPressed: () {},
+                _buildGlassIconButton(
+                  icon: Icons.notifications_outlined,
+                  onTap: () {},
                 ),
+                const SizedBox(width: 4),
+                _buildGlassIconButton(
+                  icon: Icons.search_rounded,
+                  onTap: () => Navigator.pushNamed(context, '/search'),
+                ),
+                const SizedBox(width: 8),
               ],
             )
           : null,
@@ -73,6 +81,33 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomNavigationBar: GraziaBottomNav(
         currentIndex: _currentNavIndex,
         onTap: (i) => setState(() => _currentNavIndex = i),
+      ),
+    );
+  }
+
+  Widget _buildGlassIconButton({
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        splashColor: AppColors.goldWarm.withOpacity(0.1),
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: AppColors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: AppColors.white.withOpacity(0.06),
+              width: 0.5,
+            ),
+          ),
+          child: Icon(icon, size: 18, color: AppColors.silverLight),
+        ),
       ),
     );
   }
@@ -124,6 +159,15 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildContent() {
+    final trendingStones = MockDataService.getTrendingStones();
+    final collections = MockDataService.collections;
+    final quickActions = [
+      {'icon': Icons.auto_awesome_outlined, 'label': 'AI Viz', 'route': '/ai-viz'},
+      {'icon': Icons.camera_alt_outlined, 'label': 'AR View', 'route': '/ar-view'},
+      {'icon': Icons.straighten_outlined, 'label': 'Measure', 'route': null},
+      {'icon': Icons.request_quote_outlined, 'label': 'Quote', 'route': '/quotes'},
+    ];
+
     return RefreshIndicator(
       onRefresh: () async {
         setState(() => _isLoading = true);
@@ -134,19 +178,129 @@ class _HomeScreenState extends State<HomeScreen> {
       child: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          const SliverToBoxAdapter(
-            child: FadeInStagger(index: 0, child: HomeHeroCarousel()),
+          // Hero Carousel (uses trendingStones for hero images)
+          SliverToBoxAdapter(
+            child: FadeInStagger(
+              index: 0,
+              child: HomeHeroCarousel(stones: trendingStones),
+            ),
           ),
-          const SliverToBoxAdapter(
-            child: FadeInStagger(index: 1, child: HomeQuickActions()),
+
+          // Section title: Quick Actions
+          const SliverToBoxAdapter(child: SizedBox(height: 24)),
+          const SliverToBoxAdapter(child: _SectionTitle(title: 'Quick Actions')),
+          const SliverToBoxAdapter(child: SizedBox(height: 12)),
+
+          // Quick Actions
+          SliverToBoxAdapter(
+            child: FadeInStagger(
+              index: 1,
+              child: HomeQuickActions(
+                actions: quickActions,
+                onActionTap: (i) {
+                  final route = quickActions[i]['route'] as String?;
+                  if (route != null) Navigator.pushNamed(context, route);
+                },
+              ),
+            ),
           ),
-          const SliverToBoxAdapter(
-            child: FadeInStagger(index: 2, child: HomeCollectionStrip()),
+
+          // Section title: Collections
+          const SliverToBoxAdapter(child: SizedBox(height: 28)),
+          SliverToBoxAdapter(
+            child: _SectionTitle(
+              title: 'Collections',
+              actionLabel: AppStrings.viewAll,
+              onAction: () => Navigator.pushNamed(context, '/collections'),
+            ),
           ),
+          const SliverToBoxAdapter(child: SizedBox(height: 12)),
+
+          // Collection Strip
+          SliverToBoxAdapter(
+            child: FadeInStagger(
+              index: 2,
+              child: HomeCollectionStrip(
+                collections: collections,
+                onCollectionTap: (c) => Navigator.pushNamed(
+                  context,
+                  '/collection-detail',
+                  arguments: c.id,
+                ),
+              ),
+            ),
+          ),
+
+          // Section title: Trending
+          const SliverToBoxAdapter(child: SizedBox(height: 28)),
+          const SliverToBoxAdapter(
+            child: _SectionTitle(title: 'Trending Stones'),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 12)),
+
+          // Trending Grid
           const SliverToBoxAdapter(
             child: FadeInStagger(index: 3, child: HomeTrendingGrid()),
           ),
-          const SliverToBoxAdapter(child: SizedBox(height: 24)),
+          const SliverToBoxAdapter(child: SizedBox(height: 100)),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  final String title;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  const _SectionTitle({
+    required this.title,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppColors.white,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const Spacer(),
+          if (actionLabel != null)
+            GestureDetector(
+              onTap: onAction,
+              child: Row(
+                children: [
+                  Text(
+                    actionLabel!,
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.goldWarm.withOpacity(0.7),
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 10,
+                    color: AppColors.goldWarm.withOpacity(0.5),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );

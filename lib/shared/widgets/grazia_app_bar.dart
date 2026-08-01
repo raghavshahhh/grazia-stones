@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:grazia_stones/core/constants/app_colors.dart';
+import 'package:grazia_stones/core/theme/glass_theme.dart';
 
 class GraziaAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -21,52 +22,89 @@ class GraziaAppBar extends StatelessWidget implements PreferredSizeWidget {
   });
 
   @override
-  Size get preferredSize => const Size.fromHeight(56);
+  Size get preferredSize => const Size.fromHeight(60);
 
   @override
   Widget build(BuildContext context) {
     return ClipRect(
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        filter: ImageFilter.blur(sigmaX: GlassTheme.blurHeavy, sigmaY: GlassTheme.blurHeavy),
         child: Container(
-          color: transparent
-              ? Colors.transparent
-              : AppColors.black.withOpacity(0.95),
+          decoration: BoxDecoration(
+            color: transparent
+                ? Colors.transparent
+                : AppColors.charcoal.withOpacity(0.75),
+            border: Border(
+              bottom: BorderSide(
+                color: AppColors.goldWarm.withOpacity(0.1),
+                width: 0.5,
+              ),
+            ),
+          ),
           child: SafeArea(
             bottom: false,
             child: SizedBox(
-              height: 56,
+              height: 60,
               child: Row(
                 children: [
                   if (showBack)
-                    IconButton(
-                      onPressed: onBackPressed ?? () => Navigator.of(context).pop(),
-                      icon: const Icon(
-                        Icons.arrow_back_ios_new_rounded,
-                        size: 20,
-                        color: AppColors.silverLight,
-                      ),
-                    )
+                    _buildBackButton(context)
                   else if (leading != null)
                     leading!,
                   const Spacer(),
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.white,
-                      letterSpacing: 1.5,
-                    ),
-                  ),
+                  _buildTitle(),
                   const Spacer(),
                   if (actions != null) ...actions!,
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 8),
                 ],
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBackButton(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onBackPressed ?? () => Navigator.of(context).pop(),
+        borderRadius: BorderRadius.circular(30),
+        splashColor: AppColors.goldWarm.withOpacity(0.1),
+        child: Container(
+          width: 40,
+          height: 40,
+          margin: const EdgeInsets.only(left: 4),
+          decoration: BoxDecoration(
+            color: AppColors.white.withOpacity(GlassTheme.opacityLight),
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(
+              color: AppColors.white.withOpacity(0.08),
+              width: 0.5,
+            ),
+          ),
+          child: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            size: 18,
+            color: AppColors.silverLight,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTitle() {
+    return ShaderMask(
+      shaderCallback: (bounds) => AppColors.goldGradient.createShader(bounds),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontFamily: 'Inter',
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+          letterSpacing: 2.0,
         ),
       ),
     );

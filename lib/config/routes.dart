@@ -14,6 +14,7 @@ import 'package:grazia_stones/features/dealer/presentation/dealer_locator_screen
 import 'package:grazia_stones/features/quotes/presentation/quotes_screen.dart';
 import 'package:grazia_stones/features/cart/presentation/cart_screen.dart';
 import 'package:grazia_stones/features/orders/presentation/orders_screen.dart';
+import 'package:grazia_stones/features/live_ai/presentation/live_ai_screen.dart';
 import 'package:grazia_stones/features/profile/presentation/profile_screen.dart';
 
 class AppRoutes {
@@ -35,6 +36,7 @@ class AppRoutes {
   static const String cart = '/cart';
   static const String orders = '/orders';
   static const String profile = '/profile';
+  static const String liveAI = '/live-ai';
   static const String sampleOrder = '/sample-order';
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
@@ -73,6 +75,8 @@ class AppRoutes {
         return _buildRoute(const OrdersScreen(), settings);
       case profile:
         return _buildRoute(const ProfileScreen(), settings);
+      case liveAI:
+        return _buildRoute(const LiveAIScreen(), settings);
       default:
         return _buildRoute(const SplashScreen(), settings);
     }

@@ -97,11 +97,7 @@ class CollectionDetailScreen extends StatelessWidget {
                     itemBuilder: (context, index) {
                       final s = stones[index];
                       return StoneGridTile(
-                        name: s.name,
-                        collection: s.collection,
-                        pricePerSqFt: s.pricePerSqFt,
-                        rating: s.rating,
-                        imageUrl: s.imageUrl ?? '',
+                        stone: s,
                         onTap: () {
                           Navigator.of(context).pushNamed(
                             '/stones/${s.id}',

@@ -33,11 +33,7 @@ class HomeTrendingGrid extends StatelessWidget {
           itemBuilder: (context, index) {
             final s = stones[index];
             return StoneGridTile(
-              name: s.name,
-              collection: s.collection,
-              pricePerSqFt: s.pricePerSqFt,
-              rating: s.rating,
-              imageUrl: '',
+              stone: s,
               onTap: () => Navigator.of(context).pushNamed('/stones/${s.id}'),
               onWishlist: () {},
             );
