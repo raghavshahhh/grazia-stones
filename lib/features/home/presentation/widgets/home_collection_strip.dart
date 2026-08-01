@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/constants/app_strings.dart';
 import 'package:grazia_stones/core/theme/text_styles.dart';
+import 'package:grazia_stones/core/widgets/animated_widgets.dart';
 
 class HomeCollectionStrip extends StatelessWidget {
   const HomeCollectionStrip({super.key});
@@ -50,7 +51,10 @@ class HomeCollectionStrip extends StatelessWidget {
             separatorBuilder: (_, __) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
               final c = collections[index];
-              return Container(
+              return HoverScale(
+                scale: 1.04,
+                onTap: () => Navigator.of(context).pushNamed('/collections'),
+                child: Container(
                 width: 130,
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
@@ -91,6 +95,7 @@ class HomeCollectionStrip extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
               );
             },
           ),

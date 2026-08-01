@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/constants/app_strings.dart';
+import 'package:grazia_stones/core/widgets/animated_widgets.dart';
 import 'package:grazia_stones/shared/widgets/grazia_app_bar.dart';
 import 'package:grazia_stones/shared/widgets/grazia_bottom_nav.dart';
 import 'package:grazia_stones/shared/widgets/loading_skeleton.dart';
@@ -133,10 +134,18 @@ class _HomeScreenState extends State<HomeScreen> {
       child: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          const SliverToBoxAdapter(child: HomeHeroCarousel()),
-          const SliverToBoxAdapter(child: HomeQuickActions()),
-          const SliverToBoxAdapter(child: HomeCollectionStrip()),
-          const SliverToBoxAdapter(child: HomeTrendingGrid()),
+          const SliverToBoxAdapter(
+            child: FadeInStagger(index: 0, child: HomeHeroCarousel()),
+          ),
+          const SliverToBoxAdapter(
+            child: FadeInStagger(index: 1, child: HomeQuickActions()),
+          ),
+          const SliverToBoxAdapter(
+            child: FadeInStagger(index: 2, child: HomeCollectionStrip()),
+          ),
+          const SliverToBoxAdapter(
+            child: FadeInStagger(index: 3, child: HomeTrendingGrid()),
+          ),
           const SliverToBoxAdapter(child: SizedBox(height: 24)),
         ],
       ),

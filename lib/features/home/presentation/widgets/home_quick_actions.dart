@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/theme/text_styles.dart';
+import 'package:grazia_stones/core/widgets/animated_widgets.dart';
 
 class HomeQuickActions extends StatelessWidget {
   const HomeQuickActions({super.key});
@@ -20,10 +21,8 @@ class HomeQuickActions extends StatelessWidget {
         children: actions.map((a) {
           final color = a['color'] as Color;
           return Expanded(
-            child: GestureDetector(
-              onTap: () {
-                // TODO: Navigate based on action
-              },
+            child: HoverScale(
+              scale: 1.06,
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 4),
                 padding: const EdgeInsets.symmetric(vertical: 14),

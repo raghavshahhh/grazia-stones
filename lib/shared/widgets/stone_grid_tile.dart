@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/constants/app_dimensions.dart';
 import 'package:grazia_stones/core/utils/formatters.dart';
+import 'package:grazia_stones/core/widgets/animated_widgets.dart';
 
 class StoneGridTile extends StatelessWidget {
   final String imageUrl;
@@ -27,7 +28,8 @@ class StoneGridTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return HoverScale(
+      scale: 1.03,
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),

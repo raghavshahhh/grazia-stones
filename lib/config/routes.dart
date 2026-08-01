@@ -83,15 +83,23 @@ class AppRoutes {
       settings: settings,
       pageBuilder: (context, animation, secondaryAnimation) => page,
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
         return FadeTransition(
-          opacity: CurvedAnimation(
-            parent: animation,
-            curve: Curves.decelerate,
+          opacity: curved,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.06),
+              end: Offset.zero,
+            ).animate(curved),
+            child: child,
           ),
-          child: child,
         );
       },
-      transitionDuration: const Duration(milliseconds: 400),
+      transitionDuration: const Duration(milliseconds: 450),
     );
   }
 }
