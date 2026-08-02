@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:grazia_stones/core/constants/app_colors.dart';
-import 'package:grazia_stones/core/theme/text_styles.dart';
+import 'package:grazia_stones/shared/theme/colors.dart';
+import 'package:grazia_stones/shared/theme/typography.dart';
 import 'package:grazia_stones/shared/widgets/grazia_text_field.dart';
 import 'package:grazia_stones/shared/widgets/grazia_button.dart';
 import 'package:grazia_stones/config/routes.dart';
@@ -33,8 +33,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = GLuxuryPalettes.gold;
+
+
     return Scaffold(
-      backgroundColor: AppColors.black,
+      backgroundColor: palette.background,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 28),
@@ -46,14 +49,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
               Center(
                 child: ShaderMask(
                   shaderCallback: (bounds) =>
-                      AppColors.goldGradient.createShader(bounds),
-                  child: const Text(
+                      palette.primaryGradient.createShader(bounds),
+                  child: Text(
                     'G',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 48,
-                      fontWeight: FontWeight.w700,
+                    style: GLuxuryTypography.displayLarge.copyWith(
                       color: Colors.white,
+                      fontSize: 48,
                     ),
                   ),
                 ),
@@ -61,15 +62,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const SizedBox(height: 32),
               Text(
                 _otpSent ? 'Verify OTP' : 'Create Account',
-                style: GraziaTextStyles.h3,
+                style: GLuxuryTypography.h1,
               ),
               const SizedBox(height: 8),
               Text(
                 _otpSent
                     ? 'Enter the OTP sent to +91 ${_phoneController.text}'
                     : 'Join Grazia Stones to explore premium natural stones',
-                style: GraziaTextStyles.bodyMedium.copyWith(
-                  color: AppColors.textSecondary,
+                style: GLuxuryTypography.bodyMedium.copyWith(
+                  color: palette.textSecondary,
                 ),
               ),
               const SizedBox(height: 32),
@@ -92,11 +93,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   keyboardType: TextInputType.phone,
                   prefix: Text(
                     '+91 ',
-                    style: GraziaTextStyles.bodyMedium
-                        .copyWith(color: AppColors.goldWarm),
+                    style: GLuxuryTypography.bodyMedium
+                        .copyWith(color: palette.primary),
                   ),
-                  validator: (v) =>
-                      (v == null || v.length != 10) ? 'Enter valid phone' : null,
+                  validator: (v) => (v == null || v.length != 10)
+                      ? 'Enter valid phone'
+                      : null,
                 ),
                 const SizedBox(height: 20),
 
@@ -122,15 +124,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   children: [
                     Checkbox(
                       value: _isArchitect,
-                      onChanged: (v) => setState(() => _isArchitect = v ?? false),
-                      activeColor: AppColors.gold,
-                      checkColor: AppColors.charcoal,
+                      onChanged: (v) =>
+                          setState(() => _isArchitect = v ?? false),
+                      activeColor: palette.primary,
+                      checkColor: palette.background,
                     ),
                     Expanded(
                       child: Text(
                         'I am an Architect / Interior Designer',
-                        style: GraziaTextStyles.bodyMedium.copyWith(
-                          color: AppColors.silver,
+                        style: GLuxuryTypography.bodyMedium.copyWith(
+                          color: palette.textSecondary,
                         ),
                       ),
                     ),
@@ -163,7 +166,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   icon: Icons.check_circle_outline,
                   onPressed: () {
                     // TODO: Verify OTP, create account
-                    Navigator.of(context).pushReplacementNamed(AppRoutes.home);
+                    Navigator.of(context)
+                        .pushReplacementNamed(AppRoutes.home);
                   },
                 ),
                 const SizedBox(height: 16),
@@ -172,8 +176,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     onPressed: () => setState(() => _otpSent = false),
                     child: Text(
                       'Change Number',
-                      style: GraziaTextStyles.bodySmall.copyWith(
-                        color: AppColors.goldWarm,
+                      style: GLuxuryTypography.bodySmall.copyWith(
+                        color: palette.primary,
                       ),
                     ),
                   ),
@@ -189,14 +193,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   child: RichText(
                     text: TextSpan(
                       text: 'Already have an account? ',
-                      style: GraziaTextStyles.bodyMedium.copyWith(
-                        color: AppColors.textTertiary,
+                      style: GLuxuryTypography.bodyMedium.copyWith(
+                        color: palette.textTertiary,
                       ),
                       children: [
                         TextSpan(
                           text: 'Log In',
-                          style: GraziaTextStyles.bodyMedium.copyWith(
-                            color: AppColors.goldWarm,
+                          style: GLuxuryTypography.bodyMedium.copyWith(
+                            color: palette.primary,
                             fontWeight: FontWeight.w600,
                           ),
                         ),

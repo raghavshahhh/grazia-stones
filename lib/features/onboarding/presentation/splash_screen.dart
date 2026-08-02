@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/config/routes.dart';
-import 'package:grazia_stones/core/providers/auth_provider.dart';
+import 'package:grazia_stones/features/auth/providers/auth_provider.dart';
+import 'package:grazia_stones/shared/theme/colors.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -62,8 +62,10 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    final palette = Theme.of(context).extension<GLuxuryPalettes>()!;
+
     return Scaffold(
-      backgroundColor: AppColors.black,
+      backgroundColor: GLuxuryPalettes.gold.background,
       body: Center(
         child: FadeTransition(
           opacity: _fadeAnimation,
@@ -78,14 +80,14 @@ class _SplashScreenState extends State<SplashScreen>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: AppColors.goldWarm.withOpacity(0.3),
+                      color: GLuxuryPalettes.gold.primary.withValues(alpha: 0.3),
                       width: 1.5,
                     ),
                   ),
                   child: Center(
                     child: ShaderMask(
                       shaderCallback: (bounds) =>
-                          AppColors.goldGradient.createShader(bounds),
+                          GLuxuryPalettes.gold.primaryGradient.createShader(bounds),
                       child: const Text(
                         'G',
                         style: TextStyle(
@@ -101,7 +103,7 @@ class _SplashScreenState extends State<SplashScreen>
                 const SizedBox(height: 20),
                 ShaderMask(
                   shaderCallback: (bounds) =>
-                      AppColors.goldGradient.createShader(bounds),
+                      GLuxuryPalettes.gold.primaryGradient.createShader(bounds),
                   child: const Text(
                     'GRAZIA',
                     style: TextStyle(
@@ -121,7 +123,7 @@ class _SplashScreenState extends State<SplashScreen>
                     fontSize: 14,
                     fontWeight: FontWeight.w400,
                     letterSpacing: 8,
-                    color: AppColors.silverDark.withOpacity(0.7),
+                    color: GLuxuryPalettes.gold.textSecondary.withValues(alpha: 0.7),
                   ),
                 ),
               ],

@@ -1,6 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:grazia_stones/core/constants/app_colors.dart';
+import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/core/constants/app_dimensions.dart';
 import 'package:grazia_stones/core/theme/glass_theme.dart';
 
@@ -57,6 +57,8 @@ class _GraziaTextFieldState extends State<GraziaTextField> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = GLuxuryPalettes.gold;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -68,7 +70,8 @@ class _GraziaTextFieldState extends State<GraziaTextField> {
               fontFamily: 'Inter',
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: _isFocused ? AppColors.goldWarm : AppColors.silverMedium,
+              color:
+                  _isFocused ? palette.primary : palette.textTertiary,
               letterSpacing: 0.5,
             ),
           ),
@@ -82,19 +85,19 @@ class _GraziaTextFieldState extends State<GraziaTextField> {
               duration: GlassTheme.durationNormal,
               decoration: BoxDecoration(
                 color: _isFocused
-                    ? AppColors.white.withOpacity(0.08)
-                    : AppColors.white.withOpacity(0.04),
+                    ? palette.textPrimary.withValues(alpha: 0.08)
+                    : palette.textPrimary.withValues(alpha: 0.04),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: _isFocused
-                      ? AppColors.goldWarm.withOpacity(0.3)
-                      : AppColors.white.withOpacity(0.06),
+                      ? palette.primary.withValues(alpha: 0.3)
+                      : palette.textPrimary.withValues(alpha: 0.06),
                   width: _isFocused ? 1.0 : 0.5,
                 ),
                 boxShadow: _isFocused
                     ? [
                         BoxShadow(
-                          color: AppColors.goldWarm.withOpacity(0.06),
+                          color: palette.primary.withValues(alpha: 0.06),
                           blurRadius: 16,
                           spreadRadius: -4,
                         ),
@@ -112,26 +115,26 @@ class _GraziaTextFieldState extends State<GraziaTextField> {
                 maxLines: widget.maxLines,
                 maxLength: widget.maxLength,
                 focusNode: widget.focusNode,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'Inter',
                   fontSize: 14,
-                  color: AppColors.white,
+                  color: palette.textPrimary,
                 ),
-                cursorColor: AppColors.goldWarm,
+                cursorColor: palette.primary,
                 decoration: InputDecoration(
                   hintText: widget.hint,
                   hintStyle: TextStyle(
                     fontFamily: 'Inter',
                     fontSize: 14,
-                    color: AppColors.silverDark.withOpacity(0.5),
+                    color: palette.textTertiary.withValues(alpha: 0.5),
                   ),
                   prefixIcon: widget.prefix ??
                       (widget.prefixIcon != null
                           ? Icon(widget.prefixIcon,
                               size: 20,
                               color: _isFocused
-                                  ? AppColors.goldWarm
-                                  : AppColors.silverDark)
+                                  ? palette.primary
+                                  : palette.textTertiary)
                           : null),
                   suffixIcon: widget.suffix,
                   counterText: '',

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:grazia_stones/config/routes.dart';
-import 'package:grazia_stones/core/constants/app_colors.dart';
+import 'package:grazia_stones/shared/theme/colors.dart';
+import 'package:grazia_stones/shared/theme/typography.dart';
+import 'package:grazia_stones/shared/widgets/grazia_button.dart';
 import 'package:grazia_stones/core/constants/app_dimensions.dart';
-import 'package:grazia_stones/core/providers/auth_provider.dart';
-import 'package:grazia_stones/core/theme/text_styles.dart';
+import 'package:grazia_stones/features/auth/providers/auth_provider.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -20,19 +21,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final List<_OnboardingPage> _pages = const [
     _OnboardingPage(
       title: 'Discover\nTimeless Stone',
-      subtitle: 'Browse our curated collection of premium natural stones — each with a unique story etched by nature over millennia.',
+      subtitle:
+          'Browse our curated collection of premium natural stones — each with a unique story etched by nature over millennia.',
       lottieAsset: 'assets/lottie/onboarding_discover.json',
       icon: Icons.explore_outlined,
     ),
     _OnboardingPage(
       title: 'Visualize\nYour Vision',
-      subtitle: 'Use AI to see how any stone looks in your space. Tap once — the room transforms instantly.',
+      subtitle:
+          'Use AI to see how any stone looks in your space. Tap once — the room transforms instantly.',
       lottieAsset: 'assets/lottie/onboarding_ar.json',
       icon: Icons.view_in_ar_outlined,
     ),
     _OnboardingPage(
       title: 'Request\nSamples',
-      subtitle: 'Feel the texture. See the finish. Order physical samples delivered to your doorstep — free for architects.',
+      subtitle:
+          'Feel the texture. See the finish. Order physical samples delivered to your doorstep — free for architects.',
       lottieAsset: 'assets/lottie/onboarding_sample.json',
       icon: Icons.inventory_2_outlined,
     ),
@@ -66,8 +70,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = GLuxuryPalettes.gold;
+    final theme = Theme.of(context);
+
     return Scaffold(
-      backgroundColor: AppColors.charcoal,
+      backgroundColor: palette.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -80,8 +87,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   onPressed: _skip,
                   child: Text(
                     'Skip',
-                    style: GraziaTextStyles.bodyLarge.copyWith(
-                      color: AppColors.silver,
+                    style: GLuxuryTypography.bodyLarge.copyWith(
+                      color: palette.textSecondary,
                     ),
                   ),
                 ),
@@ -112,7 +119,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: AppColors.gold.withOpacity(0.2),
+                              color: palette.primary.withValues(alpha: 0.2),
                               width: 1,
                             ),
                           ),
@@ -120,7 +127,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             child: Icon(
                               page.icon,
                               size: 80,
-                              color: AppColors.gold,
+                              color: palette.primary,
                             ),
                           ),
                         ),
@@ -130,8 +137,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         Text(
                           page.title,
                           textAlign: TextAlign.center,
-                          style: GraziaTextStyles.headlineLarge.copyWith(
-                            color: Colors.white,
+                          style: GLuxuryTypography.h1.copyWith(
+                            color: theme.colorScheme.onSurface,
                             height: 1.2,
                           ),
                         ),
@@ -141,8 +148,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         Text(
                           page.subtitle,
                           textAlign: TextAlign.center,
-                          style: GraziaTextStyles.bodyLarge.copyWith(
-                            color: AppColors.silver,
+                          style: GLuxuryTypography.bodyLarge.copyWith(
+                            color: palette.textSecondary,
                             height: 1.5,
                           ),
                         ),
@@ -171,8 +178,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(4),
                           color: _currentPage == index
-                              ? AppColors.gold
-                              : AppColors.slate,
+                              ? palette.primary
+                              : palette.accent,
                         ),
                       ),
                     ),
@@ -180,31 +187,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   const SizedBox(height: AppDimensions.spacingXL),
 
                   // CTA button
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: ElevatedButton(
-                      onPressed: _next,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.gold,
-                        foregroundColor: AppColors.charcoal,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                            AppDimensions.radiusL,
-                          ),
-                        ),
-                        elevation: 0,
-                      ),
-                      child: Text(
-                        _currentPage == _pages.length - 1
-                            ? 'Get Started'
-                            : 'Next',
-                        style: GraziaTextStyles.titleMedium.copyWith(
-                          color: AppColors.charcoal,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
+                  GraziaButton(
+                    label: _currentPage == _pages.length - 1
+                        ? 'Get Started'
+                        : 'Next',
+                    icon: _currentPage == _pages.length - 1
+                        ? Icons.arrow_forward_rounded
+                        : Icons.arrow_forward_rounded,
+                    onPressed: _next,
                   ),
                 ],
               ),

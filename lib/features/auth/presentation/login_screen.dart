@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:grazia_stones/core/constants/app_colors.dart';
+import 'package:grazia_stones/shared/theme/colors.dart';
+import 'package:grazia_stones/shared/theme/typography.dart';
 import 'package:grazia_stones/core/constants/app_strings.dart';
-import 'package:grazia_stones/core/theme/text_styles.dart';
 import 'package:grazia_stones/shared/widgets/grazia_text_field.dart';
 import 'package:grazia_stones/shared/widgets/grazia_button.dart';
 
@@ -26,8 +26,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = GLuxuryPalettes.gold;
+
+
     return Scaffold(
-      backgroundColor: AppColors.black,
+      backgroundColor: palette.background,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 28),
@@ -39,14 +42,12 @@ class _LoginScreenState extends State<LoginScreen> {
               Center(
                 child: ShaderMask(
                   shaderCallback: (bounds) =>
-                      AppColors.goldGradient.createShader(bounds),
-                  child: const Text(
+                      palette.primaryGradient.createShader(bounds),
+                  child: Text(
                     'G',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 56,
-                      fontWeight: FontWeight.w700,
+                    style: GLuxuryTypography.displayLarge.copyWith(
                       color: Colors.white,
+                      fontSize: 56,
                     ),
                   ),
                 ),
@@ -54,15 +55,15 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 40),
               Text(
                 _otpSent ? 'Verify OTP' : AppStrings.loginTitle,
-                style: GraziaTextStyles.h3,
+                style: GLuxuryTypography.h1,
               ),
               const SizedBox(height: 8),
               Text(
                 _otpSent
                     ? 'Enter the OTP sent to ${_phoneController.text}'
                     : AppStrings.loginSubtitle,
-                style: GraziaTextStyles.bodyMedium.copyWith(
-                  color: AppColors.textSecondary,
+                style: GLuxuryTypography.bodyMedium.copyWith(
+                  color: palette.textSecondary,
                 ),
               ),
               const SizedBox(height: 36),
@@ -74,11 +75,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   keyboardType: TextInputType.phone,
                   prefix: Text(
                     '+91 ',
-                    style: GraziaTextStyles.bodyMedium
-                        .copyWith(color: AppColors.goldWarm),
+                    style: GLuxuryTypography.bodyMedium
+                        .copyWith(color: palette.primary),
                   ),
-                  validator: (v) =>
-                      (v == null || v.length != 10) ? 'Enter valid phone' : null,
+                  validator: (v) => (v == null || v.length != 10)
+                      ? 'Enter valid phone'
+                      : null,
                 ),
                 const SizedBox(height: 32),
                 // ── Login Button ──
@@ -114,8 +116,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     onPressed: () => setState(() => _otpSent = false),
                     child: Text(
                       AppStrings.changeNumber,
-                      style: GraziaTextStyles.bodySmall.copyWith(
-                        color: AppColors.goldWarm,
+                      style: GLuxuryTypography.bodySmall.copyWith(
+                        color: palette.primary,
                       ),
                     ),
                   ),
@@ -130,8 +132,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   },
                   child: Text(
                     'Continue as Guest',
-                    style: GraziaTextStyles.bodyMedium.copyWith(
-                      color: AppColors.textTertiary,
+                    style: GLuxuryTypography.bodyMedium.copyWith(
+                      color: palette.textTertiary,
                       decoration: TextDecoration.underline,
                     ),
                   ),

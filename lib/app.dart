@@ -1,27 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:grazia_stones/core/constants/app_colors.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:grazia_stones/core/theme/grazia_theme.dart';
-import 'package:grazia_stones/config/routes.dart';
+import 'package:grazia_stones/shared/theme/theme_provider.dart';
+import 'package:grazia_stones/config/router.dart';
 
-class GraziaApp extends StatelessWidget {
+class GraziaApp extends ConsumerWidget {
   const GraziaApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final router = ref.watch(appRouterProvider);
+    final palette = ref.watch(themePaletteProvider);
+
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.light,
-      systemNavigationBarColor: AppColors.charcoal,
+      systemNavigationBarColor: palette.surface,
       systemNavigationBarIconBrightness: Brightness.light,
     ));
 
-    return MaterialApp(
-      title: 'Grazia Stones',
+    return MaterialApp.router(
+      title: 'StoneVerse',
       debugShowCheckedModeBanner: false,
-      theme: GraziaTheme.darkTheme,
-      onGenerateRoute: AppRoutes.onGenerateRoute,
-      initialRoute: AppRoutes.splash,
+      theme: GraziaTheme.dark(palette),
+      routerConfig: router,
     );
   }
 }

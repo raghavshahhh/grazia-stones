@@ -1,177 +1,160 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:grazia_stones/core/constants/app_colors.dart';
-import 'package:grazia_stones/core/constants/app_dimensions.dart';
+import 'package:grazia_stones/shared/theme/colors.dart';
+import 'package:grazia_stones/shared/theme/tokens.dart';
+import 'package:grazia_stones/shared/theme/typography.dart';
+import 'package:grazia_stones/shared/theme/borders.dart';
+import 'package:grazia_stones/shared/theme/spacing.dart';
 
+/// Builds the app's ThemeData from a [LuxuryPalette].
+/// Defaults to [GLuxuryPalettes.gold] (Grazia branding).
 class GraziaTheme {
   GraziaTheme._();
 
-  static ThemeData get darkTheme {
+  static ThemeData dark([LuxuryPalette? palette]) {
+    final p = palette ?? GLuxuryPalettes.gold;
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
-      scaffoldBackgroundColor: AppColors.black,
-      colorScheme: const ColorScheme.dark(
-        primary: AppColors.goldWarm,
-        onPrimary: AppColors.black,
-        secondary: AppColors.goldLight,
-        onSecondary: AppColors.black,
-        surface: AppColors.charcoal,
-        onSurface: AppColors.white,
-        error: AppColors.error,
-        onError: AppColors.white,
+      scaffoldBackgroundColor: p.background,
+      colorScheme: ColorScheme.dark(
+        primary: p.primary,
+        onPrimary: p.background,
+        secondary: p.secondary,
+        onSecondary: p.background,
+        surface: p.surface,
+        onSurface: p.textPrimary,
+        error: p.error,
+        onError: p.textPrimary,
+      ),
+      textTheme: GLuxuryTypography.textTheme.apply(
+        bodyColor: p.textPrimary,
+        displayColor: p.textPrimary,
       ),
 
       // ── AppBar ──
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
         systemOverlayStyle: SystemUiOverlayStyle.light,
-        titleTextStyle: TextStyle(
-          fontFamily: 'Inter',
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
-          color: AppColors.white,
-          letterSpacing: 1.5,
+        titleTextStyle: GLuxuryTypography.labelLarge.copyWith(
+          color: p.textPrimary,
         ),
-        iconTheme: IconThemeData(color: AppColors.silverLight, size: 24),
+        iconTheme: IconThemeData(color: p.textSecondary, size: GTokens.iconMd),
       ),
 
       // ── Bottom Navigation ──
-      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: AppColors.charcoal,
-        selectedItemColor: AppColors.goldWarm,
-        unselectedItemColor: AppColors.silverDark,
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        backgroundColor: p.surface,
+        selectedItemColor: p.primary,
+        unselectedItemColor: p.textTertiary,
         type: BottomNavigationBarType.fixed,
         elevation: 0,
-        selectedLabelStyle: TextStyle(
-          fontFamily: 'Inter',
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.5,
+        selectedLabelStyle: GLuxuryTypography.labelSmall.copyWith(
+          color: p.primary,
         ),
-        unselectedLabelStyle: TextStyle(
-          fontFamily: 'Inter',
-          fontSize: 10,
-          fontWeight: FontWeight.w500,
-          letterSpacing: 0.5,
+        unselectedLabelStyle: GLuxuryTypography.labelSmall.copyWith(
+          color: p.textTertiary,
         ),
       ),
 
       // ── Card ──
       cardTheme: CardThemeData(
-        color: AppColors.charcoal,
+        color: p.surface,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+          borderRadius: GLuxuryBorders.radiusLg,
         ),
       ),
 
       // ── Text Fields ──
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.charcoal,
-        hintStyle: const TextStyle(
-          fontFamily: 'Inter',
-          fontSize: 14,
-          color: AppColors.silverMedium,
+        fillColor: p.surface,
+        hintStyle: GLuxuryTypography.bodyMedium.copyWith(
+          color: p.textTertiary,
         ),
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: AppDimensions.md,
-          vertical: AppDimensions.sm + 4,
+          horizontal: GLuxurySpacing.base,
+          vertical: GLuxurySpacing.sm + 4,
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-          borderSide: const BorderSide(color: AppColors.slate),
+          borderRadius: GLuxuryBorders.radiusMd,
+          borderSide: BorderSide(color: p.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-          borderSide: const BorderSide(color: AppColors.slate),
+          borderRadius: GLuxuryBorders.radiusMd,
+          borderSide: BorderSide(color: p.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-          borderSide: const BorderSide(color: AppColors.goldWarm, width: 1.5),
+          borderRadius: GLuxuryBorders.radiusMd,
+          borderSide: BorderSide(color: p.primary, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-          borderSide: const BorderSide(color: AppColors.error),
+          borderRadius: GLuxuryBorders.radiusMd,
+          borderSide: BorderSide(color: p.error),
         ),
       ),
 
       // ── Buttons ──
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.goldWarm,
-          foregroundColor: AppColors.black,
-          minimumSize: const Size(double.infinity, AppDimensions.buttonHeight),
+          backgroundColor: p.primary,
+          foregroundColor: p.background,
+          minimumSize: const Size(double.infinity, GTokens.space12 + 8),
           shape: RoundedRectangleBorder(
-            borderRadius:
-                BorderRadius.circular(AppDimensions.buttonBorderRadius),
+            borderRadius: GLuxuryBorders.buttonRadius,
           ),
           elevation: 0,
-          textStyle: const TextStyle(
-            fontFamily: 'Inter',
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.5,
+          textStyle: GLuxuryTypography.labelLarge.copyWith(
+            color: p.background,
           ),
         ),
       ),
 
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size(double.infinity, AppDimensions.buttonHeight),
+          minimumSize: const Size(double.infinity, GTokens.space12 + 8),
           shape: RoundedRectangleBorder(
-            borderRadius:
-                BorderRadius.circular(AppDimensions.buttonBorderRadius),
+            borderRadius: GLuxuryBorders.buttonRadius,
           ),
-          side: const BorderSide(color: AppColors.silverDark, width: 1.5),
-          foregroundColor: AppColors.silverLight,
-          textStyle: const TextStyle(
-            fontFamily: 'Inter',
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.5,
+          side: BorderSide(color: p.textTertiary, width: 1.5),
+          foregroundColor: p.textSecondary,
+          textStyle: GLuxuryTypography.labelLarge.copyWith(
+            color: p.textSecondary,
           ),
         ),
       ),
 
       // ── Divider ──
-      dividerTheme: const DividerThemeData(
-        color: AppColors.slate,
+      dividerTheme: DividerThemeData(
+        color: p.border,
         thickness: 0.5,
-        space: AppDimensions.lg,
+        space: GLuxurySpacing.lg,
       ),
 
       // ── Chip ──
       chipTheme: ChipThemeData(
-        backgroundColor: AppColors.charcoal,
-        selectedColor: AppColors.goldWarm,
-        disabledColor: AppColors.graphite,
-        labelStyle: const TextStyle(
-          fontFamily: 'Inter',
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.5,
-        ),
+        backgroundColor: p.surface,
+        selectedColor: p.primary,
+        disabledColor: p.surfaceDark,
+        labelStyle: GLuxuryTypography.labelMedium,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppDimensions.chipBorderRadius),
+          borderRadius: GLuxuryBorders.chipRadius,
         ),
-        side: const BorderSide(color: AppColors.slate),
+        side: BorderSide(color: p.border),
         padding: const EdgeInsets.symmetric(
-          horizontal: AppDimensions.sm,
-          vertical: AppDimensions.xs,
+          horizontal: GLuxurySpacing.sm,
+          vertical: GLuxurySpacing.xs,
         ),
       ),
 
       // ── Bottom Sheet ──
-      bottomSheetTheme: const BottomSheetThemeData(
-        backgroundColor: AppColors.charcoal,
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: p.surface,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(AppDimensions.radiusXl),
-          ),
+          borderRadius: GLuxuryBorders.bottomSheetRadius,
         ),
       ),
     );
