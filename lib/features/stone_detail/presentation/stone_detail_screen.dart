@@ -5,7 +5,7 @@ import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/services/mock_data_service.dart';
 import 'package:grazia_stones/core/theme/text_styles.dart';
 import 'package:grazia_stones/shared/widgets/grazia_button.dart';
-import 'package:grazia_stones/core/providers/cart_provider.dart';
+import 'package:grazia_stones/features/cart/providers/cart_provider.dart';
 
 class StoneDetailScreen extends StatelessWidget {
   final String stoneId;

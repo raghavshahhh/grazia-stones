@@ -48,6 +48,10 @@ class Stone {
     'isTrending': isTrending,
   };
 
+  factory Stone.fromJson(Map<String, dynamic> json) => Stone.fromMap(json);
+
+  Map<String, dynamic> toJson() => toMap();
+
   factory Stone.fromMap(Map<String, dynamic> map) => Stone(
     id: map['id'] ?? '',
     name: map['name'] ?? '',

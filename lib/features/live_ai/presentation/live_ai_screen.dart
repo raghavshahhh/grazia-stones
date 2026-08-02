@@ -5,6 +5,8 @@ import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/services/mock_data_service.dart';
 
+import 'widgets/web_camera_view.dart';
+
 class LiveAIScreen extends StatefulWidget {
   const LiveAIScreen({super.key});
 
@@ -17,13 +19,22 @@ class _LiveAIScreenState extends State<LiveAIScreen>
   int _selectedStoneIndex = 0;
   double _overlayScale = 1.0;
   double _overlayOpacity = 0.85;
-  Offset _overlayPosition = Offset.zero;
+  Offset? _overlayPosition;
   bool _isAnalyzing = false;
   bool _showInfo = true;
+  bool _cameraReady = false;
+  bool _cameraError = false;
+  bool _detecting = false;
+  double _detectionConfidence = 0.0;
+
   late AnimationController _pulseController;
   late AnimationController _scanController;
+  late AnimationController _detectController;
+  late AnimationController _confidenceController;
   late Animation<double> _pulseAnimation;
   late Animation<double> _scanAnimation;
+  late Animation<double> _detectAnimation;
+  late Animation<double> _confidenceAnimation;
   late PageController _tileController;
 
   @override
@@ -45,46 +56,97 @@ class _LiveAIScreenState extends State<LiveAIScreen>
       CurvedAnimation(parent: _scanController, curve: Curves.linear),
     );
 
-    _tileController = PageController(viewportFraction: 0.22, initialPage: 0);
+    _detectController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+    _detectAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _detectController, curve: Curves.easeOutCubic),
+    );
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final size = MediaQuery.of(context).size;
-      setState(() {
-        _overlayPosition = Offset(size.width * 0.15, size.height * 0.2);
-      });
-    });
+    _confidenceController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _confidenceAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _confidenceController, curve: Curves.easeOut),
+    );
+
+    _tileController = PageController(viewportFraction: 0.22, initialPage: 0);
   }
 
   @override
   void dispose() {
     _pulseController.dispose();
     _scanController.dispose();
+    _detectController.dispose();
+    _confidenceController.dispose();
     _tileController.dispose();
     super.dispose();
   }
 
   Stone get _selectedStone => MockDataService.stones[_selectedStoneIndex];
 
+  void _startDetection() {
+    setState(() {
+      _detecting = true;
+      _isAnalyzing = true;
+      _detectionConfidence = 0.0;
+    });
+    _detectController.forward(from: 0);
+    _confidenceController.forward(from: 0);
+
+    // Simulate detection progress
+    Future.delayed(const Duration(milliseconds: 400), () {
+      if (mounted) setState(() => _detectionConfidence = 0.34);
+    });
+    Future.delayed(const Duration(milliseconds: 800), () {
+      if (mounted) setState(() => _detectionConfidence = 0.67);
+    });
+    Future.delayed(const Duration(milliseconds: 1200), () {
+      if (mounted) {
+        setState(() {
+          _detectionConfidence = 0.95;
+          _detecting = false;
+          _isAnalyzing = false;
+        });
+        HapticFeedback.mediumImpact();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    if (_overlayPosition == null) {
+      _overlayPosition = Offset(size.width * 0.12, size.height * 0.18);
+    }
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Camera-like background
-          _buildCameraBackground(),
+          // Real camera feed
+          _buildCameraFeed(),
 
           // AI scan lines
           _buildScanLines(),
 
-          // Stone overlay on wall
+          // Stone detection overlay
           _buildStoneOverlay(),
 
-          // Top bar with AI status
+          // Corner detection brackets
+          if (_detecting || _detectionConfidence > 0)
+            _buildDetectionBrackets(),
+
+          // Top bar
           _buildTopBar(),
 
           // AI analysis badges
-          if (_showInfo) _buildAnalysisBadges(),
+          if (_showInfo && _detectionConfidence > 0.5) _buildAnalysisBadges(),
+
+          // Confidence meter
+          if (_detecting) _buildConfidenceMeter(),
 
           // Size / Opacity controls
           _buildControls(),
@@ -96,75 +158,89 @@ class _LiveAIScreenState extends State<LiveAIScreen>
     );
   }
 
-  Widget _buildCameraBackground() {
+  // ── Camera Feed ──
+  Widget _buildCameraFeed() {
     return Positioned.fill(
-      child: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF1A1A2E),
-              Color(0xFF16213E),
-              Color(0xFF0F3460),
-              Color(0xFF1A1A2E),
-            ],
-          ),
-        ),
-        child: Stack(
-          children: [
-            // Simulated room wall texture
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.white.withOpacity(0.03),
-                      Colors.white.withOpacity(0.01),
-                      Colors.white.withOpacity(0.04),
-                    ],
-                  ),
+      child: Stack(
+        children: [
+          // Real camera or fallback
+          if (!_cameraError)
+            WebCameraView(
+              onReady: () => setState(() => _cameraReady = true),
+              onError: () => setState(() => _cameraError = true),
+            ),
+
+          // Fallback gradient if camera fails
+          if (_cameraError || !_cameraReady)
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFF0D0D0D),
+                    Color(0xFF1A1A1A),
+                    Color(0xFF0D0D0D),
+                  ],
+                ),
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.camera_alt_outlined,
+                        size: 48, color: AppColors.goldWarm.withValues(alpha:0.4)),
+                    const SizedBox(height: 12),
+                    Text(
+                      _cameraError ? 'Camera unavailable' : 'Initializing camera...',
+                      style: TextStyle(
+                        color: AppColors.silverLight.withValues(alpha:0.5),
+                        fontSize: 13,
+                        fontFamily: 'Inter',
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-            // Grid lines (room perspective)
-            ..._buildRoomGrid(),
-            // Center crosshair
-            _buildCrosshair(),
-          ],
-        ),
+
+          // Dark vignette overlay for premium feel
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment.center,
+                  radius: 1.2,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black.withValues(alpha:0.3),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // Center crosshair
+          _buildCrosshair(),
+        ],
       ),
     );
   }
 
-  List<Widget> _buildRoomGrid() {
-    return List.generate(5, (i) {
-      return Positioned(
-        top: 0,
-        bottom: 0,
-        left: (i + 1) * (MediaQuery.of(context).size.width / 6),
-        child: Container(
-          width: 0.5,
-          color: AppColors.goldWarm.withOpacity(0.06),
-        ),
-      );
-    });
-  }
-
+  // ── Crosshair ──
   Widget _buildCrosshair() {
     return Center(
       child: AnimatedBuilder(
         animation: _pulseAnimation,
         builder: (context, child) {
           return Container(
-            width: 40 * _pulseAnimation.value,
-            height: 40 * _pulseAnimation.value,
+            width: 50 * _pulseAnimation.value,
+            height: 50 * _pulseAnimation.value,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                color: AppColors.goldWarm.withOpacity(0.3 * _pulseAnimation.value),
+                color: AppColors.goldWarm
+                    .withValues(alpha:0.25 * _pulseAnimation.value),
                 width: 1.5,
               ),
             ),
@@ -174,6 +250,7 @@ class _LiveAIScreenState extends State<LiveAIScreen>
     );
   }
 
+  // ── Scan Lines ──
   Widget _buildScanLines() {
     return AnimatedBuilder(
       animation: _scanAnimation,
@@ -187,9 +264,9 @@ class _LiveAIScreenState extends State<LiveAIScreen>
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  AppColors.goldWarm.withOpacity(0.0),
-                  AppColors.goldWarm.withOpacity(0.4),
-                  AppColors.goldWarm.withOpacity(0.0),
+                  AppColors.goldWarm.withValues(alpha:0.0),
+                  AppColors.goldWarm.withValues(alpha:0.5),
+                  AppColors.goldWarm.withValues(alpha:0.0),
                 ],
               ),
             ),
@@ -199,15 +276,14 @@ class _LiveAIScreenState extends State<LiveAIScreen>
     );
   }
 
+  // ── Stone Overlay ──
   Widget _buildStoneOverlay() {
     return Positioned(
-      left: _overlayPosition.dx,
-      top: _overlayPosition.dy,
+      left: _overlayPosition!.dx,
+      top: _overlayPosition!.dy,
       child: GestureDetector(
         onPanUpdate: (details) {
-          setState(() {
-            _overlayPosition += details.delta;
-          });
+          setState(() => _overlayPosition = _overlayPosition! + details.delta);
         },
         onScaleUpdate: (details) {
           setState(() {
@@ -225,22 +301,23 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                   width: 200,
                   height: 200,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
-                        color: AppColors.goldWarm.withOpacity(0.15 * _pulseAnimation.value),
-                        blurRadius: 20,
+                        color: AppColors.goldWarm.withValues(alpha:
+                            0.2 * _pulseAnimation.value),
+                        blurRadius: 24,
                         spreadRadius: 2,
                       ),
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.4),
-                        blurRadius: 30,
-                        offset: const Offset(0, 10),
+                        color: Colors.black.withValues(alpha:0.5),
+                        blurRadius: 40,
+                        offset: const Offset(0, 12),
                       ),
                     ],
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(12),
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
@@ -248,10 +325,10 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                         Image.network(
                           _selectedStone.imageUrl ?? '',
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: _selectedStone.availableColors
+errorBuilder: (_, _, _) => Container(
+                             decoration: BoxDecoration(
+                               gradient: LinearGradient(
+                                 colors: _selectedStone.availableColors
                                     .map((c) => Color(
                                         int.parse(c.replaceFirst('#', '0xFF'))))
                                     .toList(),
@@ -259,60 +336,128 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                             ),
                           ),
                         ),
-                        // Glass overlay
-                        Positioned.fill(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: AppColors.goldWarm.withOpacity(0.5),
-                                width: 2,
+                        // Animated border
+                        AnimatedBuilder(
+                          animation: _detecting
+                              ? _detectAnimation
+                              : _pulseAnimation,
+                          builder: (context, child) {
+                            final progress = _detecting
+                                ? _detectAnimation.value
+                                : _pulseAnimation.value;
+                            return Container(
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: _detecting
+                                      ? AppColors.goldWarm
+                                          .withValues(alpha:0.6 + 0.4 * progress)
+                                      : AppColors.goldWarm
+                                          .withValues(alpha:0.4 * progress),
+                                  width: _detecting ? 2.5 : 1.5,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                              borderRadius: BorderRadius.circular(8),
+                            );
+                          },
+                        ),
+                        // Shimmer overlay on detection
+                        if (_detecting)
+                          Positioned.fill(
+                            child: AnimatedBuilder(
+                              animation: _detectAnimation,
+                              builder: (context, child) {
+                                return Container(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment(
+                                          -1 + 2 * _detectAnimation.value, 0),
+                                      end: Alignment(
+                                          -0.5 + 2 * _detectAnimation.value, 0),
+                                      colors: [
+                                        Colors.transparent,
+                                        AppColors.goldWarm.withValues(alpha:0.15),
+                                        Colors.transparent,
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                           ),
-                        ),
                         // Stone name badge
                         Positioned(
-                          bottom: 8,
-                          left: 8,
-                          right: 8,
+                          bottom: 0,
+                          left: 0,
+                          right: 0,
                           child: ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
+                            borderRadius: const BorderRadius.only(
+                              bottomLeft: Radius.circular(12),
+                              bottomRight: Radius.circular(12),
+                            ),
                             child: BackdropFilter(
-                              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                              filter:
+                                  ImageFilter.blur(sigmaX: 16, sigmaY: 16),
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 6),
+                                    horizontal: 12, vertical: 8),
                                 decoration: BoxDecoration(
-                                  color: Colors.black.withOpacity(0.5),
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(
-                                    color: AppColors.goldWarm.withOpacity(0.2),
-                                    width: 0.5,
+                                  color: Colors.black.withValues(alpha:0.6),
+                                  border: Border(
+                                    top: BorderSide(
+                                      color:
+                                          AppColors.goldWarm.withValues(alpha:0.2),
+                                      width: 0.5,
+                                    ),
                                   ),
                                 ),
                                 child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(
                                       _selectedStone.name,
                                       style: const TextStyle(
                                         color: AppColors.white,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
                                         fontFamily: 'Inter',
+                                        letterSpacing: 0.3,
                                       ),
                                     ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      '₹${_selectedStone.pricePerSqFt}/sq ft  •  ${_selectedStone.finish}',
-                                      style: TextStyle(
-                                        color: AppColors.goldWarm,
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.w500,
-                                        fontFamily: 'Inter',
-                                      ),
+                                    const SizedBox(height: 3),
+                                    Row(
+                                      children: [
+                                        Text(
+                                          '₹${_selectedStone.pricePerSqFt}/sq ft',
+                                          style: const TextStyle(
+                                            color: AppColors.goldWarm,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w600,
+                                            fontFamily: 'Inter',
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Container(
+                                          width: 3,
+                                          height: 3,
+                                          decoration: const BoxDecoration(
+                                            color: AppColors.goldWarm,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          _selectedStone.finish,
+                                          style: TextStyle(
+                                            color: AppColors.silverLight
+                                                .withValues(alpha:0.7),
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w500,
+                                            fontFamily: 'Inter',
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),
@@ -336,47 +481,66 @@ class _LiveAIScreenState extends State<LiveAIScreen>
 
   List<Widget> _buildCornerHandles() {
     return [
-      Positioned(
-        top: -2,
-        left: -2,
-        child: _buildHandle(),
-      ),
-      Positioned(
-        top: -2,
-        right: -2,
-        child: _buildHandle(),
-      ),
-      Positioned(
-        bottom: 40,
-        left: -2,
-        child: _buildHandle(),
-      ),
-      Positioned(
-        bottom: 40,
-        right: -2,
-        child: _buildHandle(),
-      ),
+      Positioned(top: -3, left: -3, child: _buildHandle()),
+      Positioned(top: -3, right: -3, child: _buildHandle()),
+      Positioned(bottom: 43, left: -3, child: _buildHandle()),
+      Positioned(bottom: 43, right: -3, child: _buildHandle()),
     ];
   }
 
   Widget _buildHandle() {
     return Container(
-      width: 14,
-      height: 14,
+      width: 16,
+      height: 16,
       decoration: BoxDecoration(
         color: AppColors.goldWarm,
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: AppColors.goldWarm.withOpacity(0.5),
-            blurRadius: 6,
+            color: AppColors.goldWarm.withValues(alpha:0.6),
+            blurRadius: 8,
           ),
         ],
       ),
-      child: const Icon(Icons.center_focus_strong, size: 8, color: Colors.black),
+      child: const Icon(Icons.center_focus_strong,
+          size: 9, color: Colors.black),
     );
   }
 
+  // ── Detection Brackets (animated corner brackets during detection) ──
+  Widget _buildDetectionBrackets() {
+    return Positioned(
+      left: _overlayPosition!.dx - 12,
+      top: _overlayPosition!.dy - 12,
+      child: AnimatedBuilder(
+        animation: _detecting ? _detectAnimation : _pulseAnimation,
+        builder: (context, child) {
+          final opacity = _detecting
+              ? _detectAnimation.value
+              : _pulseAnimation.value * 0.5;
+          final color = _detectionConfidence > 0.8
+              ? AppColors.success
+              : AppColors.goldWarm;
+          return Transform.scale(
+            scale: _overlayScale,
+            child: SizedBox(
+              width: 224,
+              height: 224,
+              child: CustomPaint(
+                painter: _BracketPainter(
+                  color: color.withValues(alpha:opacity * 0.7),
+                  strokeWidth: 2.5,
+                  cornerSize: 24,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ── Top Bar ──
   Widget _buildTopBar() {
     return Positioned(
       top: 0,
@@ -384,17 +548,17 @@ class _LiveAIScreenState extends State<LiveAIScreen>
       right: 0,
       child: ClipRect(
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
           child: Container(
             padding: EdgeInsets.fromLTRB(
-                16, MediaQuery.of(context).padding.top + 8, 16, 12),
+                16, MediaQuery.of(context).padding.top + 8, 16, 14),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.black.withOpacity(0.7),
-                  Colors.black.withOpacity(0.0),
+                  Colors.black.withValues(alpha:0.75),
+                  Colors.black.withValues(alpha:0.0),
                 ],
               ),
             ),
@@ -405,8 +569,8 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                   animation: _pulseAnimation,
                   builder: (context, child) {
                     return Container(
-                      width: 8,
-                      height: 8,
+                      width: 9,
+                      height: 9,
                       decoration: BoxDecoration(
                         color: _isAnalyzing
                             ? AppColors.goldWarm
@@ -417,15 +581,15 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                             color: (_isAnalyzing
                                     ? AppColors.goldWarm
                                     : AppColors.success)
-                                .withOpacity(0.6 * _pulseAnimation.value),
-                            blurRadius: 8,
+                                .withValues(alpha:0.7 * _pulseAnimation.value),
+                            blurRadius: 10,
                           ),
                         ],
                       ),
                     );
                   },
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Text(
                   _isAnalyzing ? 'AI ANALYZING...' : 'LIVE AI READY',
                   style: TextStyle(
@@ -435,21 +599,60 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                     color: _isAnalyzing
                         ? AppColors.goldWarm
                         : AppColors.success,
-                    letterSpacing: 1.5,
+                    letterSpacing: 1.8,
                   ),
                 ),
                 const Spacer(),
+                // Camera status
+                if (_cameraReady)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withValues(alpha:0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.success.withValues(alpha:0.3),
+                        width: 0.5,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 5,
+                          height: 5,
+                          decoration: const BoxDecoration(
+                            color: AppColors.success,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        const Text(
+                          'CAM',
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 8,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.success,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(width: 8),
                 // Toggle info
                 GestureDetector(
                   onTap: () => setState(() => _showInfo = !_showInfo),
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.08),
+                      color: Colors.white.withValues(alpha:0.08),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: Colors.white.withOpacity(0.1),
+                        color: Colors.white.withValues(alpha:0.1),
                         width: 0.5,
                       ),
                     ),
@@ -486,42 +689,55 @@ class _LiveAIScreenState extends State<LiveAIScreen>
     );
   }
 
+  // ── Analysis Badges ──
   Widget _buildAnalysisBadges() {
     return Positioned(
       top: MediaQuery.of(context).padding.top + 60,
       left: 16,
       right: 16,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildBadge(
-            icon: Icons.category_outlined,
-            label: 'MATERIAL',
-            value: _selectedStone.finish,
-            color: AppColors.goldWarm,
-          ),
-          const SizedBox(height: 8),
-          _buildBadge(
-            icon: Icons.location_on_outlined,
-            label: 'ORIGIN',
-            value: _selectedStone.origin,
-            color: AppColors.info,
-          ),
-          const SizedBox(height: 8),
-          _buildBadge(
-            icon: Icons.straighten_outlined,
-            label: 'THICKNESS',
-            value: _selectedStone.thickness,
-            color: AppColors.warning,
-          ),
-          const SizedBox(height: 8),
-          _buildBadge(
-            icon: Icons.star_outline_rounded,
-            label: 'RATING',
-            value: '${_selectedStone.rating} (${_selectedStone.reviewCount})',
-            color: AppColors.goldLight,
-          ),
-        ],
+      child: AnimatedBuilder(
+        animation: _confidenceAnimation,
+        builder: (context, child) {
+          return Opacity(
+            opacity: _confidenceAnimation.value,
+            child: Transform.translate(
+              offset: Offset(0, 20 * (1 - _confidenceAnimation.value)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildBadge(
+                    icon: Icons.category_outlined,
+                    label: 'MATERIAL',
+                    value: _selectedStone.finish,
+                    color: AppColors.goldWarm,
+                  ),
+                  const SizedBox(height: 8),
+                  _buildBadge(
+                    icon: Icons.location_on_outlined,
+                    label: 'ORIGIN',
+                    value: _selectedStone.origin,
+                    color: AppColors.info,
+                  ),
+                  const SizedBox(height: 8),
+                  _buildBadge(
+                    icon: Icons.straighten_outlined,
+                    label: 'THICKNESS',
+                    value: _selectedStone.thickness,
+                    color: AppColors.warning,
+                  ),
+                  const SizedBox(height: 8),
+                  _buildBadge(
+                    icon: Icons.star_outline_rounded,
+                    label: 'RATING',
+                    value:
+                        '${_selectedStone.rating} (${_selectedStone.reviewCount})',
+                    color: AppColors.goldLight,
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -533,24 +749,24 @@ class _LiveAIScreenState extends State<LiveAIScreen>
     required Color color,
   }) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(10),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.4),
-            borderRadius: BorderRadius.circular(8),
+            color: Colors.black.withValues(alpha:0.45),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: color.withOpacity(0.3),
+              color: color.withValues(alpha:0.25),
               width: 0.5,
             ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 12, color: color),
-              const SizedBox(width: 6),
+              Icon(icon, size: 13, color: color),
+              const SizedBox(width: 7),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
@@ -561,7 +777,7 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                       fontFamily: 'Inter',
                       fontSize: 7,
                       fontWeight: FontWeight.w600,
-                      color: color.withOpacity(0.7),
+                      color: color.withValues(alpha:0.7),
                       letterSpacing: 1.2,
                     ),
                   ),
@@ -583,29 +799,113 @@ class _LiveAIScreenState extends State<LiveAIScreen>
     );
   }
 
+  // ── Confidence Meter ──
+  Widget _buildConfidenceMeter() {
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 60,
+      right: 16,
+      child: AnimatedBuilder(
+        animation: _confidenceAnimation,
+        builder: (context, child) {
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+              child: Container(
+                width: 52,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha:0.5),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: AppColors.goldWarm.withValues(alpha:0.2),
+                    width: 0.5,
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Circular progress
+                    SizedBox(
+                      width: 32,
+                      height: 32,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          CircularProgressIndicator(
+                            value: _detectionConfidence,
+                            strokeWidth: 3,
+                            backgroundColor:
+                                AppColors.goldWarm.withValues(alpha:0.15),
+                            valueColor: AlwaysStoppedAnimation(
+                              _detectionConfidence > 0.8
+                                  ? AppColors.success
+                                  : AppColors.goldWarm,
+                            ),
+                            strokeCap: StrokeCap.round,
+                          ),
+                          Center(
+                            child: Text(
+                              '${(_detectionConfidence * 100).toInt()}',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: _detectionConfidence > 0.8
+                                    ? AppColors.success
+                                    : AppColors.goldWarm,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'MATCH',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 6,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.goldWarm.withValues(alpha:0.6),
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ── Controls ──
   Widget _buildControls() {
     return Positioned(
       right: 16,
-      top: MediaQuery.of(context).size.height * 0.35,
+      top: MediaQuery.of(context).size.height * 0.38,
       child: Column(
         children: [
           _buildControlButton(
             icon: Icons.add,
-            onTap: () =>
-                setState(() => _overlayScale = (_overlayScale + 0.2).clamp(0.5, 3.0)),
+            onTap: () => setState(
+                () => _overlayScale = (_overlayScale + 0.2).clamp(0.5, 3.0)),
           ),
           const SizedBox(height: 12),
           _buildControlButton(
             icon: Icons.remove,
-            onTap: () =>
-                setState(() => _overlayScale = (_overlayScale - 0.2).clamp(0.5, 3.0)),
+            onTap: () => setState(
+                () => _overlayScale = (_overlayScale - 0.2).clamp(0.5, 3.0)),
           ),
           const SizedBox(height: 12),
           _buildControlButton(
             icon: Icons.opacity,
             onTap: () {
               setState(() {
-                _overlayOpacity = _overlayOpacity >= 0.9 ? 0.3 : _overlayOpacity + 0.15;
+                _overlayOpacity =
+                    _overlayOpacity >= 0.9 ? 0.3 : _overlayOpacity + 0.15;
               });
             },
           ),
@@ -616,10 +916,16 @@ class _LiveAIScreenState extends State<LiveAIScreen>
               final size = MediaQuery.of(context).size;
               setState(() {
                 _overlayPosition =
-                    Offset(size.width * 0.15, size.height * 0.2);
+                    Offset(size.width * 0.12, size.height * 0.18);
                 _overlayScale = 1.0;
               });
             },
+          ),
+          const SizedBox(height: 12),
+          _buildControlButton(
+            icon: Icons.play_arrow_rounded,
+            onTap: _startDetection,
+            isActive: !_detecting,
           ),
         ],
       ),
@@ -629,31 +935,39 @@ class _LiveAIScreenState extends State<LiveAIScreen>
   Widget _buildControlButton({
     required IconData icon,
     required VoidCallback onTap,
+    bool isActive = true,
   }) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: isActive ? onTap : null,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
           child: Container(
-            width: 44,
-            height: 44,
+            width: 46,
+            height: 46,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.08),
+              color: isActive
+                  ? Colors.white.withValues(alpha:0.08)
+                  : Colors.white.withValues(alpha:0.03),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: AppColors.goldWarm.withOpacity(0.2),
+                color: AppColors.goldWarm
+                    .withValues(alpha:isActive ? 0.25 : 0.08),
                 width: 0.5,
               ),
             ),
-            child: Icon(icon, size: 20, color: AppColors.goldWarm),
+            child: Icon(icon,
+                size: 22,
+                color: AppColors.goldWarm
+                    .withValues(alpha:isActive ? 1.0 : 0.3)),
           ),
         ),
       ),
     );
   }
 
+  // ── Bottom Tiles ──
   Widget _buildBottomTiles() {
     return Positioned(
       bottom: 0,
@@ -661,17 +975,17 @@ class _LiveAIScreenState extends State<LiveAIScreen>
       right: 0,
       child: ClipRect(
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
           child: Container(
-            height: 180,
+            height: 185,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.bottomCenter,
                 end: Alignment.topCenter,
                 colors: [
-                  Colors.black.withOpacity(0.9),
-                  Colors.black.withOpacity(0.7),
-                  Colors.black.withOpacity(0.0),
+                  Colors.black.withValues(alpha:0.92),
+                  Colors.black.withValues(alpha:0.7),
+                  Colors.black.withValues(alpha:0.0),
                 ],
               ),
             ),
@@ -683,11 +997,11 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                   width: 36,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withValues(alpha:0.2),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                // "SELECT STONE" label
+                // Label
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: Row(
@@ -696,7 +1010,7 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                       Container(
                         width: 20,
                         height: 0.5,
-                        color: AppColors.goldWarm.withOpacity(0.3),
+                        color: AppColors.goldWarm.withValues(alpha:0.3),
                       ),
                       const SizedBox(width: 8),
                       Text(
@@ -705,7 +1019,7 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                           fontFamily: 'Inter',
                           fontSize: 9,
                           fontWeight: FontWeight.w600,
-                          color: AppColors.goldWarm.withOpacity(0.6),
+                          color: AppColors.goldWarm.withValues(alpha:0.6),
                           letterSpacing: 1.5,
                         ),
                       ),
@@ -713,7 +1027,7 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                       Container(
                         width: 20,
                         height: 0.5,
-                        color: AppColors.goldWarm.withOpacity(0.3),
+                        color: AppColors.goldWarm.withValues(alpha:0.3),
                       ),
                     ],
                   ),
@@ -727,11 +1041,10 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                       HapticFeedback.lightImpact();
                       setState(() {
                         _selectedStoneIndex = index;
-                        _isAnalyzing = true;
+                        _detectionConfidence = 0.0;
+                        _detecting = false;
                       });
-                      Future.delayed(const Duration(milliseconds: 1200), () {
-                        if (mounted) setState(() => _isAnalyzing = false);
-                      });
+                      _startDetection();
                     },
                     itemBuilder: (context, index) {
                       final stone = MockDataService.stones[index];
@@ -754,15 +1067,15 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                               border: Border.all(
                                 color: isSelected
                                     ? AppColors.goldWarm
-                                    : AppColors.goldWarm.withOpacity(0.15),
+                                    : AppColors.goldWarm.withValues(alpha:0.15),
                                 width: isSelected ? 2 : 1,
                               ),
                               boxShadow: isSelected
                                   ? [
                                       BoxShadow(
-                                        color:
-                                            AppColors.goldWarm.withOpacity(0.25),
-                                        blurRadius: 12,
+                                        color: AppColors.goldWarm
+                                            .withValues(alpha:0.3),
+                                        blurRadius: 14,
                                         spreadRadius: 1,
                                       ),
                                     ]
@@ -773,11 +1086,10 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                               child: Stack(
                                 fit: StackFit.expand,
                                 children: [
-                                  // Stone image
                                   Image.network(
                                     stone.imageUrl ?? '',
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => Container(
+                                    errorBuilder: (_, _, _) => Container(
                                       decoration: BoxDecoration(
                                         gradient: LinearGradient(
                                           colors: stone.availableColors
@@ -789,7 +1101,6 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                                       ),
                                     ),
                                   ),
-                                  // Label overlay
                                   Positioned(
                                     bottom: 0,
                                     left: 0,
@@ -803,7 +1114,7 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                                           end: Alignment.bottomCenter,
                                           colors: [
                                             Colors.transparent,
-                                            Colors.black.withOpacity(0.8),
+                                            Colors.black.withValues(alpha:0.85),
                                           ],
                                         ),
                                       ),
@@ -825,7 +1136,7 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                                           ),
                                           Text(
                                             '₹${stone.pricePerSqFt}/sqft',
-                                            style: TextStyle(
+                                            style: const TextStyle(
                                               fontFamily: 'Inter',
                                               fontSize: 8,
                                               fontWeight: FontWeight.w500,
@@ -836,27 +1147,26 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                                       ),
                                     ),
                                   ),
-                                  // Selected indicator
                                   if (isSelected)
                                     Positioned(
                                       top: 4,
                                       right: 4,
                                       child: Container(
-                                        width: 16,
-                                        height: 16,
+                                        width: 18,
+                                        height: 18,
                                         decoration: BoxDecoration(
                                           color: AppColors.goldWarm,
                                           shape: BoxShape.circle,
                                           boxShadow: [
                                             BoxShadow(
                                               color: AppColors.goldWarm
-                                                  .withOpacity(0.5),
-                                              blurRadius: 6,
+                                                  .withValues(alpha:0.6),
+                                              blurRadius: 8,
                                             ),
                                           ],
                                         ),
                                         child: const Icon(Icons.check,
-                                            size: 10, color: Colors.black),
+                                            size: 11, color: Colors.black),
                                       ),
                                     ),
                                 ],
@@ -875,4 +1185,53 @@ class _LiveAIScreenState extends State<LiveAIScreen>
       ),
     );
   }
+}
+
+// ── Corner Bracket Painter ──
+class _BracketPainter extends CustomPainter {
+  final Color color;
+  final double strokeWidth;
+  final double cornerSize;
+
+  _BracketPainter({
+    required this.color,
+    this.strokeWidth = 2.0,
+    this.cornerSize = 20,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    final double s = cornerSize;
+
+    // Top-left
+    canvas.drawLine(const Offset(0, 0), Offset(s, 0), paint);
+    canvas.drawLine(const Offset(0, 0), Offset(0, s), paint);
+
+    // Top-right
+    canvas.drawLine(Offset(size.width, 0), Offset(size.width - s, 0), paint);
+    canvas.drawLine(
+        Offset(size.width, 0), Offset(size.width, s), paint);
+
+    // Bottom-left
+    canvas.drawLine(
+        Offset(0, size.height), Offset(s, size.height), paint);
+    canvas.drawLine(
+        Offset(0, size.height), Offset(0, size.height - s), paint);
+
+    // Bottom-right
+    canvas.drawLine(Offset(size.width, size.height),
+        Offset(size.width - s, size.height), paint);
+    canvas.drawLine(Offset(size.width, size.height),
+        Offset(size.width, size.height - s), paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _BracketPainter old) =>
+      old.color != color || old.strokeWidth != strokeWidth;
 }

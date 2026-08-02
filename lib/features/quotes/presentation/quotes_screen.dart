@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/constants/app_dimensions.dart';
 import 'package:grazia_stones/core/theme/text_styles.dart';
-import 'package:grazia_stones/core/providers/quote_provider.dart';
+import 'package:grazia_stones/features/quotes/providers/quote_provider.dart';
 import 'package:grazia_stones/core/models/quote_request.dart';
 import 'package:grazia_stones/shared/widgets/grazia_button.dart';
 import 'package:grazia_stones/shared/widgets/grazia_text_field.dart';

@@ -1,20 +1,15 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:grazia_stones/core/constants/app_colors.dart';
-import 'package:grazia_stones/core/constants/app_strings.dart';
+import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/services/mock_data_service.dart';
-import 'package:grazia_stones/core/widgets/animated_widgets.dart';
+import 'package:grazia_stones/shared/theme/colors.dart';
+import 'package:grazia_stones/shared/theme/spacing.dart';
+import 'package:grazia_stones/shared/theme/typography.dart';
 import 'package:grazia_stones/shared/widgets/grazia_app_bar.dart';
-import 'package:grazia_stones/shared/widgets/grazia_bottom_nav.dart';
 import 'package:grazia_stones/shared/widgets/loading_skeleton.dart';
 import 'package:grazia_stones/features/home/presentation/widgets/home_hero_carousel.dart';
 import 'package:grazia_stones/features/home/presentation/widgets/home_quick_actions.dart';
 import 'package:grazia_stones/features/home/presentation/widgets/home_collection_strip.dart';
 import 'package:grazia_stones/features/home/presentation/widgets/home_trending_grid.dart';
-import 'package:grazia_stones/features/collections/presentation/collection_list_screen.dart';
-import 'package:grazia_stones/features/cart/presentation/cart_screen.dart';
-import 'package:grazia_stones/features/live_ai/presentation/live_ai_screen.dart';
-import 'package:grazia_stones/features/profile/presentation/profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -24,7 +19,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _currentNavIndex = 0;
   bool _isLoading = true;
 
   @override
@@ -38,50 +32,29 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) setState(() => _isLoading = false);
   }
 
-  Widget _buildCurrentScreen() {
-    switch (_currentNavIndex) {
-      case 0:
-        return _isLoading ? _buildLoading() : _buildContent();
-      case 1:
-        return const CollectionListScreen();
-      case 2:
-        return const LiveAIScreen();
-      case 3:
-        return const CartScreen();
-      case 4:
-        return const ProfileScreen();
-      default:
-        return _isLoading ? _buildLoading() : _buildContent();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    final palette = GLuxuryPalettes.gold;
+
     return Scaffold(
-      backgroundColor: AppColors.charcoal,
+      backgroundColor: palette.background,
       extendBody: true,
-      appBar: _currentNavIndex == 0
-          ? GraziaAppBar(
-              title: AppStrings.appName,
-              actions: [
-                _buildGlassIconButton(
-                  icon: Icons.notifications_outlined,
-                  onTap: () {},
-                ),
-                const SizedBox(width: 4),
-                _buildGlassIconButton(
-                  icon: Icons.search_rounded,
-                  onTap: () => Navigator.pushNamed(context, '/search'),
-                ),
-                const SizedBox(width: 8),
-              ],
-            )
-          : null,
-      body: _buildCurrentScreen(),
-      bottomNavigationBar: GraziaBottomNav(
-        currentIndex: _currentNavIndex,
-        onTap: (i) => setState(() => _currentNavIndex = i),
+      appBar: GraziaAppBar(
+        title: 'GRAZIA',
+        actions: [
+          _buildGlassIconButton(
+            icon: Icons.notifications_outlined,
+            onTap: () {},
+          ),
+          const SizedBox(width: 4),
+          _buildGlassIconButton(
+            icon: Icons.search_rounded,
+            onTap: () => context.push('/search'),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
+      body: _isLoading ? _buildLoading(palette) : _buildContent(palette),
     );
   }
 
@@ -89,38 +62,39 @@ class _HomeScreenState extends State<HomeScreen> {
     required IconData icon,
     required VoidCallback onTap,
   }) {
+    final palette = GLuxuryPalettes.gold;
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(20),
-        splashColor: AppColors.goldWarm.withOpacity(0.1),
+        splashColor: palette.primary.withValues(alpha: 0.1),
         child: Container(
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-            color: AppColors.white.withOpacity(0.05),
+            color: palette.textPrimary.withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: AppColors.white.withOpacity(0.06),
+              color: palette.border,
               width: 0.5,
             ),
           ),
-          child: Icon(icon, size: 18, color: AppColors.silverLight),
+          child: Icon(icon, size: 18, color: palette.textSecondary),
         ),
       ),
     );
   }
 
-  Widget _buildLoading() {
+  Widget _buildLoading(GoldPalette palette) {
     return SingleChildScrollView(
       physics: const NeverScrollableScrollPhysics(),
       child: Column(
         children: [
           const LoadingSkeleton(width: double.infinity, height: 220),
-          const SizedBox(height: 16),
+          GLuxurySpacing.gapBase,
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: GLuxurySpacing.horizontalBase,
             child: Row(
               children: List.generate(
                 4,
@@ -133,20 +107,20 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 24),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            child: LoadingSkeleton(height: 24, width: 180),
+          GLuxurySpacing.gapXl,
+          Padding(
+            padding: GLuxurySpacing.horizontalBase,
+            child: const LoadingSkeleton(height: 24, width: 180),
           ),
-          const SizedBox(height: 12),
+          GLuxurySpacing.gapMd,
           SizedBox(
             height: 160,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: GLuxurySpacing.horizontalBase,
               itemCount: 4,
-              separatorBuilder: (_, __) => const SizedBox(width: 12),
-              itemBuilder: (_, __) => const LoadingSkeleton(
+              separatorBuilder: (_, _) => const SizedBox(width: 12),
+              itemBuilder: (_, _) => const LoadingSkeleton(
                 width: 120,
                 height: 160,
                 borderRadius: 12,
@@ -158,7 +132,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildContent() {
+  Widget _buildContent(GoldPalette palette) {
     final trendingStones = MockDataService.getTrendingStones();
     final collections = MockDataService.collections;
     final quickActions = [
@@ -173,75 +147,48 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() => _isLoading = true);
         await _loadData();
       },
-      color: AppColors.goldWarm,
-      backgroundColor: AppColors.charcoal,
+      color: palette.primary,
+      backgroundColor: palette.background,
       child: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          // Hero Carousel (uses trendingStones for hero images)
           SliverToBoxAdapter(
-            child: FadeInStagger(
-              index: 0,
-              child: HomeHeroCarousel(stones: trendingStones),
+            child: HomeHeroCarousel(stones: trendingStones),
+          ),
+          SliverToBoxAdapter(child: GLuxurySpacing.gapXl),
+          SliverToBoxAdapter(child: _SectionTitle(title: 'Quick Actions')),
+          SliverToBoxAdapter(child: GLuxurySpacing.gapMd),
+          SliverToBoxAdapter(
+            child: HomeQuickActions(
+              actions: quickActions,
+              onActionTap: (i) {
+                final route = quickActions[i]['route'] as String?;
+                if (route != null) context.push(route);
+              },
             ),
           ),
-
-          // Section title: Quick Actions
-          const SliverToBoxAdapter(child: SizedBox(height: 24)),
-          const SliverToBoxAdapter(child: _SectionTitle(title: 'Quick Actions')),
-          const SliverToBoxAdapter(child: SizedBox(height: 12)),
-
-          // Quick Actions
-          SliverToBoxAdapter(
-            child: FadeInStagger(
-              index: 1,
-              child: HomeQuickActions(
-                actions: quickActions,
-                onActionTap: (i) {
-                  final route = quickActions[i]['route'] as String?;
-                  if (route != null) Navigator.pushNamed(context, route);
-                },
-              ),
-            ),
-          ),
-
-          // Section title: Collections
-          const SliverToBoxAdapter(child: SizedBox(height: 28)),
+          SliverToBoxAdapter(child: GLuxurySpacing.gapXxl),
           SliverToBoxAdapter(
             child: _SectionTitle(
               title: 'Collections',
-              actionLabel: AppStrings.viewAll,
-              onAction: () => Navigator.pushNamed(context, '/collections'),
+              actionLabel: 'View All',
+              onAction: () => context.push('/collections'),
             ),
           ),
-          const SliverToBoxAdapter(child: SizedBox(height: 12)),
-
-          // Collection Strip
+          SliverToBoxAdapter(child: GLuxurySpacing.gapMd),
           SliverToBoxAdapter(
-            child: FadeInStagger(
-              index: 2,
-              child: HomeCollectionStrip(
-                collections: collections,
-                onCollectionTap: (c) => Navigator.pushNamed(
-                  context,
-                  '/collection-detail',
-                  arguments: c.id,
-                ),
-              ),
+            child: HomeCollectionStrip(
+              collections: collections,
+              onCollectionTap: (c) =>
+                  context.push('/collections/${c.id}'),
             ),
           ),
-
-          // Section title: Trending
-          const SliverToBoxAdapter(child: SizedBox(height: 28)),
+          SliverToBoxAdapter(child: GLuxurySpacing.gapXxl),
           const SliverToBoxAdapter(
             child: _SectionTitle(title: 'Trending Stones'),
           ),
-          const SliverToBoxAdapter(child: SizedBox(height: 12)),
-
-          // Trending Grid
-          const SliverToBoxAdapter(
-            child: FadeInStagger(index: 3, child: HomeTrendingGrid()),
-          ),
+          SliverToBoxAdapter(child: GLuxurySpacing.gapMd),
+          const SliverToBoxAdapter(child: HomeTrendingGrid()),
           const SliverToBoxAdapter(child: SizedBox(height: 100)),
         ],
       ),
@@ -262,18 +209,15 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = GLuxuryPalettes.gold;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: GLuxurySpacing.horizontalBase,
       child: Row(
         children: [
           Text(
             title,
-            style: const TextStyle(
-              fontFamily: 'Inter',
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: AppColors.white,
-              letterSpacing: 0.5,
+            style: GLuxuryTypography.h3.copyWith(
+              color: palette.textPrimary,
             ),
           ),
           const Spacer(),
@@ -288,7 +232,7 @@ class _SectionTitle extends StatelessWidget {
                       fontFamily: 'Inter',
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.goldWarm.withOpacity(0.7),
+                      color: palette.primary.withValues(alpha: 0.7),
                       letterSpacing: 0.3,
                     ),
                   ),
@@ -296,7 +240,7 @@ class _SectionTitle extends StatelessWidget {
                   Icon(
                     Icons.arrow_forward_ios_rounded,
                     size: 10,
-                    color: AppColors.goldWarm.withOpacity(0.5),
+                    color: palette.primary.withValues(alpha: 0.5),
                   ),
                 ],
               ),

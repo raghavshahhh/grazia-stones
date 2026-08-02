@@ -11,6 +11,15 @@ class Collection {
     this.stoneCount = 0,
   });
 
+  factory Collection.fromJson(Map<String, dynamic> json) => Collection.fromMap(json);
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'description': description,
+    'stoneCount': stoneCount,
+  };
+
   factory Collection.fromMap(Map<String, dynamic> map) => Collection(
     id: map['id'] ?? '',
     name: map['name'] ?? '',

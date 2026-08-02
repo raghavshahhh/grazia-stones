@@ -20,4 +20,14 @@ class Order {
     status: map['status'] ?? 'Pending',
     createdAt: DateTime.parse(map['createdAt'] ?? DateTime.now().toIso8601String()),
   );
+
+  factory Order.fromJson(Map<String, dynamic> json) => Order.fromMap(json);
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'stoneNames': stoneNames,
+    'totalAmount': totalAmount,
+    'status': status,
+    'createdAt': createdAt.toIso8601String(),
+  };
 }

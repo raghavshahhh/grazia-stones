@@ -17,6 +17,24 @@ class CartItem {
 
   double get totalPrice => pricePerSqFt * quantity;
 
+  factory CartItem.fromJson(Map<String, dynamic> json) => CartItem(
+    stoneId: json['stoneId'] ?? '',
+    name: json['name'] ?? '',
+    finish: json['finish'] ?? '',
+    pricePerSqFt: (json['pricePerSqFt'] ?? 0).toDouble(),
+    quantity: json['quantity'] ?? 1,
+    colorHex: json['colorHex'] ?? '#1C1C1E',
+  );
+
+  Map<String, dynamic> toJson() => {
+    'stoneId': stoneId,
+    'name': name,
+    'finish': finish,
+    'pricePerSqFt': pricePerSqFt,
+    'quantity': quantity,
+    'colorHex': colorHex,
+  };
+
   CartItem copyWith({
     String? stoneId,
     String? name,

@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/constants/app_dimensions.dart';
 import 'package:grazia_stones/core/theme/text_styles.dart';
-import 'package:grazia_stones/core/providers/auth_provider.dart';
+import 'package:grazia_stones/features/auth/providers/auth_provider.dart';
 import 'package:grazia_stones/config/routes.dart';
 
 class ProfileScreen extends StatelessWidget {

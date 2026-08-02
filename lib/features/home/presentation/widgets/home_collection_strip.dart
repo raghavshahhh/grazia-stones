@@ -1,9 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/models/collection.dart';
 import 'package:grazia_stones/core/theme/glass_theme.dart';
 import 'package:grazia_stones/core/widgets/animated_widgets.dart';
+import 'package:grazia_stones/shared/theme/colors.dart';
 
 class HomeCollectionStrip extends StatelessWidget {
   final List<Collection> collections;
@@ -24,7 +24,7 @@ class HomeCollectionStrip extends StatelessWidget {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: collections.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
         itemBuilder: (context, index) {
           return HoverScale(
             scale: 1.04,
@@ -38,18 +38,20 @@ class HomeCollectionStrip extends StatelessWidget {
                     width: 140,
                     height: 80,
                     decoration: BoxDecoration(
-                      color: AppColors.white.withOpacity(GlassTheme.opacityLight),
+                      color: Colors.white.withValues(
+                        alpha: GlassTheme.opacityLight,
+                      ),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: AppColors.white.withOpacity(0.08),
+                        color: Colors.white.withValues(alpha: 0.08),
                         width: 0.5,
                       ),
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          AppColors.white.withOpacity(0.06),
-                          AppColors.white.withOpacity(0.02),
+                          Colors.white.withValues(alpha: 0.06),
+                          Colors.white.withValues(alpha: 0.02),
                         ],
                       ),
                     ),
@@ -62,7 +64,7 @@ class HomeCollectionStrip extends StatelessWidget {
                           width: 32,
                           height: 4,
                           decoration: BoxDecoration(
-                            gradient: AppColors.goldGradient,
+                            gradient: GLuxuryPalettes.gold.primaryGradient,
                             borderRadius: BorderRadius.circular(2),
                           ),
                         ),
@@ -75,7 +77,7 @@ class HomeCollectionStrip extends StatelessWidget {
                                 fontFamily: 'Inter',
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
-                                color: AppColors.white,
+                                color: Colors.white,
                                 letterSpacing: 0.3,
                               ),
                               maxLines: 1,
@@ -88,7 +90,7 @@ class HomeCollectionStrip extends StatelessWidget {
                                 fontFamily: 'Inter',
                                 fontSize: 10,
                                 fontWeight: FontWeight.w500,
-                                color: AppColors.silverDark.withOpacity(0.6),
+                                color: Colors.white70.withValues(alpha: 0.6),
                               ),
                             ),
                           ],

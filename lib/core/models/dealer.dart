@@ -17,6 +17,18 @@ class Dealer {
     this.isAuthorized = false,
   });
 
+  factory Dealer.fromJson(Map<String, dynamic> json) => Dealer.fromMap(json);
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'address': address,
+    'phone': phone,
+    'distance': distance,
+    'rating': rating,
+    'isAuthorized': isAuthorized,
+  };
+
   factory Dealer.fromMap(Map<String, dynamic> map) => Dealer(
     id: map['id'] ?? '',
     name: map['name'] ?? '',

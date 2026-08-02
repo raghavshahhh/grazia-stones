@@ -4,7 +4,7 @@ import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/constants/app_dimensions.dart';
 import 'package:grazia_stones/core/theme/text_styles.dart';
 import 'package:grazia_stones/shared/widgets/grazia_button.dart';
-import 'package:grazia_stones/core/providers/cart_provider.dart';
+import 'package:grazia_stones/features/cart/providers/cart_provider.dart';
 
 class CartScreen extends StatelessWidget {
   const CartScreen({super.key});

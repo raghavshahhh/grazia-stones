@@ -24,7 +24,7 @@ class CollectionListScreen extends StatelessWidget {
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.all(16),
         itemCount: collections.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (context, index) {
           final c = collections[index];
           final icon = _icons[c.id] ?? '🪨';

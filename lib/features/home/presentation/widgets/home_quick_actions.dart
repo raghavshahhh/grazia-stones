@@ -1,8 +1,8 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/theme/glass_theme.dart';
 import 'package:grazia_stones/core/widgets/animated_widgets.dart';
+import 'package:grazia_stones/shared/theme/colors.dart';
 
 class HomeQuickActions extends StatelessWidget {
   final List<Map<String, dynamic>> actions;
@@ -21,7 +21,7 @@ class HomeQuickActions extends StatelessWidget {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: actions.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
         itemBuilder: (context, index) {
           final action = actions[index];
           return HoverScale(
@@ -36,10 +36,12 @@ class HomeQuickActions extends StatelessWidget {
                     width: 72,
                     height: 90,
                     decoration: BoxDecoration(
-                      color: AppColors.white.withOpacity(GlassTheme.opacityLight),
+                      color: Colors.white.withValues(
+                        alpha: GlassTheme.opacityLight,
+                      ),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: AppColors.white.withOpacity(0.08),
+                        color: Colors.white.withValues(alpha: 0.08),
                         width: 0.5,
                       ),
                     ),
@@ -51,27 +53,27 @@ class HomeQuickActions extends StatelessWidget {
                           width: 40,
                           height: 40,
                           decoration: BoxDecoration(
-                            color: AppColors.white.withOpacity(0.06),
+                            color: Colors.white.withValues(alpha: 0.06),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: AppColors.white.withOpacity(0.06),
+                              color: Colors.white.withValues(alpha: 0.06),
                               width: 0.5,
                             ),
                           ),
                           child: Icon(
                             action['icon'] as IconData,
                             size: 20,
-                            color: AppColors.goldWarm,
+                            color: GLuxuryPalettes.gold.primary,
                           ),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           action['label'] as String,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: 'Inter',
                             fontSize: 10,
                             fontWeight: FontWeight.w600,
-                            color: AppColors.silverLight,
+                            color: Colors.white54,
                           ),
                           textAlign: TextAlign.center,
                           maxLines: 1,
