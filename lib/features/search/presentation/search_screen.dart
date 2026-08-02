@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/constants/app_dimensions.dart';
 import 'package:grazia_stones/core/theme/glass_theme.dart';
@@ -7,7 +8,6 @@ import 'package:grazia_stones/core/theme/text_styles.dart';
 import 'package:grazia_stones/core/services/mock_data_service.dart';
 import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/shared/widgets/grazia_app_bar.dart';
-import 'package:grazia_stones/features/stone_detail/presentation/stone_detail_screen.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -284,14 +284,7 @@ class _SearchScreenState extends State<SearchScreen> {
                               child: Material(
                                 color: Colors.transparent,
                                 child: InkWell(
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => StoneDetailScreen(stoneId: stone.id),
-                                      ),
-                                    );
-                                  },
+                                  onTap: () => context.push('/stones/${stone.id}'),
                                   borderRadius: BorderRadius.circular(16),
                                   child: Padding(
                                     padding: const EdgeInsets.all(14),

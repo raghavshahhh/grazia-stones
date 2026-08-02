@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/constants/app_dimensions.dart';
 import 'package:grazia_stones/core/theme/text_styles.dart';
 import 'package:grazia_stones/features/auth/providers/auth_provider.dart';
-import 'package:grazia_stones/config/routes.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -80,9 +80,9 @@ class ProfileScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: AppDimensions.spacingXL),
 
-                  _ProfileMenuItem(icon: Icons.shopping_bag_outlined, title: 'My Orders', onTap: () => Navigator.pushNamed(context, AppRoutes.orders)),
+                  _ProfileMenuItem(icon: Icons.shopping_bag_outlined, title: 'My Orders', onTap: () => context.go('/orders')),
                   _ProfileMenuItem(icon: Icons.favorite_outline, title: 'Wishlist', onTap: () {}),
-                  _ProfileMenuItem(icon: Icons.format_quote_outlined, title: 'My Quotes', onTap: () => Navigator.pushNamed(context, AppRoutes.quotes)),
+                  _ProfileMenuItem(icon: Icons.format_quote_outlined, title: 'My Quotes', onTap: () => context.go('/quotes')),
                   _ProfileMenuItem(icon: Icons.inventory_2_outlined, title: 'Sample Requests', onTap: () {}),
                   _ProfileMenuItem(icon: Icons.notifications_outlined, title: 'Notifications', onTap: () {}),
 
@@ -105,7 +105,7 @@ class ProfileScreen extends StatelessWidget {
                     color: AppColors.goldWarm,
                     onTap: () {
                       auth.logout();
-                      Navigator.pushReplacementNamed(context, AppRoutes.login);
+                      context.go('/login');
                     },
                   ),
                   const SizedBox(height: AppDimensions.spacingL),

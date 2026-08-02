@@ -1,8 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/models/stone.dart';
-import 'package:grazia_stones/core/theme/glass_theme.dart';
+import 'package:grazia_stones/shared/theme/colors.dart';
+import 'package:grazia_stones/shared/theme/typography.dart';
+import 'package:grazia_stones/shared/theme/tokens.dart';
 
 class HomeHeroCarousel extends StatefulWidget {
   final List<Stone> stones;
@@ -38,6 +39,8 @@ class _HomeHeroCarouselState extends State<HomeHeroCarousel> {
   Widget build(BuildContext context) {
     if (widget.stones.isEmpty) return const SizedBox.shrink();
 
+    final palette = GLuxuryPalettes.gold;
+
     return SizedBox(
       height: 280,
       child: Stack(
@@ -58,18 +61,18 @@ class _HomeHeroCarouselState extends State<HomeHeroCarousel> {
               children: List.generate(widget.stones.length, (i) {
                 final isActive = i == _currentPage;
                 return AnimatedContainer(
-                  duration: GlassTheme.durationNormal,
+                  duration: GTokens.durationNormal,
                   margin: const EdgeInsets.symmetric(horizontal: 3),
                   width: isActive ? 24 : 6,
                   height: 6,
                   decoration: BoxDecoration(
-                    gradient: isActive ? AppColors.goldGradient : null,
-                    color: isActive ? null : AppColors.white.withOpacity(0.15),
+                    gradient: isActive ? palette.primaryGradient : null,
+                    color: isActive ? null : Colors.white.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(3),
                     boxShadow: isActive
                         ? [
                             BoxShadow(
-                              color: AppColors.goldWarm.withOpacity(0.3),
+                              color: palette.primary.withValues(alpha: 0.3),
                               blurRadius: 6,
                             ),
                           ]
@@ -88,25 +91,26 @@ class _HomeHeroCarouselState extends State<HomeHeroCarousel> {
     final stone = widget.stones[index];
     final imageUrl = stone.imageUrl ?? '';
     final hasImage = imageUrl.isNotEmpty;
+    final palette = GLuxuryPalettes.gold;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       child: GestureDetector(
         onTap: () => widget.onStoneTap?.call(stone),
         child: AnimatedContainer(
-          duration: GlassTheme.durationSlow,
+          duration: GTokens.durationSlow,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(GTokens.radius2xl),
             boxShadow: [
               BoxShadow(
-                color: AppColors.goldWarm.withOpacity(0.08),
+                color: palette.primary.withValues(alpha: 0.08),
                 blurRadius: 30,
                 spreadRadius: -6,
               ),
             ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(GTokens.radius2xl),
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -118,24 +122,24 @@ class _HomeHeroCarouselState extends State<HomeHeroCarousel> {
                     loadingBuilder: (context, child, loadingProgress) {
                       if (loadingProgress == null) return child;
                       return Container(
-                        color: AppColors.graphite,
-                        child: const Center(
+                        color: palette.surface,
+                        child: Center(
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation(AppColors.goldWarm),
+                            valueColor: AlwaysStoppedAnimation(palette.primary),
                           ),
                         ),
                       );
                     },
                     errorBuilder: (context, error, stackTrace) => Container(
-                      color: AppColors.graphite,
-                      child: const Icon(Icons.landscape, size: 60, color: AppColors.silverDark),
+                      color: palette.surface,
+                      child: Icon(Icons.landscape, size: 60, color: palette.textTertiary),
                     ),
                   )
                 else
                   Container(
-                    color: AppColors.graphite,
-                    child: const Icon(Icons.landscape, size: 60, color: AppColors.silverDark),
+                    color: palette.surface,
+                    child: Icon(Icons.landscape, size: 60, color: palette.textTertiary),
                   ),
 
                 // Glass gradient overlay
@@ -148,8 +152,8 @@ class _HomeHeroCarouselState extends State<HomeHeroCarousel> {
                         colors: [
                           Colors.transparent,
                           Colors.transparent,
-                          Colors.black.withOpacity(0.3),
-                          Colors.black.withOpacity(0.7),
+                          Colors.black.withValues(alpha: 0.3),
+                          Colors.black.withValues(alpha: 0.7),
                         ],
                         stops: const [0.0, 0.5, 0.8, 1.0],
                       ),
@@ -163,16 +167,16 @@ class _HomeHeroCarouselState extends State<HomeHeroCarousel> {
                   left: 20,
                   right: 20,
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(GTokens.radiusLg),
                     child: BackdropFilter(
                       filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                       child: Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: AppColors.white.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(16),
+                          color: Colors.white.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(GTokens.radiusLg),
                           border: Border.all(
-                            color: AppColors.white.withOpacity(0.1),
+                            color: Colors.white.withValues(alpha: 0.1),
                             width: 0.5,
                           ),
                         ),
@@ -182,10 +186,7 @@ class _HomeHeroCarouselState extends State<HomeHeroCarousel> {
                           children: [
                             Text(
                               stone.name,
-                              style: const TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
+                              style: GLuxuryTypography.h2.copyWith(
                                 color: Colors.white,
                                 letterSpacing: 1.0,
                               ),
@@ -195,22 +196,17 @@ class _HomeHeroCarouselState extends State<HomeHeroCarousel> {
                               children: [
                                 Text(
                                   stone.collection,
-                                  style: TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                    color: AppColors.goldWarm.withOpacity(0.8),
+                                  style: GLuxuryTypography.bodySmall.copyWith(
+                                    color: palette.primary.withValues(alpha: 0.8),
                                     letterSpacing: 0.5,
                                   ),
                                 ),
                                 const Spacer(),
                                 Text(
                                   '₹${stone.pricePerSqFt.toInt()}/sq ft',
-                                  style: const TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontSize: 13,
+                                  style: GLuxuryTypography.bodyMedium.copyWith(
+                                    color: palette.primary,
                                     fontWeight: FontWeight.w700,
-                                    color: AppColors.goldWarm,
                                   ),
                                 ),
                               ],
