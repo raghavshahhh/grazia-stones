@@ -1,4 +1,5 @@
-import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -16,7 +17,7 @@ class AIVizScreen extends StatefulWidget {
 }
 
 class _AIVizScreenState extends State<AIVizScreen> {
-  File? _selectedImage;
+  Uint8List? _selectedImage;
   String? _selectedStoneId;
   bool _isProcessing = false;
   final _picker = ImagePicker();
@@ -25,12 +26,15 @@ class _AIVizScreenState extends State<AIVizScreen> {
     try {
       final pickedFile = await _picker.pickImage(source: source);
       if (pickedFile != null) {
+        final bytes = await pickedFile.readAsBytes();
+        if (!mounted) return;
         setState(() {
-          _selectedImage = File(pickedFile.path);
+          _selectedImage = bytes;
         });
         HapticFeedback.mediumImpact();
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error picking image: $e')),
       );
@@ -45,6 +49,7 @@ class _AIVizScreenState extends State<AIVizScreen> {
     
     // Simulate AI processing
     Future.delayed(const Duration(seconds: 2), () {
+      if (!mounted) return;
       setState(() => _isProcessing = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -133,7 +138,7 @@ class _AIVizScreenState extends State<AIVizScreen> {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(16),
-                    child: Image.file(_selectedImage!, height: 250, width: double.infinity, fit: BoxFit.cover),
+                    child: Image.memory(_selectedImage!, height: 250, width: double.infinity, fit: BoxFit.cover),
                   ),
                   Positioned(
                     top: 8,
