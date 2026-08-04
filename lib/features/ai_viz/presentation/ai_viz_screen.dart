@@ -1,6 +1,3 @@
-import 'dart:typed_data';
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -202,7 +199,7 @@ class _AIVizScreenState extends State<AIVizScreen> {
                             child: Image.network(
                               stone.imageUrl ?? '',
                               fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Container(
+                              errorBuilder: (_, _, _) => Container(
                                 color: palette.surfaceDark,
                                 child: Icon(Icons.image, color: palette.textTertiary),
                               ),
