@@ -320,20 +320,18 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                       fit: StackFit.expand,
                       children: [
                         // Stone image
-                        Image.network(
-                          _selectedStone.imageUrl ?? '',
+                        Image.asset(
+                          _selectedStone.images.isNotEmpty
+                            ? _selectedStone.images.first
+                            : 'assets/images/placeholder_stone.png',
                           fit: BoxFit.cover,
-errorBuilder: (_, _, _) => Container(
+                          errorBuilder: (ctx, err, stack) => Container(
                              decoration: BoxDecoration(
-                               gradient: LinearGradient(
-                                 colors: _selectedStone.availableColors
-                                    .map((c) => Color(
-                                        int.parse(c.replaceFirst('#', '0xFF'))))
-                                    .toList(),
-                              ),
-                            ),
-                          ),
-                        ),
+                               color: const Color(0xFF2A2A2A),
+                               borderRadius: BorderRadius.circular(12),
+                             ),
+                           ),
+                         ),
                         // Animated border
                         AnimatedBuilder(
                           animation: _detecting

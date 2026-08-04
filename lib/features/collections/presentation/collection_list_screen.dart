@@ -1,39 +1,81 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/typography.dart';
 import 'package:grazia_stones/shared/theme/spacing.dart';
 import 'package:grazia_stones/shared/theme/tokens.dart';
+import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/core/services/mock_data_service.dart';
-import 'package:grazia_stones/shared/widgets/grazia_app_bar.dart';
+import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 
-class CollectionListScreen extends StatelessWidget {
+class CollectionListScreen extends ConsumerWidget {
   const CollectionListScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final palette = GLuxuryPalettes.gold;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(themePaletteProvider);
     final collections = MockDataService.collections;
 
     return Scaffold(
       backgroundColor: palette.background,
-      appBar: GraziaAppBar(
-        title: 'COLLECTIONS',
-        leading: IconButton(
-          onPressed: () => context.pop(),
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textSecondary, size: 20),
-        ),
-      ),
-      body: ListView.separated(
+      body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
-        padding: GLuxurySpacing.paddingBase,
-        itemCount: collections.length,
-        separatorBuilder: (_, __) => GLuxurySpacing.gapSm,
-        itemBuilder: (context, index) {
-          final collection = collections[index];
-          return _CollectionCard(collection: collection);
-        },
+        slivers: [
+          // App Bar
+          SliverAppBar(
+            backgroundColor: palette.background,
+            expandedHeight: 160,
+            pinned: true,
+            elevation: 0,
+            automaticallyImplyLeading: false,
+            flexibleSpace: FlexibleSpaceBar(
+              background: Container(
+                decoration: BoxDecoration(gradient: palette.heroGradient),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 80, 20, 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Text(
+                        'Collections',
+                        style: GLuxuryTypography.displaySmall.copyWith(
+                          color: palette.textPrimary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${collections.length} Premium Series',
+                        style: GLuxuryTypography.bodySmall.copyWith(
+                          color: palette.primary,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // Collections List
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final collection = collections[index];
+                  return _CollectionCard(collection: collection, palette: palette);
+                },
+                childCount: collections.length,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -41,75 +83,117 @@ class CollectionListScreen extends StatelessWidget {
 
 class _CollectionCard extends StatelessWidget {
   final dynamic collection;
-  
-  const _CollectionCard({required this.collection});
+  final LuxuryPalette palette;
+
+  const _CollectionCard({required this.collection, required this.palette});
+
+  // Map collection names to local stone images
+  String? _getCollectionImage() {
+    final name = (collection.name as String).toLowerCase();
+    if (name.contains('grande')) return 'assets/images/grande_ledge_ta02.png';
+    if (name.contains('classic')) return 'assets/images/classic_ledge_07.png';
+    if (name.contains('opus')) return 'assets/images/opus_ledge_15.png';
+    if (name.contains('verona')) return 'assets/images/verona_3d.png';
+    if (name.contains('athena')) return 'assets/images/athena_3d.png';
+    if (name.contains('vantage')) return 'assets/images/vantage_v12.png';
+    if (name.contains('mountain')) return 'assets/images/mountain_ledge_m08.png';
+    return 'assets/images/placeholder_stone.png';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final palette = GLuxuryPalettes.gold;
-    
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          HapticFeedback.lightImpact();
-          context.push('/collections/${collection.id}');
-        },
-        borderRadius: BorderRadius.circular(GTokens.radiusLg),
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: palette.surface,
-            borderRadius: BorderRadius.circular(GTokens.radiusLg),
-            border: Border.all(color: palette.border, width: 0.5),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  gradient: palette.primaryGradient,
-                  borderRadius: BorderRadius.circular(12),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            context.push('/collections/${collection.id}');
+          },
+          borderRadius: BorderRadius.circular(GTokens.radiusLg),
+          child: Container(
+            decoration: BoxDecoration(
+              color: palette.surface,
+              borderRadius: BorderRadius.circular(GTokens.radiusLg),
+              border: Border.all(color: palette.border, width: 0.5),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
                 ),
-                child: Center(
-                  child: Icon(Icons.collections_outlined, color: palette.background, size: 28),
+              ],
+            ),
+            child: Row(
+              children: [
+                // Image
+                ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    bottomLeft: Radius.circular(16),
+                  ),
+                  child: SmartStoneImage(
+                    localAsset: _getCollectionImage(),
+                    width: 110,
+                    height: 110,
+                    fit: BoxFit.cover,
+                    fallbackColor: palette.surfaceDark,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      collection.name,
-                      style: GLuxuryTypography.h3.copyWith(
-                        color: palette.textPrimary,
-                        fontSize: 18,
-                      ),
+                const SizedBox(width: 16),
+                // Info
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          collection.name,
+                          style: GLuxuryTypography.h3.copyWith(
+                            color: palette.textPrimary,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          collection.description,
+                          style: GLuxuryTypography.bodySmall.copyWith(
+                            color: palette.textSecondary,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: palette.primary.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                '${collection.stoneCount} Products',
+                                style: GLuxuryTypography.labelSmall.copyWith(
+                                  color: palette.primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      collection.description,
-                      style: GLuxuryTypography.bodySmall.copyWith(
-                        color: palette.textSecondary,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '${collection.stoneCount} Products',
-                      style: GLuxuryTypography.labelSmall.copyWith(
-                        color: palette.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-              Icon(Icons.chevron_right, color: palette.textTertiary, size: 24),
-            ],
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Icon(Icons.chevron_right, color: palette.textTertiary, size: 22),
+                ),
+              ],
+            ),
           ),
         ),
       ),

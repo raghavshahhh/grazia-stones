@@ -22,6 +22,7 @@ import '../features/live_ai/presentation/live_ai_screen.dart';
 import '../features/profile/presentation/profile_screen.dart';
 import '../features/wishlist/presentation/wishlist_screen.dart';
 import '../features/sample_order/presentation/sample_order_screen.dart';
+import '../features/measure/presentation/measure_screen.dart';
 import '../shared/widgets/grazia_bottom_nav.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -318,6 +319,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
             _scaleFadePage(const ARViewScreen(), state),
+      ),
+      GoRoute(
+        path: '/measure',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const MeasureScreen(), state),
       ),
     ],
   );

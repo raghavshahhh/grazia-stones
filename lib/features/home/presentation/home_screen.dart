@@ -70,7 +70,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     required IconData icon,
     required VoidCallback onTap,
   }) {
-    final palette = GLuxuryPalettes.gold;
+    final palette = ref.watch(themePaletteProvider);
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -146,7 +146,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final quickActions = [
       {'icon': Icons.auto_awesome_outlined, 'label': 'AI Viz', 'route': '/ai-viz'},
       {'icon': Icons.camera_alt_outlined, 'label': 'AR View', 'route': '/ar-view'},
-      {'icon': Icons.straighten_outlined, 'label': 'Measure', 'route': null},
+      {'icon': Icons.straighten_outlined, 'label': 'Measure', 'route': '/measure'},
       {'icon': Icons.request_quote_outlined, 'label': 'Quote', 'route': '/quotes'},
     ];
 
@@ -283,7 +283,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
-class _SectionTitle extends StatelessWidget {
+class _SectionTitle extends ConsumerWidget {
   final String title;
   final String? actionLabel;
   final VoidCallback? onAction;
@@ -295,8 +295,8 @@ class _SectionTitle extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final palette = GLuxuryPalettes.gold;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(themePaletteProvider);
     return Padding(
       padding: GLuxurySpacing.horizontalBase,
       child: Row(
@@ -337,3 +337,4 @@ class _SectionTitle extends StatelessWidget {
     );
   }
 }
+

@@ -2,35 +2,41 @@ import 'package:flutter/material.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 
 /// Renders local asset images or network images seamlessly with an elegant stone texture fallback.
+/// Supports both [imageUrl] for backwards compatibility and [localAsset] for local images.
 class SmartStoneImage extends StatelessWidget {
   final String? imageUrl;
+  final String? localAsset;
   final BoxFit fit;
   final double? width;
   final double? height;
   final LuxuryPalette? palette;
+  final Color? fallbackColor;
 
   const SmartStoneImage({
     super.key,
-    required this.imageUrl,
+    this.imageUrl,
+    this.localAsset,
     this.fit = BoxFit.cover,
     this.width,
     this.height,
     this.palette,
+    this.fallbackColor,
   });
 
   @override
   Widget build(BuildContext context) {
     final activePalette = palette ?? GLuxuryPalettes.gold;
 
-    if (imageUrl == null || imageUrl!.isEmpty) {
+    // Prefer localAsset if provided
+    final effectiveAsset = localAsset ?? imageUrl;
+
+    if (effectiveAsset == null || effectiveAsset.isEmpty) {
       return _buildPlaceholder(activePalette);
     }
 
-    final url = imageUrl!;
-
-    if (url.startsWith('http://') || url.startsWith('https://')) {
+    if (effectiveAsset.startsWith('http://') || effectiveAsset.startsWith('https://')) {
       return Image.network(
-        url,
+        effectiveAsset,
         fit: fit,
         width: width,
         height: height,
@@ -44,7 +50,7 @@ class SmartStoneImage extends StatelessWidget {
 
     // Local asset
     return Image.asset(
-      url,
+      effectiveAsset,
       fit: fit,
       width: width,
       height: height,
@@ -57,14 +63,17 @@ class SmartStoneImage extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            palette.surfaceLight,
-            palette.surfaceDark,
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: fallbackColor,
+        gradient: fallbackColor == null
+            ? LinearGradient(
+                colors: [
+                  palette.surfaceLight,
+                  palette.surfaceDark,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : null,
       ),
       child: Stack(
         alignment: Alignment.center,
