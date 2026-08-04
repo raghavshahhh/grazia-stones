@@ -58,7 +58,7 @@ class _SearchScreenState extends State<SearchScreen> {
             stone.collection.toLowerCase().contains(query) ||
             stone.description.toLowerCase().contains(query) ||
             stone.finish.toLowerCase().contains(query) ||
-            stone.origin.toLowerCase().contains(query);
+            (stone.origin?.toLowerCase().contains(query) ?? false);
 
         bool matchesFilters = _selectedFilters.contains('All') || _selectedFilters.isEmpty;
 

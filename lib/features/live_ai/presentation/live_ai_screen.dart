@@ -713,7 +713,7 @@ errorBuilder: (_, _, _) => Container(
                   _buildBadge(
                     icon: Icons.location_on_outlined,
                     label: 'ORIGIN',
-                    value: _selectedStone.origin,
+                    value: _selectedStone.origin ?? 'India',
                     color: AppColors.info,
                   ),
                   const SizedBox(height: 8),

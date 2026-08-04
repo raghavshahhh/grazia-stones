@@ -1,52 +1,118 @@
 class Stone {
   final String id;
   final String name;
-  final String collection;
+  final String productCode; // e.g., TA02, Classic 07, Opus 15
+  final String collection; // e.g., Grande Ledge Series, Vantage Series
+  final String category; // e.g., Ledge Stone, 3D Panels, Designer Blocks
   final double pricePerSqFt;
   final String description;
-  final String? imageUrl;
+  final List<String> images; // Multiple images
+  final String? mainImageUrl; // Primary display image
   final double rating;
   final int reviewCount;
-  final String thickness;
-  final String finish;
-  final String size;
-  final String origin;
-  final List<String> availableColors;
+  
+  // Dimensions
+  final String length;
+  final String width;
+  final String thickness; // e.g., 18-20mm
+  final String size; // Combined display
+  
+  // Box Information
+  final double sqftPerBox;
+  final int piecesPerBox;
+  
+  // Product Details
+  final String finish; // Polished, Honed, Leathered, etc.
+  final String texture; // Natural, Rough, Smooth
+  final List<String> availableColors; // Multiple color variants
+  final List<String> colorImages; // Images for each color
+  
+  // Applications
+  final List<String> idealFor; // Living Room, Lobby, Hotel, Exterior, etc.
+  final String installationGuide;
+  
+  // Status
   final bool isTrending;
+  final bool isNewArrival;
+  final bool isFeatured;
+  final bool inStock;
+  final int stockQuantity;
+  
+  // Related
+  final List<String> relatedProductIds;
+  final String? weight;
+  final String? origin;
 
   const Stone({
     required this.id,
     required this.name,
+    required this.productCode,
     required this.collection,
+    required this.category,
     required this.pricePerSqFt,
     required this.description,
-    this.imageUrl,
+    this.images = const [],
+    this.mainImageUrl,
     this.rating = 0.0,
     this.reviewCount = 0,
+    this.length = '',
+    this.width = '',
     this.thickness = '',
-    this.finish = '',
     this.size = '',
-    this.origin = '',
+    this.sqftPerBox = 0.0,
+    this.piecesPerBox = 0,
+    this.finish = '',
+    this.texture = '',
     this.availableColors = const [],
+    this.colorImages = const [],
+    this.idealFor = const [],
+    this.installationGuide = '',
     this.isTrending = false,
+    this.isNewArrival = false,
+    this.isFeatured = false,
+    this.inStock = true,
+    this.stockQuantity = 0,
+    this.relatedProductIds = const [],
+    this.weight,
+    this.origin,
   });
 
   Map<String, dynamic> toMap() => {
     'id': id,
     'name': name,
+    'productCode': productCode,
     'collection': collection,
+    'category': category,
     'pricePerSqFt': pricePerSqFt,
     'description': description,
-    'imageUrl': imageUrl,
+    'images': images,
+    'mainImageUrl': mainImageUrl,
     'rating': rating,
     'reviewCount': reviewCount,
+    'length': length,
+    'width': width,
     'thickness': thickness,
-    'finish': finish,
     'size': size,
-    'origin': origin,
+    'sqftPerBox': sqftPerBox,
+    'piecesPerBox': piecesPerBox,
+    'finish': finish,
+    'texture': texture,
     'availableColors': availableColors,
+    'colorImages': colorImages,
+    'idealFor': idealFor,
+    'installationGuide': installationGuide,
     'isTrending': isTrending,
+    'isNewArrival': isNewArrival,
+    'isFeatured': isFeatured,
+    'inStock': inStock,
+    'stockQuantity': stockQuantity,
+    'relatedProductIds': relatedProductIds,
+    'weight': weight,
+    'origin': origin,
   };
+  
+  // Backward compatibility - get first image as imageUrl
+  String? get imageUrl => mainImageUrl ?? (images.isNotEmpty ? images.first : null);
 
   factory Stone.fromJson(Map<String, dynamic> json) => Stone.fromMap(json);
 
@@ -55,49 +121,100 @@ class Stone {
   factory Stone.fromMap(Map<String, dynamic> map) => Stone(
     id: map['id'] ?? '',
     name: map['name'] ?? '',
+    productCode: map['productCode'] ?? '',
     collection: map['collection'] ?? '',
+    category: map['category'] ?? '',
     pricePerSqFt: (map['pricePerSqFt'] ?? 0).toDouble(),
     description: map['description'] ?? '',
-    imageUrl: map['imageUrl'],
+    images: List<String>.from(map['images'] ?? []),
+    mainImageUrl: map['mainImageUrl'] ?? map['imageUrl'], // Backward compatibility
     rating: (map['rating'] ?? 0).toDouble(),
     reviewCount: map['reviewCount'] ?? 0,
+    length: map['length'] ?? '',
+    width: map['width'] ?? '',
     thickness: map['thickness'] ?? '',
-    finish: map['finish'] ?? '',
     size: map['size'] ?? '',
-    origin: map['origin'] ?? '',
+    sqftPerBox: (map['sqftPerBox'] ?? 0).toDouble(),
+    piecesPerBox: map['piecesPerBox'] ?? 0,
+    finish: map['finish'] ?? '',
+    texture: map['texture'] ?? '',
     availableColors: List<String>.from(map['availableColors'] ?? []),
+    colorImages: List<String>.from(map['colorImages'] ?? []),
+    idealFor: List<String>.from(map['idealFor'] ?? []),
+    installationGuide: map['installationGuide'] ?? '',
     isTrending: map['isTrending'] ?? false,
+    isNewArrival: map['isNewArrival'] ?? false,
+    isFeatured: map['isFeatured'] ?? false,
+    inStock: map['inStock'] ?? true,
+    stockQuantity: map['stockQuantity'] ?? 0,
+    relatedProductIds: List<String>.from(map['relatedProductIds'] ?? []),
+    weight: map['weight'],
+    origin: map['origin'],
   );
 
   Stone copyWith({
     String? id,
     String? name,
+    String? productCode,
     String? collection,
+    String? category,
     double? pricePerSqFt,
     String? description,
-    String? imageUrl,
+    List<String>? images,
+    String? mainImageUrl,
     double? rating,
     int? reviewCount,
+    String? length,
+    String? width,
     String? thickness,
-    String? finish,
     String? size,
-    String? origin,
+    double? sqftPerBox,
+    int? piecesPerBox,
+    String? finish,
+    String? texture,
     List<String>? availableColors,
+    List<String>? colorImages,
+    List<String>? idealFor,
+    String? installationGuide,
     bool? isTrending,
+    bool? isNewArrival,
+    bool? isFeatured,
+    bool? inStock,
+    int? stockQuantity,
+    List<String>? relatedProductIds,
+    String? weight,
+    String? origin,
   }) => Stone(
     id: id ?? this.id,
     name: name ?? this.name,
+    productCode: productCode ?? this.productCode,
     collection: collection ?? this.collection,
+    category: category ?? this.category,
     pricePerSqFt: pricePerSqFt ?? this.pricePerSqFt,
     description: description ?? this.description,
-    imageUrl: imageUrl ?? this.imageUrl,
+    images: images ?? this.images,
+    mainImageUrl: mainImageUrl ?? this.mainImageUrl,
     rating: rating ?? this.rating,
     reviewCount: reviewCount ?? this.reviewCount,
+    length: length ?? this.length,
+    width: width ?? this.width,
     thickness: thickness ?? this.thickness,
-    finish: finish ?? this.finish,
     size: size ?? this.size,
-    origin: origin ?? this.origin,
+    sqftPerBox: sqftPerBox ?? this.sqftPerBox,
+    piecesPerBox: piecesPerBox ?? this.piecesPerBox,
+    finish: finish ?? this.finish,
+    texture: texture ?? this.texture,
     availableColors: availableColors ?? this.availableColors,
+    colorImages: colorImages ?? this.colorImages,
+    idealFor: idealFor ?? this.idealFor,
+    installationGuide: installationGuide ?? this.installationGuide,
     isTrending: isTrending ?? this.isTrending,
+    isNewArrival: isNewArrival ?? this.isNewArrival,
+    isFeatured: isFeatured ?? this.isFeatured,
+    inStock: inStock ?? this.inStock,
+    stockQuantity: stockQuantity ?? this.stockQuantity,
+    relatedProductIds: relatedProductIds ?? this.relatedProductIds,
+    weight: weight ?? this.weight,
+    origin: origin ?? this.origin,
   );
 }
