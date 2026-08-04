@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:grazia_stones/core/constants/app_colors.dart';
-import 'package:grazia_stones/core/constants/app_dimensions.dart';
-import 'package:grazia_stones/core/theme/text_styles.dart';
-import 'package:grazia_stones/shared/widgets/grazia_button.dart';
-import 'package:grazia_stones/shared/widgets/luxury_bottom_sheet.dart';
+import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
+import 'package:grazia_stones/core/services/mock_data_service.dart';
+import 'package:grazia_stones/core/models/stone.dart';
+import 'package:grazia_stones/shared/theme/colors.dart';
+import 'package:grazia_stones/shared/theme/typography.dart';
+import 'package:grazia_stones/shared/theme/spacing.dart';
 
 class WishlistScreen extends StatefulWidget {
   const WishlistScreen({super.key});
@@ -12,157 +14,146 @@ class WishlistScreen extends StatefulWidget {
   State<WishlistScreen> createState() => _WishlistScreenState();
 }
 
-class _WishlistScreenState extends State<WishlistScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _fadeAnim;
-  final List<_WishlistItem> _items = [
-    _WishlistItem(
-      name: 'Charcoal Black',
-      collection: 'Basalt Series',
-      price: '\$42/sqft',
-      colorHex: '#2D2D2D',
-      sqft: 150,
-    ),
-    _WishlistItem(
-      name: 'Ivory Travertine',
-      collection: 'Classica',
-      price: '\$56/sqft',
-      colorHex: '#F5F0EB',
-      sqft: 80,
-    ),
-    _WishlistItem(
-      name: 'Nero Marquina',
-      collection: 'Marquina Premium',
-      price: '\$68/sqft',
-      colorHex: '#1A1A1A',
-      sqft: 200,
-    ),
-  ];
+class _WishlistScreenState extends State<WishlistScreen> {
+  // Mock wishlist (first 4 stones)
+  List<Stone> _wishlist = [];
+  Set<String> _selectedIds = {};
+  bool _isSelectionMode = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    );
-    _fadeAnim = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
-    _controller.forward();
+    _wishlist = MockDataService.getAllStones().take(4).toList();
   }
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+  void _removeItem(String id) {
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _wishlist.removeWhere((s) => s.id == id);
+      _selectedIds.remove(id);
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Removed from wishlist'), backgroundColor: Colors.red),
+    );
+  }
+
+  void _removeSelected() {
+    if (_selectedIds.isEmpty) return;
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _wishlist.removeWhere((s) => _selectedIds.contains(s.id));
+      _selectedIds.clear();
+      _isSelectionMode = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Removed selected items'), backgroundColor: Colors.red),
+    );
+  }
+
+  void _toggleSelection(String id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  void _selectAll() {
+    setState(() {
+      if (_selectedIds.length == _wishlist.length) {
+        _selectedIds.clear();
+      } else {
+        _selectedIds = _wishlist.map((s) => s.id).toSet();
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final palette = GLuxuryPalettes.gold;
+
     return Scaffold(
-      backgroundColor: AppColors.charcoal,
+      backgroundColor: palette.background,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: palette.background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => context.pop(),
+          icon: Icon(Icons.arrow_back_ios_new, color: palette.textPrimary),
         ),
         title: Text(
           'Wishlist',
-          style: GraziaTextStyles.titleMedium.copyWith(color: Colors.white),
+          style: GLuxuryTypography.h2.copyWith(color: palette.textPrimary),
         ),
-        centerTitle: true,
         actions: [
-          if (_items.isNotEmpty)
+          if (_wishlist.isNotEmpty)
             TextButton(
               onPressed: () {
-                setState(() => _items.clear());
+                setState(() {
+                  _isSelectionMode = !_isSelectionMode;
+                  if (!_isSelectionMode) _selectedIds.clear();
+                });
               },
               child: Text(
-                'Clear All',
-                style: GraziaTextStyles.bodySmall
-                    .copyWith(color: AppColors.goldWarm),
+                _isSelectionMode ? 'Cancel' : 'Select',
+                style: GLuxuryTypography.labelMedium.copyWith(color: palette.primary),
               ),
             ),
         ],
       ),
-      body: FadeTransition(
-        opacity: _fadeAnim,
-        child: _items.isEmpty
-            ? _buildEmptyState()
-            : _buildWishlistBody(),
-      ),
+      body: _wishlist.isEmpty ? _buildEmptyState(palette) : _buildWishlistContent(palette),
+      bottomNavigationBar: _isSelectionMode && _selectedIds.isNotEmpty
+          ? _buildBottomBar(palette)
+          : null,
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(GoldPalette palette) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.favorite_border, size: 80, color: AppColors.slate),
-          const SizedBox(height: 16),
+          Icon(Icons.favorite_border, size: 80, color: palette.textTertiary.withValues(alpha: 0.3)),
+          GLuxurySpacing.gapBase,
           Text(
             'Your wishlist is empty',
-            style:
-                GraziaTextStyles.titleMedium.copyWith(color: AppColors.silver),
+            style: GLuxuryTypography.h2.copyWith(color: palette.textPrimary),
           ),
-          const SizedBox(height: 8),
+          GLuxurySpacing.gapSm,
           Text(
-            'Save stones you love for later',
-            style:
-                GraziaTextStyles.bodyMedium.copyWith(color: AppColors.slate),
+            'Add stones you love to your wishlist',
+            style: GLuxuryTypography.bodyMedium.copyWith(color: palette.textSecondary),
           ),
-          const SizedBox(height: 24),
-          GraziaButton(
-            label: 'Browse Stones',
-            onPressed: () => Navigator.pop(context),
+          GLuxurySpacing.gapXl,
+          ElevatedButton(
+            onPressed: () => context.go('/home'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: palette.primary,
+              foregroundColor: palette.background,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            ),
+            child: Text('Browse Stones', style: GLuxuryTypography.labelLarge),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildWishlistBody() {
+  Widget _buildWishlistContent(GoldPalette palette) {
     return Column(
       children: [
+        if (_isSelectionMode) _buildSelectionHeader(palette),
         Expanded(
           child: ListView.builder(
-            padding: const EdgeInsets.all(AppDimensions.spacingL),
-            itemCount: _items.length,
-            itemBuilder: (context, index) {
-              final item = _items[index];
-              return _WishlistCard(
-                item: item,
-                onRemove: () => setState(() => _items.removeAt(index)),
-                onTap: () => _showMoveToCartSheet(item),
-              );
-            },
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.all(AppDimensions.spacingL),
-          decoration: const BoxDecoration(
-            color: AppColors.graphite,
-            border: Border(top: BorderSide(color: AppColors.slate)),
-          ),
-          child: GraziaButton(
-            label: 'Move All to Cart',
-            icon: Icons.shopping_bag_outlined,
-            onPressed: () {
-              if (_items.isNotEmpty) {
-                final count = _items.length;
-                setState(() => _items.clear());
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('$count item${count > 1 ? 's' : ''} moved to cart'),
-                    backgroundColor: AppColors.gold,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                );
-              }
+            padding: const EdgeInsets.all(16),
+            itemCount: _wishlist.length,
+            itemBuilder: (context, i) {
+              final stone = _wishlist[i];
+              final isSelected = _selectedIds.contains(stone.id);
+              return _buildWishlistCard(stone, isSelected, palette);
             },
           ),
         ),
@@ -170,176 +161,188 @@ class _WishlistScreenState extends State<WishlistScreen>
     );
   }
 
-  void _showMoveToCartSheet(_WishlistItem item) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => LuxuryBottomSheet(
-        title: 'Move to Cart',
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceLight,
+  Widget _buildSelectionHeader(GoldPalette palette) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: palette.surface,
+        border: Border(bottom: BorderSide(color: palette.border)),
+      ),
+      child: Row(
+        children: [
+          Checkbox(
+            value: _selectedIds.length == _wishlist.length && _wishlist.isNotEmpty,
+            onChanged: (_) => _selectAll(),
+            activeColor: palette.primary,
+          ),
+          Text(
+            '${_selectedIds.length} selected',
+            style: GLuxuryTypography.bodyMedium.copyWith(color: palette.textPrimary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWishlistCard(Stone stone, bool isSelected, GoldPalette palette) {
+    return Dismissible(
+      key: Key(stone.id),
+      direction: DismissDirection.endToStart,
+      onDismissed: (_) => _removeItem(stone.id),
+      background: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: Colors.red,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Icon(Icons.delete_outline, color: Colors.white, size: 28),
+      ),
+      child: GestureDetector(
+        onTap: () {
+          if (_isSelectionMode) {
+            _toggleSelection(stone.id);
+          } else {
+            context.push('/stones/${stone.id}');
+          }
+        },
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: palette.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isSelected ? palette.primary : palette.border,
+              width: isSelected ? 2 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              if (_isSelectionMode)
+                Checkbox(
+                  value: isSelected,
+                  onChanged: (_) => _toggleSelection(stone.id),
+                  activeColor: palette.primary,
+                ),
+              ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: Color(
-                          int.parse(item.colorHex.replaceFirst('#', '0xFF'))),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
+                child: Image.network(
+                  stone.imageUrl ?? '',
+                  width: 80,
+                  height: 80,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    width: 80,
+                    height: 80,
+                    color: palette.surfaceDark,
+                    child: Icon(Icons.image, color: palette.textTertiary),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      stone.name,
+                      style: GLuxuryTypography.h3.copyWith(color: palette.textPrimary),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      stone.collection,
+                      style: GLuxuryTypography.bodySmall.copyWith(color: palette.textSecondary),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
                       children: [
-                        Text(item.name,
-                            style: GraziaTextStyles.bodyLarge
-                                .copyWith(color: Colors.white)),
-                        Text('${item.sqft} sqft · ${item.price}',
-                            style: GraziaTextStyles.bodySmall
-                                .copyWith(color: AppColors.silver)),
+                        Icon(Icons.star_rounded, color: palette.primary, size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          stone.rating.toString(),
+                          style: GLuxuryTypography.bodySmall.copyWith(color: palette.textPrimary),
+                        ),
+                        const SizedBox(width: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: palette.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            stone.finish,
+                            style: GLuxuryTypography.labelSmall.copyWith(
+                              color: palette.primary,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            GraziaButton(
-              label: 'Add to Cart',
-              onPressed: () {
-                Navigator.pop(context);
-                setState(() => _items.remove(item));
-              },
-            ),
-            const SizedBox(height: 12),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _WishlistCard extends StatelessWidget {
-  final _WishlistItem item;
-  final VoidCallback onRemove;
-  final VoidCallback onTap;
-
-  const _WishlistCard({
-    required this.item,
-    required this.onRemove,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = Color(
-        int.parse(item.colorHex.replaceFirst('#', '0xFF')));
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceElevated,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.slate),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.borderLight),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    item.name,
-                    style: GraziaTextStyles.bodyLarge.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    '₹${stone.pricePerSqFt.toInt()}',
+                    style: GLuxuryTypography.h3.copyWith(color: palette.primary),
                   ),
-                  const SizedBox(height: 4),
                   Text(
-                    item.collection,
-                    style: GraziaTextStyles.bodySmall
-                        .copyWith(color: AppColors.silver),
+                    '/sq ft',
+                    style: GLuxuryTypography.labelSmall.copyWith(color: palette.textTertiary),
                   ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Text(
-                        item.price,
-                        style: GraziaTextStyles.bodyMedium.copyWith(
-                          color: AppColors.gold,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '${item.sqft} sqft',
-                        style: GraziaTextStyles.bodySmall
-                            .copyWith(color: AppColors.slate),
-                      ),
-                    ],
-                  ),
+                  const SizedBox(height: 8),
+                  if (!_isSelectionMode)
+                    IconButton(
+                      onPressed: () => _removeItem(stone.id),
+                      icon: Icon(Icons.close, color: palette.textTertiary, size: 20),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
                 ],
               ),
-            ),
-            Column(
-              children: [
-                IconButton(
-                  onPressed: onRemove,
-                  icon: const Icon(Icons.close, size: 20),
-                  color: AppColors.slate,
-                ),
-                const SizedBox(height: 4),
-                IconButton(
-                  onPressed: onTap,
-                  icon: const Icon(Icons.shopping_bag_outlined, size: 20),
-                  color: AppColors.gold,
-                ),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
-}
 
-class _WishlistItem {
-  final String name;
-  final String collection;
-  final String price;
-  final String colorHex;
-  final int sqft;
-
-  const _WishlistItem({
-    required this.name,
-    required this.collection,
-    required this.price,
-    required this.colorHex,
-    required this.sqft,
-  });
+  Widget _buildBottomBar(GoldPalette palette) {
+    return Container(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 16,
+        bottom: MediaQuery.of(context).padding.bottom + 16,
+      ),
+      decoration: BoxDecoration(
+        color: palette.background,
+        border: Border(top: BorderSide(color: palette.border)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: ElevatedButton.icon(
+              onPressed: _removeSelected,
+              icon: const Icon(Icons.delete_outline),
+              label: Text('Remove Selected (${_selectedIds.length})'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

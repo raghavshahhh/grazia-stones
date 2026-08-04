@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import '../features/cart/providers/cart_riverpod_provider.dart';
 import '../features/auth/providers/auth_riverpod_provider.dart';
 import '../features/quotes/providers/quote_riverpod_provider.dart';
+import '../features/orders/providers/order_riverpod_provider.dart';
 import '../core/network/api_client.dart';
 import '../core/repositories/stone_repository.dart';
 import '../core/repositories/collection_repository.dart';
@@ -51,4 +52,8 @@ final authRiverpodProvider = StateNotifierProvider<AuthRiverpodNotifier, AuthRiv
 
 final quoteRiverpodProvider = StateNotifierProvider<QuoteRiverpodNotifier, QuoteRiverpodState>((ref) {
   return QuoteRiverpodNotifier();
+});
+
+final orderRiverpodProvider = StateNotifierProvider<OrderRiverpodNotifier, OrderRiverpodState>((ref) {
+  return OrderRiverpodNotifier();
 });

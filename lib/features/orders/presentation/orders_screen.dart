@@ -1,157 +1,171 @@
 import 'package:flutter/material.dart';
-import 'package:grazia_stones/core/constants/app_colors.dart';
-import 'package:grazia_stones/core/constants/app_dimensions.dart';
-import 'package:grazia_stones/core/theme/text_styles.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:grazia_stones/shared/theme/colors.dart';
+import 'package:grazia_stones/shared/theme/typography.dart';
+import 'package:grazia_stones/shared/theme/spacing.dart';
+import 'package:grazia_stones/core/di.dart';
+import 'package:grazia_stones/core/models/order.dart';
 
-class OrdersScreen extends StatelessWidget {
+class OrdersScreen extends ConsumerStatefulWidget {
   const OrdersScreen({super.key});
 
   @override
+  ConsumerState<OrdersScreen> createState() => _OrdersScreenState();
+}
+
+class _OrdersScreenState extends ConsumerState<OrdersScreen> {
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() {
+      ref.read(orderRiverpodProvider.notifier).loadOrders();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final palette = GLuxuryPalettes.gold;
+    final orderState = ref.watch(orderRiverpodProvider);
+
     return Scaffold(
-      backgroundColor: AppColors.charcoal,
+      backgroundColor: palette.background,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: palette.background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => context.pop(),
+          icon: Icon(Icons.arrow_back_ios_new, color: palette.textPrimary),
         ),
         title: Text(
           'My Orders',
-          style: GraziaTextStyles.titleMedium.copyWith(color: Colors.white),
+          style: GLuxuryTypography.h2.copyWith(color: palette.textPrimary),
         ),
-        centerTitle: true,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(AppDimensions.spacingL),
+      body: orderState.isLoading
+          ? Center(child: CircularProgressIndicator(color: palette.primary))
+          : orderState.orders.isEmpty
+              ? _buildEmptyState(palette)
+              : RefreshIndicator(
+                  color: palette.primary,
+                  backgroundColor: palette.surface,
+                  onRefresh: () async {
+                    await ref.read(orderRiverpodProvider.notifier).loadOrders();
+                  },
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: orderState.orders.length,
+                    itemBuilder: (context, i) =>
+                        _buildOrderCard(orderState.orders[i], palette),
+                  ),
+                ),
+    );
+  }
+
+  Widget _buildEmptyState(GoldPalette palette) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _OrderCard(
-            orderId: 'GS-2026-0042',
-            stone: 'Charcoal Black',
-            quantity: '200 sq ft',
-            status: 'Delivered',
-            statusColor: Colors.green,
-            date: 'Jul 10, 2026',
-          ),
-          const SizedBox(height: 12),
-          _OrderCard(
-            orderId: 'GS-2026-0038',
-            stone: 'Walnut Brown',
-            quantity: '1200 sq ft',
-            status: 'In Transit',
-            statusColor: AppColors.gold,
-            date: 'Jul 18, 2026',
-          ),
-          const SizedBox(height: 12),
-          _OrderCard(
-            orderId: 'GS-2026-0035',
-            stone: 'Matte White',
-            quantity: '80 sq ft',
-            status: 'Processing',
-            statusColor: Colors.blue,
-            date: 'Jul 20, 2026',
-          ),
+          Icon(Icons.shopping_bag_outlined, size: 80, color: palette.textTertiary.withValues(alpha: 0.3)),
+          GLuxurySpacing.gapBase,
+          Text('No orders yet', style: GLuxuryTypography.h2.copyWith(color: palette.textPrimary)),
+          GLuxurySpacing.gapSm,
+          Text('Your order history will appear here', style: GLuxuryTypography.bodyMedium.copyWith(color: palette.textSecondary)),
         ],
       ),
     );
   }
-}
 
-class _OrderCard extends StatelessWidget {
-  final String orderId;
-  final String stone;
-  final String quantity;
-  final String status;
-  final Color statusColor;
-  final String date;
+  Widget _buildOrderCard(Order order, GoldPalette palette) {
+    final statusColor = order.status == 'Delivered'
+        ? Colors.green
+        : order.status == 'In Transit'
+            ? Colors.orange
+            : order.status == 'Cancelled'
+                ? Colors.red
+                : palette.primary;
 
-  const _OrderCard({
-    required this.orderId,
-    required this.stone,
-    required this.quantity,
-    required this.status,
-    required this.statusColor,
-    required this.date,
-  });
-
-  @override
-  Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(AppDimensions.spacingL),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceElevated,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.slate),
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: palette.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                orderId,
-                style: GraziaTextStyles.bodySmall.copyWith(
-                  color: AppColors.silver,
-                ),
+                'Order #${order.id}',
+                style: GLuxuryTypography.h3.copyWith(color: palette.textPrimary),
               ),
-              const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(8),
+                  color: statusColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: statusColor.withValues(alpha: 0.3)),
                 ),
                 child: Text(
-                  status,
-                  style: GraziaTextStyles.bodySmall.copyWith(
+                  order.status,
+                  style: GLuxuryTypography.labelSmall.copyWith(
                     color: statusColor,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          Text(
-            stone,
-            style: GraziaTextStyles.bodyLarge.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 4),
           Row(
             children: [
+              Icon(Icons.calendar_today_outlined, size: 16, color: palette.textTertiary),
+              const SizedBox(width: 8),
               Text(
-                quantity,
-                style: GraziaTextStyles.bodyMedium.copyWith(
-                  color: AppColors.gold,
-                ),
+                '${order.createdAt.day}/${order.createdAt.month}/${order.createdAt.year}',
+                style: GLuxuryTypography.bodySmall.copyWith(color: palette.textSecondary),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 20),
+              Icon(Icons.inventory_2_outlined, size: 16, color: palette.textTertiary),
+              const SizedBox(width: 8),
               Text(
-                date,
-                style: GraziaTextStyles.bodySmall.copyWith(
-                  color: AppColors.silver,
-                ),
+                '${order.stoneNames.length} items',
+                style: GLuxuryTypography.bodySmall.copyWith(color: palette.textSecondary),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          // Progress bar
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: status == 'Delivered'
-                  ? 1.0
-                  : status == 'In Transit'
-                      ? 0.7
-                      : 0.3,
-              backgroundColor: AppColors.slate,
-              valueColor: AlwaysStoppedAnimation(statusColor),
-              minHeight: 4,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Total: ₹${order.totalAmount.toStringAsFixed(0)}',
+                style: GLuxuryTypography.h3.copyWith(color: palette.primary),
+              ),
+              if (order.status != 'Cancelled' && order.status != 'Delivered')
+                TextButton(
+                  onPressed: () {
+                    ref.read(orderRiverpodProvider.notifier).cancelOrder(order.id);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Order ${order.id} cancelled'),
+                        backgroundColor: palette.surface,
+                      ),
+                    );
+                  },
+                  child: Text('Cancel', style: GLuxuryTypography.labelMedium.copyWith(color: Colors.red)),
+                )
+              else
+                TextButton(
+                  onPressed: () {},
+                  child: Text('View Details', style: GLuxuryTypography.labelMedium.copyWith(color: palette.primary)),
+                ),
+            ],
           ),
         ],
       ),

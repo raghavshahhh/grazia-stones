@@ -28,7 +28,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadData() async {
-    await Future.delayed(const Duration(milliseconds: 1500));
     if (mounted) setState(() => _isLoading = false);
   }
 
@@ -44,7 +43,7 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           _buildGlassIconButton(
             icon: Icons.notifications_outlined,
-            onTap: () {},
+            onTap: () => _showNotificationsSheet(context),
           ),
           const SizedBox(width: 4),
           _buildGlassIconButton(
@@ -191,6 +190,85 @@ class _HomeScreenState extends State<HomeScreen> {
           const SliverToBoxAdapter(child: HomeTrendingGrid()),
           const SliverToBoxAdapter(child: SizedBox(height: 100)),
         ],
+      ),
+    );
+  }
+
+  void _showNotificationsSheet(BuildContext context) {
+    final palette = GLuxuryPalettes.gold;
+    final notifications = [
+      {'title': 'Welcome to Grazia!', 'subtitle': 'Discover our luxury stone collections', 'time': 'Just now', 'icon': Icons.star_outline},
+      {'title': 'New Collection Arrived', 'subtitle': 'Explore the Royal Heritage marble series', 'time': '2h ago', 'icon': Icons.diamond_outlined},
+      {'title': 'Order Shipped', 'subtitle': 'Your sample order is on the way', 'time': '1d ago', 'icon': Icons.local_shipping_outlined},
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        height: MediaQuery.of(ctx).size.height * 0.45,
+        decoration: BoxDecoration(
+          color: palette.background,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: palette.textTertiary.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text('Notifications', style: GLuxuryTypography.h2.copyWith(color: palette.textPrimary)),
+            const SizedBox(height: 16),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: notifications.length,
+                itemBuilder: (ctx, i) {
+                  final n = notifications[i];
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: palette.surface,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: palette.border),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: palette.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(n['icon'] as IconData, color: palette.primary, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(n['title'] as String, style: GLuxuryTypography.bodyMedium.copyWith(color: palette.textPrimary, fontWeight: FontWeight.w600)),
+                              const SizedBox(height: 2),
+                              Text(n['subtitle'] as String, style: GLuxuryTypography.bodySmall.copyWith(color: palette.textSecondary)),
+                            ],
+                          ),
+                        ),
+                        Text(n['time'] as String, style: GLuxuryTypography.bodySmall.copyWith(color: palette.textTertiary, fontSize: 11)),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -62,7 +62,7 @@ class AppRoutes {
         final id = settings.arguments as String? ?? '';
         return _buildRoute(StoneDetailScreen(stoneId: id), settings);
       case aiViz:
-        return _buildRoute(const AIScreen(), settings);
+        return _buildRoute(const AIVizScreen(), settings);
       case arView:
         return _buildRoute(const ARViewScreen(), settings);
       case dealers:

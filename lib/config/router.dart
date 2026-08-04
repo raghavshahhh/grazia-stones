@@ -311,7 +311,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/ai-viz',
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
-            _scaleFadePage(const AIScreen(), state),
+            _scaleFadePage(const AIVizScreen(), state),
       ),
       GoRoute(
         path: '/ar-view',

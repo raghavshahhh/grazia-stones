@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:grazia_stones/core/constants/app_colors.dart';
-import 'package:grazia_stones/core/constants/app_dimensions.dart';
-import 'package:grazia_stones/core/models/dealer.dart';
+import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/services/mock_data_service.dart';
-import 'package:grazia_stones/core/theme/text_styles.dart';
+import 'package:grazia_stones/core/models/dealer.dart';
+import 'package:grazia_stones/shared/theme/colors.dart';
+import 'package:grazia_stones/shared/theme/typography.dart';
+import 'package:grazia_stones/shared/theme/spacing.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class DealerLocatorScreen extends StatefulWidget {
   const DealerLocatorScreen({super.key});
@@ -14,307 +16,314 @@ class DealerLocatorScreen extends StatefulWidget {
 }
 
 class _DealerLocatorScreenState extends State<DealerLocatorScreen> {
-  final _searchController = TextEditingController();
-  late List<Dealer> _allDealers;
-  List<Dealer> _filteredDealers = [];
+  bool _isMapView = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _allDealers = MockDataService.dealers;
-    _filteredDealers = _allDealers;
-    _searchController.addListener(_filterDealers);
+  void _makePhoneCall(String phone) async {
+    final uri = Uri(scheme: 'tel', path: phone);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
   }
 
-  @override
-  void dispose() {
-    _searchController.removeListener(_filterDealers);
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  void _filterDealers() {
-    final query = _searchController.text.toLowerCase().trim();
-    setState(() {
-      if (query.isEmpty) {
-        _filteredDealers = _allDealers;
-      } else {
-        _filteredDealers = _allDealers.where((d) {
-          return d.name.toLowerCase().contains(query) ||
-              d.address.toLowerCase().contains(query);
-        }).toList();
-      }
-    });
+  void _openMaps(String address) async {
+    final query = Uri.encodeComponent(address);
+    final uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=$query');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final palette = GLuxuryPalettes.gold;
+    final dealers = MockDataService.getAllDealers();
+
     return Scaffold(
-      backgroundColor: AppColors.charcoal,
+      backgroundColor: palette.background,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: palette.background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => context.pop(),
+          icon: Icon(Icons.arrow_back_ios_new, color: palette.textPrimary),
         ),
         title: Text(
           'Find Dealers',
-          style: GraziaTextStyles.titleMedium.copyWith(color: Colors.white),
+          style: GLuxuryTypography.h2.copyWith(color: palette.textPrimary),
         ),
-        centerTitle: true,
+        actions: [
+          IconButton(
+            onPressed: () {
+              setState(() => _isMapView = !_isMapView);
+              HapticFeedback.lightImpact();
+            },
+            icon: Icon(
+              _isMapView ? Icons.list : Icons.map_outlined,
+              color: palette.primary,
+            ),
+          ),
+        ],
       ),
-      body: Column(
-        children: [
-          // ── Map placeholder ──
-          Container(
-            height: 200,
-            width: double.infinity,
-            color: AppColors.graphite,
-            child: Stack(
+      body: _isMapView ? _buildMapView(palette, dealers) : _buildListView(palette, dealers),
+    );
+  }
+
+  Widget _buildMapView(GoldPalette palette, List<Dealer> dealers) {
+    return Stack(
+      children: [
+        Container(
+          color: palette.surfaceDark,
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.map_outlined,
-                        size: 48,
-                        color: AppColors.gold.withValues(alpha: 0.5),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Interactive Map',
-                        style: GraziaTextStyles.bodyMedium.copyWith(
-                          color: AppColors.silver,
-                        ),
-                      ),
-                    ],
-                  ),
+                Icon(Icons.map_outlined, size: 80, color: palette.textTertiary.withValues(alpha: 0.3)),
+                GLuxurySpacing.gapBase,
+                Text(
+                  'Map View',
+                  style: GLuxuryTypography.h2.copyWith(color: palette.textPrimary),
                 ),
-                // Search bar overlay
-                Positioned(
-                  bottom: 16,
-                  left: 16,
-                  right: 16,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: AppColors.charcoal.withValues(alpha: 0.9),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.slate),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.search, color: AppColors.silver, size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            controller: _searchController,
-                            style: GraziaTextStyles.bodyMedium.copyWith(
-                              color: Colors.white,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: 'Search by city or pincode...',
-                              hintStyle: GraziaTextStyles.bodyMedium.copyWith(
-                                color: AppColors.slate,
-                              ),
-                              border: InputBorder.none,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                GLuxurySpacing.gapSm,
+                Text(
+                  'Interactive map would appear here',
+                  style: GLuxuryTypography.bodyMedium.copyWith(color: palette.textSecondary),
                 ),
               ],
             ),
           ),
+        ),
+        Positioned(
+          bottom: 0,
+          left: 0,
+          right: 0,
+          child: Container(
+            height: 180,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            decoration: BoxDecoration(
+              color: palette.background,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: dealers.length,
+              itemBuilder: (context, i) {
+                final dealer = dealers[i];
+                return Container(
+                  width: 280,
+                  margin: EdgeInsets.only(right: i < dealers.length - 1 ? 12 : 0),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: palette.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: palette.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              dealer.name,
+                              style: GLuxuryTypography.h3.copyWith(color: palette.textPrimary),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (dealer.isAuthorized)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: palette.primary.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                'Authorized',
+                                style: GLuxuryTypography.labelSmall.copyWith(
+                                  color: palette.primary,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(Icons.star_rounded, color: palette.primary, size: 16),
+                          const SizedBox(width: 4),
+                          Text(
+                            dealer.rating.toString(),
+                            style: GLuxuryTypography.bodySmall.copyWith(color: palette.textPrimary),
+                          ),
+                          const SizedBox(width: 12),
+                          Icon(Icons.location_on_outlined, color: palette.textTertiary, size: 16),
+                          const SizedBox(width: 4),
+                          Text(
+                            dealer.distance,
+                            style: GLuxuryTypography.bodySmall.copyWith(color: palette.textSecondary),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => _makePhoneCall(dealer.phone),
+                              icon: const Icon(Icons.phone, size: 16),
+                              label: const Text('Call'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: palette.primary,
+                                side: BorderSide(color: palette.border),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => _openMaps(dealer.address),
+                              icon: const Icon(Icons.directions, size: 16),
+                              label: const Text('Navigate'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: palette.primary,
+                                foregroundColor: palette.background,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
-          // ── Dealer List ──
-          Expanded(
-            child: _filteredDealers.isEmpty
-                ? Center(
+  Widget _buildListView(GoldPalette palette, List<Dealer> dealers) {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: dealers.length,
+      itemBuilder: (context, i) {
+        final dealer = dealers[i];
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: palette.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: palette.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
                     child: Text(
-                      'No dealers found',
-                      style: GraziaTextStyles.bodyMedium.copyWith(
-                        color: AppColors.silver,
+                      dealer.name,
+                      style: GLuxuryTypography.h3.copyWith(color: palette.textPrimary),
+                    ),
+                  ),
+                  if (dealer.isAuthorized)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        gradient: palette.primaryGradient,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        'Authorized',
+                        style: GLuxuryTypography.labelSmall.copyWith(
+                          color: palette.background,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.all(AppDimensions.spacingL),
-                    itemCount: _filteredDealers.length,
-                    itemBuilder: (context, index) {
-                      final dealer = _filteredDealers[index];
-                      return _DealerCard(dealer: dealer);
-                    },
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DealerCard extends StatelessWidget {
-  final Dealer dealer;
-
-  const _DealerCard({required this.dealer});
-
-  Future<void> _openDirections() async {
-    final query = Uri.encodeComponent(dealer.address);
-    final url = Uri.parse(
-      'https://www.google.com/maps/search/?api=1&query=$query',
-    );
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
-    }
-  }
-
-  Future<void> _callDealer() async {
-    final url = Uri.parse('tel:${dealer.phone}');
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppDimensions.spacingM),
-      padding: const EdgeInsets.all(AppDimensions.spacingL),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceElevated,
-        borderRadius: BorderRadius.circular(AppDimensions.radiusL),
-        border: Border.all(color: AppColors.slate),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  dealer.name,
-                  style: GraziaTextStyles.titleMedium.copyWith(
-                    color: Colors.white,
-                  ),
-                ),
+                ],
               ),
-              if (dealer.isAuthorized)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.star_rounded, color: palette.primary, size: 18),
+                  const SizedBox(width: 4),
+                  Text(
+                    dealer.rating.toString(),
+                    style: GLuxuryTypography.bodyMedium.copyWith(color: palette.textPrimary),
                   ),
-                  decoration: BoxDecoration(
-                    color: AppColors.gold.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(8),
+                  const SizedBox(width: 16),
+                  Icon(Icons.location_on_outlined, color: palette.textTertiary, size: 18),
+                  const SizedBox(width: 4),
+                  Text(
+                    dealer.distance,
+                    style: GLuxuryTypography.bodyMedium.copyWith(color: palette.textSecondary),
                   ),
-                  child: Text(
-                    'Authorized',
-                    style: GraziaTextStyles.bodySmall.copyWith(
-                      color: AppColors.gold,
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(Icons.location_on_outlined, color: palette.textTertiary, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      dealer.address,
+                      style: GLuxuryTypography.bodyMedium.copyWith(color: palette.textSecondary),
                     ),
                   ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 8),
-
-          Row(
-            children: [
-              const Icon(Icons.location_on_outlined, size: 16, color: AppColors.silver),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  dealer.address,
-                  style: GraziaTextStyles.bodySmall.copyWith(
-                    color: AppColors.silver,
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.phone_outlined, color: palette.textTertiary, size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    dealer.phone,
+                    style: GLuxuryTypography.bodyMedium.copyWith(color: palette.textSecondary),
                   ),
-                ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _makePhoneCall(dealer.phone),
+                      icon: const Icon(Icons.phone_outlined, size: 18),
+                      label: const Text('Call Now'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: palette.primary,
+                        side: BorderSide(color: palette.border),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => _openMaps(dealer.address),
+                      icon: const Icon(Icons.directions_outlined, size: 18),
+                      label: const Text('Directions'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: palette.primary,
+                        foregroundColor: palette.background,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-          const SizedBox(height: 4),
-
-          Row(
-            children: [
-              const Icon(Icons.phone_outlined, size: 16, color: AppColors.silver),
-              const SizedBox(width: 4),
-              Text(
-                dealer.phone,
-                style: GraziaTextStyles.bodySmall.copyWith(
-                  color: AppColors.silver,
-                ),
-              ),
-              const Spacer(),
-              const Icon(Icons.star, size: 16, color: AppColors.goldWarm),
-              const SizedBox(width: 4),
-              Text(
-                '${dealer.rating}',
-                style: GraziaTextStyles.bodySmall.copyWith(
-                  color: AppColors.goldWarm,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          Row(
-            children: [
-              Text(
-                dealer.distance,
-                style: GraziaTextStyles.bodySmall.copyWith(
-                  color: AppColors.gold,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const Spacer(),
-              SizedBox(
-                height: 36,
-                child: OutlinedButton(
-                  onPressed: _openDirections,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.gold,
-                    side: const BorderSide(color: AppColors.gold),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: Text(
-                    'Directions',
-                    style: GraziaTextStyles.bodySmall.copyWith(
-                      color: AppColors.gold,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              SizedBox(
-                height: 36,
-                child: OutlinedButton(
-                  onPressed: _callDealer,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.gold,
-                    side: const BorderSide(color: AppColors.gold),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: Text(
-                    'Call',
-                    style: GraziaTextStyles.bodySmall.copyWith(
-                      color: AppColors.gold,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

@@ -1,6 +1,38 @@
 class Validators {
   Validators._();
 
+  static String? validateName(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Name is required';
+    }
+    if (value.trim().length < 2) {
+      return 'Name must be at least 2 characters';
+    }
+    return null;
+  }
+
+  static String? validatePhone(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Phone number is required';
+    }
+    final cleaned = value.replaceAll(RegExp(r'[\s\-]'), '');
+    if (!RegExp(r'^[6-9]\d{9}$').hasMatch(cleaned) &&
+        !RegExp(r'^\+91[6-9]\d{9}$').hasMatch(cleaned)) {
+      return 'Enter a valid 10-digit Indian phone number';
+    }
+    return null;
+  }
+
+  static String? validateEmail(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Email is required';
+    }
+    if (!RegExp(r'^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,}$').hasMatch(value)) {
+      return 'Enter a valid email address';
+    }
+    return null;
+  }
+
   static String? phone(String? value) {
     if (value == null || value.isEmpty) {
       return 'Phone number is required';

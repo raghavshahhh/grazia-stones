@@ -289,11 +289,23 @@ class MockDataService {
     }
   }
 
+  static List<Stone> getAllStones() {
+    return stones;
+  }
+
   static List<Stone> getStonesByCollection(String collectionId) {
     return stones.where((s) => s.collection.toLowerCase().replaceAll(' ', '-') == collectionId).toList();
   }
 
   static List<Stone> getTrendingStones() {
     return stones.where((s) => s.isTrending).toList();
+  }
+
+  static List<Dealer> getAllDealers() {
+    return dealers;
+  }
+
+  static List<Collection> getAllCollections() {
+    return collections;
   }
 }

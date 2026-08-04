@@ -1,312 +1,288 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:grazia_stones/core/constants/app_colors.dart';
-import 'package:grazia_stones/core/constants/app_dimensions.dart';
-import 'package:grazia_stones/core/theme/text_styles.dart';
+import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:grazia_stones/core/services/mock_data_service.dart';
+import 'package:grazia_stones/shared/theme/colors.dart';
+import 'package:grazia_stones/shared/theme/typography.dart';
+import 'package:grazia_stones/shared/theme/spacing.dart';
 
-class AIScreen extends StatefulWidget {
-  const AIScreen({super.key});
+class AIVizScreen extends StatefulWidget {
+  const AIVizScreen({super.key});
 
   @override
-  State<AIScreen> createState() => _AIScreenState();
+  State<AIVizScreen> createState() => _AIVizScreenState();
 }
 
-class _AIScreenState extends State<AIScreen> {
-  bool _isGenerating = false;
-  String? _generatedUrl;
-  String? _selectedRoomStyle;
-  final TextEditingController _descriptionController = TextEditingController();
+class _AIVizScreenState extends State<AIVizScreen> {
+  File? _selectedImage;
+  String? _selectedStoneId;
+  bool _isProcessing = false;
+  final _picker = ImagePicker();
 
-  final List<String> _roomStyles = [
-    'Living Room',
-    'Kitchen',
-    'Bathroom',
-    'Bedroom',
-    'Outdoor Patio',
-    'Lobby',
-  ];
-
-  final Map<String, String> _stylePrompts = {
-    'Living Room': 'modern%20luxury%20living%20room%20with%20stone%20wall%20accents%20warm%20lighting%20interior%20design',
-    'Kitchen': 'modern%20luxury%20kitchen%20with%20stone%20countertops%20and%20backsplash%20interior%20design',
-    'Bathroom': 'luxury%20spa%20bathroom%20with%20stone%20walls%20and%20floor%20interior%20design',
-    'Bedroom': 'elegant%20bedroom%20with%20stone%20accent%20wall%20cozy%20ambiance%20interior%20design',
-    'Outdoor Patio': 'luxury%20outdoor%20patio%20with%20stone%20flooring%20and%20walls%20landscaping',
-    'Lobby': 'grand%20hotel%20lobby%20with%20marble%20walls%20and%20floors%20luxury%20interior%20design',
-  };
-
-  @override
-  void dispose() {
-    _descriptionController.dispose();
-    super.dispose();
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final pickedFile = await _picker.pickImage(source: source);
+      if (pickedFile != null) {
+        setState(() {
+          _selectedImage = File(pickedFile.path);
+        });
+        HapticFeedback.mediumImpact();
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error picking image: $e')),
+      );
+    }
   }
 
-  Future<void> _generateVisualization() async {
-    if (_selectedRoomStyle == null) return;
-
-    setState(() => _isGenerating = true);
-
-    final basePrompt = _stylePrompts[_selectedRoomStyle] ?? 'luxury%20stone%20interior';
-    final customDesc = _descriptionController.text.trim();
-    final fullPrompt = customDesc.isNotEmpty
-        ? '${Uri.encodeComponent(customDesc)}%20$basePrompt'
-        : basePrompt;
-    final url = 'https://image.pollinations.ai/prompt/$fullPrompt?width=768&height=512&seed=${DateTime.now().millisecondsSinceEpoch}';
-
-    await Future.delayed(const Duration(seconds: 2));
-
-    if (mounted) {
-      setState(() {
-        _generatedUrl = url;
-        _isGenerating = false;
-      });
-    }
+  void _applyStoneTexture() {
+    if (_selectedImage == null || _selectedStoneId == null) return;
+    
+    setState(() => _isProcessing = true);
+    HapticFeedback.mediumImpact();
+    
+    // Simulate AI processing
+    Future.delayed(const Duration(seconds: 2), () {
+      setState(() => _isProcessing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Stone texture applied! (Preview simulation)'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final palette = GLuxuryPalettes.gold;
+    final stones = MockDataService.getAllStones().take(6).toList();
+
     return Scaffold(
-      backgroundColor: AppColors.surfaceDark,
+      backgroundColor: palette.background,
       appBar: AppBar(
-        backgroundColor: AppColors.charcoal,
-        title: const Text('AI Room Visualizer', style: TextStyle(color: Colors.white)),
-        iconTheme: const IconThemeData(color: Colors.white),
+        backgroundColor: palette.background,
+        elevation: 0,
+        leading: IconButton(
+          onPressed: () => context.pop(),
+          icon: Icon(Icons.arrow_back_ios_new, color: palette.textPrimary),
+        ),
+        title: Text(
+          'AI Visualization',
+          style: GLuxuryTypography.h2.copyWith(color: palette.textPrimary),
+        ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppDimensions.spacingL),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'See how our stones look in your space',
-              style: AppTextStyles.headlineSmall.copyWith(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.bold,
+            // Info banner
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: palette.primaryGradient,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.auto_awesome, color: palette.background, size: 24),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Upload your space and visualize stones instantly',
+                      style: GLuxuryTypography.bodyMedium.copyWith(color: palette.background),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: AppDimensions.spacingM),
-            Text(
-              'Select a room style, add a description, and our AI will generate a visualization.',
-              style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: AppDimensions.spacingL),
-            Text(
-              'Room Style',
-              style: AppTextStyles.titleSmall.copyWith(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.bold,
+            
+            GLuxurySpacing.gapXl,
+            
+            // Image upload section
+            Text('Step 1: Upload Image', style: GLuxuryTypography.h3.copyWith(color: palette.textPrimary)),
+            GLuxurySpacing.gapSm,
+            
+            if (_selectedImage == null)
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildUploadButton(
+                      palette,
+                      'Camera',
+                      Icons.camera_alt_outlined,
+                      () => _pickImage(ImageSource.camera),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildUploadButton(
+                      palette,
+                      'Gallery',
+                      Icons.photo_library_outlined,
+                      () => _pickImage(ImageSource.gallery),
+                    ),
+                  ),
+                ],
+              )
+            else
+              Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.file(_selectedImage!, height: 250, width: double.infinity, fit: BoxFit.cover),
+                  ),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: IconButton(
+                      onPressed: () => setState(() {
+                        _selectedImage = null;
+                        _selectedStoneId = null;
+                      }),
+                      icon: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.close, color: Colors.white, size: 20),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: AppDimensions.spacingM),
-            Wrap(
-              spacing: AppDimensions.spacingS,
-              runSpacing: AppDimensions.spacingS,
-              children: _roomStyles.map((style) {
-                final isSelected = _selectedRoomStyle == style;
-                return ChoiceChip(
-                  label: Text(style),
-                  selected: isSelected,
-                  selectedColor: AppColors.gold,
-                  backgroundColor: AppColors.charcoal,
-                  labelStyle: TextStyle(
-                    color: isSelected ? Colors.white : AppColors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  side: BorderSide(
-                    color: isSelected ? AppColors.gold : AppColors.borderSubtle,
-                  ),
-                  onSelected: (selected) {
-                    setState(() {
-                      _selectedRoomStyle = selected ? style : null;
-                    });
+            
+            GLuxurySpacing.gapXl,
+            
+            // Stone selection
+            Text('Step 2: Select Stone', style: GLuxuryTypography.h3.copyWith(color: palette.textPrimary)),
+            GLuxurySpacing.gapSm,
+            
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 0.75,
+              ),
+              itemCount: stones.length,
+              itemBuilder: (context, i) {
+                final stone = stones[i];
+                final isSelected = _selectedStoneId == stone.id;
+                return GestureDetector(
+                  onTap: () {
+                    setState(() => _selectedStoneId = stone.id);
+                    HapticFeedback.selectionClick();
                   },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isSelected ? palette.primary : palette.border,
+                        width: isSelected ? 3 : 1,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                            child: Image.network(
+                              stone.imageUrl ?? '',
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                color: palette.surfaceDark,
+                                child: Icon(Icons.image, color: palette.textTertiary),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Text(
+                            stone.name,
+                            style: GLuxuryTypography.labelSmall.copyWith(color: palette.textPrimary),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 );
-              }).toList(),
+              },
             ),
-            const SizedBox(height: AppDimensions.spacingL),
-            Text(
-              'Additional Details (optional)',
-              style: AppTextStyles.titleSmall.copyWith(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: AppDimensions.spacingM),
-            TextField(
-              controller: _descriptionController,
-              maxLines: 3,
-              style: const TextStyle(color: AppColors.textPrimary),
-              decoration: InputDecoration(
-                hintText: 'e.g. "Warm ambient lighting, modern furniture, large windows"',
-                hintStyle: const TextStyle(color: AppColors.textTertiary),
-                filled: true,
-                fillColor: AppColors.charcoal,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                  borderSide: const BorderSide(color: AppColors.borderSubtle),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                  borderSide: const BorderSide(color: AppColors.borderSubtle),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                  borderSide: const BorderSide(color: AppColors.gold, width: 2),
-                ),
-              ),
-            ),
-            const SizedBox(height: AppDimensions.spacingXl),
-            SizedBox(
-              width: double.infinity,
-              height: AppDimensions.buttonHeight,
-              child: ElevatedButton.icon(
-                onPressed: (_selectedRoomStyle == null || _isGenerating)
-                    ? null
-                    : _generateVisualization,
-                icon: _isGenerating
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : const Icon(Icons.auto_awesome, color: Colors.white),
-                label: Text(
-                  _isGenerating ? 'Generating...' : 'Visualize Room',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.gold,
-                  disabledBackgroundColor: AppColors.textTertiary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: AppDimensions.spacingXl),
-            if (_generatedUrl != null) ...[
-              Text(
-                'Generated Visualization',
-                style: AppTextStyles.titleSmall.copyWith(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: AppDimensions.spacingM),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: AppColors.charcoal,
-                    borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.3),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      Image.network(
-                        _generatedUrl!,
-                        width: double.infinity,
-                        height: 300,
-                        fit: BoxFit.cover,
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return Container(
-                            height: 300,
-                            color: AppColors.surfaceLight,
-                            child: const Center(
-                              child: CircularProgressIndicator(color: AppColors.gold),
-                            ),
-                          );
-                        },
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            height: 300,
-                            color: AppColors.surfaceLight,
-                            child: const Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.error_outline, size: 48, color: AppColors.textTertiary),
-                                  SizedBox(height: 8),
-                                  Text('Failed to generate image', style: TextStyle(color: AppColors.textSecondary)),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.all(AppDimensions.spacingM),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.auto_awesome, color: AppColors.gold, size: 20),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Room style: $_selectedRoomStyle',
-              style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: AppDimensions.spacingM),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _generateVisualization,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Regenerate'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.gold,
-                    side: const BorderSide(color: AppColors.gold),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                    ),
-                    padding: const EdgeInsets.all(AppDimensions.spacingM),
-                  ),
-                ),
-              ),
-            ],
-            if (_generatedUrl == null && !_isGenerating) ...[
-              const SizedBox(height: AppDimensions.spacingXxl),
-              Center(
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.room_preferences,
-                      size: 64,
-                      color: AppColors.textTertiary.withValues(alpha: 0.5),
-                    ),
-                    const SizedBox(height: AppDimensions.spacingM),
-                    Text(
-                      'Select a room style above to get started',
-                      style: AppTextStyles.bodyMedium.copyWith(
-                        color: AppColors.textTertiary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            
+            const SizedBox(height: 100),
           ],
+        ),
+      ),
+      bottomNavigationBar: Container(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom: MediaQuery.of(context).padding.bottom + 16,
+        ),
+        decoration: BoxDecoration(
+          color: palette.background,
+          border: Border(top: BorderSide(color: palette.border)),
+        ),
+        child: ElevatedButton.icon(
+          onPressed: _selectedImage != null && _selectedStoneId != null && !_isProcessing
+              ? _applyStoneTexture
+              : null,
+          icon: _isProcessing
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
+              : const Icon(Icons.auto_awesome),
+          label: Text(_isProcessing ? 'Processing...' : 'Apply Stone Texture'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: palette.primary,
+            foregroundColor: palette.background,
+            padding: const EdgeInsets.symmetric(vertical: 18),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+            disabledBackgroundColor: palette.surfaceDark,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUploadButton(GoldPalette palette, String label, IconData icon, VoidCallback onTap) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 40),
+          decoration: BoxDecoration(
+            color: palette.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: palette.border, style: BorderStyle.solid),
+          ),
+          child: Column(
+            children: [
+              Icon(icon, color: palette.primary, size: 40),
+              const SizedBox(height: 12),
+              Text(
+                label,
+                style: GLuxuryTypography.labelMedium.copyWith(color: palette.textPrimary),
+              ),
+            ],
+          ),
         ),
       ),
     );

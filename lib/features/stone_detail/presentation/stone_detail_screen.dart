@@ -7,8 +7,6 @@ import 'package:grazia_stones/core/services/mock_data_service.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/typography.dart';
 import 'package:grazia_stones/shared/theme/spacing.dart';
-import 'package:grazia_stones/shared/theme/tokens.dart';
-import 'package:grazia_stones/core/di.dart';
 
 class StoneDetailScreen extends ConsumerStatefulWidget {
   final String stoneId;
@@ -21,7 +19,6 @@ class StoneDetailScreen extends ConsumerStatefulWidget {
 
 class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
   int _currentImageIndex = 0;
-  int _quantity = 1;
   bool _isWishlisted = false;
 
   Stone? get _stone => MockDataService.getStoneById(widget.stoneId);
