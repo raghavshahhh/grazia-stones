@@ -1,168 +1,222 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import 'package:grazia_stones/core/constants/app_colors.dart';
+import 'package:grazia_stones/shared/theme/colors.dart';
+import 'package:grazia_stones/shared/theme/typography.dart';
+import 'package:grazia_stones/shared/theme/spacing.dart';
+import 'package:grazia_stones/shared/theme/tokens.dart';
 import 'package:grazia_stones/core/services/mock_data_service.dart';
-import 'package:grazia_stones/core/theme/glass_theme.dart';
-import 'package:grazia_stones/core/theme/text_styles.dart';
 import 'package:grazia_stones/shared/widgets/grazia_app_bar.dart';
-import 'package:grazia_stones/shared/widgets/stone_grid_tile.dart';
 
 class CollectionDetailScreen extends StatelessWidget {
   final String collectionId;
-
+  
   const CollectionDetailScreen({super.key, required this.collectionId});
-
-  static const _icons = {
-    'royal-marble': '🏛️',
-    'heritage': '🏺',
-    'contemporary': '◼️',
-  };
 
   @override
   Widget build(BuildContext context) {
-    final stones = MockDataService.getStonesByCollection(collectionId);
-    final collection = MockDataService.collections.firstWhere(
-      (c) => c.id == collectionId,
-      orElse: () => MockDataService.collections.first,
-    );
-    final icon = _icons[collectionId] ?? '🪨';
+    final palette = GLuxuryPalettes.gold;
+    final collection = MockDataService.collections.firstWhere((c) => c.id == collectionId);
+    final stones = MockDataService.stones.where((s) => 
+      s.collection.toLowerCase().replaceAll(' ', '-') == collectionId
+    ).toList();
 
     return Scaffold(
-      backgroundColor: AppColors.surfaceDark,
+      backgroundColor: palette.background,
       appBar: GraziaAppBar(
         title: collection.name.toUpperCase(),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.filter_list_rounded, color: AppColors.textSecondary),
-            onPressed: () {},
+        leading: IconButton(
+          onPressed: () => context.pop(),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textSecondary, size: 20),
+        ),
+      ),
+      body: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          // Collection Header
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: GLuxurySpacing.horizontalBase,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  GLuxurySpacing.gapBase,
+                  Text(
+                    collection.description,
+                    style: GLuxuryTypography.bodyLarge.copyWith(
+                      color: palette.textSecondary,
+                      height: 1.5,
+                    ),
+                  ),
+                  GLuxurySpacing.gapBase,
+                  Row(
+                    children: [
+                      _buildStatCard(palette, '${stones.length}', 'Products'),
+                      const SizedBox(width: 12),
+                      _buildStatCard(palette, '${_calculatePriceRange(stones)}', 'Price Range'),
+                    ],
+                  ),
+                  GLuxurySpacing.gapXl,
+                ],
+              ),
+            ),
           ),
+          
+          // Products Grid
+          SliverPadding(
+            padding: GLuxurySpacing.horizontalBase,
+            sliver: SliverGrid(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                childAspectRatio: 0.75,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+              ),
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final stone = stones[index];
+                  return _StoneCard(stone: stone);
+                },
+                childCount: stones.length,
+              ),
+            ),
+          ),
+          
+          SliverToBoxAdapter(child: GLuxurySpacing.gapXxl),
         ],
       ),
-      body: Column(
-        children: [
-          // ── Glass Header Card ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: GlassTheme.blurMedium, sigmaY: GlassTheme.blurMedium),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: GlassTheme.glassHeavy.copyWith(
-                    borderRadius: BorderRadius.circular(20),
+    );
+  }
+
+  Widget _buildStatCard(GoldPalette palette, String value, String label) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: palette.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: palette.border, width: 0.5),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              value,
+              style: GLuxuryTypography.h2.copyWith(
+                color: palette.primary,
+                fontSize: 24,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: GLuxuryTypography.bodySmall.copyWith(
+                color: palette.textTertiary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _calculatePriceRange(List stones) {
+    if (stones.isEmpty) return '₹0';
+    final prices = stones.map((s) => s.pricePerSqFt).toList()..sort();
+    final min = prices.first.toInt();
+    final max = prices.last.toInt();
+    return min == max ? '₹$min' : '₹$min-₹$max';
+  }
+}
+
+class _StoneCard extends StatelessWidget {
+  final dynamic stone;
+  
+  const _StoneCard({required this.stone});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = GLuxuryPalettes.gold;
+    
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          context.push('/stones/${stone.id}');
+        },
+        borderRadius: BorderRadius.circular(GTokens.radiusLg),
+        child: Container(
+          decoration: BoxDecoration(
+            color: palette.surface,
+            borderRadius: BorderRadius.circular(GTokens.radiusLg),
+            border: Border.all(color: palette.border, width: 0.5),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Image
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(GTokens.radiusLg)),
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: Image.network(
+                    stone.imageUrl ?? '',
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: palette.surfaceDark,
+                      child: Icon(Icons.image_outlined, color: palette.textTertiary, size: 40),
+                    ),
                   ),
-                  child: Row(
+                ),
+              ),
+              
+              // Info
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Gold gradient icon container with glow
-                      Container(
-                        width: 64,
-                        height: 64,
-                        decoration: BoxDecoration(
-                          gradient: AppColors.goldGradient,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.gold.withValues(alpha: 0.25),
-                              blurRadius: 16,
-                              spreadRadius: 2,
-                            ),
-                          ],
+                      Text(
+                        stone.name,
+                        style: GLuxuryTypography.h3.copyWith(
+                          color: palette.textPrimary,
+                          fontSize: 14,
                         ),
-                        child: Center(
-                          child: Text(icon, style: const TextStyle(fontSize: 30)),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        stone.productCode,
+                        style: GLuxuryTypography.bodySmall.copyWith(
+                          color: palette.textTertiary,
+                          fontSize: 11,
                         ),
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              collection.name.toUpperCase(),
-                              style: GraziaTextStyles.titleMedium,
+                      const Spacer(),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '₹${stone.pricePerSqFt.toInt()}',
+                            style: GLuxuryTypography.h3.copyWith(
+                              color: palette.primary,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
                             ),
-                            const SizedBox(height: 6),
-                            Text(
-                              collection.description,
-                              style: GraziaTextStyles.bodySmall.copyWith(
-                                color: AppColors.textTertiary,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            // Stone count badge
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: AppColors.white.withValues(alpha: GlassTheme.opacityLight),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: AppColors.white.withValues(alpha: GlassTheme.borderThin),
-                                  width: GlassTheme.borderThin,
-                                ),
-                              ),
-                              child: Text(
-                                '${stones.length} stones',
-                                style: GraziaTextStyles.bodySmall.copyWith(
-                                  color: AppColors.gold,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                          Icon(Icons.arrow_forward_ios, size: 12, color: palette.textTertiary),
+                        ],
                       ),
                     ],
                   ),
                 ),
               ),
-            ),
+            ],
           ),
-
-          // ── Stone Grid ──
-          Expanded(
-            child: stones.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 80,
-                          height: 80,
-                          decoration: GlassTheme.glassMedium.copyWith(shape: BoxShape.circle),
-                          child: const Icon(Icons.collections_bookmark_outlined, size: 36, color: AppColors.textTertiary),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No stones in this collection yet',
-                          style: GraziaTextStyles.titleSmall.copyWith(color: AppColors.textSecondary),
-                        ),
-                      ],
-                    ),
-                  )
-                : GridView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
-                      childAspectRatio: 0.68,
-                    ),
-                    itemCount: stones.length,
-                    itemBuilder: (context, index) {
-                      final s = stones[index];
-                      return StoneGridTile(
-                        stone: s,
-                        onTap: () {
-                          context.push('/stones/${s.id}');
-                        },
-                        onWishlist: () {},
-                      );
-                    },
-                  ),
-          ),
-        ],
+        ),
       ),
     );
   }
