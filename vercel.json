@@ -1,5 +1,24 @@
 {
-  "installCommand": "if [ ! -d \"flutter\" ]; then git clone https://github.com/flutter/flutter.git -b stable --depth 1; fi",
-  "buildCommand": "./flutter/bin/flutter build web --release",
-  "outputDirectory": "build/web"
+  "version": 2,
+  "name": "grazia-stones",
+  "installCommand": "bash -c 'if [ ! -d flutter ]; then git clone https://github.com/flutter/flutter.git -b stable --depth 1 && export PATH=\"$PATH:`pwd`/flutter/bin\" && flutter doctor && flutter pub get; else export PATH=\"$PATH:`pwd`/flutter/bin\" && flutter pub get; fi'",
+  "buildCommand": "export PATH=\"$PATH:`pwd`/flutter/bin\" && flutter build web --release --web-renderer html",
+  "outputDirectory": "build/web",
+  "framework": null,
+  "public": false,
+  "env": {
+    "FLUTTER_WEB": "true"
+  },
+  "github": {
+    "enabled": true,
+    "autoAlias": true,
+    "silent": false
+  },
+  "functions": {},
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
 }
