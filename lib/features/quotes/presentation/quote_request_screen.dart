@@ -252,7 +252,7 @@ class _QuoteRequestScreenState extends State<QuoteRequestScreen> {
   }
 
   Widget _buildTextField(
-    GoldPalette palette,
+    LuxuryPalette palette,
     String label,
     TextEditingController controller,
     String? Function(String?)? validator,

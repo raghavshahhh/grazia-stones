@@ -88,7 +88,7 @@ class CollectionDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStatCard(GoldPalette palette, String value, String label) {
+  Widget _buildStatCard(LuxuryPalette palette, String value, String label) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(16),

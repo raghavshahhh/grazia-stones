@@ -3,10 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:grazia_stones/shared/theme/theme_provider.dart';
+
 /// Apple-style floating pill bottom navigation bar.
 /// Features: floating pill shape, blur backdrop, gold active indicator,
 /// center raised Live AI button, smooth scale animations.
-class GraziaBottomNav extends StatefulWidget {
+class GraziaBottomNav extends ConsumerStatefulWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
 
@@ -17,10 +20,10 @@ class GraziaBottomNav extends StatefulWidget {
   });
 
   @override
-  State<GraziaBottomNav> createState() => _GraziaBottomNavState();
+  ConsumerState<GraziaBottomNav> createState() => _GraziaBottomNavState();
 }
 
-class _GraziaBottomNavState extends State<GraziaBottomNav> {
+class _GraziaBottomNavState extends ConsumerState<GraziaBottomNav> {
   static const _items = [
     _NavItem(icon: Icons.home_rounded, label: 'Home'),
     _NavItem(icon: Icons.grid_view_rounded, label: 'Collections'),
@@ -32,7 +35,7 @@ class _GraziaBottomNavState extends State<GraziaBottomNav> {
   @override
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
-    final palette = GLuxuryPalettes.gold;
+    final palette = ref.watch(themePaletteProvider);
 
     return Padding(
       padding: EdgeInsets.only(
@@ -96,7 +99,7 @@ class _GraziaBottomNavState extends State<GraziaBottomNav> {
     int index,
     _NavItem item,
     bool isActive,
-    GoldPalette palette,
+    LuxuryPalette palette,
   ) {
     return GestureDetector(
       onTap: () {
@@ -165,7 +168,7 @@ class _GraziaBottomNavState extends State<GraziaBottomNav> {
   Widget _buildCenterButton(
     int index,
     bool isActive,
-    GoldPalette palette,
+    LuxuryPalette palette,
   ) {
     return GestureDetector(
       onTap: () {

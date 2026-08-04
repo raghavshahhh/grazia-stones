@@ -4,6 +4,8 @@ import '../theme/tokens.dart';
 import '../theme/colors.dart';
 import 'luxury_card.dart';
 
+import 'smart_stone_image.dart';
+
 /// Premium stone product card with image, name, price, and favorite toggle.
 class GStoneCard extends StatelessWidget {
   final String name;
@@ -48,14 +50,10 @@ class GStoneCard extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                if (imageUrl != null)
-                  Image.asset(
-                    imageUrl!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => _buildPlaceholder(palette),
-                  )
-                else
-                  _buildPlaceholder(palette),
+                SmartStoneImage(
+                  imageUrl: imageUrl,
+                  palette: palette,
+                ),
 
                 // Gradient overlay
                 Container(

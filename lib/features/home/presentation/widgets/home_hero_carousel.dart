@@ -4,6 +4,7 @@ import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/typography.dart';
 import 'package:grazia_stones/shared/theme/tokens.dart';
+import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 
 class HomeHeroCarousel extends StatefulWidget {
   final List<Stone> stones;
@@ -115,32 +116,11 @@ class _HomeHeroCarouselState extends State<HomeHeroCarousel> {
               fit: StackFit.expand,
               children: [
                 // Background image
-                if (hasImage)
-                  Image.network(
-                    imageUrl,
-                    fit: BoxFit.cover,
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Container(
-                        color: palette.surface,
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation(palette.primary),
-                          ),
-                        ),
-                      );
-                    },
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      color: palette.surface,
-                      child: Icon(Icons.landscape, size: 60, color: palette.textTertiary),
-                    ),
-                  )
-                else
-                  Container(
-                    color: palette.surface,
-                    child: Icon(Icons.landscape, size: 60, color: palette.textTertiary),
-                  ),
+                SmartStoneImage(
+                  imageUrl: imageUrl,
+                  fit: BoxFit.cover,
+                  palette: palette,
+                ),
 
                 // Glass gradient overlay
                 Positioned.fill(

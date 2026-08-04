@@ -141,7 +141,7 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
     );
   }
 
-  Widget _buildEmptyState(GoldPalette palette) {
+  Widget _buildEmptyState(LuxuryPalette palette) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -173,7 +173,7 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
     );
   }
 
-  Widget _buildWishlistContent(GoldPalette palette) {
+  Widget _buildWishlistContent(LuxuryPalette palette) {
     return Column(
       children: [
         if (_isSelectionMode)
@@ -224,7 +224,7 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
     );
   }
 
-  Widget _buildSelectionHeader(GoldPalette palette) {
+  Widget _buildSelectionHeader(LuxuryPalette palette) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
@@ -247,7 +247,7 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
     );
   }
 
-  Widget _buildWishlistCard(Stone stone, bool isSelected, GoldPalette palette) {
+  Widget _buildWishlistCard(Stone stone, bool isSelected, LuxuryPalette palette) {
     return Dismissible(
       key: Key(stone.id),
       direction: DismissDirection.endToStart,
@@ -388,7 +388,7 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
     );
   }
 
-  Widget _buildBottomBar(GoldPalette palette) {
+  Widget _buildBottomBar(LuxuryPalette palette) {
     return Container(
       padding: EdgeInsets.only(
         left: 16,

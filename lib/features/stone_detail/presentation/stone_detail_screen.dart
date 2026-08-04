@@ -8,6 +8,9 @@ import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/typography.dart';
 import 'package:grazia_stones/shared/theme/spacing.dart';
 
+import 'package:grazia_stones/shared/theme/theme_provider.dart';
+import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
+
 class StoneDetailScreen extends ConsumerStatefulWidget {
   final String stoneId;
 
@@ -25,7 +28,7 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final palette = GLuxuryPalettes.gold;
+    final palette = ref.watch(themePaletteProvider);
     final stone = _stone;
 
     if (stone == null) {
@@ -89,13 +92,9 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
                         itemCount: images.length,
                         onPageChanged: (i) => setState(() => _currentImageIndex = i),
                         itemBuilder: (context, i) {
-                          return Image.network(
-                            images[i],
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              color: palette.surfaceDark,
-                              child: Icon(Icons.image_outlined, size: 80, color: palette.textTertiary),
-                            ),
+                          return SmartStoneImage(
+                            imageUrl: images[i],
+                            palette: palette,
                           );
                         },
                       ),
@@ -451,7 +450,7 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
     );
   }
 
-  Widget _buildQuickAction(GoldPalette palette, IconData icon, String label, VoidCallback onTap) {
+  Widget _buildQuickAction(LuxuryPalette palette, IconData icon, String label, VoidCallback onTap) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -483,7 +482,7 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
     );
   }
 
-  Widget _buildSpecCard(GoldPalette palette, String label, String value) {
+  Widget _buildSpecCard(LuxuryPalette palette, String label, String value) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
@@ -514,7 +513,7 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
     );
   }
 
-  Widget _buildActionButton(GoldPalette palette, String label, IconData icon, VoidCallback onTap, {required bool isPrimary}) {
+  Widget _buildActionButton(LuxuryPalette palette, String label, IconData icon, VoidCallback onTap, {required bool isPrimary}) {
     return Material(
       color: Colors.transparent,
       child: InkWell(

@@ -68,7 +68,7 @@ class _DealerLocatorScreenState extends State<DealerLocatorScreen> {
     );
   }
 
-  Widget _buildMapView(GoldPalette palette, List<Dealer> dealers) {
+  Widget _buildMapView(LuxuryPalette palette, List<Dealer> dealers) {
     return Stack(
       children: [
         Container(
@@ -206,7 +206,7 @@ class _DealerLocatorScreenState extends State<DealerLocatorScreen> {
     );
   }
 
-  Widget _buildListView(GoldPalette palette, List<Dealer> dealers) {
+  Widget _buildListView(LuxuryPalette palette, List<Dealer> dealers) {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: dealers.length,

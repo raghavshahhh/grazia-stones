@@ -270,7 +270,7 @@ class _SampleOrderScreenState extends State<SampleOrderScreen> {
   }
 
   Widget _buildTextField(
-    GoldPalette palette,
+    LuxuryPalette palette,
     String label,
     TextEditingController controller,
     String? Function(String?)? validator,

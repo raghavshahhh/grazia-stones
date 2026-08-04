@@ -177,7 +177,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     );
   }
 
-  Widget _buildPage(_OnboardingPage page, GoldPalette palette) {
+  Widget _buildPage(_OnboardingPage page, LuxuryPalette palette) {
     return Padding(
       padding: GLuxurySpacing.horizontalXxl,
       child: Column(
@@ -267,7 +267,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     );
   }
 
-  Widget _buildPageIndicators(GoldPalette palette) {
+  Widget _buildPageIndicators(LuxuryPalette palette) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(
@@ -302,7 +302,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     );
   }
 
-  Widget _buildCTAButton(GoldPalette palette) {
+  Widget _buildCTAButton(LuxuryPalette palette) {
     final isLastPage = _currentPage == _pages.length - 1;
 
     return Container(

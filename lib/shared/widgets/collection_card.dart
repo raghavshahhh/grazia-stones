@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../theme/tokens.dart';
 import '../theme/colors.dart';
 import 'luxury_card.dart';
+import 'smart_stone_image.dart';
 
 /// Premium collection card with hero image, gradient overlay, name, and count.
 class GCollectionCard extends StatelessWidget {
@@ -38,14 +39,10 @@ class GCollectionCard extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             // Background image
-            if (imageUrl != null)
-              Image.asset(
-                imageUrl!,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => _buildPlaceholder(palette),
-              )
-            else
-              _buildPlaceholder(palette),
+            SmartStoneImage(
+              imageUrl: imageUrl,
+              palette: palette,
+            ),
 
             // Hero overlay gradient
             Container(

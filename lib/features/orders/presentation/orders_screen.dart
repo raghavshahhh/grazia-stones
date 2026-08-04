@@ -62,7 +62,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
     );
   }
 
-  Widget _buildEmptyState(GoldPalette palette) {
+  Widget _buildEmptyState(LuxuryPalette palette) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -77,7 +77,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
     );
   }
 
-  Widget _buildOrderCard(Order order, GoldPalette palette) {
+  Widget _buildOrderCard(Order order, LuxuryPalette palette) {
     final statusColor = order.status == 'Delivered'
         ? Colors.green
         : order.status == 'In Transit'

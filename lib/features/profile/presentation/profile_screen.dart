@@ -5,12 +5,16 @@ import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/typography.dart';
 import 'package:grazia_stones/shared/theme/spacing.dart';
 
-class ProfileScreen extends StatelessWidget {
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:grazia_stones/shared/theme/theme_provider.dart';
+
+class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final palette = GLuxuryPalettes.gold;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(themePaletteProvider);
+    final isDark = ref.watch(themePaletteProvider.notifier).isDarkMode;
 
     return Scaffold(
       backgroundColor: palette.background,
@@ -83,6 +87,15 @@ class ProfileScreen extends StatelessWidget {
             GLuxurySpacing.gapXl,
             
             // Menu Items
+            _buildMenuItem(
+              palette,
+              isDark ? Icons.wb_sunny_outlined : Icons.nightlight_round_outlined,
+              isDark ? 'Day Mode (Light Luxury)' : 'Night Mode (Gold Dark)',
+              () {
+                HapticFeedback.lightImpact();
+                ref.read(themePaletteProvider.notifier).toggleTheme();
+              },
+            ),
             _buildMenuItem(palette, Icons.shopping_bag_outlined, 'My Orders', () => context.push('/orders')),
             _buildMenuItem(palette, Icons.favorite_border, 'Wishlist', () => context.push('/wishlist')),
             _buildMenuItem(palette, Icons.location_on_outlined, 'Saved Addresses', () {}),
@@ -123,7 +136,7 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildMenuItem(GoldPalette palette, IconData icon, String title, VoidCallback onTap, {bool isDestructive = false}) {
+  Widget _buildMenuItem(LuxuryPalette palette, IconData icon, String title, VoidCallback onTap, {bool isDestructive = false}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       child: Material(

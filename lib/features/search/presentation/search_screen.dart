@@ -297,7 +297,7 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  Widget _buildEmptyState(GoldPalette palette) {
+  Widget _buildEmptyState(LuxuryPalette palette) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -333,7 +333,7 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  Widget _buildResultsList(GoldPalette palette) {
+  Widget _buildResultsList(LuxuryPalette palette) {
     return ListView.builder(
       padding: GLuxurySpacing.paddingBase,
       itemCount: _filteredStones.length,
@@ -347,7 +347,7 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  Widget _buildStoneCard(Stone stone, GoldPalette palette) {
+  Widget _buildStoneCard(Stone stone, LuxuryPalette palette) {
     return Material(
       color: Colors.transparent,
       child: InkWell(

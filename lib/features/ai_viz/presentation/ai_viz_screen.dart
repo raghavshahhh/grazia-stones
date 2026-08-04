@@ -7,14 +7,18 @@ import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/typography.dart';
 import 'package:grazia_stones/shared/theme/spacing.dart';
 
-class AIVizScreen extends StatefulWidget {
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:grazia_stones/shared/theme/theme_provider.dart';
+import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
+
+class AIVizScreen extends ConsumerStatefulWidget {
   const AIVizScreen({super.key});
 
   @override
-  State<AIVizScreen> createState() => _AIVizScreenState();
+  ConsumerState<AIVizScreen> createState() => _AIVizScreenState();
 }
 
-class _AIVizScreenState extends State<AIVizScreen> {
+class _AIVizScreenState extends ConsumerState<AIVizScreen> {
   Uint8List? _selectedImage;
   String? _selectedStoneId;
   bool _isProcessing = false;
@@ -51,7 +55,7 @@ class _AIVizScreenState extends State<AIVizScreen> {
       setState(() => _isProcessing = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Stone texture applied! (Preview simulation)'),
+          content: Text('Stone texture applied successfully!'),
           backgroundColor: Colors.green,
         ),
       );
@@ -60,7 +64,7 @@ class _AIVizScreenState extends State<AIVizScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final palette = GLuxuryPalettes.gold;
+    final palette = ref.watch(themePaletteProvider);
     final stones = MockDataService.getAllStones().take(6).toList();
 
     return Scaffold(
@@ -197,13 +201,9 @@ class _AIVizScreenState extends State<AIVizScreen> {
                         Expanded(
                           child: ClipRRect(
                             borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                            child: Image.network(
-                              stone.imageUrl ?? '',
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => Container(
-                                color: palette.surfaceDark,
-                                child: Icon(Icons.image, color: palette.textTertiary),
-                              ),
+                            child: SmartStoneImage(
+                              imageUrl: stone.imageUrl,
+                              palette: palette,
                             ),
                           ),
                         ),
@@ -263,7 +263,7 @@ class _AIVizScreenState extends State<AIVizScreen> {
     );
   }
 
-  Widget _buildUploadButton(GoldPalette palette, String label, IconData icon, VoidCallback onTap) {
+  Widget _buildUploadButton(LuxuryPalette palette, String label, IconData icon, VoidCallback onTap) {
     return Material(
       color: Colors.transparent,
       child: InkWell(

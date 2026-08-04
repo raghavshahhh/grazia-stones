@@ -11,14 +11,17 @@ import 'package:grazia_stones/features/home/presentation/widgets/home_quick_acti
 import 'package:grazia_stones/features/home/presentation/widgets/home_collection_strip.dart';
 import 'package:grazia_stones/features/home/presentation/widgets/home_trending_grid.dart';
 
-class HomeScreen extends StatefulWidget {
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:grazia_stones/shared/theme/theme_provider.dart';
+
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _isLoading = true;
 
   @override
@@ -33,7 +36,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final palette = GLuxuryPalettes.gold;
+    final palette = ref.watch(themePaletteProvider);
+    final isDark = ref.watch(themePaletteProvider.notifier).isDarkMode;
 
     return Scaffold(
       backgroundColor: palette.background,
@@ -41,6 +45,11 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: GraziaAppBar(
         title: 'GRAZIA',
         actions: [
+          _buildGlassIconButton(
+            icon: isDark ? Icons.wb_sunny_outlined : Icons.nightlight_round_outlined,
+            onTap: () => ref.read(themePaletteProvider.notifier).toggleTheme(),
+          ),
+          const SizedBox(width: 4),
           _buildGlassIconButton(
             icon: Icons.notifications_outlined,
             onTap: () => _showNotificationsSheet(context),
@@ -85,7 +94,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildLoading(GoldPalette palette) {
+  Widget _buildLoading(LuxuryPalette palette) {
     return SingleChildScrollView(
       physics: const NeverScrollableScrollPhysics(),
       child: Column(
@@ -131,7 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildContent(GoldPalette palette) {
+  Widget _buildContent(LuxuryPalette palette) {
     final trendingStones = MockDataService.getTrendingStones();
     final collections = MockDataService.collections;
     final quickActions = [

@@ -11,6 +11,16 @@ final themePaletteProvider =
 class ThemePaletteNotifier extends StateNotifier<LuxuryPalette> {
   ThemePaletteNotifier() : super(GLuxuryPalettes.gold);
 
+  bool get isDarkMode => state is GoldPalette || state is ObsidianPalette || state is MidnightPalette;
+
+  void toggleTheme() {
+    if (isDarkMode) {
+      state = GLuxuryPalettes.pearl; // Light Mode (Day)
+    } else {
+      state = GLuxuryPalettes.gold; // Dark Mode (Night)
+    }
+  }
+
   void setPalette(LuxuryPalette palette) => state = palette;
 
   void setGold() => state = GLuxuryPalettes.gold;

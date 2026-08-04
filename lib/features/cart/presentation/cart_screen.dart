@@ -84,7 +84,7 @@ class _CartScreenState extends State<CartScreen> {
     );
   }
 
-  Widget _buildEmptyCart(GoldPalette palette) {
+  Widget _buildEmptyCart(LuxuryPalette palette) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -110,7 +110,7 @@ class _CartScreenState extends State<CartScreen> {
     );
   }
 
-  Widget _buildCartContent(GoldPalette palette) {
+  Widget _buildCartContent(LuxuryPalette palette) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -156,7 +156,7 @@ class _CartScreenState extends State<CartScreen> {
     );
   }
 
-  Widget _buildCartCard(CartItem item, int index, GoldPalette palette) {
+  Widget _buildCartCard(CartItem item, int index, LuxuryPalette palette) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
@@ -272,7 +272,7 @@ class _CartScreenState extends State<CartScreen> {
     );
   }
 
-  Widget _buildPriceRow(String label, double amount, GoldPalette palette, {bool isTotal = false, bool highlight = false}) {
+  Widget _buildPriceRow(String label, double amount, LuxuryPalette palette, {bool isTotal = false, bool highlight = false}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -293,7 +293,7 @@ class _CartScreenState extends State<CartScreen> {
     );
   }
 
-  Widget _buildCheckoutBar(GoldPalette palette) {
+  Widget _buildCheckoutBar(LuxuryPalette palette) {
     return Container(
       padding: EdgeInsets.only(
         left: 16,

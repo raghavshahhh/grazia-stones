@@ -6,14 +6,17 @@ import 'package:grazia_stones/shared/theme/typography.dart';
 import 'package:grazia_stones/shared/theme/spacing.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
-class SettingsScreen extends StatefulWidget {
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:grazia_stones/shared/theme/theme_provider.dart';
+
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _notifications = true;
   bool _emailUpdates = false;
   bool _smsUpdates = true;
@@ -36,7 +39,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final palette = GLuxuryPalettes.gold;
+    final palette = ref.watch(themePaletteProvider);
+    final isDark = ref.watch(themePaletteProvider.notifier).isDarkMode;
 
     return Scaffold(
       backgroundColor: palette.background,
@@ -99,7 +103,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           GLuxurySpacing.gapSm,
           
           _buildTile(palette, Icons.language, 'Language', 'English', () {}),
-          _buildTile(palette, Icons.dark_mode_outlined, 'Theme', 'System Default', () {}),
+          _buildTile(
+            palette,
+            Icons.dark_mode_outlined,
+            'Theme Mode',
+            isDark ? 'Gold Dark (Night)' : 'Pearl Light (Day)',
+            () {
+              HapticFeedback.lightImpact();
+              ref.read(themePaletteProvider.notifier).toggleTheme();
+            },
+          ),
           _buildTile(palette, Icons.currency_rupee, 'Currency', 'INR (₹)', () {}),
           
           GLuxurySpacing.gapXl,
@@ -175,7 +188,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildSwitchTile(GoldPalette palette, String title, String subtitle, bool value, ValueChanged<bool> onChanged) {
+  Widget _buildSwitchTile(LuxuryPalette palette, String title, String subtitle, bool value, ValueChanged<bool> onChanged) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(16),
@@ -208,7 +221,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildTile(GoldPalette palette, IconData icon, String title, String trailing, VoidCallback onTap) {
+  Widget _buildTile(LuxuryPalette palette, IconData icon, String title, String trailing, VoidCallback onTap) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       child: Material(
