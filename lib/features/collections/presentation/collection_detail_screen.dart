@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/services/mock_data_service.dart';
 import 'package:grazia_stones/core/theme/glass_theme.dart';
@@ -63,7 +64,7 @@ class CollectionDetailScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.gold.withOpacity(0.25),
+                              color: AppColors.gold.withValues(alpha: 0.25),
                               blurRadius: 16,
                               spreadRadius: 2,
                             ),
@@ -94,10 +95,10 @@ class CollectionDetailScreen extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
-                                color: AppColors.white.withOpacity(GlassTheme.opacityLight),
+                                color: AppColors.white.withValues(alpha: GlassTheme.opacityLight),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                  color: AppColors.white.withOpacity(GlassTheme.borderThin),
+                                  color: AppColors.white.withValues(alpha: GlassTheme.borderThin),
                                   width: GlassTheme.borderThin,
                                 ),
                               ),
@@ -154,10 +155,7 @@ class CollectionDetailScreen extends StatelessWidget {
                       return StoneGridTile(
                         stone: s,
                         onTap: () {
-                          Navigator.of(context).pushNamed(
-                            '/stones/${s.id}',
-                            arguments: s.id,
-                          );
+                          context.push('/stones/${s.id}');
                         },
                         onWishlist: () {},
                       );

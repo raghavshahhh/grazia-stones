@@ -2,10 +2,11 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class AuthInterceptor extends Interceptor {
   String? _token;
+  final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   void setToken(String token) {
     _token = token;
@@ -32,20 +33,17 @@ class AuthInterceptor extends Interceptor {
   }
 
   Future<void> loadToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    _token = prefs.getString('auth_token');
+    _token = await _storage.read(key: 'auth_token');
   }
 
   Future<void> saveToken(String token) async {
     _token = token;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('auth_token', token);
+    await _storage.write(key: 'auth_token', value: token);
   }
 
   Future<void> removeToken() async {
     _token = null;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('auth_token');
+    await _storage.delete(key: 'auth_token');
   }
 }
 
@@ -89,7 +87,12 @@ class RetryInterceptor extends Interceptor {
       await Future.delayed(retryDelay * (retryCount + 1));
 
       try {
-        final dio = Dio();
+        final dio = Dio(BaseOptions(
+          baseUrl: err.requestOptions.baseUrl,
+          connectTimeout: err.requestOptions.connectTimeout,
+          receiveTimeout: err.requestOptions.receiveTimeout,
+          headers: Map<String, dynamic>.from(err.requestOptions.headers),
+        ));
         final response = await dio.fetch(err.requestOptions);
         handler.resolve(response);
         return;
@@ -110,8 +113,8 @@ class ConnectivityInterceptor extends Interceptor {
   @override
   void onRequest(
       RequestOptions options, RequestInterceptorHandler handler) async {
-    final result = await _connectivity.checkConnectivity();
-    if (result == ConnectivityResult.none) {
+    final results = await _connectivity.checkConnectivity();
+    if (results.isEmpty || results.every((r) => r == ConnectivityResult.none)) {
       handler.reject(DioException(
         requestOptions: options,
         type: DioExceptionType.connectionError,

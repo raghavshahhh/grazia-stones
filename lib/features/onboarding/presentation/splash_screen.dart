@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:grazia_stones/config/routes.dart';
 import 'package:grazia_stones/features/auth/providers/auth_provider.dart';
@@ -46,9 +47,9 @@ class _SplashScreenState extends State<SplashScreen>
       if (mounted) {
         final auth = context.read<AuthProvider>();
         if (auth.onboardingComplete) {
-          Navigator.of(context).pushReplacementNamed(AppRoutes.home);
+          context.go(AppRoutes.home);
         } else {
-          Navigator.of(context).pushReplacementNamed(AppRoutes.onboarding);
+          context.go(AppRoutes.onboarding);
         }
       }
     });
@@ -62,8 +63,6 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    final palette = Theme.of(context).extension<GLuxuryPalettes>()!;
-
     return Scaffold(
       backgroundColor: GLuxuryPalettes.gold.background,
       body: Center(

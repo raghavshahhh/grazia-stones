@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/typography.dart';
 import 'package:grazia_stones/core/constants/app_strings.dart';
+import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/shared/widgets/grazia_text_field.dart';
 import 'package:grazia_stones/shared/widgets/grazia_button.dart';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _phoneController = TextEditingController();
   final _otpController = TextEditingController();
   bool _otpSent = false;
@@ -89,6 +92,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   icon: Icons.arrow_forward_rounded,
                   onPressed: () {
                     if (_phoneController.text.length == 10) {
+                      // TODO: Replace with real Supabase OTP send
                       setState(() => _otpSent = true);
                     }
                   },
@@ -106,8 +110,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   label: AppStrings.verifyButton,
                   icon: Icons.check_circle_outline,
                   onPressed: () {
-                    // TODO: Verify OTP, navigate to home
-                    Navigator.of(context).pushReplacementNamed('/home');
+                    // TODO: Replace with real OTP verification via Supabase
+                    ref.read(authRiverpodProvider.notifier).login(
+                          'user_${_phoneController.text}',
+                          'User ${_phoneController.text}',
+                          _phoneController.text,
+                        );
+                    context.go('/home');
                   },
                 ),
                 const SizedBox(height: 16),
@@ -128,7 +137,12 @@ class _LoginScreenState extends State<LoginScreen> {
               Center(
                 child: TextButton(
                   onPressed: () {
-                    Navigator.of(context).pushReplacementNamed('/home');
+                    ref.read(authRiverpodProvider.notifier).login(
+                          'guest',
+                          'Guest User',
+                          '',
+                        );
+                    context.go('/home');
                   },
                   child: Text(
                     'Continue as Guest',

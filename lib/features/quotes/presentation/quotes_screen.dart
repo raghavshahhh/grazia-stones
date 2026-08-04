@@ -1,21 +1,22 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/constants/app_dimensions.dart';
 import 'package:grazia_stones/core/theme/text_styles.dart';
-import 'package:grazia_stones/features/quotes/providers/quote_provider.dart';
+import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/models/quote_request.dart';
 import 'package:grazia_stones/shared/widgets/grazia_button.dart';
 import 'package:grazia_stones/shared/widgets/grazia_text_field.dart';
 
-class QuotesScreen extends StatefulWidget {
+class QuotesScreen extends ConsumerStatefulWidget {
   const QuotesScreen({super.key});
 
   @override
-  State<QuotesScreen> createState() => _QuotesScreenState();
+  ConsumerState<QuotesScreen> createState() => _QuotesScreenState();
 }
 
-class _QuotesScreenState extends State<QuotesScreen> {
+class _QuotesScreenState extends ConsumerState<QuotesScreen> {
   final _areaController = TextEditingController();
   final _notesController = TextEditingController();
   String _selectedStone = 'Charcoal Black';
@@ -54,7 +55,7 @@ class _QuotesScreenState extends State<QuotesScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => context.pop(),
         ),
         title: Text(
           'Request Quote',
@@ -114,7 +115,7 @@ class _QuotesScreenState extends State<QuotesScreen> {
                     duration: const Duration(milliseconds: 200),
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     decoration: BoxDecoration(
-                      color: isSelected ? AppColors.gold.withOpacity(0.2) : AppColors.surfaceElevated,
+                      color: isSelected ? AppColors.gold.withValues(alpha: 0.2) : AppColors.surfaceElevated,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: isSelected ? AppColors.gold : AppColors.slate),
                     ),
@@ -158,10 +159,11 @@ class _QuotesScreenState extends State<QuotesScreen> {
 
             Text('Previous Quotes', style: GraziaTextStyles.titleSmall.copyWith(color: Colors.white)),
             const SizedBox(height: AppDimensions.spacingM),
-            Consumer<QuoteProvider>(
-              builder: (context, quoteProvider, _) {
+            Builder(
+              builder: (context) {
+                final quotes = ref.watch(quoteRiverpodProvider).quotes;
                 return Column(
-                  children: quoteProvider.quotes.map((q) {
+                  children: quotes.map((q) {
                     final isCompleted = q.status == 'Completed';
                     final date = '${q.createdAt.month}/${q.createdAt.day}/${q.createdAt.year}';
                     return Padding(
@@ -198,8 +200,8 @@ class _QuotesScreenState extends State<QuotesScreen> {
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
                                 color: isCompleted
-                                    ? Colors.green.withOpacity(0.2)
-                                    : AppColors.gold.withOpacity(0.2),
+                                    ? Colors.green.withValues(alpha: 0.2)
+                                    : AppColors.gold.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
@@ -227,7 +229,7 @@ class _QuotesScreenState extends State<QuotesScreen> {
   void _submitQuote() {
     if (_areaController.text.isEmpty) return;
 
-    context.read<QuoteProvider>().addQuote(
+    ref.read(quoteRiverpodProvider.notifier).addQuote(
           QuoteRequest(
             id: 'q${DateTime.now().millisecondsSinceEpoch}',
             stoneName: _selectedStone,

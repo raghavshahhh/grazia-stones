@@ -47,6 +47,7 @@ class AuthRiverpodState {
     bool? onboardingComplete,
     bool? isLoading,
     String? error,
+    bool clearError = false,
   }) {
     return AuthRiverpodState(
       userId: userId ?? this.userId,
@@ -57,7 +58,7 @@ class AuthRiverpodState {
       isLoggedIn: isLoggedIn ?? this.isLoggedIn,
       onboardingComplete: onboardingComplete ?? this.onboardingComplete,
       isLoading: isLoading ?? this.isLoading,
-      error: error,
+      error: clearError ? null : (error ?? this.error),
     );
   }
 }
@@ -109,7 +110,7 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
     if (_repo == null) return;
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final user = await _repo!.login(email, password);
+      final user = await _repo.login(email, password);
       state = state.copyWith(
         userId: user.id,
         userName: user.name,
@@ -128,7 +129,7 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
     if (_repo == null) return;
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final user = await _repo!.register(name: name, email: email, password: password, phone: phone);
+      final user = await _repo.register(name: name, email: email, password: password, phone: phone);
       state = state.copyWith(
         userId: user.id,
         userName: user.name,
@@ -146,7 +147,7 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
   Future<void> loadProfile() async {
     if (_repo == null) return;
     try {
-      final user = await _repo!.getProfile();
+      final user = await _repo.getProfile();
       state = state.copyWith(
         userId: user.id,
         userName: user.name,

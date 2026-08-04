@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/services/mock_data_service.dart';
 import 'package:grazia_stones/core/theme/text_styles.dart';
@@ -30,10 +31,7 @@ class CollectionListScreen extends StatelessWidget {
           final icon = _icons[c.id] ?? '🪨';
           return GestureDetector(
             onTap: () {
-              Navigator.of(context).pushNamed(
-                '/collections/${c.id}',
-                arguments: c.id,
-              );
+              context.push('/collections/${c.id}');
             },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),

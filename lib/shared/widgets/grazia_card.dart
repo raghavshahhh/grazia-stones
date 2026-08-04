@@ -33,10 +33,10 @@ class GraziaCard extends StatelessWidget {
       margin: margin,
       decoration: glassmorphism
           ? BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
+              color: Colors.white.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(borderRadius),
               border: Border.all(
-                color: Colors.white.withOpacity(0.08),
+                color: Colors.white.withValues(alpha: 0.08),
                 width: 1,
               ),
             )
@@ -44,12 +44,12 @@ class GraziaCard extends StatelessWidget {
               color: AppColors.charcoal,
               borderRadius: BorderRadius.circular(borderRadius),
               border: Border.all(
-                color: AppColors.slate.withOpacity(0.5),
+                color: AppColors.slate.withValues(alpha: 0.5),
                 width: 0.5,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
+                  color: Colors.black.withValues(alpha: 0.08),
                   blurRadius: 16,
                   offset: const Offset(0, 4),
                 ),

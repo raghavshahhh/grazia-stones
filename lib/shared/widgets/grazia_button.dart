@@ -53,9 +53,9 @@ class _GraziaButtonState extends State<GraziaButton>
           width: widget.isFullWidth ? double.infinity : null,
           height: effectiveHeight,
           transform: _isPressed
-              ? (Matrix4.identity()..scale(0.97))
+              ? (Matrix4.diagonal3Values(0.97, 0.97, 0.97))
               : (_isHovered
-                  ? (Matrix4.identity()..scale(1.02))
+                  ? (Matrix4.diagonal3Values(1.02, 1.02, 1.02))
                   : Matrix4.identity()),
           transformAlignment: Alignment.center,
           child: switch (widget.variant) {

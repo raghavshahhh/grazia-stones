@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/constants/app_dimensions.dart';
 import 'package:grazia_stones/core/theme/text_styles.dart';
 import 'package:grazia_stones/shared/widgets/grazia_button.dart';
-import 'package:grazia_stones/features/cart/providers/cart_provider.dart';
+import 'package:grazia_stones/core/di.dart';
 
-class CartScreen extends StatelessWidget {
+class CartScreen extends ConsumerWidget {
   const CartScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cart = ref.watch(cartRiverpodProvider);
+
     return Scaffold(
       backgroundColor: AppColors.charcoal,
       appBar: AppBar(
@@ -26,22 +29,18 @@ class CartScreen extends StatelessWidget {
         ),
         centerTitle: true,
         actions: [
-          Consumer<CartProvider>(
-            builder: (context, cart, _) {
-              if (cart.items.isEmpty) return const SizedBox.shrink();
-              return TextButton(
-                onPressed: () => cart.clear(),
-                child: Text(
-                  'Clear All',
-                  style: GraziaTextStyles.bodySmall.copyWith(color: AppColors.goldWarm),
-                ),
-              );
-            },
-          ),
+          if (cart.items.isNotEmpty)
+            TextButton(
+              onPressed: () => ref.read(cartRiverpodProvider.notifier).clear(),
+              child: Text(
+                'Clear All',
+                style: GraziaTextStyles.bodySmall.copyWith(color: AppColors.goldWarm),
+              ),
+            ),
         ],
       ),
-      body: Consumer<CartProvider>(
-        builder: (context, cart, _) {
+      body: Builder(
+        builder: (context) {
           if (cart.items.isEmpty) {
             return Center(
               child: Column(
@@ -128,7 +127,7 @@ class CartScreen extends StatelessWidget {
                           Column(
                             children: [
                               GestureDetector(
-                                onTap: () => cart.updateQuantity(item.stoneId, item.quantity - 1),
+                                onTap: () => ref.read(cartRiverpodProvider.notifier).updateQuantity(item.stoneId, item.quantity - 1),
                                 child: Container(
                                   width: 28,
                                   height: 28,
@@ -146,7 +145,7 @@ class CartScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 8),
                               GestureDetector(
-                                onTap: () => cart.updateQuantity(item.stoneId, item.quantity + 1),
+                                onTap: () => ref.read(cartRiverpodProvider.notifier).updateQuantity(item.stoneId, item.quantity + 1),
                                 child: Container(
                                   width: 28,
                                   height: 28,
@@ -194,7 +193,7 @@ class CartScreen extends StatelessWidget {
                       label: 'Request Final Quote',
                       icon: Icons.arrow_forward,
                       onPressed: () {
-                        Navigator.of(context).pushNamed('/quotes');
+                        context.push('/quotes');
                       },
                     ),
                   ],

@@ -53,7 +53,7 @@ class _StoneGridTileState extends State<StoneGridTile> {
               boxShadow: _isHovered
                   ? [
                       BoxShadow(
-                        color: AppColors.goldWarm.withOpacity(0.12),
+                        color: AppColors.goldWarm.withValues(alpha: 0.12),
                         blurRadius: 28,
                         spreadRadius: -6,
                         offset: const Offset(0, 6),
@@ -61,7 +61,7 @@ class _StoneGridTileState extends State<StoneGridTile> {
                     ]
                   : [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.15),
+                        color: Colors.black.withValues(alpha: 0.15),
                         blurRadius: 16,
                         spreadRadius: -4,
                         offset: const Offset(0, 4),
@@ -77,11 +77,11 @@ class _StoneGridTileState extends State<StoneGridTile> {
                 ),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: AppColors.white.withOpacity(_isHovered ? 0.08 : 0.04),
+                    color: AppColors.white.withValues(alpha: _isHovered ? 0.08 : 0.04),
                     border: Border.all(
                       color: _isHovered
-                          ? AppColors.goldWarm.withOpacity(0.25)
-                          : AppColors.white.withOpacity(0.06),
+                          ? AppColors.goldWarm.withValues(alpha: 0.25)
+                          : AppColors.white.withValues(alpha: 0.06),
                       width: _isHovered ? 1.0 : 0.5,
                     ),
                   ),
@@ -131,7 +131,7 @@ class _StoneGridTileState extends State<StoneGridTile> {
                 end: Alignment.bottomCenter,
                 colors: [
                   Colors.transparent,
-                  AppColors.charcoal.withOpacity(0.8),
+                  AppColors.charcoal.withValues(alpha: 0.8),
                 ],
               ),
             ),
@@ -149,10 +149,10 @@ class _StoneGridTileState extends State<StoneGridTile> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: AppColors.charcoal.withOpacity(0.6),
+                  color: AppColors.charcoal.withValues(alpha: 0.6),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: AppColors.goldWarm.withOpacity(0.2),
+                    color: AppColors.goldWarm.withValues(alpha: 0.2),
                     width: 0.5,
                   ),
                 ),
@@ -189,13 +189,13 @@ class _StoneGridTileState extends State<StoneGridTile> {
         height: 34,
         decoration: BoxDecoration(
           color: widget.isWishlisted
-              ? AppColors.goldWarm.withOpacity(0.2)
-              : AppColors.charcoal.withOpacity(0.5),
+              ? AppColors.goldWarm.withValues(alpha: 0.2)
+              : AppColors.charcoal.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: widget.isWishlisted
-                ? AppColors.goldWarm.withOpacity(0.3)
-                : AppColors.white.withOpacity(0.1),
+                ? AppColors.goldWarm.withValues(alpha: 0.3)
+                : AppColors.white.withValues(alpha: 0.1),
             width: 0.5,
           ),
         ),
@@ -230,7 +230,7 @@ class _StoneGridTileState extends State<StoneGridTile> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.charcoal.withOpacity(0.3),
+        color: AppColors.charcoal.withValues(alpha: 0.3),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -254,7 +254,7 @@ class _StoneGridTileState extends State<StoneGridTile> {
               fontFamily: 'Inter',
               fontSize: 10,
               fontWeight: FontWeight.w500,
-              color: AppColors.goldWarm.withOpacity(0.7),
+              color: AppColors.goldWarm.withValues(alpha: 0.7),
               letterSpacing: 0.5,
             ),
             maxLines: 1,
@@ -281,7 +281,7 @@ class _StoneGridTileState extends State<StoneGridTile> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: AppColors.white.withOpacity(0.05),
+                  color: AppColors.white.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
@@ -290,7 +290,7 @@ class _StoneGridTileState extends State<StoneGridTile> {
                     fontFamily: 'Inter',
                     fontSize: 9,
                     fontWeight: FontWeight.w500,
-                    color: AppColors.silverDark.withOpacity(0.7),
+                    color: AppColors.silverDark.withValues(alpha: 0.7),
                   ),
                 ),
               ),

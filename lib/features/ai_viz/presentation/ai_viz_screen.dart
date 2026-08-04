@@ -208,7 +208,7 @@ class _AIScreenState extends State<AIScreen> {
                     borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.3),
+                        color: Colors.black.withValues(alpha: 0.3),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
@@ -293,7 +293,7 @@ class _AIScreenState extends State<AIScreen> {
                     Icon(
                       Icons.room_preferences,
                       size: 64,
-                      color: AppColors.textTertiary.withOpacity(0.5),
+                      color: AppColors.textTertiary.withValues(alpha: 0.5),
                     ),
                     const SizedBox(height: AppDimensions.spacingM),
                     Text(

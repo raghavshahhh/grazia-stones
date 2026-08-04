@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/constants/app_dimensions.dart';
 import 'package:grazia_stones/core/models/dealer.dart';
@@ -14,18 +15,36 @@ class DealerLocatorScreen extends StatefulWidget {
 
 class _DealerLocatorScreenState extends State<DealerLocatorScreen> {
   final _searchController = TextEditingController();
-  late List<Dealer> _dealers;
+  late List<Dealer> _allDealers;
+  List<Dealer> _filteredDealers = [];
 
   @override
   void initState() {
     super.initState();
-    _dealers = MockDataService.dealers;
+    _allDealers = MockDataService.dealers;
+    _filteredDealers = _allDealers;
+    _searchController.addListener(_filterDealers);
   }
 
   @override
   void dispose() {
+    _searchController.removeListener(_filterDealers);
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _filterDealers() {
+    final query = _searchController.text.toLowerCase().trim();
+    setState(() {
+      if (query.isEmpty) {
+        _filteredDealers = _allDealers;
+      } else {
+        _filteredDealers = _allDealers.where((d) {
+          return d.name.toLowerCase().contains(query) ||
+              d.address.toLowerCase().contains(query);
+        }).toList();
+      }
+    });
   }
 
   @override
@@ -61,7 +80,7 @@ class _DealerLocatorScreenState extends State<DealerLocatorScreen> {
                       Icon(
                         Icons.map_outlined,
                         size: 48,
-                        color: AppColors.gold.withOpacity(0.5),
+                        color: AppColors.gold.withValues(alpha: 0.5),
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -81,7 +100,7 @@ class _DealerLocatorScreenState extends State<DealerLocatorScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     decoration: BoxDecoration(
-                      color: AppColors.charcoal.withOpacity(0.9),
+                      color: AppColors.charcoal.withValues(alpha: 0.9),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: AppColors.slate),
                     ),
@@ -114,14 +133,23 @@ class _DealerLocatorScreenState extends State<DealerLocatorScreen> {
 
           // ── Dealer List ──
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(AppDimensions.spacingL),
-              itemCount: _dealers.length,
-              itemBuilder: (context, index) {
-                final dealer = _dealers[index];
-                return _DealerCard(dealer: dealer);
-              },
-            ),
+            child: _filteredDealers.isEmpty
+                ? Center(
+                    child: Text(
+                      'No dealers found',
+                      style: GraziaTextStyles.bodyMedium.copyWith(
+                        color: AppColors.silver,
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.all(AppDimensions.spacingL),
+                    itemCount: _filteredDealers.length,
+                    itemBuilder: (context, index) {
+                      final dealer = _filteredDealers[index];
+                      return _DealerCard(dealer: dealer);
+                    },
+                  ),
           ),
         ],
       ),
@@ -133,6 +161,23 @@ class _DealerCard extends StatelessWidget {
   final Dealer dealer;
 
   const _DealerCard({required this.dealer});
+
+  Future<void> _openDirections() async {
+    final query = Uri.encodeComponent(dealer.address);
+    final url = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=$query',
+    );
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Future<void> _callDealer() async {
+    final url = Uri.parse('tel:${dealer.phone}');
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -164,7 +209,7 @@ class _DealerCard extends StatelessWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColors.gold.withOpacity(0.2),
+                    color: AppColors.gold.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -230,7 +275,7 @@ class _DealerCard extends StatelessWidget {
               SizedBox(
                 height: 36,
                 child: OutlinedButton(
-                  onPressed: () {},
+                  onPressed: _openDirections,
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.gold,
                     side: const BorderSide(color: AppColors.gold),
@@ -250,7 +295,7 @@ class _DealerCard extends StatelessWidget {
               SizedBox(
                 height: 36,
                 child: OutlinedButton(
-                  onPressed: () {},
+                  onPressed: _callDealer,
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.gold,
                     side: const BorderSide(color: AppColors.gold),

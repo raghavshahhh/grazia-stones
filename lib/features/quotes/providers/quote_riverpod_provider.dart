@@ -80,7 +80,7 @@ class QuoteRiverpodNotifier extends StateNotifier<QuoteRiverpodState> {
     if (_repo == null) return;
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final quotes = await _repo!.getQuotes();
+      final quotes = await _repo.getQuotes();
       state = state.copyWith(quotes: quotes, isLoading: false);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
@@ -91,7 +91,7 @@ class QuoteRiverpodNotifier extends StateNotifier<QuoteRiverpodState> {
     if (_repo == null) return;
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final quote = await _repo!.createQuote(stoneId: stoneId, quantity: quantity, notes: notes);
+      final quote = await _repo.createQuote(stoneId: stoneId, quantity: quantity, notes: notes);
       state = state.copyWith(
         quotes: [quote, ...state.quotes],
         isLoading: false,

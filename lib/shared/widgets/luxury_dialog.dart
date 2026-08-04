@@ -45,7 +45,7 @@ class GLuxuryDialog extends StatelessWidget {
       barrierLabel: 'Dismiss',
       barrierColor: Colors.black.withValues(alpha: 0.6),
       transitionDuration: GTokens.durationNormal,
-      pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+      pageBuilder: (_, _, _) => const SizedBox.shrink(),
       transitionBuilder: (context, animation, secondaryAnimation, child) {
         return ScaleTransition(
           scale: CurvedAnimation(

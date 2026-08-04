@@ -177,13 +177,13 @@ class _SearchScreenState extends State<SearchScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? AppColors.gold.withOpacity(0.25)
-                              : AppColors.white.withOpacity(GlassTheme.opacityLight),
+                              ? AppColors.gold.withValues(alpha: 0.25)
+                              : AppColors.white.withValues(alpha: GlassTheme.opacityLight),
                           borderRadius: BorderRadius.circular(22),
                           border: Border.all(
                             color: isSelected
-                                ? AppColors.gold.withOpacity(0.6)
-                                : AppColors.white.withOpacity(GlassTheme.borderThin),
+                                ? AppColors.gold.withValues(alpha: 0.6)
+                                : AppColors.white.withValues(alpha: GlassTheme.borderThin),
                             width: GlassTheme.borderThin,
                           ),
                         ),
@@ -317,9 +317,9 @@ class _SearchScreenState extends State<SearchScreen> {
                                                       begin: Alignment.topLeft,
                                                       end: Alignment.bottomRight,
                                                       colors: [
-                                                        Colors.white.withOpacity(0.1),
+                                                        Colors.white.withValues(alpha: 0.1),
                                                         Colors.transparent,
-                                                        Colors.white.withOpacity(0.05),
+                                                        Colors.white.withValues(alpha: 0.05),
                                                       ],
                                                     ),
                                                   ),
@@ -362,10 +362,10 @@ class _SearchScreenState extends State<SearchScreen> {
                                                   Container(
                                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                                     decoration: BoxDecoration(
-                                                      color: AppColors.white.withOpacity(0.06),
+                                                      color: AppColors.white.withValues(alpha: 0.06),
                                                       borderRadius: BorderRadius.circular(8),
                                                       border: Border.all(
-                                                        color: AppColors.white.withOpacity(0.08),
+                                                        color: AppColors.white.withValues(alpha: 0.08),
                                                         width: 0.5,
                                                       ),
                                                     ),

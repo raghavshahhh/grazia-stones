@@ -118,9 +118,7 @@ class _LiveAIScreenState extends State<LiveAIScreen>
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    if (_overlayPosition == null) {
-      _overlayPosition = Offset(size.width * 0.12, size.height * 0.18);
-    }
+    _overlayPosition ??= Offset(size.width * 0.12, size.height * 0.18);
 
     return Scaffold(
       backgroundColor: Colors.black,

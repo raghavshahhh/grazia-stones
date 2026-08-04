@@ -52,7 +52,7 @@ class GDealerCard extends StatelessWidget {
                   ? Image.asset(
                       imageUrl!,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _buildAvatar(palette),
+                      errorBuilder: (_, _, _) => _buildAvatar(palette),
                     )
                   : _buildAvatar(palette),
             ),

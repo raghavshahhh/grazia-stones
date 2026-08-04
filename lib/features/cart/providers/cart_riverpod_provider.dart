@@ -92,7 +92,7 @@ class CartRiverpodNotifier extends StateNotifier<CartRiverpodState> {
     if (_repo == null) return;
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final items = await _repo!.getCartItems();
+      final items = await _repo.getCartItems();
       state = state.copyWith(items: items, isLoading: false);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
@@ -102,7 +102,7 @@ class CartRiverpodNotifier extends StateNotifier<CartRiverpodState> {
   Future<void> syncToServer() async {
     if (_repo == null) return;
     for (final item in state.items) {
-      await _repo!.addToCart(item.stoneId, item.quantity);
+      await _repo.addToCart(item.stoneId, item.quantity);
     }
   }
 }

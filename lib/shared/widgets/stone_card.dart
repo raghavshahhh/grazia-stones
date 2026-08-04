@@ -52,7 +52,7 @@ class GStoneCard extends StatelessWidget {
                   Image.asset(
                     imageUrl!,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _buildPlaceholder(palette),
+                    errorBuilder: (_, _, _) => _buildPlaceholder(palette),
                   )
                 else
                   _buildPlaceholder(palette),

@@ -49,7 +49,7 @@ class StoneGridSkeleton extends StatelessWidget {
           childAspectRatio: 0.7,
         ),
         itemCount: 6,
-        itemBuilder: (_, __) => Container(
+        itemBuilder: (_, _) => Container(
           decoration: BoxDecoration(
             color: AppColors.charcoal,
             borderRadius: BorderRadius.circular(12),
@@ -72,7 +72,7 @@ class CollectionListSkeleton extends StatelessWidget {
         physics: const NeverScrollableScrollPhysics(),
         shrinkWrap: true,
         itemCount: 4,
-        itemBuilder: (_, __) => Padding(
+        itemBuilder: (_, _) => Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: Container(
             height: 100,

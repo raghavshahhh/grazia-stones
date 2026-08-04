@@ -66,5 +66,11 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Grazia Stones needs camera access to visualize stones in your space using augmented reality.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Grazia Stones needs your location to find nearby dealers and show distance.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Grazia Stones needs your location to find nearby dealers.</string>
 </dict>
 </plist>

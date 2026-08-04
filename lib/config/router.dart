@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -39,7 +40,7 @@ CustomTransitionPage<void> _fadePage(Widget child, GoRouterState state) {
   return CustomTransitionPage<void>(
     key: state.pageKey,
     child: child,
-    transitionsBuilder: (_, animation, __, child) =>
+    transitionsBuilder: (_, animation, _, child) =>
         FadeTransition(opacity: animation, child: child),
   );
 }
@@ -49,7 +50,7 @@ CustomTransitionPage<void> _slideUpPage(Widget child, GoRouterState state) {
   return CustomTransitionPage<void>(
     key: state.pageKey,
     child: child,
-    transitionsBuilder: (_, animation, __, child) {
+    transitionsBuilder: (_, animation, _, child) {
       final curved = CurvedAnimation(
         parent: animation,
         curve: Curves.easeOutCubic,
@@ -74,7 +75,7 @@ CustomTransitionPage<void> _slideRightPage(Widget child, GoRouterState state) {
   return CustomTransitionPage<void>(
     key: state.pageKey,
     child: child,
-    transitionsBuilder: (_, animation, __, child) {
+    transitionsBuilder: (_, animation, _, child) {
       final curved = CurvedAnimation(
         parent: animation,
         curve: Curves.easeOutCubic,
@@ -96,7 +97,7 @@ CustomTransitionPage<void> _scaleFadePage(Widget child, GoRouterState state) {
   return CustomTransitionPage<void>(
     key: state.pageKey,
     child: child,
-    transitionsBuilder: (_, animation, __, child) {
+    transitionsBuilder: (_, animation, _, child) {
       final curved = CurvedAnimation(
         parent: animation,
         curve: Curves.easeOutCubic,
@@ -113,32 +114,79 @@ CustomTransitionPage<void> _scaleFadePage(Widget child, GoRouterState state) {
   );
 }
 
-/// Shell with floating GraziaBottomNav. GoRouter handles all tab state.
-class _ShellWithNav extends StatelessWidget {
+/// Shell with floating GraziaBottomNav + swipeable tabs.
+class _ShellWithNav extends StatefulWidget {
   final Widget child;
   const _ShellWithNav({required this.child});
 
   @override
-  Widget build(BuildContext context) {
+  State<_ShellWithNav> createState() => _ShellWithNavState();
+}
+
+class _ShellWithNavState extends State<_ShellWithNav> {
+  late final PageController _pageController;
+  int _currentTab = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: _currentTab);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     final location = GoRouterState.of(context).uri.path;
-    int currentTab = 0;
     for (var i = 0; i < _tabRoutes.length; i++) {
       if (location.startsWith(_tabRoutes[i])) {
-        currentTab = i;
+        if (_currentTab != i) {
+          _currentTab = i;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _pageController.jumpToPage(i);
+          });
+        }
         break;
       }
     }
+  }
 
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _onTabTap(int i) {
+    if (i == _currentTab) return;
+    HapticFeedback.lightImpact();
+    setState(() => _currentTab = i);
+    context.go(_tabRoutes[i]);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       extendBody: true,
-      body: child,
-      bottomNavigationBar: GraziaBottomNav(
-        currentIndex: currentTab,
-        onTap: (i) {
-          if (i < _tabRoutes.length) {
+      body: PageView(
+        controller: _pageController,
+        physics: const ClampingScrollPhysics(),
+        onPageChanged: (i) {
+          if (i != _currentTab) {
+            setState(() => _currentTab = i);
             context.go(_tabRoutes[i]);
           }
         },
+        children: const [
+          HomeScreen(),
+          CollectionListScreen(),
+          LiveAIScreen(),
+          CartScreen(),
+          ProfileScreen(),
+        ],
+      ),
+      bottomNavigationBar: GraziaBottomNav(
+        currentIndex: _currentTab,
+        onTap: _onTabTap,
       ),
     );
   }

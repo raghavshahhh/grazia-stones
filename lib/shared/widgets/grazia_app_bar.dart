@@ -33,10 +33,10 @@ class GraziaAppBar extends StatelessWidget implements PreferredSizeWidget {
           decoration: BoxDecoration(
             color: transparent
                 ? Colors.transparent
-                : AppColors.charcoal.withOpacity(0.75),
+                : AppColors.charcoal.withValues(alpha: 0.75),
             border: Border(
               bottom: BorderSide(
-                color: AppColors.goldWarm.withOpacity(0.1),
+                color: AppColors.goldWarm.withValues(alpha: 0.1),
                 width: 0.5,
               ),
             ),
@@ -71,16 +71,16 @@ class GraziaAppBar extends StatelessWidget implements PreferredSizeWidget {
       child: InkWell(
         onTap: onBackPressed ?? () => Navigator.of(context).pop(),
         borderRadius: BorderRadius.circular(30),
-        splashColor: AppColors.goldWarm.withOpacity(0.1),
+        splashColor: AppColors.goldWarm.withValues(alpha: 0.1),
         child: Container(
           width: 40,
           height: 40,
           margin: const EdgeInsets.only(left: 4),
           decoration: BoxDecoration(
-            color: AppColors.white.withOpacity(GlassTheme.opacityLight),
+            color: AppColors.white.withValues(alpha: GlassTheme.opacityLight),
             borderRadius: BorderRadius.circular(30),
             border: Border.all(
-              color: AppColors.white.withOpacity(0.08),
+              color: AppColors.white.withValues(alpha: 0.08),
               width: 0.5,
             ),
           ),

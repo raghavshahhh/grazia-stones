@@ -27,28 +27,28 @@ class GlassTheme {
 
   // ── Glass Decorations ──
   static BoxDecoration glassLight = BoxDecoration(
-    color: AppColors.white.withOpacity(opacityLight),
+    color: AppColors.white.withValues(alpha: opacityLight),
     borderRadius: BorderRadius.circular(16),
     border: Border.all(
-      color: AppColors.white.withOpacity(borderThin),
+      color: AppColors.white.withValues(alpha: borderThin),
       width: borderThin,
     ),
   );
 
   static BoxDecoration glassMedium = BoxDecoration(
-    color: AppColors.white.withOpacity(opacityMedium),
+    color: AppColors.white.withValues(alpha: opacityMedium),
     borderRadius: BorderRadius.circular(16),
     border: Border.all(
-      color: AppColors.white.withOpacity(0.12),
+      color: AppColors.white.withValues(alpha: 0.12),
       width: borderThin,
     ),
   );
 
   static BoxDecoration glassHeavy = BoxDecoration(
-    color: AppColors.white.withOpacity(opacityHeavy),
+    color: AppColors.white.withValues(alpha: opacityHeavy),
     borderRadius: BorderRadius.circular(20),
     border: Border.all(
-      color: AppColors.white.withOpacity(0.15),
+      color: AppColors.white.withValues(alpha: 0.15),
       width: borderMedium,
     ),
   );
@@ -60,13 +60,13 @@ class GlassTheme {
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [
-        AppColors.goldWarm.withOpacity(0.08),
-        AppColors.goldLight.withOpacity(0.04),
-        AppColors.goldWarm.withOpacity(0.08),
+        AppColors.goldWarm.withValues(alpha: 0.08),
+        AppColors.goldLight.withValues(alpha: 0.04),
+        AppColors.goldWarm.withValues(alpha: 0.08),
       ],
     ),
     border: Border.all(
-      color: AppColors.goldWarm.withOpacity(0.15),
+      color: AppColors.goldWarm.withValues(alpha: 0.15),
       width: 0.5,
     ),
   );
@@ -83,7 +83,7 @@ class GlassTheme {
         filter: ImageFilter.blur(sigmaX: sigmaX, sigmaY: sigmaY),
         child: Container(
           color: opacity != null
-              ? AppColors.white.withOpacity(opacity)
+              ? AppColors.white.withValues(alpha: opacity)
               : Colors.transparent,
           child: child,
         ),
@@ -115,18 +115,18 @@ class GlassTheme {
           child: Container(
             padding: padding,
             decoration: BoxDecoration(
-              color: AppColors.white.withOpacity(opacityLight),
+              color: AppColors.white.withValues(alpha: opacityLight),
               borderRadius: BorderRadius.circular(borderRadius),
               border: Border.all(
-                color: AppColors.white.withOpacity(0.1),
+                color: AppColors.white.withValues(alpha: 0.1),
                 width: 0.5,
               ),
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  AppColors.white.withOpacity(0.08),
-                  AppColors.white.withOpacity(0.02),
+                  AppColors.white.withValues(alpha: 0.08),
+                  AppColors.white.withValues(alpha: 0.02),
                 ],
               ),
             ),
@@ -152,20 +152,20 @@ class GlassTheme {
           color: Colors.transparent,
           child: InkWell(
             onTap: onPressed,
-            splashColor: (glowColor ?? AppColors.goldWarm).withOpacity(0.15),
-            highlightColor: (glowColor ?? AppColors.goldWarm).withOpacity(0.08),
+            splashColor: (glowColor ?? AppColors.goldWarm).withValues(alpha: 0.15),
+            highlightColor: (glowColor ?? AppColors.goldWarm).withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(borderRadius),
             child: Container(
               decoration: BoxDecoration(
-                color: AppColors.white.withOpacity(opacityLight),
+                color: AppColors.white.withValues(alpha: opacityLight),
                 borderRadius: BorderRadius.circular(borderRadius),
                 border: Border.all(
-                  color: AppColors.white.withOpacity(0.1),
+                  color: AppColors.white.withValues(alpha: 0.1),
                   width: 0.5,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: (glowColor ?? AppColors.goldWarm).withOpacity(0.08),
+                    color: (glowColor ?? AppColors.goldWarm).withValues(alpha: 0.08),
                     blurRadius: 20,
                     spreadRadius: -4,
                   ),
@@ -189,23 +189,23 @@ class GlassTheme {
     return AnimatedContainer(
       duration: durationNormal,
       curve: Curves.easeOutCubic,
-      transform: Matrix4.identity()..scale(scale),
+      transform: Matrix4.diagonal3Values(scale, scale, scale),
       transformAlignment: Alignment.center,
       decoration: BoxDecoration(
         color: isHovered
-            ? AppColors.white.withOpacity(opacityMedium)
-            : AppColors.white.withOpacity(opacityLight),
+            ? AppColors.white.withValues(alpha: opacityMedium)
+            : AppColors.white.withValues(alpha: opacityLight),
         borderRadius: BorderRadius.circular(borderRadius),
         border: Border.all(
           color: isHovered
-              ? AppColors.goldWarm.withOpacity(0.25)
-              : AppColors.white.withOpacity(0.08),
+              ? AppColors.goldWarm.withValues(alpha: 0.25)
+              : AppColors.white.withValues(alpha: 0.08),
           width: isHovered ? 1.0 : 0.5,
         ),
         boxShadow: [
           if (isHovered)
             BoxShadow(
-              color: AppColors.goldWarm.withOpacity(0.12),
+              color: AppColors.goldWarm.withValues(alpha: 0.12),
               blurRadius: 24,
               spreadRadius: -4,
               offset: const Offset(0, 4),
@@ -238,7 +238,7 @@ class GlassTheme {
   static List<BoxShadow> goldGlow({double blur = 20, double spread = -4}) {
     return [
       BoxShadow(
-        color: AppColors.goldWarm.withOpacity(0.15),
+        color: AppColors.goldWarm.withValues(alpha: 0.15),
         blurRadius: blur,
         spreadRadius: spread,
       ),
@@ -249,7 +249,7 @@ class GlassTheme {
   static List<BoxShadow> innerGlow({double blur = 12}) {
     return [
       BoxShadow(
-        color: AppColors.white.withOpacity(0.05),
+        color: AppColors.white.withValues(alpha: 0.05),
         blurRadius: blur,
         spreadRadius: -2,
         // inset: true,

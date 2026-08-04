@@ -76,7 +76,9 @@ class _WishlistScreenState extends State<WishlistScreen>
         actions: [
           if (_items.isNotEmpty)
             TextButton(
-              onPressed: () {},
+              onPressed: () {
+                setState(() => _items.clear());
+              },
               child: Text(
                 'Clear All',
                 style: GraziaTextStyles.bodySmall
@@ -149,7 +151,18 @@ class _WishlistScreenState extends State<WishlistScreen>
             label: 'Move All to Cart',
             icon: Icons.shopping_bag_outlined,
             onPressed: () {
-              // TODO: move all to cart
+              if (_items.isNotEmpty) {
+                final count = _items.length;
+                setState(() => _items.clear());
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('$count item${count > 1 ? 's' : ''} moved to cart'),
+                    backgroundColor: AppColors.gold,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                );
+              }
             },
           ),
         ),
