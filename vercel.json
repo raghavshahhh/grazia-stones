@@ -1,0 +1,6 @@
+{
+  "framework": null,
+  "buildCommand": "flutter build web --release",
+  "outputDirectory": "build/web",
+  "installCommand": "echo 'Flutter SDK - no npm install needed'"
+}
