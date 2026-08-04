@@ -51,14 +51,9 @@ class _SplashScreenState extends State<SplashScreen>
     _controller.forward();
 
     // Navigate after animation completes
-    Timer(const Duration(milliseconds: 2800), () {
+    Timer(const Duration(milliseconds: 2500), () {
       if (mounted) {
-        final auth = context.read<AuthProvider>();
-        if (auth.onboardingComplete) {
-          context.go('/home');
-        } else {
-          context.go('/onboarding');
-        }
+        context.go('/home');
       }
     });
   }
@@ -75,7 +70,9 @@ class _SplashScreenState extends State<SplashScreen>
     
     return Scaffold(
       backgroundColor: palette.background,
-      body: Center(
+      body: GestureDetector(
+        onTap: () => context.go('/home'),
+        behavior: HitTestBehavior.opaque,
         child: FadeTransition(
           opacity: _fadeAnimation,
           child: ScaleTransition(

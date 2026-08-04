@@ -1,7 +1,5 @@
 {
   "version": 2,
-  "installCommand": "if [ ! -d \"flutter\" ]; then git clone https://github.com/flutter/flutter.git -b stable --depth 1; fi",
-  "buildCommand": "git config --global --add safe.directory '*' && ./flutter/bin/flutter config --enable-web && ./flutter/bin/flutter build web --release",
   "outputDirectory": "build/web",
   "routes": [
     {
