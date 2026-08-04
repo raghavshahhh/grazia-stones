@@ -1,25 +1,57 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/typography.dart';
+import 'package:grazia_stones/shared/theme/spacing.dart';
 import 'package:grazia_stones/shared/widgets/grazia_text_field.dart';
 import 'package:grazia_stones/shared/widgets/grazia_button.dart';
-import 'package:grazia_stones/config/routes.dart';
+import 'package:grazia_stones/core/utils/validators.dart';
+import 'package:grazia_stones/core/di.dart';
 
-class RegisterScreen extends StatefulWidget {
+class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
 
   @override
-  State<RegisterScreen> createState() => _RegisterScreenState();
+  ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> {
+class _RegisterScreenState extends ConsumerState<RegisterScreen>
+    with SingleTickerProviderStateMixin {
+  final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _companyController = TextEditingController();
   final _otpController = TextEditingController();
+  
+  final _nameFocusNode = FocusNode();
+  final _phoneFocusNode = FocusNode();
+  final _emailFocusNode = FocusNode();
+  final _companyFocusNode = FocusNode();
+  final _otpFocusNode = FocusNode();
+  
   bool _otpSent = false;
   bool _isArchitect = false;
+  bool _isLoading = false;
+  bool _agreedToTerms = false;
+  String? _errorMessage;
+
+  late AnimationController _shakeController;
+  late Animation<double> _shakeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _shakeController = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+    _shakeAnimation = Tween<double>(begin: 0, end: 10).animate(
+      CurvedAnimation(parent: _shakeController, curve: Curves.elasticIn),
+    );
+  }
 
   @override
   void dispose() {
@@ -28,189 +60,440 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _companyController.dispose();
     _otpController.dispose();
+    _nameFocusNode.dispose();
+    _phoneFocusNode.dispose();
+    _emailFocusNode.dispose();
+    _companyFocusNode.dispose();
+    _otpFocusNode.dispose();
+    _shakeController.dispose();
     super.dispose();
+  }
+
+  void _triggerShake() {
+    _shakeController.forward().then((_) => _shakeController.reverse());
+  }
+
+  Future<void> _sendOTP() async {
+    if (!_formKey.currentState!.validate()) {
+      _triggerShake();
+      return;
+    }
+
+    if (!_agreedToTerms) {
+      setState(() => _errorMessage = 'Please agree to Terms & Conditions');
+      _triggerShake();
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    HapticFeedback.mediumImpact();
+
+    // Simulate API call
+    await Future.delayed(const Duration(seconds: 1));
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        _otpSent = true;
+      });
+      _otpFocusNode.requestFocus();
+    }
+  }
+
+  Future<void> _verifyAndRegister() async {
+    if (_otpController.text.length != 6) {
+      setState(() => _errorMessage = 'Please enter a valid 6-digit OTP');
+      _triggerShake();
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    HapticFeedback.mediumImpact();
+
+    // Simulate API call
+    await Future.delayed(const Duration(seconds: 1));
+
+    if (mounted) {
+      // Mock successful registration
+      ref.read(authRiverpodProvider.notifier).login(
+            'user_${_phoneController.text}',
+            _nameController.text,
+            _phoneController.text,
+            email: _emailController.text.isEmpty ? null : _emailController.text,
+          );
+
+      setState(() => _isLoading = false);
+      
+      // Navigate to home
+      context.go('/home');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final palette = GLuxuryPalettes.gold;
 
-
     return Scaffold(
       backgroundColor: palette.background,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 40),
-              // ── Brand Header ──
-              Center(
-                child: ShaderMask(
-                  shaderCallback: (bounds) =>
-                      palette.primaryGradient.createShader(bounds),
-                  child: Text(
-                    'G',
-                    style: GLuxuryTypography.displayLarge.copyWith(
-                      color: Colors.white,
-                      fontSize: 48,
-                    ),
+          padding: GLuxurySpacing.horizontalXl,
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                GLuxurySpacing.gapXl,
+                
+                // Back button
+                IconButton(
+                  onPressed: () {
+                    if (_otpSent) {
+                      setState(() {
+                        _otpSent = false;
+                        _otpController.clear();
+                      });
+                    } else {
+                      context.pop();
+                    }
+                  },
+                  icon: Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    color: palette.textSecondary,
+                    size: 20,
                   ),
                 ),
-              ),
-              const SizedBox(height: 32),
-              Text(
-                _otpSent ? 'Verify OTP' : 'Create Account',
-                style: GLuxuryTypography.h1,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _otpSent
-                    ? 'Enter the OTP sent to +91 ${_phoneController.text}'
-                    : 'Join Grazia Stones to explore premium natural stones',
-                style: GLuxuryTypography.bodyMedium.copyWith(
-                  color: palette.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 32),
+                
+                GLuxurySpacing.gapLg,
 
-              if (!_otpSent) ...[
-                // ── Name ──
-                GraziaTextField(
-                  label: 'Full Name',
-                  controller: _nameController,
-                  prefix: const Icon(Icons.person_outline, size: 20),
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Name required' : null,
-                ),
-                const SizedBox(height: 20),
-
-                // ── Phone ──
-                GraziaTextField(
-                  label: 'Phone Number',
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
-                  prefix: Text(
-                    '+91 ',
-                    style: GLuxuryTypography.bodyMedium
-                        .copyWith(color: palette.primary),
-                  ),
-                  validator: (v) => (v == null || v.length != 10)
-                      ? 'Enter valid phone'
-                      : null,
-                ),
-                const SizedBox(height: 20),
-
-                // ── Email ──
-                GraziaTextField(
-                  label: 'Email (optional)',
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  prefix: const Icon(Icons.email_outlined, size: 20),
-                ),
-                const SizedBox(height: 20),
-
-                // ── Company ──
-                GraziaTextField(
-                  label: 'Company / Firm (optional)',
-                  controller: _companyController,
-                  prefix: const Icon(Icons.business_outlined, size: 20),
-                ),
-                const SizedBox(height: 20),
-
-                // ── Architect toggle ──
-                Row(
-                  children: [
-                    Checkbox(
-                      value: _isArchitect,
-                      onChanged: (v) =>
-                          setState(() => _isArchitect = v ?? false),
-                      activeColor: palette.primary,
-                      checkColor: palette.background,
+                // Brand Logo
+                Center(
+                  child: Container(
+                    width: 70,
+                    height: 70,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: palette.primaryGradient,
+                      boxShadow: [
+                        BoxShadow(
+                          color: palette.primary.withValues(alpha: 0.3),
+                          blurRadius: 20,
+                          spreadRadius: 2,
+                        ),
+                      ],
                     ),
-                    Expanded(
-                      child: Text(
-                        'I am an Architect / Interior Designer',
-                        style: GLuxuryTypography.bodyMedium.copyWith(
-                          color: palette.textSecondary,
+                    child: Container(
+                      margin: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: palette.background,
+                      ),
+                      child: Center(
+                        child: ShaderMask(
+                          shaderCallback: (bounds) =>
+                              palette.primaryGradient.createShader(bounds),
+                          child: const Text(
+                            'G',
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 36,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 28),
-
-                // ── Register Button ──
-                GraziaButton(
-                  label: 'Send OTP',
-                  icon: Icons.arrow_forward_rounded,
-                  onPressed: () {
-                    if (_phoneController.text.length == 10 &&
-                        _nameController.text.trim().isNotEmpty) {
-                      setState(() => _otpSent = true);
-                    }
-                  },
-                ),
-              ] else ...[
-                // ── OTP Input ──
-                GraziaTextField(
-                  label: 'Enter 6-digit OTP',
-                  controller: _otpController,
-                  keyboardType: TextInputType.number,
-                  maxLength: 6,
-                ),
-                const SizedBox(height: 28),
-                GraziaButton(
-                  label: 'Verify & Create Account',
-                  icon: Icons.check_circle_outline,
-                  onPressed: () {
-                    // TODO: Verify OTP, create account
-                    Navigator.of(context)
-                        .pushReplacementNamed(AppRoutes.home);
-                  },
-                ),
-                const SizedBox(height: 16),
-                Center(
-                  child: TextButton(
-                    onPressed: () => setState(() => _otpSent = false),
-                    child: Text(
-                      'Change Number',
-                      style: GLuxuryTypography.bodySmall.copyWith(
-                        color: palette.primary,
-                      ),
-                    ),
                   ),
                 ),
-              ],
+                
+                GLuxurySpacing.gapXl,
+                GLuxurySpacing.gapLg,
 
-              const SizedBox(height: 32),
-
-              // ── Login link ──
-              Center(
-                child: TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: RichText(
-                    text: TextSpan(
-                      text: 'Already have an account? ',
-                      style: GLuxuryTypography.bodyMedium.copyWith(
-                        color: palette.textTertiary,
+                // Title & Subtitle
+                AnimatedBuilder(
+                  animation: _shakeAnimation,
+                  builder: (context, child) {
+                    return Transform.translate(
+                      offset: Offset(_shakeAnimation.value, 0),
+                      child: child,
+                    );
+                  },
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _otpSent ? 'Verify OTP' : 'Create Account',
+                        style: GLuxuryTypography.h1.copyWith(
+                          fontSize: 32,
+                          color: palette.textPrimary,
+                        ),
                       ),
+                      GLuxurySpacing.gapSm,
+                      Text(
+                        _otpSent
+                            ? 'Enter the 6-digit OTP sent to\n+91 ${_phoneController.text}'
+                            : 'Join Grazia Stones to explore premium natural stones',
+                        style: GLuxuryTypography.bodyLarge.copyWith(
+                          color: palette.textSecondary,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                GLuxurySpacing.gapXl,
+
+                // Error Message
+                if (_errorMessage != null) ...[
+                  Container(
+                    padding: GLuxurySpacing.paddingBase,
+                    decoration: BoxDecoration(
+                      color: palette.error.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: palette.error.withValues(alpha: 0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
                       children: [
-                        TextSpan(
-                          text: 'Log In',
-                          style: GLuxuryTypography.bodyMedium.copyWith(
-                            color: palette.primary,
-                            fontWeight: FontWeight.w600,
+                        Icon(
+                          Icons.error_outline_rounded,
+                          color: palette.error,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            _errorMessage!,
+                            style: GLuxuryTypography.bodyMedium.copyWith(
+                              color: palette.error,
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
+                  GLuxurySpacing.gapBase,
+                ],
+
+                // Registration Form or OTP Input
+                if (!_otpSent) ...[
+                  // Name
+                  GraziaTextField(
+                    label: 'Full Name',
+                    controller: _nameController,
+                    focusNode: _nameFocusNode,
+                    prefixIcon: Icons.person_outline_rounded,
+                    validator: Validators.required('Name'),
+                  ),
+                  GLuxurySpacing.gapBase,
+
+                  // Phone
+                  GraziaTextField(
+                    label: 'Phone Number',
+                    controller: _phoneController,
+                    focusNode: _phoneFocusNode,
+                    keyboardType: TextInputType.phone,
+                    maxLength: 10,
+                    prefix: Padding(
+                      padding: const EdgeInsets.only(left: 16),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '+91',
+                            style: GLuxuryTypography.bodyMedium.copyWith(
+                              color: palette.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            width: 1,
+                            height: 20,
+                            color: palette.border,
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                      ),
+                    ),
+                    validator: Validators.phone,
+                  ),
+                  GLuxurySpacing.gapBase,
+
+                  // Email (optional)
+                  GraziaTextField(
+                    label: 'Email (optional)',
+                    controller: _emailController,
+                    focusNode: _emailFocusNode,
+                    keyboardType: TextInputType.emailAddress,
+                    prefixIcon: Icons.email_outlined,
+                  ),
+                  GLuxurySpacing.gapBase,
+
+                  // Company (optional)
+                  GraziaTextField(
+                    label: 'Company / Firm (optional)',
+                    controller: _companyController,
+                    focusNode: _companyFocusNode,
+                    prefixIcon: Icons.business_outlined,
+                  ),
+                  GLuxurySpacing.gapBase,
+
+                  // Architect Checkbox
+                  Row(
+                    children: [
+                      Transform.scale(
+                        scale: 1.1,
+                        child: Checkbox(
+                          value: _isArchitect,
+                          onChanged: (v) =>
+                              setState(() => _isArchitect = v ?? false),
+                          activeColor: palette.primary,
+                          checkColor: palette.background,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          'I am an Architect / Interior Designer',
+                          style: GLuxuryTypography.bodyMedium.copyWith(
+                            color: palette.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  GLuxurySpacing.gapSm,
+
+                  // Terms Checkbox
+                  Row(
+                    children: [
+                      Transform.scale(
+                        scale: 1.1,
+                        child: Checkbox(
+                          value: _agreedToTerms,
+                          onChanged: (v) =>
+                              setState(() => _agreedToTerms = v ?? false),
+                          activeColor: palette.primary,
+                          checkColor: palette.background,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            setState(() => _agreedToTerms = !_agreedToTerms);
+                          },
+                          child: RichText(
+                            text: TextSpan(
+                              text: 'I agree to the ',
+                              style: GLuxuryTypography.bodySmall.copyWith(
+                                color: palette.textTertiary,
+                              ),
+                              children: [
+                                TextSpan(
+                                  text: 'Terms & Conditions',
+                                  style: GLuxuryTypography.bodySmall.copyWith(
+                                    color: palette.primary,
+                                    fontWeight: FontWeight.w600,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ] else ...[
+                  // OTP Input
+                  GraziaTextField(
+                    label: 'OTP Code',
+                    controller: _otpController,
+                    focusNode: _otpFocusNode,
+                    keyboardType: TextInputType.number,
+                    maxLength: 6,
+                    prefixIcon: Icons.lock_outline_rounded,
+                  ),
+                  GLuxurySpacing.gapBase,
+                  
+                  // Resend OTP
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: _isLoading ? null : _sendOTP,
+                      child: Text(
+                        'Resend OTP',
+                        style: GLuxuryTypography.labelMedium.copyWith(
+                          color: palette.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+
+                GLuxurySpacing.gapXl,
+
+                // CTA Button
+                GraziaButton(
+                  label: _otpSent ? 'Verify & Create Account' : 'Send OTP',
+                  icon: _otpSent
+                      ? Icons.check_circle_outline_rounded
+                      : Icons.arrow_forward_rounded,
+                  onPressed: _isLoading
+                      ? null
+                      : (_otpSent ? _verifyAndRegister : _sendOTP),
+                  isLoading: _isLoading,
                 ),
-              ),
-              const SizedBox(height: 40),
-            ],
+
+                GLuxurySpacing.gapLg,
+
+                // Login Link
+                if (!_otpSent)
+                  Center(
+                    child: TextButton(
+                      onPressed: () => context.pop(),
+                      child: RichText(
+                        text: TextSpan(
+                          text: 'Already have an account? ',
+                          style: GLuxuryTypography.bodyMedium.copyWith(
+                            color: palette.textTertiary,
+                          ),
+                          children: [
+                            TextSpan(
+                              text: 'Log In',
+                              style: GLuxuryTypography.bodyMedium.copyWith(
+                                color: palette.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                GLuxurySpacing.gapXxl,
+              ],
+            ),
           ),
         ),
       ),

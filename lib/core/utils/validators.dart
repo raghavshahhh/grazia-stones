@@ -36,11 +36,13 @@ class Validators {
     return null;
   }
 
-  static String? required(String? value, [String? fieldName]) {
-    if (value == null || value.trim().isEmpty) {
-      return '${fieldName ?? 'This field'} is required';
-    }
-    return null;
+  static String? Function(String?) required(String fieldName) {
+    return (String? value) {
+      if (value == null || value.trim().isEmpty) {
+        return '$fieldName is required';
+      }
+      return null;
+    };
   }
 
   static String? minLength(String? value, int min, [String? fieldName]) {

@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:grazia_stones/config/routes.dart';
 import 'package:grazia_stones/features/auth/providers/auth_provider.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 
@@ -18,38 +17,47 @@ class _SplashScreenState extends State<SplashScreen>
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
+  late Animation<double> _pulseAnimation;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 2000),
       vsync: this,
     );
 
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.0, 0.5, curve: Curves.easeOut),
+        curve: const Interval(0.0, 0.4, curve: Curves.easeOut),
       ),
     );
 
-    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+    _scaleAnimation = Tween<double>(begin: 0.7, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.0, 0.5, curve: Curves.decelerate),
+        curve: const Interval(0.0, 0.5, curve: Curves.elasticOut),
+      ),
+    );
+
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.05).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.5, 1.0, curve: Curves.easeInOut),
       ),
     );
 
     _controller.forward();
 
-    Timer(const Duration(milliseconds: 2500), () {
+    // Navigate after animation completes
+    Timer(const Duration(milliseconds: 2800), () {
       if (mounted) {
         final auth = context.read<AuthProvider>();
         if (auth.onboardingComplete) {
-          context.go(AppRoutes.home);
+          context.go('/home');
         } else {
-          context.go(AppRoutes.onboarding);
+          context.go('/onboarding');
         }
       }
     });
@@ -63,69 +71,109 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    final palette = GLuxuryPalettes.gold;
+    
     return Scaffold(
-      backgroundColor: GLuxuryPalettes.gold.background,
+      backgroundColor: palette.background,
       body: Center(
         child: FadeTransition(
           opacity: _fadeAnimation,
           child: ScaleTransition(
             scale: _scaleAnimation,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: GLuxuryPalettes.gold.primary.withValues(alpha: 0.3),
-                      width: 1.5,
+            child: AnimatedBuilder(
+              animation: _pulseAnimation,
+              builder: (context, child) {
+                return Transform.scale(
+                  scale: _pulseAnimation.value,
+                  child: child,
+                );
+              },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Logo circle with gradient border
+                  Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: palette.primaryGradient,
+                      boxShadow: [
+                        BoxShadow(
+                          color: palette.primary.withValues(alpha: 0.3),
+                          blurRadius: 20,
+                          spreadRadius: 2,
+                        ),
+                      ],
                     ),
-                  ),
-                  child: Center(
-                    child: ShaderMask(
-                      shaderCallback: (bounds) =>
-                          GLuxuryPalettes.gold.primaryGradient.createShader(bounds),
-                      child: const Text(
-                        'G',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 40,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
+                    child: Container(
+                      margin: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: palette.background,
+                      ),
+                      child: Center(
+                        child: ShaderMask(
+                          shaderCallback: (bounds) =>
+                              palette.primaryGradient.createShader(bounds),
+                          child: const Text(
+                            'G',
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 48,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 20),
-                ShaderMask(
-                  shaderCallback: (bounds) =>
-                      GLuxuryPalettes.gold.primaryGradient.createShader(bounds),
-                  child: const Text(
-                    'GRAZIA',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 32,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 8,
-                      color: Colors.white,
+                  const SizedBox(height: 24),
+                  
+                  // Brand name with gradient
+                  ShaderMask(
+                    shaderCallback: (bounds) =>
+                        palette.primaryGradient.createShader(bounds),
+                    child: const Text(
+                      'GRAZIA',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 36,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 10,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'S T O N E S',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 14,
-                    fontWeight: FontWeight.w400,
-                    letterSpacing: 8,
-                    color: GLuxuryPalettes.gold.textSecondary.withValues(alpha: 0.7),
+                  const SizedBox(height: 6),
+                  
+                  // Subtitle
+                  Text(
+                    'S T O N E S',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 15,
+                      fontWeight: FontWeight.w400,
+                      letterSpacing: 10,
+                      color: palette.textSecondary.withValues(alpha: 0.6),
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  
+                  // Tagline
+                  Text(
+                    'Luxury Redefined',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 11,
+                      fontWeight: FontWeight.w300,
+                      letterSpacing: 2,
+                      color: palette.textTertiary.withValues(alpha: 0.5),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
