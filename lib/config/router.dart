@@ -115,7 +115,7 @@ CustomTransitionPage<void> _scaleFadePage(Widget child, GoRouterState state) {
   );
 }
 
-/// Shell with floating GraziaBottomNav + swipeable tabs.
+/// Shell with floating GraziaBottomNav.
 class _ShellWithNav extends StatefulWidget {
   final Widget child;
   const _ShellWithNav({required this.child});
@@ -125,36 +125,21 @@ class _ShellWithNav extends StatefulWidget {
 }
 
 class _ShellWithNavState extends State<_ShellWithNav> {
-  late final PageController _pageController;
   int _currentTab = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _pageController = PageController(initialPage: _currentTab);
-  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    // Update current tab based on current route
     final location = GoRouterState.of(context).uri.path;
     for (var i = 0; i < _tabRoutes.length; i++) {
       if (location.startsWith(_tabRoutes[i])) {
         if (_currentTab != i) {
-          _currentTab = i;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) _pageController.jumpToPage(i);
-          });
+          setState(() => _currentTab = i);
         }
         break;
       }
     }
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
   }
 
   void _onTabTap(int i) {
@@ -168,23 +153,7 @@ class _ShellWithNavState extends State<_ShellWithNav> {
   Widget build(BuildContext context) {
     return Scaffold(
       extendBody: true,
-      body: PageView(
-        controller: _pageController,
-        physics: const ClampingScrollPhysics(),
-        onPageChanged: (i) {
-          if (i != _currentTab) {
-            setState(() => _currentTab = i);
-            context.go(_tabRoutes[i]);
-          }
-        },
-        children: const [
-          HomeScreen(),
-          CollectionListScreen(),
-          LiveAIScreen(),
-          CartScreen(),
-          ProfileScreen(),
-        ],
-      ),
+      body: widget.child,
       bottomNavigationBar: GraziaBottomNav(
         currentIndex: _currentTab,
         onTap: _onTabTap,
