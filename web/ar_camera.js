@@ -1,6 +1,6 @@
 // Grazia Stones AR Camera Engine
-// Real camera access + stone texture overlay for Live AI screen
-// Uses CSS mix-blend-mode:multiply for realistic AR stone projection
+// Real camera + stone texture overlay for Live AI screen
+// Safari-compatible: user-gesture-based camera start, fallback constraints
 
 (function () {
   'use strict';
@@ -28,12 +28,40 @@
     return el;
   }
 
+  // Find the container by id, checking shadow DOMs too (Flutter Web wraps in shadow)
+  function _findContainer(containerId) {
+    // 1. Normal DOM
+    var el = document.getElementById(containerId);
+    if (el) return el;
+    // 2. Search inside every flt-platform-view shadow root
+    var views = document.querySelectorAll('flt-platform-view');
+    for (var i = 0; i < views.length; i++) {
+      if (views[i].shadowRoot) {
+        var inner = views[i].shadowRoot.getElementById(containerId);
+        if (inner) return inner;
+      }
+      // also try direct children
+      var child = views[i].querySelector('#' + containerId);
+      if (child) return child;
+    }
+    // 3. Deep search in all shadow roots
+    var allEls = document.querySelectorAll('*');
+    for (var j = 0; j < allEls.length; j++) {
+      if (allEls[j].shadowRoot) {
+        var found = allEls[j].shadowRoot.getElementById(containerId);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
   window.GraziaAR = {
 
-    // Initialize the AR container inside the given div
+    // Initialize the AR container (call this after the div is in DOM)
     init: function (containerId) {
-      _container = document.getElementById(containerId);
-      if (!_container) return false;
+      var el = _findContainer(containerId);
+      if (!el) return false;
+      _container = el;
       if (_initDone) return true;
       _initDone = true;
 
@@ -47,32 +75,39 @@
       // ── Video element (real camera feed) ──
       _video = document.createElement('video');
       _video.setAttribute('autoplay', '');
-      _video.setAttribute('playsinline', '');
-      _video.setAttribute('muted', '');
+      _video.setAttribute('playsinline', '');    // Required for iOS Safari
+      _video.setAttribute('muted', '');          // Required for iOS autoplay
+      _video.setAttribute('webkit-playsinline', ''); // Older iOS Safari
       _video.muted = true;
       _video.style.cssText = [
         'position:absolute;top:0;left:0;',
         'width:100%;height:100%;',
         'object-fit:cover;',
         'z-index:1;',
+        '-webkit-transform:translateZ(0);',      // GPU acceleration on iOS
+        'transform:translateZ(0);',
       ].join('');
       _container.appendChild(_video);
 
       // ── Stone texture overlay ──
+      // Use 'screen' blend mode: works on dark camera pixels
+      // On dark backgrounds (wall) it brightens with stone color naturally
       _textureOverlay = document.createElement('div');
       _textureOverlay.style.cssText = [
         'position:absolute;inset:0;',
         'z-index:2;',
-        'background-size:280px 280px;',
+        'background-size:300px 300px;',
         'background-repeat:repeat;',
         'mix-blend-mode:multiply;',
+        '-webkit-mix-blend-mode:multiply;',
         'opacity:0;',
         'pointer-events:none;',
-        'transition:opacity 0.5s cubic-bezier(.4,0,.2,1), background-image 0.3s ease;',
+        'transition:opacity 0.5s cubic-bezier(.4,0,.2,1);',
+        '-webkit-transition:opacity 0.5s cubic-bezier(.4,0,.2,1);',
       ].join('');
       _container.appendChild(_textureOverlay);
 
-      // ── Subtle dark vignette for depth ──
+      // ── Subtle dark vignette ──
       var vignette = document.createElement('div');
       vignette.style.cssText = [
         'position:absolute;inset:0;z-index:3;',
@@ -90,9 +125,10 @@
         'border-radius:4px;',
         'pointer-events:none;',
         'transition:all 0.6s cubic-bezier(.4,0,.2,1);',
+        '-webkit-transition:all 0.6s cubic-bezier(.4,0,.2,1);',
         'box-shadow:inset 0 0 40px rgba(200,165,60,0);',
       ].join('');
-      ['tl','tr','bl','br'].forEach(function(pos) {
+      ['tl', 'tr', 'bl', 'br'].forEach(function (pos) {
         _wallBracket.appendChild(_createCornerBracket(pos));
       });
       _wallBracket.style.opacity = '0';
@@ -101,37 +137,74 @@
       return true;
     },
 
-    // Request camera permission and start stream
+    // Start camera — MUST be called from a user gesture (tap) for Safari
     startCamera: function () {
       window._graziaARReady = false;
       window._graziaARError = null;
 
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        window._graziaARError = 'Camera API not supported';
+        window._graziaARError = 'Camera API not supported on this browser';
         return Promise.reject(window._graziaARError);
       }
 
-      return navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: 'environment' },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-        },
-        audio: false,
-      }).then(function (stream) {
-        _stream = stream;
-        if (_video) {
-          _video.srcObject = stream;
-          return _video.play().then(function () {
-            window._graziaARReady = true;
-            return 'ready';
-          });
+      // Try multiple constraint sets in order (Safari-compatible fallbacks)
+      var constraintSets = [
+        // 1. Rear camera, HD
+        { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
+        // 2. Rear camera only (no resolution)
+        { video: { facingMode: 'environment' }, audio: false },
+        // 3. Any camera (front/rear)
+        { video: true, audio: false },
+      ];
+
+      function tryNext(idx) {
+        if (idx >= constraintSets.length) {
+          var msg = 'No camera available. Please allow camera access.';
+          window._graziaARError = msg;
+          return Promise.reject(msg);
         }
-        return 'no-video';
-      }).catch(function (err) {
-        window._graziaARError = err ? err.message || err.toString() : 'Camera error';
-        return Promise.reject(window._graziaARError);
-      });
+        return navigator.mediaDevices.getUserMedia(constraintSets[idx])
+          .then(function (stream) {
+            _stream = stream;
+            if (!_video) {
+              window._graziaARError = 'Video element not ready';
+              return Promise.reject(window._graziaARError);
+            }
+            _video.srcObject = stream;
+            // On iOS Safari, play() must be called after setting srcObject
+            var playPromise = _video.play();
+            if (playPromise !== undefined) {
+              return playPromise.then(function () {
+                window._graziaARReady = true;
+                return 'ready';
+              }).catch(function (playErr) {
+                // iOS sometimes rejects play() — try muting and replaying
+                _video.muted = true;
+                return _video.play().then(function () {
+                  window._graziaARReady = true;
+                  return 'ready';
+                });
+              });
+            } else {
+              // Older Safari: no promise from play()
+              window._graziaARReady = true;
+              return 'ready';
+            }
+          })
+          .catch(function (err) {
+            var name = err && err.name ? err.name : '';
+            // NotAllowedError / PermissionDeniedError = user denied → don't retry
+            if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+              var msg = 'Camera permission denied. Please allow camera access in your browser settings.';
+              window._graziaARError = msg;
+              return Promise.reject(msg);
+            }
+            // Otherwise try next constraint set
+            return tryNext(idx + 1);
+          });
+      }
+
+      return tryNext(0);
     },
 
     // Stop all camera tracks
@@ -140,12 +213,13 @@
         _stream.getTracks().forEach(function (t) { t.stop(); });
         _stream = null;
       }
+      if (_video) {
+        _video.srcObject = null;
+      }
       window._graziaARReady = false;
     },
 
-    // Apply a stone texture to the AR overlay
-    // imageUrl: relative path like 'assets/images/grande_ledge_ta02.png'
-    // opacity: 0.0 – 1.0
+    // Apply stone texture overlay
     setStoneTexture: function (imageUrl, opacity) {
       if (!_textureOverlay) return;
       var op = (opacity !== undefined && opacity !== null) ? Math.max(0, Math.min(1, opacity)) : 0.72;
@@ -157,21 +231,19 @@
       _textureOverlay.style.opacity = String(op);
     },
 
-    // Live opacity control (e.g. from a slider)
     setOpacity: function (opacity) {
       if (_textureOverlay) {
         _textureOverlay.style.opacity = String(Math.max(0, Math.min(1, opacity)));
       }
     },
 
-    // Switch blending mode: 'multiply' (natural), 'overlay', 'screen', 'hard-light'
     setBlendMode: function (mode) {
       if (_textureOverlay) {
         _textureOverlay.style.mixBlendMode = mode || 'multiply';
+        _textureOverlay.style['-webkit-mix-blend-mode'] = mode || 'multiply';
       }
     },
 
-    // Show / hide wall detection golden bracket
     showWallDetection: function (show) {
       if (!_wallBracket) return;
       if (show) {
@@ -181,7 +253,6 @@
           'inset 0 0 60px rgba(200,165,60,0.08)',
           '0 0 0 1px rgba(200,165,60,0.15)',
         ].join(',');
-        // Animate bracket pulsing
         if (!_wallBracket._interval) {
           var phase = 0;
           _wallBracket._interval = setInterval(function () {
@@ -201,6 +272,16 @@
 
     isCameraActive: function () {
       return !!(_stream && _stream.active);
+    },
+
+    // Reset state (for retry)
+    reset: function () {
+      window.GraziaAR.stopCamera();
+      _initDone = false;
+      _container = null;
+      _video = null;
+      _textureOverlay = null;
+      _wallBracket = null;
     },
   };
 })();

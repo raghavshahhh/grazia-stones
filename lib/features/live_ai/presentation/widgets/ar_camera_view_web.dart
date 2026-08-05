@@ -62,9 +62,6 @@ class ARCameraView extends StatefulWidget {
 
   // ── Static control API (callable from anywhere in the screen) ──
 
-  /// Update the stone texture overlaid on the camera feed.
-  /// [assetPath] is the Flutter asset path, e.g. 'assets/images/foo.png'.
-  /// Pass null to clear the overlay.
   static void updateStone(String? assetPath, double opacity) {
     if (assetPath == null) {
       _jsEval('GraziaAR.setStoneTexture(null, 0)');
@@ -91,56 +88,94 @@ class ARCameraView extends StatefulWidget {
 
 class _ARCameraViewState extends State<ARCameraView> {
   bool _cameraReady = false;
+  bool _requiresTap = false;
   String? _errorMsg;
   Timer? _pollTimer;
+  int _initAttempts = 0;
 
   @override
   void initState() {
     super.initState();
     _ensureRegistered();
-    // Wait for the HtmlElementView to mount, then init camera
-    WidgetsBinding.instance.addPostFrameCallback((_) => _initAR());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startInitSequence());
   }
 
-  Future<void> _initAR() async {
-    // 1. Init the GraziaAR container
-    final initResult = _jsEval('GraziaAR.init("grazia-ar-container")');
-    if (initResult == false) {
-      setState(() => _errorMsg = 'AR container not found');
-      widget.onError?.call();
-      return;
-    }
+  void _startInitSequence() {
+    _initAttempts = 0;
+    _tryInitContainerAndCamera();
+  }
 
-    // 2. Start camera — the promise updates window._graziaARReady / _graziaARError
+  void _tryInitContainerAndCamera() {
+    _initAttempts++;
+    final initResult = _jsEval('GraziaAR.init("grazia-ar-container")');
+
+    if (initResult == true) {
+      _startCameraStream();
+    } else if (_initAttempts < 15) {
+      // Retry waiting for Shadow DOM/Platform View mount
+      Future.delayed(const Duration(milliseconds: 200), () {
+        if (mounted) _tryInitContainerAndCamera();
+      });
+    } else {
+      setState(() {
+        _errorMsg = 'AR camera container mounting timed out. Tap to retry.';
+        _requiresTap = true;
+      });
+      widget.onError?.call();
+    }
+  }
+
+  void _startCameraStream() {
+    _jsEval('window._graziaARReady = false; window._graziaARError = null;');
+
     _jsEval(
       'GraziaAR.startCamera()'
       '.then(function(){ window._graziaARReady = true; })'
-      '.catch(function(e){ window._graziaARError = e ? (e.message || e.toString()) : "Camera denied"; });',
+      '.catch(function(e){ window._graziaARError = e ? (e.message || e.toString()) : "Camera start failed"; });',
     );
 
-    // 3. Poll until ready or error
+    _pollTimer?.cancel();
     _pollTimer = Timer.periodic(const Duration(milliseconds: 250), (t) {
-      if (!mounted) { t.cancel(); return; }
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
 
       final ready = js.context['_graziaARReady'];
-      final err   = js.context['_graziaARError'];
+      final err = js.context['_graziaARError'];
 
       if (ready == true) {
         t.cancel();
-        setState(() => _cameraReady = true);
+        setState(() {
+          _cameraReady = true;
+          _requiresTap = false;
+          _errorMsg = null;
+        });
         widget.onReady?.call();
-        // Apply initial stone if pre-selected
         if (widget.stoneImagePath != null) {
           ARCameraView.updateStone(widget.stoneImagePath, widget.opacity);
         }
-        // Show wall boundary briefly
         ARCameraView.showWallBoundary(true);
       } else if (err != null && err.toString().isNotEmpty && err.toString() != 'null') {
         t.cancel();
-        setState(() => _errorMsg = err.toString());
+        final errStr = err.toString();
+        setState(() {
+          _errorMsg = errStr;
+          // If Safari block/gesture issue or permission needed, offer direct tap button
+          _requiresTap = true;
+        });
         widget.onError?.call();
       }
     });
+  }
+
+  void _onUserTapStart() {
+    setState(() {
+      _errorMsg = null;
+      _requiresTap = false;
+    });
+    _jsEval('GraziaAR.reset();');
+    _startInitSequence();
   }
 
   @override
@@ -164,13 +199,15 @@ class _ARCameraViewState extends State<ARCameraView> {
     return Stack(
       children: [
         // ── Real camera feed via HtmlElementView ──
-        HtmlElementView(viewType: _kViewType),
+        const HtmlElementView(viewType: _kViewType),
 
-        // ── Error overlay ──
-        if (_errorMsg != null) _buildErrorState(_errorMsg!),
+        // ── Interactive overlay for Safari gesture / error state ──
+        if (_errorMsg != null || _requiresTap)
+          _buildTapToStartOverlay(),
 
-        // ── Waiting / permission overlay ──
-        if (!_cameraReady && _errorMsg == null) _buildLoadingState(),
+        // ── Loading state ──
+        if (!_cameraReady && _errorMsg == null && !_requiresTap)
+          _buildLoadingState(),
       ],
     );
   }
@@ -186,24 +223,26 @@ class _ARCameraViewState extends State<ARCameraView> {
               width: 48,
               height: 48,
               child: CircularProgressIndicator(
-                strokeWidth: 2,
+                strokeWidth: 2.5,
                 color: Color(0xFFC8A53C),
               ),
             ),
             const SizedBox(height: 20),
             const Text(
-              'Requesting camera…',
+              'Initializing Camera…',
               style: TextStyle(
-                color: Colors.white70,
-                fontSize: 15,
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
                 fontFamily: 'Inter',
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              'Allow camera access when prompted',
+              'Allow camera access when prompted by Safari / browser',
+              textAlign: TextAlign.center,
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.4),
+                color: Colors.white.withValues(alpha: 0.6),
                 fontSize: 12,
                 fontFamily: 'Inter',
               ),
@@ -214,51 +253,81 @@ class _ARCameraViewState extends State<ARCameraView> {
     );
   }
 
-  Widget _buildErrorState(String msg) {
+  Widget _buildTapToStartOverlay() {
+    final isPermissionDenied = _errorMsg != null &&
+        (_errorMsg!.contains('denied') || _errorMsg!.contains('NotAllowed'));
+
     return Container(
-      color: Colors.black.withValues(alpha: 0.92),
+      color: Colors.black.withValues(alpha: 0.90),
       child: Center(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
+          padding: const EdgeInsets.symmetric(horizontal: 28),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.no_photography_outlined,
-                  color: Color(0xFFC8A53C), size: 52),
-              const SizedBox(height: 16),
-              const Text(
-                'Camera Unavailable',
-                style: TextStyle(
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFFC8A53C).withValues(alpha: 0.15),
+                  border: Border.all(
+                    color: const Color(0xFFC8A53C).withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Icon(
+                  isPermissionDenied
+                      ? Icons.videocam_off_rounded
+                      : Icons.camera_alt_rounded,
+                  color: const Color(0xFFC8A53C),
+                  size: 42,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                isPermissionDenied ? 'Camera Permission Required' : 'Enable Live AR Camera',
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 18,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                   fontFamily: 'Inter',
                 ),
               ),
               const SizedBox(height: 10),
               Text(
-                msg.contains('denied') || msg.contains('NotAllowed')
-                    ? 'Camera permission was denied.\nPlease allow access in your browser settings.'
-                    : 'Could not start the camera.\n$msg',
+                isPermissionDenied
+                    ? 'Safari blocked camera access.\nPlease allow camera permissions in Safari / iOS Settings and tap below.'
+                    : (_errorMsg ?? 'Tap below to launch real-time camera view.'),
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white54,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.7),
                   fontSize: 13,
-                  fontFamily: 'Inter',
                   height: 1.5,
+                  fontFamily: 'Inter',
                 ),
               ),
-              const SizedBox(height: 24),
-              TextButton.icon(
-                onPressed: () {
-                  setState(() { _errorMsg = null; });
-                  _jsEval('window._graziaARError = null; window._graziaARReady = false;');
-                  _initAR();
-                },
-                icon: const Icon(Icons.refresh, color: Color(0xFFC8A53C)),
-                label: const Text(
-                  'Try Again',
-                  style: TextStyle(color: Color(0xFFC8A53C), fontFamily: 'Inter'),
+              const SizedBox(height: 28),
+              ElevatedButton.icon(
+                onPressed: _onUserTapStart,
+                icon: const Icon(Icons.videocam_rounded, size: 20),
+                label: Text(
+                  isPermissionDenied ? 'Grant Access & Retry' : 'Tap to Start Camera',
+                  style: const TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFC8A53C),
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 28,
+                    vertical: 14,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                  elevation: 6,
                 ),
               ),
             ],
