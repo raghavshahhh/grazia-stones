@@ -4,6 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ar_flutter_plugin/ar_flutter_plugin.dart';
 import 'package:ar_flutter_plugin/datatypes/config_planedetection.dart';
+import 'package:ar_flutter_plugin/datatypes/node_types.dart';
+import 'package:ar_flutter_plugin/datatypes/hittest_result_types.dart';
+import 'package:ar_flutter_plugin/models/ar_hittest_result.dart';
 import 'package:ar_flutter_plugin/managers/ar_anchor_manager.dart';
 import 'package:ar_flutter_plugin/managers/ar_location_manager.dart';
 import 'package:ar_flutter_plugin/managers/ar_object_manager.dart';
@@ -16,7 +19,6 @@ import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
-import 'package:grazia_stones/shared/widgets/loading_skeleton.dart';
 
 class ARViewScreen extends ConsumerStatefulWidget {
   const ARViewScreen({super.key});
@@ -100,23 +102,23 @@ class _ARViewScreenState extends ConsumerState<ARViewScreen> {
     
     this.arObjectManager!.onInitialize();
 
-    this.arSessionManager!.onPlaneOrPointTap = _onPlaneOrPointTapped;
-    
-    // Listen for plane detection
-    this.arSessionManager!.onPlaneDetected = (plane) {
+    this.arSessionManager!.onPlaneOrPointTap = (results) {
       if (!_surfaceDetected) {
         setState(() => _surfaceDetected = true);
         HapticFeedback.lightImpact();
       }
+      _onPlaneOrPointTapped(results);
     };
   }
 
   Future<void> _onPlaneOrPointTapped(List<ARHitTestResult> hitTestResults) async {
-    if (_selectedStoneId == null) return;
+    if (_selectedStoneId == null || hitTestResults.isEmpty) return;
     
-    var singleHitTestResult = hitTestResults.firstWhere(
+    final planeHits = hitTestResults.where(
       (hitTestResult) => hitTestResult.type == ARHitTestResultType.plane,
     );
+    if (planeHits.isEmpty) return;
+    final singleHitTestResult = planeHits.first;
     
     // Create a stone node
     var newNode = ARNode(

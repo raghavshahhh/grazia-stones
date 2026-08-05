@@ -13,6 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/models/stone.dart';
+import 'package:grazia_stones/core/models/collection.dart';
 import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -186,7 +187,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     // Use loaded data or show empty defaults
     final trendingStones = _trendingStones ?? [];
-    final collections = _collections ?? [];
     
     final quickActions = [
       {'icon': Icons.auto_awesome_outlined, 'label': 'AI Viz', 'route': '/ai-viz'},
@@ -246,7 +246,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           SliverToBoxAdapter(child: GLuxurySpacing.gapXxl),
           
           // Collections
-          if (collections.isNotEmpty) ...[
+          if (_collections != null && _collections!.isNotEmpty) ...[
             SliverToBoxAdapter(
               child: _SectionTitle(
                 title: 'Collections',
@@ -257,19 +257,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             SliverToBoxAdapter(child: GLuxurySpacing.gapMd),
             SliverToBoxAdapter(
               child: HomeCollectionStrip(
-                collections: collections.map((c) {
-                  // Convert Map to Collection object format
-                  return {
-                    'id': c['id'] ?? '',
-                    'name': c['name'] ?? '',
-                    'description': c['description'] ?? '',
-                    'imageUrl': c['image_url'] ?? c['imageUrl'] ?? '',
-                    'stoneCount': c['stone_count'] ?? c['stoneCount'] ?? 0,
-                  };
-                }).toList(),
+                collections: _collections!.map((map) => Collection.fromMap(map)).toList(),
                 onCollectionTap: (c) {
-                  final id = c['id'] as String?;
-                  if (id != null) context.push('/collections/$id');
+                  if (c.id.isNotEmpty) context.push('/collections/${c.id}');
                 },
               ),
             ),

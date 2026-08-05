@@ -177,7 +177,7 @@ ${_notesController.text.isNotEmpty ? 'Notes: ${_notesController.text}' : ''}
                                   children: [
                                     Text(
                                       'Free Sample Delivery',
-                                      style: GLuxuryTypography.h4.copyWith(
+                                      style: GLuxuryTypography.h3.copyWith(
                                         color: palette.textPrimary,
                                         fontWeight: FontWeight.w600,
                                       ),

@@ -53,10 +53,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
       if (mounted) {
         setState(() {
-          _nameController.text = profile['name'] ?? '';
-          _emailController.text = profile['email'] ?? '';
-          _phoneController.text = profile['phone'] ?? '';
-          _addressController.text = profile['address'] ?? '';
+          _nameController.text = profile.name;
+          _emailController.text = profile.email;
+          _phoneController.text = profile.phone ?? '';
+          _addressController.text = '';
           _isLoading = false;
         });
       }
@@ -82,7 +82,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
         phone: _phoneController.text.trim(),
-        address: _addressController.text.trim(),
+        companyName: _addressController.text.trim(),
       );
 
       if (mounted) {

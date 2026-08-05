@@ -9,7 +9,6 @@ import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/features/cart/presentation/cart_screen.dart';
 import 'package:grazia_stones/features/profile/presentation/edit_profile_screen.dart';
 import 'package:grazia_stones/features/profile/presentation/addresses_screen.dart';
-import 'package:grazia_stones/core/di.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -141,8 +140,6 @@ class ProfileScreen extends ConsumerWidget {
                           ),
                           GestureDetector(
                             onTap: () {
-                              HapticFeedback.lightImpact();
-                              // Navigate to edit profile screen
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -329,140 +326,7 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  void _showEditProfile(BuildContext context, LuxuryPalette palette) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => Container(
-        padding: EdgeInsets.only(
-          left: 20,
-          right: 20,
-          top: 20,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-        ),
-        decoration: BoxDecoration(
-          color: palette.background,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(width: 36, height: 4, decoration: BoxDecoration(color: palette.border, borderRadius: BorderRadius.circular(2))),
-            ),
-            const SizedBox(height: 20),
-            Text('Edit Profile', style: GLuxuryTypography.h2.copyWith(color: palette.textPrimary)),
-            const SizedBox(height: 20),
-            _buildField(palette, 'Name', 'Raghav Shah'),
-            const SizedBox(height: 12),
-            _buildField(palette, 'Email', 'raghav@grazia.com'),
-            const SizedBox(height: 12),
-            _buildField(palette, 'Phone', '+91 98765 43210'),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text('Profile updated!'),
-                      backgroundColor: palette.success,
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: palette.primary,
-                  foregroundColor: palette.background,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                ),
-                child: const Text('Save Changes'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildField(LuxuryPalette palette, String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: GLuxuryTypography.bodySmall.copyWith(color: palette.textSecondary)),
-        const SizedBox(height: 6),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            color: palette.surface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: palette.border),
-          ),
-          child: Row(
-            children: [
-              Expanded(child: Text(value, style: GLuxuryTypography.bodyMedium.copyWith(color: palette.textPrimary))),
-              Icon(Icons.edit_outlined, size: 16, color: palette.textTertiary),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _showAddresses(BuildContext context, LuxuryPalette palette) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        height: 300,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: palette.background,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: palette.border, borderRadius: BorderRadius.circular(2)))),
-            const SizedBox(height: 16),
-            Text('Saved Addresses', style: GLuxuryTypography.h2.copyWith(color: palette.textPrimary)),
-            const SizedBox(height: 16),
-            _addressTile(palette, '123 Luxury Lane, Mumbai 400001', 'Home'),
-            const SizedBox(height: 10),
-            _addressTile(palette, 'Block C, Bandra West, Mumbai', 'Office'),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _addressTile(LuxuryPalette palette, String address, String label) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: palette.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: palette.border),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.location_on, color: palette.primary, size: 20),
-          const SizedBox(width: 12),
-          Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: GLuxuryTypography.bodySmall.copyWith(color: palette.textSecondary)),
-              Text(address, style: GLuxuryTypography.bodyMedium.copyWith(color: palette.textPrimary)),
-            ],
-          )),
-        ],
-      ),
-    );
-  }
 
   void _showHelp(BuildContext context, LuxuryPalette palette) {
     showModalBottomSheet(

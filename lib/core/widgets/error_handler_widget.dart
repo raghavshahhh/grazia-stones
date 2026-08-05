@@ -93,45 +93,63 @@ class ErrorHandlerWidget extends StatelessWidget {
   }
 
   _ErrorInfo _getErrorInfo(dynamic error) {
-    if (error is NetworkException) {
-      return _ErrorInfo(
-        icon: Icons.wifi_off_rounded,
-        title: 'No Internet Connection',
-        message: error.message,
-        color: Colors.orange,
-      );
-    } else if (error is UnauthorizedException) {
-      return _ErrorInfo(
-        icon: Icons.lock_outline_rounded,
-        title: 'Unauthorized',
-        message: 'Please login again to continue',
-        color: Colors.red,
-      );
-    } else if (error is ForbiddenException) {
-      return _ErrorInfo(
-        icon: Icons.block_rounded,
-        title: 'Access Denied',
-        message: error.message,
-        color: Colors.red,
-      );
-    } else if (error is NotFoundException) {
-      return _ErrorInfo(
-        icon: Icons.search_off_rounded,
-        title: 'Not Found',
-        message: error.message,
-        color: Colors.grey,
-      );
-    } else if (error is ValidationException) {
+    if (error is AppException) {
+      switch (error.type) {
+        case ExceptionType.network:
+        case ExceptionType.connectionError:
+          return _ErrorInfo(
+            icon: Icons.wifi_off_rounded,
+            title: 'No Internet Connection',
+            message: error.userFriendlyMessage,
+            color: Colors.orange,
+          );
+        case ExceptionType.unauthorized:
+          return _ErrorInfo(
+            icon: Icons.lock_outline_rounded,
+            title: 'Unauthorized',
+            message: 'Please login again to continue',
+            color: Colors.red,
+          );
+        case ExceptionType.forbidden:
+          return _ErrorInfo(
+            icon: Icons.block_rounded,
+            title: 'Access Denied',
+            message: error.message,
+            color: Colors.red,
+          );
+        case ExceptionType.notFound:
+          return _ErrorInfo(
+            icon: Icons.search_off_rounded,
+            title: 'Not Found',
+            message: error.message,
+            color: Colors.grey,
+          );
+        case ExceptionType.badRequest:
+          return _ErrorInfo(
+            icon: Icons.error_outline_rounded,
+            title: 'Validation Error',
+            message: error.message,
+            color: Colors.orange,
+          );
+        case ExceptionType.server:
+          return _ErrorInfo(
+            icon: Icons.cloud_off_rounded,
+            title: 'Server Error',
+            message: error.message,
+            color: Colors.red,
+          );
+        default:
+          return _ErrorInfo(
+            icon: Icons.error_outline_rounded,
+            title: 'Something Went Wrong',
+            message: error.message,
+            color: Colors.red,
+          );
+      }
+    } else if (error is ApiException) {
       return _ErrorInfo(
         icon: Icons.error_outline_rounded,
-        title: 'Validation Error',
-        message: error.message,
-        color: Colors.orange,
-      );
-    } else if (error is ServerException) {
-      return _ErrorInfo(
-        icon: Icons.cloud_off_rounded,
-        title: 'Server Error',
+        title: 'API Error',
         message: error.message,
         color: Colors.red,
       );
@@ -139,7 +157,7 @@ class ErrorHandlerWidget extends StatelessWidget {
       return _ErrorInfo(
         icon: Icons.error_outline_rounded,
         title: 'Something Went Wrong',
-        message: error.toString(),
+        message: error.toString().replaceFirst('Exception: ', ''),
         color: Colors.red,
       );
     }
@@ -223,17 +241,15 @@ void showErrorSnackbar(BuildContext context, dynamic error, {VoidCallback? onRet
   String message;
   if (error is ApiException) {
     message = error.message;
-  } else if (error is Exception) {
-    message = error.toString().replaceFirst('Exception: ', '');
   } else {
-    message = error.toString();
+    message = error.toString().replaceFirst('Exception: ', '');
   }
 
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       content: Row(
         children: [
-          Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
+          const Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -265,7 +281,7 @@ void showSuccessSnackbar(BuildContext context, String message) {
     SnackBar(
       content: Row(
         children: [
-          Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+          const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -290,7 +306,7 @@ void showInfoSnackbar(BuildContext context, String message) {
     SnackBar(
       content: Row(
         children: [
-          Icon(Icons.info_outline_rounded, color: Colors.white, size: 20),
+          const Icon(Icons.info_outline_rounded, color: Colors.white, size: 20),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -300,7 +316,7 @@ void showInfoSnackbar(BuildContext context, String message) {
           ),
         ],
       ),
-      backgroundColor: palette.info,
+      backgroundColor: palette.primary,
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),

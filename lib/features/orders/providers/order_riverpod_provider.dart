@@ -67,7 +67,8 @@ class OrderRiverpodNotifier extends StateNotifier<OrderRiverpodState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final order = await repo.createOrder(
-        shippingAddress: shippingAddress,
+        items: const [],
+        addressId: shippingAddress,
         paymentMethod: paymentMethod,
         notes: notes,
       );

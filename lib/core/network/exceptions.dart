@@ -41,3 +41,34 @@ class AppException implements Exception {
     }
   }
 }
+
+class ApiException implements Exception {
+  final String message;
+  final int? statusCode;
+
+  ApiException(this.message, {this.statusCode});
+
+  @override
+  String toString() => 'ApiException: $message';
+}
+
+class ValidationException extends ApiException {
+  ValidationException(super.message, {super.statusCode});
+}
+
+class UnauthorizedException extends ApiException {
+  UnauthorizedException(super.message, {super.statusCode});
+}
+
+class ForbiddenException extends ApiException {
+  ForbiddenException(super.message, {super.statusCode});
+}
+
+class NotFoundException extends ApiException {
+  NotFoundException(super.message, {super.statusCode});
+}
+
+class ServerException extends ApiException {
+  ServerException(super.message, {super.statusCode});
+}
+

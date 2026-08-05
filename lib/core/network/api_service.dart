@@ -160,7 +160,7 @@ class ApiService {
         queryParameters: queryParameters,
         options: options,
       );
-      return ApiResponse.fromResponse<T>(response);
+      return ApiResponse<T>.fromResponse(response);
     } on DioException catch (e) {
       throw _handleDioError(e);
     } catch (e) {
@@ -182,7 +182,7 @@ class ApiService {
         queryParameters: queryParameters,
         options: options,
       );
-      return ApiResponse.fromResponse<T>(response);
+      return ApiResponse<T>.fromResponse(response);
     } on DioException catch (e) {
       throw _handleDioError(e);
     } catch (e) {
@@ -204,7 +204,7 @@ class ApiService {
         queryParameters: queryParameters,
         options: options,
       );
-      return ApiResponse.fromResponse<T>(response);
+      return ApiResponse<T>.fromResponse(response);
     } on DioException catch (e) {
       throw _handleDioError(e);
     } catch (e) {
@@ -226,7 +226,7 @@ class ApiService {
         queryParameters: queryParameters,
         options: options,
       );
-      return ApiResponse.fromResponse<T>(response);
+      return ApiResponse<T>.fromResponse(response);
     } on DioException catch (e) {
       throw _handleDioError(e);
     } catch (e) {
@@ -248,7 +248,7 @@ class ApiService {
         queryParameters: queryParameters,
         options: options,
       );
-      return ApiResponse.fromResponse<T>(response);
+      return ApiResponse<T>.fromResponse(response);
     } on DioException catch (e) {
       throw _handleDioError(e);
     } catch (e) {
@@ -276,7 +276,7 @@ class ApiService {
         onSendProgress: onSendProgress,
       );
       
-      return ApiResponse.fromResponse<T>(response);
+      return ApiResponse<T>.fromResponse(response);
     } on DioException catch (e) {
       throw _handleDioError(e);
     } catch (e) {
@@ -315,7 +315,7 @@ class ApiService {
       case DioExceptionType.connectionTimeout:
       case DioExceptionType.sendTimeout:
       case DioExceptionType.receiveTimeout:
-        return NetworkException('Connection timeout. Please check your internet connection.');
+        return ApiException('Connection timeout. Please check your internet connection.');
         
       case DioExceptionType.badResponse:
         return _handleResponseError(error.response);
@@ -324,14 +324,14 @@ class ApiService {
         return ApiException('Request cancelled');
         
       case DioExceptionType.connectionError:
-        return NetworkException('No internet connection. Please check your network.');
+        return ApiException('No internet connection. Please check your network.');
         
       case DioExceptionType.badCertificate:
-        return NetworkException('SSL certificate error');
+        return ApiException('SSL certificate error');
         
       case DioExceptionType.unknown:
         if (error.error.toString().contains('SocketException')) {
-          return NetworkException('No internet connection');
+          return ApiException('No internet connection');
         }
         return ApiException('Unexpected error: ${error.message}');
         

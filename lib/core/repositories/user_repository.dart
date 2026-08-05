@@ -1,3 +1,4 @@
+import '../models/user.dart';
 import '../repositories/base_repository.dart';
 import '../network/endpoints/user_api.dart';
 
@@ -10,7 +11,7 @@ class UserRepository extends BaseRepository {
   // PROFILE
   // ═══════════════════════════════════════════════════════════════════════
 
-  Future<Map<String, dynamic>> getProfile() async {
+  Future<User> getProfile() async {
     return safeCall(() async {
       return await _userApi.getProfile();
     });
@@ -20,14 +21,16 @@ class UserRepository extends BaseRepository {
     String? name,
     String? email,
     String? phone,
-    String? address,
+    String? companyName,
+    bool? isArchitect,
   }) async {
     await safeCall(() async {
       await _userApi.updateProfile(
         name: name,
         email: email,
         phone: phone,
-        address: address,
+        companyName: companyName,
+        isArchitect: isArchitect,
       );
     });
   }
@@ -53,10 +56,12 @@ class UserRepository extends BaseRepository {
     bool isDefault = false,
   }) async {
     return safeCall(() async {
+      final fullAddr = addressLine2 != null && addressLine2.isNotEmpty
+          ? '$addressLine1, $addressLine2'
+          : addressLine1;
       return await _userApi.addAddress(
-        name: name,
-        addressLine1: addressLine1,
-        addressLine2: addressLine2,
+        label: name,
+        address: fullAddr,
         city: city,
         state: state,
         pincode: pincode,
@@ -78,17 +83,19 @@ class UserRepository extends BaseRepository {
     bool? isDefault,
   }) async {
     await safeCall(() async {
-      await _userApi.updateAddress(
-        addressId: addressId,
-        name: name,
-        addressLine1: addressLine1,
-        addressLine2: addressLine2,
-        city: city,
-        state: state,
-        pincode: pincode,
-        phone: phone,
-        isDefault: isDefault,
-      );
+      final data = <String, dynamic>{
+        if (name != null) 'label': name,
+        if (addressLine1 != null)
+          'address': addressLine2 != null && addressLine2.isNotEmpty
+              ? '$addressLine1, $addressLine2'
+              : addressLine1,
+        if (city != null) 'city': city,
+        if (state != null) 'state': state,
+        if (pincode != null) 'pincode': pincode,
+        if (phone != null) 'phone': phone,
+        if (isDefault != null) 'is_default': isDefault,
+      };
+      await _userApi.updateAddress(addressId, data);
     });
   }
 
@@ -116,13 +123,13 @@ class UserRepository extends BaseRepository {
     bool? smsNotifications,
   }) async {
     await safeCall(() async {
-      await _userApi.updatePreferences(
-        theme: theme,
-        language: language,
-        notifications: notifications,
-        emailNotifications: emailNotifications,
-        smsNotifications: smsNotifications,
-      );
+      await _userApi.updatePreferences({
+        if (theme != null) 'theme': theme,
+        if (language != null) 'language': language,
+        if (notifications != null) 'notifications': notifications,
+        if (emailNotifications != null) 'email_notifications': emailNotifications,
+        if (smsNotifications != null) 'sms_notifications': smsNotifications,
+      });
     });
   }
 
@@ -141,13 +148,13 @@ class UserRepository extends BaseRepository {
 
   Future<void> markNotificationAsRead(String notificationId) async {
     await safeCall(() async {
-      await _userApi.markNotificationAsRead(notificationId);
+      await _userApi.markNotificationRead(notificationId);
     });
   }
 
   Future<void> markAllNotificationsAsRead() async {
     await safeCall(() async {
-      await _userApi.markAllNotificationsAsRead();
+      await _userApi.markAllNotificationsRead();
     });
   }
 
@@ -157,7 +164,7 @@ class UserRepository extends BaseRepository {
 
   Future<void> updateFcmToken(String token) async {
     await safeCall(() async {
-      await _userApi.updateFcmToken(token);
+      await _userApi.registerFCMToken(token);
     });
   }
 }

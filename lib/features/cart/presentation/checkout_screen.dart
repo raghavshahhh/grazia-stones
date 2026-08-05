@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/di.dart';
-import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/services/payment_service.dart';
 import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
@@ -140,6 +139,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           amount: finalAmount,
           orderId: paymentResult['razorpay_order_id'] ?? order.id,
           name: _addresses[_selectedAddressIndex]['name']!,
+          description: 'Grazia Stones Order Payment',
           email: 'user@example.com', // TODO: Get from user profile
           contact: _addresses[_selectedAddressIndex]['phone']!,
           onSuccess: (response) async {
@@ -147,8 +147,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             try {
               await orderRepo.verifyPayment(
                 orderId: order.id,
-                paymentId: response['razorpay_payment_id'] ?? '',
-                signature: response['razorpay_signature'] ?? '',
+                paymentId: response.paymentId ?? '',
+                signature: response.signature ?? '',
               );
 
               if (mounted) {
@@ -169,14 +169,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             // Mark payment as failed
             await orderRepo.paymentFailed(
               orderId: order.id,
-              reason: response['error']?['description'] ?? 'Payment failed',
+              reason: response.message ?? 'Payment failed',
             );
 
             if (mounted) {
               setState(() => _isProcessing = false);
               showErrorSnackbar(
                 context,
-                Exception('Payment failed: ${response['error']?['description']}'),
+                Exception('Payment failed: ${response.message}'),
               );
             }
           },
@@ -582,7 +582,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                     children: [
                       Text(
                         address['name']!,
-                        style: GLuxuryTypography.h4.copyWith(
+                        style: GLuxuryTypography.h3.copyWith(
                           color: palette.textPrimary,
                           fontWeight: FontWeight.w600,
                         ),
@@ -700,7 +700,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       children: [
         Text(
           label,
-          style: (isTotal ? GLuxuryTypography.h4 : GLuxuryTypography.bodyMedium).copyWith(
+          style: (isTotal ? GLuxuryTypography.h3 : GLuxuryTypography.bodyMedium).copyWith(
             color: isTotal ? palette.textPrimary : palette.textSecondary,
           ),
         ),

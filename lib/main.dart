@@ -7,7 +7,6 @@ import 'package:grazia_stones/core/services/firebase_service.dart';
 import 'package:grazia_stones/core/network/api_service.dart';
 import 'package:grazia_stones/core/services/ml_kit_service.dart';
 import 'package:grazia_stones/core/services/payment_service.dart';
-import 'package:grazia_stones/core/network/api_service.dart';
 
 void main() async {
   // Ensure Flutter binding is initialized

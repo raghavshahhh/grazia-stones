@@ -95,7 +95,7 @@ class PaymentService {
       onError(PaymentFailureResponse(
         -1,
         'Checkout failed: $e',
-        orderId,
+        {'order_id': orderId},
       ));
     }
   }
