@@ -1,6 +1,7 @@
 import '../models/stone.dart';
 import '../repositories/base_repository.dart';
 import '../network/endpoints/stone_api.dart';
+import '../services/mock_data_service.dart';
 
 class StoneRepository extends BaseRepository {
   StoneRepository(super.api);
@@ -22,7 +23,7 @@ class StoneRepository extends BaseRepository {
     String? sortBy,
     String? sortOrder,
   }) async {
-    return safeCall(() async {
+    try {
       final response = await _stoneApi.getStones(
         page: page,
         limit: limit,
@@ -34,32 +35,44 @@ class StoneRepository extends BaseRepository {
         sortBy: sortBy,
         sortOrder: sortOrder,
       );
-      return response.data ?? [];
-    });
+      final list = response.data ?? [];
+      return list.isNotEmpty ? list : MockDataService.getAllStones();
+    } catch (_) {
+      return MockDataService.getAllStones();
+    }
   }
 
   Future<Stone> getStoneById(String id) async {
-    return safeCall(() async {
+    try {
       return await _stoneApi.getStoneById(id);
-    });
+    } catch (_) {
+      return MockDataService.getStoneById(id) ?? MockDataService.stones.first;
+    }
   }
 
   Future<List<Stone>> searchStones(String query, {int limit = 20}) async {
-    return safeCall(() async {
+    try {
       return await _stoneApi.searchStones(query, limit: limit);
-    });
+    } catch (_) {
+      return MockDataService.searchStones(query);
+    }
   }
 
   Future<List<Stone>> getTrendingStones({int limit = 10}) async {
-    return safeCall(() async {
-      return await _stoneApi.getTrendingStones(limit: limit);
-    });
+    try {
+      final trending = await _stoneApi.getTrendingStones(limit: limit);
+      return trending.isNotEmpty ? trending : MockDataService.getTrendingStones();
+    } catch (_) {
+      return MockDataService.getTrendingStones();
+    }
   }
 
   Future<List<Stone>> getSimilarStones(String stoneId, {int limit = 5}) async {
-    return safeCall(() async {
+    try {
       return await _stoneApi.getSimilarStones(stoneId, limit: limit);
-    });
+    } catch (_) {
+      return MockDataService.stones.take(limit).toList();
+    }
   }
 
   // Alias for backward compatibility
@@ -77,15 +90,26 @@ class StoneRepository extends BaseRepository {
   // ═══════════════════════════════════════════════════════════════════════
 
   Future<List<Map<String, dynamic>>> getCollections() async {
-    return safeCall(() async {
-      return await _stoneApi.getCollections();
-    });
+    try {
+      final list = await _stoneApi.getCollections();
+      return list.isNotEmpty
+          ? list
+          : MockDataService.collections.map((c) => c.toJson()).toList();
+    } catch (_) {
+      return MockDataService.collections.map((c) => c.toJson()).toList();
+    }
   }
 
   Future<Map<String, dynamic>> getCollectionById(String collectionId) async {
-    return safeCall(() async {
+    try {
       return await _stoneApi.getCollectionById(collectionId);
-    });
+    } catch (_) {
+      final c = MockDataService.collections.firstWhere(
+        (elem) => elem.id == collectionId,
+        orElse: () => MockDataService.collections.first,
+      );
+      return c.toJson();
+    }
   }
 
   Future<List<Stone>> getStonesByCollection(
@@ -93,13 +117,22 @@ class StoneRepository extends BaseRepository {
     int page = 1,
     int limit = 20,
   }) async {
-    return safeCall(() async {
-      return await _stoneApi.getStonesByCollection(
+    try {
+      final list = await _stoneApi.getStonesByCollection(
         collectionId,
         page: page,
         limit: limit,
       );
-    });
+      return list.isNotEmpty
+          ? list
+          : MockDataService.stones
+              .where((s) => s.collection.toLowerCase().contains(collectionId.toLowerCase()))
+              .toList();
+    } catch (_) {
+      return MockDataService.stones
+          .where((s) => s.collection.toLowerCase().contains(collectionId.toLowerCase()))
+          .toList();
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════

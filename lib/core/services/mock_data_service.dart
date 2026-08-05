@@ -309,6 +309,17 @@ class MockDataService {
     return dealers;
   }
 
+  static List<Stone> searchStones(String query) {
+    if (query.isEmpty) return stones;
+    final q = query.toLowerCase();
+    return stones.where((s) =>
+      s.name.toLowerCase().contains(q) ||
+      s.collection.toLowerCase().contains(q) ||
+      s.category.toLowerCase().contains(q) ||
+      s.description.toLowerCase().contains(q)
+    ).toList();
+  }
+
   static List<Collection> getAllCollections() {
     return collections;
   }

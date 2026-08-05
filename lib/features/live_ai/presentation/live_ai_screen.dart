@@ -276,12 +276,14 @@ class _LiveAIScreenState extends State<LiveAIScreen>
 
   // ── Stone Overlay ──
   Widget _buildStoneOverlay() {
+    final size = MediaQuery.of(context).size;
+    final pos = _overlayPosition ?? Offset((size.width - 200) / 2, (size.height - 200) / 3);
     return Positioned(
-      left: _overlayPosition!.dx,
-      top: _overlayPosition!.dy,
+      left: pos.dx,
+      top: pos.dy,
       child: GestureDetector(
         onPanUpdate: (details) {
-          setState(() => _overlayPosition = _overlayPosition! + details.delta);
+          setState(() => _overlayPosition = pos + details.delta);
         },
         onScaleUpdate: (details) {
           setState(() {
@@ -1082,19 +1084,14 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                               child: Stack(
                                 fit: StackFit.expand,
                                 children: [
-                                  Image.network(
-                                    stone.imageUrl ?? '',
+                                  Image.asset(
+                                    stone.images.isNotEmpty
+                                        ? stone.images.first
+                                        : 'assets/images/placeholder_stone.png',
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, _, _) => Container(
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          colors: stone.availableColors
-                                              .map((c) => Color(int.parse(
-                                                  c.replaceFirst(
-                                                      '#', '0xFF'))))
-                                              .toList(),
-                                        ),
-                                      ),
+                                    errorBuilder: (_, __, ___) => Container(
+                                      color: const Color(0xFF2A2A2A),
+                                      child: const Icon(Icons.texture, color: AppColors.goldWarm, size: 24),
                                     ),
                                   ),
                                   Positioned(
