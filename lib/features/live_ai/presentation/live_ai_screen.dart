@@ -5,7 +5,7 @@ import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/services/mock_data_service.dart';
 
-import 'widgets/web_camera_view.dart';
+import 'widgets/ar_camera_view.dart';
 
 class LiveAIScreen extends StatefulWidget {
   const LiveAIScreen({super.key});
@@ -23,7 +23,6 @@ class _LiveAIScreenState extends State<LiveAIScreen>
   bool _isAnalyzing = false;
   bool _showInfo = true;
   bool _cameraReady = false;
-  bool _cameraError = false;
   bool _detecting = false;
   double _detectionConfidence = 0.0;
 
@@ -156,70 +155,38 @@ class _LiveAIScreenState extends State<LiveAIScreen>
     );
   }
 
-  // ── Camera Feed ──
+  // ── Camera Feed (real device camera via GraziaAR JS engine) ──
   Widget _buildCameraFeed() {
+    final selectedStone = _selectedStone;
+    // Build asset path – Flutter web serves assets at 'assets/images/...' from web root
+    final assetPath = selectedStone.images.isNotEmpty
+        ? selectedStone.images.first
+        : null;
+
     return Positioned.fill(
       child: Stack(
         children: [
-          // Real camera or fallback
-          if (!_cameraError)
-            WebCameraView(
-              onReady: () => setState(() => _cameraReady = true),
-              onError: () => setState(() => _cameraError = true),
-            ),
-
-          // Fallback gradient if camera fails
-          if (_cameraError || !_cameraReady)
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFF0D0D0D),
-                    Color(0xFF1A1A1A),
-                    Color(0xFF0D0D0D),
-                  ],
-                ),
-              ),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.camera_alt_outlined,
-                        size: 48, color: AppColors.goldWarm.withValues(alpha:0.4)),
-                    const SizedBox(height: 12),
-                    Text(
-                      _cameraError ? 'Camera unavailable' : 'Initializing camera...',
-                      style: TextStyle(
-                        color: AppColors.silverLight.withValues(alpha:0.5),
-                        fontSize: 13,
-                        fontFamily: 'Inter',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-          // Dark vignette overlay for premium feel
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment.center,
-                  radius: 1.2,
-                  colors: [
-                    Colors.transparent,
-                    Colors.black.withValues(alpha:0.3),
-                  ],
-                ),
-              ),
-            ),
+          // ── Real camera + AR stone overlay ──
+          ARCameraView(
+            key: const ValueKey('ar-camera'),
+            stoneImagePath: _cameraReady ? assetPath : null,
+            opacity: _overlayOpacity,
+            onReady: () {
+              setState(() => _cameraReady = true);
+              // Immediately apply the selected stone
+              if (assetPath != null) {
+                ARCameraView.updateStone(assetPath, _overlayOpacity);
+              }
+              ARCameraView.showWallBoundary(true);
+              _startDetection();
+            },
+            onError: () {
+              // ARCameraView handles its own error UI internally
+            },
           ),
 
-          // Center crosshair
-          _buildCrosshair(),
+          // Center crosshair (only when camera is ready)
+          if (_cameraReady) _buildCrosshair(),
         ],
       ),
     );
@@ -905,6 +872,8 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                 _overlayOpacity =
                     _overlayOpacity >= 0.9 ? 0.3 : _overlayOpacity + 0.15;
               });
+              // Update live AR overlay opacity
+              ARCameraView.updateOpacity(_overlayOpacity);
             },
           ),
           const SizedBox(height: 12),
@@ -917,6 +886,8 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                     Offset(size.width * 0.12, size.height * 0.18);
                 _overlayScale = 1.0;
               });
+              // Toggle wall detection bracket
+              ARCameraView.showWallBoundary(true);
             },
           ),
           const SizedBox(height: 12),
@@ -1042,6 +1013,10 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                         _detectionConfidence = 0.0;
                         _detecting = false;
                       });
+                      // Update live AR overlay with new stone texture
+                      final stone = MockDataService.stones[index];
+                      final path = stone.images.isNotEmpty ? stone.images.first : null;
+                      ARCameraView.updateStone(path, _overlayOpacity);
                       _startDetection();
                     },
                     itemBuilder: (context, index) {
