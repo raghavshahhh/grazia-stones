@@ -8,6 +8,7 @@ import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/typography.dart';
 import 'package:grazia_stones/shared/theme/spacing.dart';
+import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 import 'package:grazia_stones/core/di.dart';
 
 class SampleOrderScreen extends ConsumerStatefulWidget {
@@ -267,17 +268,11 @@ ${_notesController.text.isNotEmpty ? 'Notes: ${_notesController.text}' : ''}
                                             borderRadius: const BorderRadius.vertical(
                                               top: Radius.circular(12),
                                             ),
-                                            child: Image.network(
-                                              stone.imageUrl ?? '',
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (_, __, ___) => Container(
-                                                color: palette.surfaceDark,
-                                                child: Icon(
-                                                  Icons.image,
-                                                  color: palette.textTertiary,
-                                                ),
-                                              ),
-                                            ),
+                                            child: SmartStoneImage(
+                                               imageUrl: stone.imageUrl,
+                                               fit: BoxFit.cover,
+                                               palette: palette,
+                                             ),
                                           ),
                                         ),
                                         Padding(

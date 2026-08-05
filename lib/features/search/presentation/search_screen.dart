@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/typography.dart';
 import 'package:grazia_stones/shared/theme/spacing.dart';
+import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 import 'package:grazia_stones/shared/theme/tokens.dart';
 import 'package:grazia_stones/core/services/mock_data_service.dart';
 import 'package:grazia_stones/core/models/stone.dart';
@@ -368,19 +369,14 @@ class _SearchScreenState extends State<SearchScreen> {
               // Stone Image
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Image.network(
-                  stone.imageUrl ?? '',
+                child: SizedBox(
                   width: 80,
                   height: 80,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => Container(
+                  child: SmartStoneImage(
+                    imageUrl: stone.imageUrl,
                     width: 80,
                     height: 80,
-                    color: palette.surfaceDark,
-                    child: Icon(
-                      Icons.image_outlined,
-                      color: palette.textTertiary,
-                    ),
+                    palette: palette,
                   ),
                 ),
               ),

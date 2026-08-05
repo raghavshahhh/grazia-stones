@@ -1,10 +1,11 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:grazia_stones/core/theme/glass_theme.dart';
 import 'package:grazia_stones/core/widgets/animated_widgets.dart';
-import 'package:grazia_stones/shared/theme/colors.dart';
+import 'package:grazia_stones/shared/theme/theme_provider.dart';
 
-class HomeQuickActions extends StatelessWidget {
+class HomeQuickActions extends ConsumerWidget {
   final List<Map<String, dynamic>> actions;
   final ValueChanged<int>? onActionTap;
 
@@ -15,7 +16,9 @@ class HomeQuickActions extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(themePaletteProvider);
+
     return SizedBox(
       height: 90,
       child: ListView.separated(
@@ -34,16 +37,14 @@ class HomeQuickActions extends StatelessWidget {
                 child: BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                   child: Container(
-                    width: 72,
+                    width: 76,
                     height: 90,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(
-                        alpha: GlassTheme.opacityLight,
-                      ),
+                      color: palette.surface,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.08),
-                        width: 0.5,
+                        color: palette.border,
+                        width: 0.8,
                       ),
                     ),
                     padding: const EdgeInsets.all(10),
@@ -54,17 +55,13 @@ class HomeQuickActions extends StatelessWidget {
                           width: 40,
                           height: 40,
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.06),
+                            gradient: palette.primaryGradient,
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.06),
-                              width: 0.5,
-                            ),
                           ),
                           child: Icon(
                             action['icon'] as IconData,
                             size: 20,
-                            color: GLuxuryPalettes.gold.primary,
+                            color: palette.background,
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -72,9 +69,9 @@ class HomeQuickActions extends StatelessWidget {
                           action['label'] as String,
                           style: TextStyle(
                             fontFamily: 'Inter',
-                            fontSize: 10,
+                            fontSize: 11,
                             fontWeight: FontWeight.w600,
-                            color: Colors.white54,
+                            color: palette.textPrimary,
                           ),
                           textAlign: TextAlign.center,
                           maxLines: 1,

@@ -1,11 +1,11 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:grazia_stones/core/models/collection.dart';
-import 'package:grazia_stones/core/theme/glass_theme.dart';
 import 'package:grazia_stones/core/widgets/animated_widgets.dart';
-import 'package:grazia_stones/shared/theme/colors.dart';
+import 'package:grazia_stones/shared/theme/theme_provider.dart';
 
-class HomeCollectionStrip extends StatelessWidget {
+class HomeCollectionStrip extends ConsumerWidget {
   final List<Collection> collections;
   final ValueChanged<Collection>? onCollectionTap;
 
@@ -16,8 +16,10 @@ class HomeCollectionStrip extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (collections.isEmpty) return const SizedBox.shrink();
+
+    final palette = ref.watch(themePaletteProvider);
 
     return SizedBox(
       height: 80,
@@ -27,33 +29,24 @@ class HomeCollectionStrip extends StatelessWidget {
         itemCount: collections.length,
         separatorBuilder: (_, _) => const SizedBox(width: 12),
         itemBuilder: (context, index) {
+          final collection = collections[index];
           return HoverScale(
             scale: 1.04,
             child: GestureDetector(
-              onTap: () => onCollectionTap?.call(collections[index]),
+              onTap: () => onCollectionTap?.call(collection),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
                 child: BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                   child: Container(
-                    width: 140,
+                    width: 150,
                     height: 80,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(
-                        alpha: GlassTheme.opacityLight,
-                      ),
+                      color: palette.surface,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.08),
-                        width: 0.5,
-                      ),
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Colors.white.withValues(alpha: 0.06),
-                          Colors.white.withValues(alpha: 0.02),
-                        ],
+                        color: palette.border,
+                        width: 0.8,
                       ),
                     ),
                     padding: const EdgeInsets.all(12),
@@ -65,7 +58,7 @@ class HomeCollectionStrip extends StatelessWidget {
                           width: 32,
                           height: 4,
                           decoration: BoxDecoration(
-                            gradient: GLuxuryPalettes.gold.primaryGradient,
+                            gradient: palette.primaryGradient,
                             borderRadius: BorderRadius.circular(2),
                           ),
                         ),
@@ -73,12 +66,12 @@ class HomeCollectionStrip extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              collections[index].name,
-                              style: const TextStyle(
+                              collection.name,
+                              style: TextStyle(
                                 fontFamily: 'Inter',
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
-                                color: Colors.white,
+                                color: palette.textPrimary,
                                 letterSpacing: 0.3,
                               ),
                               maxLines: 1,
@@ -86,12 +79,12 @@ class HomeCollectionStrip extends StatelessWidget {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              '${collections[index].stoneCount} stones',
+                              '${collection.stoneCount} stone${collection.stoneCount > 1 ? 's' : ''}',
                               style: TextStyle(
                                 fontFamily: 'Inter',
                                 fontSize: 10,
                                 fontWeight: FontWeight.w500,
-                                color: Colors.white70.withValues(alpha: 0.6),
+                                color: palette.textSecondary,
                               ),
                             ),
                           ],

@@ -6,6 +6,7 @@ import 'package:grazia_stones/core/utils/validators.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/typography.dart';
 import 'package:grazia_stones/shared/theme/spacing.dart';
+import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 
 class QuoteRequestScreen extends StatefulWidget {
   const QuoteRequestScreen({super.key});
@@ -193,16 +194,14 @@ class _QuoteRequestScreenState extends State<QuoteRequestScreen> {
                     subtitle: Text(stone.collection, style: GLuxuryTypography.bodySmall.copyWith(color: palette.textSecondary)),
                     secondary: ClipRRect(
                       borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        stone.imageUrl ?? '',
+                      child: SizedBox(
                         width: 50,
                         height: 50,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => Container(
+                        child: SmartStoneImage(
+                          imageUrl: stone.imageUrl,
                           width: 50,
                           height: 50,
-                          color: palette.surfaceDark,
-                          child: Icon(Icons.image, color: palette.textTertiary, size: 20),
+                          palette: palette,
                         ),
                       ),
                     ),

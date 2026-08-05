@@ -14,6 +14,8 @@ import 'package:ar_flutter_plugin/managers/ar_session_manager.dart';
 import 'package:ar_flutter_plugin/models/ar_node.dart';
 import 'package:vector_math/vector_math_64.dart' as vector;
 import 'package:grazia_stones/shared/theme/colors.dart';
+import 'package:grazia_stones/shared/theme/spacing.dart';
+import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 import 'package:grazia_stones/shared/theme/typography.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/core/di.dart';
@@ -533,13 +535,10 @@ class _ARViewScreenState extends ConsumerState<ARViewScreen> {
                       ),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(12),
-                        child: Image.network(
-                          stone.imageUrl ?? '',
+                        child: SmartStoneImage(
+                          imageUrl: stone.imageUrl,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => Container(
-                            color: palette.surfaceDark,
-                            child: Icon(Icons.image, color: palette.textTertiary),
-                          ),
+                          palette: palette,
                         ),
                       ),
                     ),

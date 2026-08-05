@@ -8,6 +8,8 @@ import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/typography.dart';
 import 'package:grazia_stones/shared/theme/spacing.dart';
+import 'package:grazia_stones/shared/theme/theme_provider.dart';
+import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 
 class WishlistScreen extends ConsumerStatefulWidget {
   const WishlistScreen({super.key});
@@ -103,7 +105,7 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final palette = GLuxuryPalettes.gold;
+    final palette = ref.watch(themePaletteProvider);
 
     return Scaffold(
       backgroundColor: palette.background,
@@ -291,16 +293,14 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
                 ),
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Image.network(
-                  stone.imageUrl ?? '',
+                child: SizedBox(
                   width: 80,
                   height: 80,
-                  fit: BoxFit.cover,
-                  errorBuilder: (ctx, e, s) => Container(
+                  child: SmartStoneImage(
+                    imageUrl: stone.imageUrl,
                     width: 80,
                     height: 80,
-                    color: palette.surfaceDark,
-                    child: Icon(Icons.image, color: palette.textTertiary),
+                    palette: palette,
                   ),
                 ),
               ),

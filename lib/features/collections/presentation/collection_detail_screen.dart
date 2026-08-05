@@ -7,6 +7,7 @@ import 'package:grazia_stones/shared/theme/spacing.dart';
 import 'package:grazia_stones/shared/theme/tokens.dart';
 import 'package:grazia_stones/core/services/mock_data_service.dart';
 import 'package:grazia_stones/shared/widgets/grazia_app_bar.dart';
+import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 
 class CollectionDetailScreen extends StatelessWidget {
   final String collectionId;
@@ -160,13 +161,10 @@ class _StoneCard extends StatelessWidget {
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(GTokens.radiusLg)),
                 child: AspectRatio(
                   aspectRatio: 1,
-                  child: Image.network(
-                    stone.imageUrl ?? '',
+                  child: SmartStoneImage(
+                    imageUrl: stone.imageUrl,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => Container(
-                      color: palette.surfaceDark,
-                      child: Icon(Icons.image_outlined, color: palette.textTertiary, size: 40),
-                    ),
+                    palette: palette,
                   ),
                 ),
               ),
