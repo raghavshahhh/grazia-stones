@@ -45,3 +45,13 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 .vercel
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+firebase_options.dart
+
+# Sensitive keys
+**/google-services.json
+**/GoogleService-Info.plist

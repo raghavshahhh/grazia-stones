@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../services/storage_service.dart';
 import '../services/firebase_service.dart';
+import '../config/env_config.dart';
 import 'api_response.dart';
 import 'exceptions.dart';
 
@@ -15,13 +16,10 @@ class ApiService {
   late Dio _dio;
   final StorageService _storage = StorageService.instance;
   final FirebaseService _firebase = FirebaseService.instance;
-
-  // Base URL - Change this to your actual backend URL
-  static const String _baseUrl = 'https://api.graziastones.com/v1';
-  static const String _devUrl = 'http://localhost:3000/api/v1';
+  final EnvConfig _env = EnvConfig();
   
-  // Use dev URL in debug mode
-  String get baseUrl => kDebugMode ? _devUrl : _baseUrl;
+  // Base URL from environment config
+  String get baseUrl => _env.apiBaseUrl;
 
   /// Initialize Dio with interceptors
   void init() {

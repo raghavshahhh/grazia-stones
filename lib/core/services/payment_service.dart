@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
+import '../config/env_config.dart';
 
 /// Payment service using Razorpay
 class PaymentService {
@@ -10,10 +11,10 @@ class PaymentService {
 
   Razorpay? _razorpay;
   bool _isInitialized = false;
+  final _env = EnvConfig();
 
-  // Razorpay credentials (REPLACE WITH YOUR ACTUAL KEYS)
-  static const String _keyId = 'rzp_test_YOUR_KEY_ID'; // Test key
-  static const String _keySecret = 'YOUR_KEY_SECRET'; // Keep secret, never expose in client
+  // Razorpay credentials from environment
+  String get _keyId => _env.razorpayKeyId;
 
   // Callbacks
   Function(PaymentSuccessResponse)? _onPaymentSuccess;
