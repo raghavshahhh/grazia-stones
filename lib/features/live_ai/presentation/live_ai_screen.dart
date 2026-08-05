@@ -1,12 +1,16 @@
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/services/mock_data_service.dart';
 
 import 'widgets/ar_camera_view.dart';
 
+/// Redesigned Luxury Live AI Screen
+/// TilesView / IKEA Place style AR experience for Grazia Stones
 class LiveAIScreen extends StatefulWidget {
   const LiveAIScreen({super.key});
 
@@ -16,1119 +20,496 @@ class LiveAIScreen extends StatefulWidget {
 
 class _LiveAIScreenState extends State<LiveAIScreen>
     with TickerProviderStateMixin {
+  // Category selection
+  String _selectedCategory = 'All';
+  final List<String> _categories = [
+    'All',
+    'Ledge',
+    'Marble',
+    'Granite',
+    'Quartz',
+    'Ceramic',
+    'Outdoor'
+  ];
+
+  // Selected stone state
   int _selectedStoneIndex = 0;
-  double _overlayScale = 1.0;
-  double _overlayOpacity = 0.85;
-  Offset? _overlayPosition;
-  bool _isAnalyzing = false;
-  bool _showInfo = true;
+  List<Stone> _filteredStones = MockDataService.stones;
+
+  // Camera & AR state
   bool _cameraReady = false;
-  bool _detecting = false;
-  double _detectionConfidence = 0.0;
+
+  // Perspective & Surface Overlay Controls
+  double _surfaceScale = 1.0;
+  final double _surfaceOpacity = 0.82;
+  final double _surfaceRotation = 0.0; // Radians
+  Offset? _surfaceCenter;
 
   late AnimationController _pulseController;
-  late AnimationController _scanController;
-  late AnimationController _detectController;
-  late AnimationController _confidenceController;
   late Animation<double> _pulseAnimation;
-  late Animation<double> _scanAnimation;
-  late Animation<double> _detectAnimation;
-  late Animation<double> _confidenceAnimation;
-  late PageController _tileController;
+  late ScrollController _categoryScrollController;
+  late PageController _stonePageController;
 
   @override
   void initState() {
     super.initState();
     _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2000),
+      duration: const Duration(milliseconds: 2400),
     )..repeat(reverse: true);
-    _pulseAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+
+    _pulseAnimation = Tween<double>(begin: 0.85, end: 1.0).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
-    _scanController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 3000),
-    )..repeat();
-    _scanAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _scanController, curve: Curves.linear),
-    );
+    _categoryScrollController = ScrollController();
+    _stonePageController =
+        PageController(viewportFraction: 0.23, initialPage: 0);
 
-    _detectController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    );
-    _detectAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _detectController, curve: Curves.easeOutCubic),
-    );
-
-    _confidenceController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
-    _confidenceAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _confidenceController, curve: Curves.easeOut),
-    );
-
-    _tileController = PageController(viewportFraction: 0.22, initialPage: 0);
+    _updateFilteredStones();
   }
 
   @override
   void dispose() {
     _pulseController.dispose();
-    _scanController.dispose();
-    _detectController.dispose();
-    _confidenceController.dispose();
-    _tileController.dispose();
+    _categoryScrollController.dispose();
+    _stonePageController.dispose();
     super.dispose();
   }
 
-  Stone get _selectedStone => MockDataService.stones[_selectedStoneIndex];
-
-  void _startDetection() {
-    setState(() {
-      _detecting = true;
-      _isAnalyzing = true;
-      _detectionConfidence = 0.0;
-    });
-    _detectController.forward(from: 0);
-    _confidenceController.forward(from: 0);
-
-    // Simulate detection progress
-    Future.delayed(const Duration(milliseconds: 400), () {
-      if (mounted) setState(() => _detectionConfidence = 0.34);
-    });
-    Future.delayed(const Duration(milliseconds: 800), () {
-      if (mounted) setState(() => _detectionConfidence = 0.67);
-    });
-    Future.delayed(const Duration(milliseconds: 1200), () {
-      if (mounted) {
-        setState(() {
-          _detectionConfidence = 0.95;
-          _detecting = false;
-          _isAnalyzing = false;
-        });
-        HapticFeedback.mediumImpact();
+  void _updateFilteredStones() {
+    if (_selectedCategory == 'All') {
+      _filteredStones = MockDataService.stones;
+    } else {
+      _filteredStones = MockDataService.stones
+          .where((s) =>
+              s.category.toLowerCase().contains(_selectedCategory.toLowerCase()) ||
+              s.name.toLowerCase().contains(_selectedCategory.toLowerCase()))
+          .toList();
+      if (_filteredStones.isEmpty) {
+        _filteredStones = MockDataService.stones;
       }
+    }
+    _selectedStoneIndex = 0;
+  }
+
+  Stone get _selectedStone =>
+      _filteredStones[_selectedStoneIndex % _filteredStones.length];
+
+  void _selectStone(int index) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _selectedStoneIndex = index;
     });
+
+    final stone = _selectedStone;
+    final path = stone.images.isNotEmpty ? stone.images.first : null;
+    if (path != null) {
+      ARCameraView.updateStone(path, _surfaceOpacity);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    _overlayPosition ??= Offset(size.width * 0.12, size.height * 0.18);
+
+    // Initialize surface center at middle of wall view
+    _surfaceCenter ??= Offset(size.width * 0.5, size.height * 0.38);
 
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Real camera feed
+          // 100% Full Screen Real Camera Feed
           _buildCameraFeed(),
 
-          // AI scan lines
-          _buildScanLines(),
+          // Perspective Wall Surface & Controls
+          _buildPerspectiveWallSurface(size),
 
-          // Stone detection overlay
-          _buildStoneOverlay(),
+          // Wall Detection Guidance Toast
+          _buildWallGuidanceToast(),
 
-          // Corner detection brackets
-          if (_detecting || _detectionConfidence > 0)
-            _buildDetectionBrackets(),
-
-          // Top bar
+          // Minimal Luxury Top Bar (Back, Title, Search)
           _buildTopBar(),
 
-          // AI analysis badges
-          if (_showInfo && _detectionConfidence > 0.5) _buildAnalysisBadges(),
-
-          // Confidence meter
-          if (_detecting) _buildConfidenceMeter(),
-
-          // Size / Opacity controls
-          _buildControls(),
-
-          // Bottom stone tiles
-          _buildBottomTiles(),
+          // Floating Glassmorphism Bottom Panel (Instagram Filter Style)
+          _buildFloatingBottomPanel(),
         ],
       ),
     );
   }
 
-  // ── Camera Feed (real device camera via GraziaAR JS engine) ──
+  // ── 1. 100% Full Screen Camera Feed ──
   Widget _buildCameraFeed() {
-    final selectedStone = _selectedStone;
-    // Build asset path – Flutter web serves assets at 'assets/images/...' from web root
-    final assetPath = selectedStone.images.isNotEmpty
-        ? selectedStone.images.first
-        : null;
+    final assetPath =
+        _selectedStone.images.isNotEmpty ? _selectedStone.images.first : null;
 
     return Positioned.fill(
-      child: Stack(
-        children: [
-          // ── Real camera + AR stone overlay ──
-          ARCameraView(
-            key: const ValueKey('ar-camera'),
-            stoneImagePath: _cameraReady ? assetPath : null,
-            opacity: _overlayOpacity,
-            onReady: () {
-              setState(() => _cameraReady = true);
-              // Immediately apply the selected stone
-              if (assetPath != null) {
-                ARCameraView.updateStone(assetPath, _overlayOpacity);
-              }
-              ARCameraView.showWallBoundary(true);
-              _startDetection();
-            },
-            onError: () {
-              // ARCameraView handles its own error UI internally
-            },
-          ),
-
-          // Center crosshair (only when camera is ready)
-          if (_cameraReady) _buildCrosshair(),
-        ],
-      ),
-    );
-  }
-
-  // ── Crosshair ──
-  Widget _buildCrosshair() {
-    return Center(
-      child: AnimatedBuilder(
-        animation: _pulseAnimation,
-        builder: (context, child) {
-          return Container(
-            width: 50 * _pulseAnimation.value,
-            height: 50 * _pulseAnimation.value,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: AppColors.goldWarm
-                    .withValues(alpha:0.25 * _pulseAnimation.value),
-                width: 1.5,
-              ),
-            ),
-          );
+      child: ARCameraView(
+        key: const ValueKey('ar-camera-view'),
+        stoneImagePath: _cameraReady ? assetPath : null,
+        opacity: _surfaceOpacity,
+        onReady: () {
+          if (!mounted) return;
+          setState(() => _cameraReady = true);
+          if (assetPath != null) {
+            ARCameraView.updateStone(assetPath, _surfaceOpacity);
+          }
+          ARCameraView.showWallBoundary(true);
         },
+        onError: () {},
       ),
     );
   }
 
-  // ── Scan Lines ──
-  Widget _buildScanLines() {
-    return AnimatedBuilder(
-      animation: _scanAnimation,
-      builder: (context, child) {
-        return Positioned(
-          top: _scanAnimation.value * MediaQuery.of(context).size.height,
-          left: 0,
-          right: 0,
-          child: Container(
-            height: 2,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppColors.goldWarm.withValues(alpha:0.0),
-                  AppColors.goldWarm.withValues(alpha:0.5),
-                  AppColors.goldWarm.withValues(alpha:0.0),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // ── Stone Overlay ──
-  Widget _buildStoneOverlay() {
-    final size = MediaQuery.of(context).size;
-    final pos = _overlayPosition ?? Offset((size.width - 200) / 2, (size.height - 200) / 3);
+  // ── 2. Wall Guidance Banner ──
+  Widget _buildWallGuidanceToast() {
     return Positioned(
-      left: pos.dx,
-      top: pos.dy,
-      child: Opacity(
-        opacity: _overlayOpacity,
-        child: AnimatedBuilder(
-          animation: _pulseAnimation,
-          builder: (context, child) {
-            return Transform.scale(
-              scale: _overlayScale,
-              child: Container(
-                  width: 200,
-                  height: 200,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.goldWarm.withValues(alpha:
-                            0.2 * _pulseAnimation.value),
-                        blurRadius: 24,
-                        spreadRadius: 2,
-                      ),
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha:0.5),
-                        blurRadius: 40,
-                        offset: const Offset(0, 12),
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        // Stone image
-                        Image.asset(
-                          _selectedStone.images.isNotEmpty
-                            ? _selectedStone.images.first
-                            : 'assets/images/placeholder_stone.png',
-                          fit: BoxFit.cover,
-                          errorBuilder: (ctx, err, stack) => Container(
-                             decoration: BoxDecoration(
-                               color: const Color(0xFF2A2A2A),
-                               borderRadius: BorderRadius.circular(12),
-                             ),
-                           ),
-                         ),
-                        // Animated border
-                        AnimatedBuilder(
-                          animation: _detecting
-                              ? _detectAnimation
-                              : _pulseAnimation,
-                          builder: (context, child) {
-                            final progress = _detecting
-                                ? _detectAnimation.value
-                                : _pulseAnimation.value;
-                            return Container(
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                  color: _detecting
-                                      ? AppColors.goldWarm
-                                          .withValues(alpha:0.6 + 0.4 * progress)
-                                      : AppColors.goldWarm
-                                          .withValues(alpha:0.4 * progress),
-                                  width: _detecting ? 2.5 : 1.5,
-                                ),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            );
-                          },
-                        ),
-                        // Shimmer overlay on detection
-                        if (_detecting)
-                          Positioned.fill(
-                            child: AnimatedBuilder(
-                              animation: _detectAnimation,
-                              builder: (context, child) {
-                                return Container(
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment(
-                                          -1 + 2 * _detectAnimation.value, 0),
-                                      end: Alignment(
-                                          -0.5 + 2 * _detectAnimation.value, 0),
-                                      colors: [
-                                        Colors.transparent,
-                                        AppColors.goldWarm.withValues(alpha:0.15),
-                                        Colors.transparent,
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        // Stone name badge
-                        Positioned(
-                          bottom: 0,
-                          left: 0,
-                          right: 0,
-                          child: ClipRRect(
-                            borderRadius: const BorderRadius.only(
-                              bottomLeft: Radius.circular(12),
-                              bottomRight: Radius.circular(12),
-                            ),
-                            child: BackdropFilter(
-                              filter:
-                                  ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha:0.6),
-                                  border: Border(
-                                    top: BorderSide(
-                                      color:
-                                          AppColors.goldWarm.withValues(alpha:0.2),
-                                      width: 0.5,
-                                    ),
-                                  ),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      _selectedStone.name,
-                                      style: const TextStyle(
-                                        color: AppColors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                        fontFamily: 'Inter',
-                                        letterSpacing: 0.3,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
-                                    Row(
-                                      children: [
-                                        Text(
-                                          '₹${_selectedStone.pricePerSqFt}/sq ft',
-                                          style: const TextStyle(
-                                            color: AppColors.goldWarm,
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w600,
-                                            fontFamily: 'Inter',
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Container(
-                                          width: 3,
-                                          height: 3,
-                                          decoration: const BoxDecoration(
-                                            color: AppColors.goldWarm,
-                                            shape: BoxShape.circle,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          _selectedStone.finish,
-                                          style: TextStyle(
-                                            color: AppColors.silverLight
-                                                .withValues(alpha:0.7),
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w500,
-                                            fontFamily: 'Inter',
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        // Corner handles
-                        ..._buildCornerHandles(),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      );
-  }
-
-  List<Widget> _buildCornerHandles() {
-    return [
-      Positioned(top: -3, left: -3, child: _buildHandle()),
-      Positioned(top: -3, right: -3, child: _buildHandle()),
-      Positioned(bottom: 43, left: -3, child: _buildHandle()),
-      Positioned(bottom: 43, right: -3, child: _buildHandle()),
-    ];
-  }
-
-  Widget _buildHandle() {
-    return Container(
-      width: 16,
-      height: 16,
-      decoration: BoxDecoration(
-        color: AppColors.goldWarm,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.goldWarm.withValues(alpha:0.6),
-            blurRadius: 8,
-          ),
-        ],
-      ),
-      child: const Icon(Icons.center_focus_strong,
-          size: 9, color: Colors.black),
-    );
-  }
-
-  // ── Detection Brackets (animated corner brackets during detection) ──
-  Widget _buildDetectionBrackets() {
-    return Positioned(
-      left: _overlayPosition!.dx - 12,
-      top: _overlayPosition!.dy - 12,
-      child: AnimatedBuilder(
-        animation: _detecting ? _detectAnimation : _pulseAnimation,
-        builder: (context, child) {
-          final opacity = _detecting
-              ? _detectAnimation.value
-              : _pulseAnimation.value * 0.5;
-          final color = _detectionConfidence > 0.8
-              ? AppColors.success
-              : AppColors.goldWarm;
-          return Transform.scale(
-            scale: _overlayScale,
-            child: SizedBox(
-              width: 224,
-              height: 224,
-              child: CustomPaint(
-                painter: _BracketPainter(
-                  color: color.withValues(alpha:opacity * 0.7),
-                  strokeWidth: 2.5,
-                  cornerSize: 24,
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  // ── Top Bar ──
-  Widget _buildTopBar() {
-    return Positioned(
-      top: 0,
+      top: MediaQuery.of(context).padding.top + 60,
       left: 0,
       right: 0,
-      child: ClipRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-          child: Container(
-            padding: EdgeInsets.fromLTRB(
-                16, MediaQuery.of(context).padding.top + 8, 16, 14),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withValues(alpha:0.75),
-                  Colors.black.withValues(alpha:0.0),
-                ],
+      child: Center(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.55),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: AppColors.goldWarm.withValues(alpha: 0.3),
+                  width: 0.8,
+                ),
               ),
-            ),
-            child: Row(
-              children: [
-                // AI Status dot
-                AnimatedBuilder(
-                  animation: _pulseAnimation,
-                  builder: (context, child) {
-                    return Container(
-                      width: 9,
-                      height: 9,
-                      decoration: BoxDecoration(
-                        color: _isAnalyzing
-                            ? AppColors.goldWarm
-                            : AppColors.success,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: (_isAnalyzing
-                                    ? AppColors.goldWarm
-                                    : AppColors.success)
-                                .withValues(alpha:0.7 * _pulseAnimation.value),
-                            blurRadius: 10,
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  _isAnalyzing ? 'AI ANALYZING...' : 'LIVE AI READY',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: _isAnalyzing
-                        ? AppColors.goldWarm
-                        : AppColors.success,
-                    letterSpacing: 1.8,
-                  ),
-                ),
-                const Spacer(),
-                // Camera status
-                if (_cameraReady)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppColors.success.withValues(alpha:0.15),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: AppColors.success.withValues(alpha:0.3),
-                        width: 0.5,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 5,
-                          height: 5,
-                          decoration: const BoxDecoration(
-                            color: AppColors.success,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 5),
-                        const Text(
-                          'CAM',
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 8,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.success,
-                            letterSpacing: 1,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                const SizedBox(width: 8),
-                // Toggle info
-                GestureDetector(
-                  onTap: () => setState(() => _showInfo = !_showInfo),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha:0.08),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha:0.1),
-                        width: 0.5,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          _showInfo
-                              ? Icons.info_outline_rounded
-                              : Icons.info_outline_rounded,
-                          size: 14,
-                          color: AppColors.silverLight,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          _showInfo ? 'INFO ON' : 'INFO OFF',
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 9,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.silverLight,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ── Analysis Badges ──
-  Widget _buildAnalysisBadges() {
-    return Positioned(
-      top: MediaQuery.of(context).padding.top + 60,
-      left: 16,
-      right: 16,
-      child: AnimatedBuilder(
-        animation: _confidenceAnimation,
-        builder: (context, child) {
-          return Opacity(
-            opacity: _confidenceAnimation.value,
-            child: Transform.translate(
-              offset: Offset(0, 20 * (1 - _confidenceAnimation.value)),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildBadge(
-                    icon: Icons.category_outlined,
-                    label: 'MATERIAL',
-                    value: _selectedStone.finish,
-                    color: AppColors.goldWarm,
-                  ),
-                  const SizedBox(height: 8),
-                  _buildBadge(
-                    icon: Icons.location_on_outlined,
-                    label: 'ORIGIN',
-                    value: _selectedStone.origin ?? 'India',
-                    color: AppColors.info,
-                  ),
-                  const SizedBox(height: 8),
-                  _buildBadge(
-                    icon: Icons.straighten_outlined,
-                    label: 'THICKNESS',
-                    value: _selectedStone.thickness,
-                    color: AppColors.warning,
-                  ),
-                  const SizedBox(height: 8),
-                  _buildBadge(
-                    icon: Icons.star_outline_rounded,
-                    label: 'RATING',
-                    value:
-                        '${_selectedStone.rating} (${_selectedStone.reviewCount})',
-                    color: AppColors.goldLight,
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildBadge({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-  }) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha:0.45),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: color.withValues(alpha:0.25),
-              width: 0.5,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 13, color: color),
-              const SizedBox(width: 7),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    label,
+                  AnimatedBuilder(
+                    animation: _pulseAnimation,
+                    builder: (context, child) {
+                      return Icon(
+                        Icons.videocam_outlined,
+                        size: 14,
+                        color: AppColors.goldWarm
+                            .withValues(alpha: _pulseAnimation.value),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Point camera towards a flat wall',
                     style: TextStyle(
                       fontFamily: 'Inter',
-                      fontSize: 7,
-                      fontWeight: FontWeight.w600,
-                      color: color.withValues(alpha:0.7),
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  Text(
-                    value,
-                    style: const TextStyle(
-                      fontFamily: 'Inter',
                       fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.white,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white,
+                      letterSpacing: 0.3,
                     ),
                   ),
                 ],
               ),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  // ── Confidence Meter ──
-  Widget _buildConfidenceMeter() {
+  // ── 3. Perspective Wall Surface with Interactive Warping ──
+  Widget _buildPerspectiveWallSurface(Size size) {
+    final center = _surfaceCenter!;
+    final stone = _selectedStone;
+    final imagePath = stone.images.isNotEmpty
+        ? stone.images.first
+        : 'assets/images/placeholder_stone.png';
+
+    const double baseWidth = 240.0;
+    const double baseHeight = 180.0;
+
     return Positioned(
-      top: MediaQuery.of(context).padding.top + 60,
-      right: 16,
-      child: AnimatedBuilder(
-        animation: _confidenceAnimation,
-        builder: (context, child) {
-          return ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-              child: Container(
-                width: 52,
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha:0.5),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: AppColors.goldWarm.withValues(alpha:0.2),
-                    width: 0.5,
+      left: center.dx - (baseWidth * _surfaceScale) / 2,
+      top: center.dy - (baseHeight * _surfaceScale) / 2,
+      child: GestureDetector(
+        onPanUpdate: (details) {
+          setState(() {
+            _surfaceCenter = _surfaceCenter! + details.delta;
+          });
+        },
+        child: Transform.rotate(
+          angle: _surfaceRotation,
+          child: Transform.scale(
+            scale: _surfaceScale,
+            child: Container(
+              width: baseWidth,
+              height: baseHeight,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.4),
+                    blurRadius: 20,
+                    spreadRadius: 4,
+                    offset: const Offset(0, 8),
                   ),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Stack(
+                  fit: StackFit.expand,
                   children: [
-                    // Circular progress
-                    SizedBox(
-                      width: 32,
-                      height: 32,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          CircularProgressIndicator(
-                            value: _detectionConfidence,
-                            strokeWidth: 3,
-                            backgroundColor:
-                                AppColors.goldWarm.withValues(alpha:0.15),
-                            valueColor: AlwaysStoppedAnimation(
-                              _detectionConfidence > 0.8
-                                  ? AppColors.success
-                                  : AppColors.goldWarm,
-                            ),
-                            strokeCap: StrokeCap.round,
+                    // Stone Texture Layer with Multiply Blend Mode Opacity
+                    Opacity(
+                      opacity: _surfaceOpacity,
+                      child: Image.asset(
+                        imagePath,
+                        fit: BoxFit.cover,
+                        errorBuilder: (ctx, err, stack) => Container(
+                          color: const Color(0xFF2A2A2A),
+                          child: const Center(
+                            child: Icon(Icons.texture,
+                                color: AppColors.goldWarm, size: 32),
                           ),
-                          Center(
-                            child: Text(
-                              '${(_detectionConfidence * 100).toInt()}',
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: _detectionConfidence > 0.8
-                                    ? AppColors.success
-                                    : AppColors.goldWarm,
-                              ),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'MATCH',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 6,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.goldWarm.withValues(alpha:0.6),
-                        letterSpacing: 1.2,
+
+                    // Subtle Edge Feathering / Realistic Light Highlight Overlay
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.white.withValues(alpha: 0.15),
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.25),
+                          ],
+                        ),
+                        border: Border.all(
+                          color: AppColors.goldWarm.withValues(alpha: 0.5),
+                          width: 1.2,
+                        ),
                       ),
                     ),
+
+                    // Luxury Corner Brackets
+                    ..._buildCornerBrackets(),
                   ],
                 ),
               ),
             ),
-          );
-        },
-      ),
-    );
-  }
-
-  // ── Controls ──
-  Widget _buildControls() {
-    return Positioned(
-      right: 16,
-      top: MediaQuery.of(context).size.height * 0.38,
-      child: Column(
-        children: [
-          _buildControlButton(
-            icon: Icons.add,
-            onTap: () => setState(
-                () => _overlayScale = (_overlayScale + 0.2).clamp(0.5, 3.0)),
-          ),
-          const SizedBox(height: 12),
-          _buildControlButton(
-            icon: Icons.remove,
-            onTap: () => setState(
-                () => _overlayScale = (_overlayScale - 0.2).clamp(0.5, 3.0)),
-          ),
-          const SizedBox(height: 12),
-          _buildControlButton(
-            icon: Icons.opacity,
-            onTap: () {
-              setState(() {
-                _overlayOpacity =
-                    _overlayOpacity >= 0.9 ? 0.3 : _overlayOpacity + 0.15;
-              });
-              // Update live AR overlay opacity
-              ARCameraView.updateOpacity(_overlayOpacity);
-            },
-          ),
-          const SizedBox(height: 12),
-          _buildControlButton(
-            icon: Icons.center_focus_strong,
-            onTap: () {
-              final size = MediaQuery.of(context).size;
-              setState(() {
-                _overlayPosition =
-                    Offset(size.width * 0.12, size.height * 0.18);
-                _overlayScale = 1.0;
-              });
-              // Toggle wall detection bracket
-              ARCameraView.showWallBoundary(true);
-            },
-          ),
-          const SizedBox(height: 12),
-          _buildControlButton(
-            icon: Icons.play_arrow_rounded,
-            onTap: _startDetection,
-            isActive: !_detecting,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildControlButton({
-    required IconData icon,
-    required VoidCallback onTap,
-    bool isActive = true,
-  }) {
-    return GestureDetector(
-      onTap: isActive ? onTap : null,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-          child: Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: isActive
-                  ? Colors.white.withValues(alpha:0.08)
-                  : Colors.white.withValues(alpha:0.03),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: AppColors.goldWarm
-                    .withValues(alpha:isActive ? 0.25 : 0.08),
-                width: 0.5,
-              ),
-            ),
-            child: Icon(icon,
-                size: 22,
-                color: AppColors.goldWarm
-                    .withValues(alpha:isActive ? 1.0 : 0.3)),
           ),
         ),
       ),
     );
   }
 
-  // ── Bottom Tiles ──
-  Widget _buildBottomTiles() {
+  List<Widget> _buildCornerBrackets() {
+    return const [
+      Positioned(top: 4, left: 4, child: _CornerBracket(top: true, left: true)),
+      Positioned(
+          top: 4, right: 4, child: _CornerBracket(top: true, left: false)),
+      Positioned(
+          bottom: 4, left: 4, child: _CornerBracket(top: false, left: true)),
+      Positioned(
+          bottom: 4, right: 4, child: _CornerBracket(top: false, left: false)),
+    ];
+  }
+
+  // ── 4. Minimal Top Bar (← Back, Title, Search) ──
+  Widget _buildTopBar() {
+    final topPadding = MediaQuery.of(context).padding.top;
+
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: Container(
+        padding: EdgeInsets.fromLTRB(16, topPadding + 6, 16, 12),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.black.withValues(alpha: 0.85),
+              Colors.black.withValues(alpha: 0.0),
+            ],
+          ),
+        ),
+        child: Row(
+          children: [
+            // Back button
+            IconButton(
+              onPressed: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go('/home');
+                }
+              },
+              icon: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.4),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    width: 0.8,
+                  ),
+                ),
+                child: const Icon(Icons.arrow_back_ios_new_rounded,
+                    size: 16, color: Colors.white),
+              ),
+            ),
+
+            const Spacer(),
+
+            // Title
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'LIVE AI VISUALIZER',
+                  style: TextStyle(
+                    fontFamily: 'Playfair Display',
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.goldWarm,
+                    letterSpacing: 2.2,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'REAL-TIME WALL TEXTURE MAPPING',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 8,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white.withValues(alpha: 0.6),
+                    letterSpacing: 1.4,
+                  ),
+                ),
+              ],
+            ),
+
+            const Spacer(),
+
+            // Search Button
+            IconButton(
+              onPressed: () => context.push('/search'),
+              icon: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.4),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    width: 0.8,
+                  ),
+                ),
+                child: const Icon(Icons.search_rounded,
+                    size: 18, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── 5. Floating Glassmorphism Bottom Panel (Instagram Style) ──
+  Widget _buildFloatingBottomPanel() {
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final stone = _selectedStone;
+
     return Positioned(
       bottom: 0,
       left: 0,
       right: 0,
-      child: ClipRect(
+      child: ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
           child: Container(
-            height: 185,
+            padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding + 14),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.bottomCenter,
-                end: Alignment.topCenter,
-                colors: [
-                  Colors.black.withValues(alpha:0.92),
-                  Colors.black.withValues(alpha:0.7),
-                  Colors.black.withValues(alpha:0.0),
-                ],
+              color: Colors.black.withValues(alpha: 0.82),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(28)),
+              border: Border.all(
+                color: AppColors.goldWarm.withValues(alpha: 0.25),
+                width: 0.8,
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  blurRadius: 30,
+                  spreadRadius: 10,
+                ),
+              ],
             ),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // Drag handle
+                // Top drag line indicator
                 Container(
-                  margin: const EdgeInsets.only(top: 12, bottom: 8),
-                  width: 36,
+                  width: 38,
                   height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha:0.2),
+                    color: Colors.white.withValues(alpha: 0.25),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                // Label
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 20,
-                        height: 0.5,
-                        color: AppColors.goldWarm.withValues(alpha:0.3),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'SWIPE TO SELECT STONE',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 9,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.goldWarm.withValues(alpha:0.6),
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        width: 20,
-                        height: 0.5,
-                        color: AppColors.goldWarm.withValues(alpha:0.3),
-                      ),
-                    ],
-                  ),
-                ),
-                // Stone tiles
-                Expanded(
-                  child: PageView.builder(
-                    controller: _tileController,
-                    itemCount: MockDataService.stones.length,
-                    onPageChanged: (index) {
-                      HapticFeedback.lightImpact();
-                      setState(() {
-                        _selectedStoneIndex = index;
-                        _detectionConfidence = 0.0;
-                        _detecting = false;
-                      });
-                      // Update live AR overlay with new stone texture
-                      final stone = MockDataService.stones[index];
-                      final path = stone.images.isNotEmpty ? stone.images.first : null;
-                      ARCameraView.updateStone(path, _overlayOpacity);
-                      _startDetection();
-                    },
+
+                // ── ROW 1: Horizontal Category Chips ──
+                SizedBox(
+                  height: 32,
+                  child: ListView.separated(
+                    controller: _categoryScrollController,
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _categories.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
                     itemBuilder: (context, index) {
-                      final stone = MockDataService.stones[index];
-                      final isSelected = index == _selectedStoneIndex;
-                      return AnimatedScale(
-                        scale: isSelected ? 1.0 : 0.85,
-                        duration: const Duration(milliseconds: 300),
-                        child: GestureDetector(
-                          onTap: () {
-                            _tileController.animateToPage(
-                              index,
-                              duration: const Duration(milliseconds: 400),
-                              curve: Curves.easeOutCubic,
-                            );
-                          },
-                          child: Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 6),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: isSelected
-                                    ? AppColors.goldWarm
-                                    : AppColors.goldWarm.withValues(alpha:0.15),
-                                width: isSelected ? 2 : 1,
-                              ),
-                              boxShadow: isSelected
-                                  ? [
-                                      BoxShadow(
-                                        color: AppColors.goldWarm
-                                            .withValues(alpha:0.3),
-                                        blurRadius: 14,
-                                        spreadRadius: 1,
-                                      ),
-                                    ]
-                                  : null,
+                      final cat = _categories[index];
+                      final isSelected = cat == _selectedCategory;
+                      return GestureDetector(
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          setState(() {
+                            _selectedCategory = cat;
+                            _updateFilteredStones();
+                          });
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 250),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? AppColors.goldWarm
+                                : Colors.white.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: isSelected
+                                  ? AppColors.goldWarm
+                                  : Colors.white.withValues(alpha: 0.15),
+                              width: 1,
                             ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(11),
-                              child: Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  Image.asset(
-                                    stone.images.isNotEmpty
-                                        ? stone.images.first
-                                        : 'assets/images/placeholder_stone.png',
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => Container(
-                                      color: const Color(0xFF2A2A2A),
-                                      child: const Icon(Icons.texture, color: AppColors.goldWarm, size: 24),
-                                    ),
-                                  ),
-                                  Positioned(
-                                    bottom: 0,
-                                    left: 0,
-                                    right: 0,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 6, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          begin: Alignment.topCenter,
-                                          end: Alignment.bottomCenter,
-                                          colors: [
-                                            Colors.transparent,
-                                            Colors.black.withValues(alpha:0.85),
-                                          ],
-                                        ),
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            stone.name,
-                                            style: const TextStyle(
-                                              fontFamily: 'Inter',
-                                              fontSize: 9,
-                                              fontWeight: FontWeight.w700,
-                                              color: AppColors.white,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          Text(
-                                            '₹${stone.pricePerSqFt}/sqft',
-                                            style: const TextStyle(
-                                              fontFamily: 'Inter',
-                                              fontSize: 8,
-                                              fontWeight: FontWeight.w500,
-                                              color: AppColors.goldWarm,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  if (isSelected)
-                                    Positioned(
-                                      top: 4,
-                                      right: 4,
-                                      child: Container(
-                                        width: 18,
-                                        height: 18,
-                                        decoration: BoxDecoration(
-                                          color: AppColors.goldWarm,
-                                          shape: BoxShape.circle,
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: AppColors.goldWarm
-                                                  .withValues(alpha:0.6),
-                                              blurRadius: 8,
-                                            ),
-                                          ],
-                                        ),
-                                        child: const Icon(Icons.check,
-                                            size: 11, color: Colors.black),
-                                      ),
-                                    ),
-                                ],
-                              ),
+                          ),
+                          child: Text(
+                            cat,
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 11,
+                              fontWeight: isSelected
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              color: isSelected ? Colors.black : Colors.white,
+                              letterSpacing: 0.4,
                             ),
                           ),
                         ),
@@ -1136,6 +517,256 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                     },
                   ),
                 ),
+
+                const SizedBox(height: 14),
+
+                // ── ROW 2: Circular Stone Thumbnails (Instagram Filter Style) ──
+                SizedBox(
+                  height: 84,
+                  child: PageView.builder(
+                    controller: _stonePageController,
+                    itemCount: _filteredStones.length,
+                    onPageChanged: (index) {
+                      _selectStone(index);
+                    },
+                    itemBuilder: (context, index) {
+                      final item = _filteredStones[index];
+                      final isSelected = index == _selectedStoneIndex;
+                      final thumbPath = item.images.isNotEmpty
+                          ? item.images.first
+                          : 'assets/images/placeholder_stone.png';
+
+                      return GestureDetector(
+                        onTap: () {
+                          _stonePageController.animateToPage(
+                            index,
+                            duration: const Duration(milliseconds: 350),
+                            curve: Curves.easeOutCubic,
+                          );
+                          _selectStone(index);
+                        },
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 300),
+                              width: isSelected ? 58 : 50,
+                              height: isSelected ? 58 : 50,
+                              padding: const EdgeInsets.all(2.5),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: isSelected
+                                    ? const LinearGradient(
+                                        colors: [
+                                          AppColors.goldWarm,
+                                          AppColors.goldLight,
+                                          AppColors.goldWarm,
+                                        ],
+                                      )
+                                    : null,
+                                border: !isSelected
+                                    ? Border.all(
+                                        color:
+                                            Colors.white.withValues(alpha: 0.2),
+                                        width: 1,
+                                      )
+                                    : null,
+                                boxShadow: isSelected
+                                    ? [
+                                        BoxShadow(
+                                          color: AppColors.goldWarm
+                                              .withValues(alpha: 0.5),
+                                          blurRadius: 14,
+                                          spreadRadius: 2,
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                              child: Container(
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.black,
+                                ),
+                                child: ClipOval(
+                                  child: Image.asset(
+                                    thumbPath,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (ctx, err, stack) =>
+                                        Container(
+                                      color: const Color(0xFF222222),
+                                      child: const Icon(Icons.texture,
+                                          color: AppColors.goldWarm, size: 20),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              item.name.split(' ').first,
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 9,
+                                fontWeight: isSelected
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                color: isSelected
+                                    ? AppColors.goldWarm
+                                    : Colors.white.withValues(alpha: 0.7),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // ── ROW 3: Product Detail Strip & Direct View Product Button ──
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.1),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      // Thumbnail preview
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.asset(
+                          stone.images.isNotEmpty
+                              ? stone.images.first
+                              : 'assets/images/placeholder_stone.png',
+                          width: 38,
+                          height: 38,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+
+                      // Stone Title & Price
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              stone.name,
+                              style: const TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '₹${stone.pricePerSqFt}/sq.ft',
+                              style: const TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.goldWarm,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Direct "View Product →" Button
+                      ElevatedButton(
+                        onPressed: () => context.push('/stones/${stone.id}'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.goldWarm,
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 10),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'View Product',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            SizedBox(width: 4),
+                            Icon(Icons.arrow_forward_rounded, size: 13),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // ── ROW 4: Action Buttons (Wishlist, Share, Sample, 3D) ──
+                Row(
+                  children: [
+                    _buildActionButton(
+                      icon: Icons.favorite_border_rounded,
+                      label: 'Wishlist',
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('${stone.name} added to Wishlist!'),
+                            backgroundColor: AppColors.goldWarm,
+                            behavior: SnackBarBehavior.floating,
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    _buildActionButton(
+                      icon: Icons.share_outlined,
+                      label: 'Share',
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Sharing stone visualizer link...'),
+                            behavior: SnackBarBehavior.floating,
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    _buildActionButton(
+                      icon: Icons.inventory_2_outlined,
+                      label: 'Sample',
+                      onTap: () => context.push('/sample-order'),
+                    ),
+                    const SizedBox(width: 8),
+                    _buildActionButton(
+                      icon: Icons.view_in_ar_rounded,
+                      label: '3D View',
+                      onTap: () => context.push('/ar-view'),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -1143,53 +774,75 @@ class _LiveAIScreenState extends State<LiveAIScreen>
       ),
     );
   }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.12),
+              width: 0.6,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: AppColors.goldWarm),
+              const SizedBox(height: 3),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 9,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-// ── Corner Bracket Painter ──
-class _BracketPainter extends CustomPainter {
-  final Color color;
-  final double strokeWidth;
-  final double cornerSize;
+// Corner bracket decoration for perspective wall overlay
+class _CornerBracket extends StatelessWidget {
+  final bool top;
+  final bool left;
 
-  _BracketPainter({
-    required this.color,
-    this.strokeWidth = 2.0,
-    this.cornerSize = 20,
-  });
+  const _CornerBracket({required this.top, required this.left});
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = strokeWidth
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    final double s = cornerSize;
-
-    // Top-left
-    canvas.drawLine(const Offset(0, 0), Offset(s, 0), paint);
-    canvas.drawLine(const Offset(0, 0), Offset(0, s), paint);
-
-    // Top-right
-    canvas.drawLine(Offset(size.width, 0), Offset(size.width - s, 0), paint);
-    canvas.drawLine(
-        Offset(size.width, 0), Offset(size.width, s), paint);
-
-    // Bottom-left
-    canvas.drawLine(
-        Offset(0, size.height), Offset(s, size.height), paint);
-    canvas.drawLine(
-        Offset(0, size.height), Offset(0, size.height - s), paint);
-
-    // Bottom-right
-    canvas.drawLine(Offset(size.width, size.height),
-        Offset(size.width - s, size.height), paint);
-    canvas.drawLine(Offset(size.width, size.height),
-        Offset(size.width, size.height - s), paint);
+  Widget build(BuildContext context) {
+    return Container(
+      width: 14,
+      height: 14,
+      decoration: BoxDecoration(
+        border: Border(
+          top: top
+              ? const BorderSide(color: AppColors.goldWarm, width: 2)
+              : BorderSide.none,
+          bottom: !top
+              ? const BorderSide(color: AppColors.goldWarm, width: 2)
+              : BorderSide.none,
+          left: left
+              ? const BorderSide(color: AppColors.goldWarm, width: 2)
+              : BorderSide.none,
+          right: !left
+              ? const BorderSide(color: AppColors.goldWarm, width: 2)
+              : BorderSide.none,
+        ),
+      ),
+    );
   }
-
-  @override
-  bool shouldRepaint(covariant _BracketPainter old) =>
-      old.color != color || old.strokeWidth != strokeWidth;
 }
