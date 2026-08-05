@@ -88,6 +88,13 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
       // Check onboarding status
       final onboardingComplete = _storage.getOnboardingCompleted();
       
+      // DEMO MODE: Skip Firebase check if not initialized
+      if (!_firebase.isInitialized) {
+        state = state.copyWith(onboardingComplete: onboardingComplete);
+        debugPrint('⚠️ Auth state: Firebase disabled, using local storage only');
+        return;
+      }
+      
       // Check if user is logged in via Firebase
       final firebaseUser = _firebase.currentUser;
       

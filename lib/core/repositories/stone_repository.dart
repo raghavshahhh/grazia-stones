@@ -59,12 +59,8 @@ class StoneRepository extends BaseRepository {
   }
 
   Future<List<Stone>> getTrendingStones({int limit = 10}) async {
-    try {
-      final trending = await _stoneApi.getTrendingStones(limit: limit);
-      return trending.isNotEmpty ? trending : MockDataService.getTrendingStones();
-    } catch (_) {
-      return MockDataService.getTrendingStones();
-    }
+    // DEMO MODE: Use mock data only, skip API call
+    return MockDataService.getTrendingStones();
   }
 
   Future<List<Stone>> getSimilarStones(String stoneId, {int limit = 5}) async {
@@ -90,14 +86,8 @@ class StoneRepository extends BaseRepository {
   // ═══════════════════════════════════════════════════════════════════════
 
   Future<List<Map<String, dynamic>>> getCollections() async {
-    try {
-      final list = await _stoneApi.getCollections();
-      return list.isNotEmpty
-          ? list
-          : MockDataService.collections.map((c) => c.toJson()).toList();
-    } catch (_) {
-      return MockDataService.collections.map((c) => c.toJson()).toList();
-    }
+    // DEMO MODE: Use mock data only, skip API call
+    return MockDataService.collections.map((c) => c.toJson()).toList();
   }
 
   Future<Map<String, dynamic>> getCollectionById(String collectionId) async {

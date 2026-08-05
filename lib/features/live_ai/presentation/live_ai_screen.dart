@@ -248,23 +248,14 @@ class _LiveAIScreenState extends State<LiveAIScreen>
     return Positioned(
       left: pos.dx,
       top: pos.dy,
-      child: GestureDetector(
-        onPanUpdate: (details) {
-          setState(() => _overlayPosition = pos + details.delta);
-        },
-        onScaleUpdate: (details) {
-          setState(() {
-            _overlayScale = (_overlayScale * details.scale).clamp(0.5, 3.0);
-          });
-        },
-        child: Opacity(
-          opacity: _overlayOpacity,
-          child: AnimatedBuilder(
-            animation: _pulseAnimation,
-            builder: (context, child) {
-              return Transform.scale(
-                scale: _overlayScale,
-                child: Container(
+      child: Opacity(
+        opacity: _overlayOpacity,
+        child: AnimatedBuilder(
+          animation: _pulseAnimation,
+          builder: (context, child) {
+            return Transform.scale(
+              scale: _overlayScale,
+              child: Container(
                   width: 200,
                   height: 200,
                   decoration: BoxDecoration(
@@ -440,8 +431,7 @@ class _LiveAIScreenState extends State<LiveAIScreen>
             },
           ),
         ),
-      ),
-    );
+      );
   }
 
   List<Widget> _buildCornerHandles() {

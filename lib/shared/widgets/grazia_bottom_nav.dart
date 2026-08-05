@@ -109,7 +109,9 @@ class _GraziaBottomNavState extends ConsumerState<GraziaBottomNav> {
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
         width: 56,
+        height: 55, // Explicit height to prevent overflow
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             AnimatedContainer(
@@ -117,7 +119,7 @@ class _GraziaBottomNavState extends ConsumerState<GraziaBottomNav> {
               curve: Curves.easeOutCubic,
               width: isActive ? 28 : 0,
               height: 2,
-              margin: const EdgeInsets.only(bottom: 5),
+              margin: const EdgeInsets.only(bottom: 4),
               decoration: BoxDecoration(
                 gradient: isActive ? palette.primaryGradient : null,
                 borderRadius: BorderRadius.circular(2),
@@ -146,7 +148,6 @@ class _GraziaBottomNavState extends ConsumerState<GraziaBottomNav> {
                 size: 20,
               ),
             ),
-            const SizedBox(height: 1),
             AnimatedDefaultTextStyle(
               duration: const Duration(milliseconds: 200),
               style: TextStyle(
@@ -177,10 +178,11 @@ class _GraziaBottomNavState extends ConsumerState<GraziaBottomNav> {
       },
       child: SizedBox(
         width: 56,
+        height: 55, // Explicit height to prevent overflow
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const SizedBox(height: 2),
             AnimatedContainer(
               duration: const Duration(milliseconds: 250),
               width: 40,
@@ -207,7 +209,7 @@ class _GraziaBottomNavState extends ConsumerState<GraziaBottomNav> {
                 ),
               ),
             ),
-            const SizedBox(height: 3),
+            const SizedBox(height: 2),
             Text(
               'Live AI',
               style: TextStyle(

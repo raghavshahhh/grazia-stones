@@ -25,15 +25,15 @@ class PaymentService {
   void init() {
     if (_isInitialized) return;
 
+    // DEMO MODE: Skip Razorpay initialization to avoid errors
     try {
-      _razorpay = Razorpay();
+      // _razorpay = Razorpay();
+      // _razorpay!.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
+      // _razorpay!.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
+      // _razorpay!.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
       
-      _razorpay!.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
-      _razorpay!.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
-      _razorpay!.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
-      
-      _isInitialized = true;
-      debugPrint('✅ Payment service initialized');
+      _isInitialized = false; // Keep false for demo
+      debugPrint('⚠️ Payment service DISABLED for demo');
     } catch (e) {
       debugPrint('❌ Payment service initialization error: $e');
     }

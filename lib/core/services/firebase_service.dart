@@ -19,6 +19,9 @@ class FirebaseService {
   String? _verificationId;
   int? _resendToken;
 
+  /// Check if Firebase is initialized
+  bool get isInitialized => _initialized;
+
   /// Initialize Firebase
   /// IMPORTANT: Run 'flutterfire configure' to generate firebase_options.dart
   Future<void> init() async {
