@@ -92,15 +92,31 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
 
     HapticFeedback.mediumImpact();
 
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 1));
+    // Send real OTP via Firebase
+    final success = await ref.read(authRiverpodProvider.notifier).sendOTP(_phoneController.text);
 
     if (mounted) {
-      setState(() {
-        _isLoading = false;
-        _otpSent = true;
-      });
-      _otpFocusNode.requestFocus();
+      if (success) {
+        setState(() {
+          _isLoading = false;
+          _otpSent = true;
+        });
+        _otpFocusNode.requestFocus();
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('OTP sent to +91 ${_phoneController.text}'),
+            backgroundColor: GLuxuryPalettes.gold.success,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else {
+        final error = ref.read(authRiverpodProvider).error;
+        setState(() {
+          _isLoading = false;
+          _errorMessage = error ?? 'Failed to send OTP';
+        });
+      }
     }
   }
 
@@ -118,22 +134,25 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
 
     HapticFeedback.mediumImpact();
 
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 1));
+    // Verify OTP and register via Firebase
+    final success = await ref.read(authRiverpodProvider.notifier).verifyOTP(
+      _otpController.text,
+      name: _nameController.text,
+      email: _emailController.text.isEmpty ? null : _emailController.text,
+      isRegistration: true,
+    );
 
     if (mounted) {
-      // Mock successful registration
-      ref.read(authRiverpodProvider.notifier).login(
-            'user_${_phoneController.text}',
-            _nameController.text,
-            _phoneController.text,
-            email: _emailController.text.isEmpty ? null : _emailController.text,
-          );
-
       setState(() => _isLoading = false);
       
-      // Navigate to home
-      context.go('/home');
+      if (success) {
+        // Navigate to home
+        context.go('/home');
+      } else {
+        final error = ref.read(authRiverpodProvider).error;
+        setState(() => _errorMessage = error ?? 'Registration failed');
+        _triggerShake();
+      }
     }
   }
 

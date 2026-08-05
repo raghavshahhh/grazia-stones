@@ -71,15 +71,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
     HapticFeedback.mediumImpact();
 
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 1));
+    // Send real OTP via Firebase
+    final success = await ref.read(authRiverpodProvider.notifier).sendOTP(_phoneController.text);
 
     if (mounted) {
-      setState(() {
-        _isLoading = false;
-        _otpSent = true;
-      });
-      _otpFocusNode.requestFocus();
+      if (success) {
+        setState(() {
+          _isLoading = false;
+          _otpSent = true;
+        });
+        _otpFocusNode.requestFocus();
+        
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('OTP sent to +91 ${_phoneController.text}'),
+            backgroundColor: GLuxuryPalettes.gold.success,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else {
+        // Error handled by provider, show it
+        final error = ref.read(authRiverpodProvider).error;
+        setState(() {
+          _isLoading = false;
+          _errorMessage = error ?? 'Failed to send OTP';
+        });
+      }
     }
   }
 
@@ -97,21 +115,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
     HapticFeedback.mediumImpact();
 
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 1));
+    // Verify OTP via Firebase
+    final success = await ref.read(authRiverpodProvider.notifier).verifyOTP(
+      _otpController.text,
+      name: 'User ${_phoneController.text.substring(0, 3)}',
+    );
 
     if (mounted) {
-      // Mock successful login
-      ref.read(authRiverpodProvider.notifier).login(
-            'user_${_phoneController.text}',
-            'User ${_phoneController.text.substring(0, 3)}',
-            _phoneController.text,
-          );
-
       setState(() => _isLoading = false);
       
-      // Navigate to home
-      context.go('/home');
+      if (success) {
+        // Navigate to home
+        context.go('/home');
+      } else {
+        // Show error
+        final error = ref.read(authRiverpodProvider).error;
+        setState(() => _errorMessage = error ?? 'Invalid OTP');
+        _triggerShake();
+      }
     }
   }
 

@@ -9,6 +9,9 @@ import '../core/network/api_client.dart';
 import '../core/repositories/stone_repository.dart';
 import '../core/repositories/collection_repository.dart';
 import '../core/repositories/dealer_repository.dart';
+import '../core/repositories/cart_repository.dart';
+import '../core/repositories/order_repository.dart';
+import '../core/repositories/user_repository.dart';
 
 // ─── Network ───
 final dioProvider = Provider<Dio>((ref) {
@@ -39,6 +42,18 @@ final collectionRepositoryProvider = Provider<CollectionRepository>((ref) {
 
 final dealerRepositoryProvider = Provider<DealerRepository>((ref) {
   return DealerRepository(ref.watch(apiClientProvider));
+});
+
+final cartRepositoryProvider = Provider<CartRepository>((ref) {
+  return CartRepository(ref.watch(apiClientProvider));
+});
+
+final orderRepositoryProvider = Provider<OrderRepository>((ref) {
+  return OrderRepository(ref.watch(apiClientProvider));
+});
+
+final userRepositoryProvider = Provider<UserRepository>((ref) {
+  return UserRepository(ref.watch(apiClientProvider));
 });
 
 // ─── State Notifiers (Riverpod) ───

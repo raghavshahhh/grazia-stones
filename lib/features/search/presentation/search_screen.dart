@@ -195,7 +195,7 @@ class _SearchScreenState extends State<SearchScreen> {
               padding: GLuxurySpacing.horizontalBase,
               scrollDirection: Axis.horizontal,
               itemCount: _allFilters.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
               itemBuilder: (context, index) {
                 final filter = _allFilters[index];
                 final isSelected = _selectedFilters.contains(filter);
@@ -373,7 +373,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   width: 80,
                   height: 80,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
+                  errorBuilder: (_, _, _) => Container(
                     width: 80,
                     height: 80,
                     color: palette.surfaceDark,

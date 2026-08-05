@@ -91,7 +91,6 @@ class _HomeHeroCarouselState extends State<HomeHeroCarousel> {
   Widget _buildSlide(int index) {
     final stone = widget.stones[index];
     final imageUrl = stone.imageUrl ?? '';
-    final hasImage = imageUrl.isNotEmpty;
     final palette = GLuxuryPalettes.gold;
 
     return Padding(

@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
+import 'package:grazia_stones/core/services/storage_service.dart';
 
 /// Holds the active [LuxuryPalette] for the entire app.
 /// Default is gold (Grazia branding). Swap to marble / obsidian / etc. for white-label.
@@ -9,24 +11,55 @@ final themePaletteProvider =
 });
 
 class ThemePaletteNotifier extends StateNotifier<LuxuryPalette> {
-  ThemePaletteNotifier() : super(GLuxuryPalettes.gold);
+  final StorageService _storage = StorageService.instance;
+
+  ThemePaletteNotifier() : super(GLuxuryPalettes.gold) {
+    _loadPersistedTheme();
+  }
 
   bool get isDarkMode => state is GoldPalette || state is ObsidianPalette || state is MidnightPalette;
 
-  void toggleTheme() {
-    if (isDarkMode) {
-      state = GLuxuryPalettes.pearl; // Light Mode (Day)
-    } else {
-      state = GLuxuryPalettes.gold; // Dark Mode (Night)
+  /// Load theme from storage
+  Future<void> _loadPersistedTheme() async {
+    try {
+      final isDark = _storage.getThemeMode();
+      state = isDark ? GLuxuryPalettes.gold : GLuxuryPalettes.pearl;
+      debugPrint('✅ Theme restored: ${isDark ? "Dark" : "Light"}');
+    } catch (e) {
+      debugPrint('❌ Error loading theme: $e');
     }
   }
 
-  void setPalette(LuxuryPalette palette) => state = palette;
+  /// Save theme to storage
+  Future<void> _persistTheme(bool isDark) async {
+    try {
+      await _storage.saveThemeMode(isDark);
+      debugPrint('✅ Theme saved: ${isDark ? "Dark" : "Light"}');
+    } catch (e) {
+      debugPrint('❌ Error saving theme: $e');
+    }
+  }
 
-  void setGold() => state = GLuxuryPalettes.gold;
-  void setMarble() => state = GLuxuryPalettes.marble;
-  void setObsidian() => state = GLuxuryPalettes.obsidian;
-  void setPearl() => state = GLuxuryPalettes.pearl;
-  void setRoseGold() => state = GLuxuryPalettes.roseGold;
-  void setMidnight() => state = GLuxuryPalettes.midnight;
+  Future<void> toggleTheme() async {
+    if (isDarkMode) {
+      state = GLuxuryPalettes.pearl; // Light Mode (Day)
+      await _persistTheme(false);
+    } else {
+      state = GLuxuryPalettes.gold; // Dark Mode (Night)
+      await _persistTheme(true);
+    }
+  }
+
+  Future<void> setPalette(LuxuryPalette palette) async {
+    state = palette;
+    final isDark = palette is GoldPalette || palette is ObsidianPalette || palette is MidnightPalette;
+    await _persistTheme(isDark);
+  }
+
+  void setGold() => setPalette(GLuxuryPalettes.gold);
+  void setMarble() => setPalette(GLuxuryPalettes.marble);
+  void setObsidian() => setPalette(GLuxuryPalettes.obsidian);
+  void setPearl() => setPalette(GLuxuryPalettes.pearl);
+  void setRoseGold() => setPalette(GLuxuryPalettes.roseGold);
+  void setMidnight() => setPalette(GLuxuryPalettes.midnight);
 }

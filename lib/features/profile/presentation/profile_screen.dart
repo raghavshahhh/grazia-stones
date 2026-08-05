@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,8 +6,10 @@ import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/typography.dart';
 import 'package:grazia_stones/shared/theme/spacing.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
-import 'package:grazia_stones/core/services/mock_data_service.dart';
 import 'package:grazia_stones/features/cart/presentation/cart_screen.dart';
+import 'package:grazia_stones/features/profile/presentation/edit_profile_screen.dart';
+import 'package:grazia_stones/features/profile/presentation/addresses_screen.dart';
+import 'package:grazia_stones/core/di.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -141,7 +142,13 @@ class ProfileScreen extends ConsumerWidget {
                           GestureDetector(
                             onTap: () {
                               HapticFeedback.lightImpact();
-                              _showEditProfile(context, palette);
+                              // Navigate to edit profile screen
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const EditProfileScreen(),
+                                ),
+                              );
                             },
                             child: Container(
                               padding: const EdgeInsets.all(10),
@@ -250,7 +257,7 @@ class ProfileScreen extends ConsumerWidget {
                         HapticFeedback.lightImpact();
                         ref.read(themePaletteProvider.notifier).toggleTheme();
                       },
-                      activeColor: palette.primary,
+                      activeThumbColor: palette.primary,
                     ),
                     onTap: () => ref.read(themePaletteProvider.notifier).toggleTheme(),
                   ),
@@ -259,7 +266,14 @@ class ProfileScreen extends ConsumerWidget {
                     icon: Icons.location_on_outlined,
                     title: 'Saved Addresses',
                     subtitle: 'Manage delivery addresses',
-                    onTap: () => _showAddresses(context, palette),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const AddressesScreen(),
+                        ),
+                      );
+                    },
                   ),
                   _MenuItem(
                     palette: palette,

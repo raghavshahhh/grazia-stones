@@ -9,6 +9,7 @@ import 'package:grazia_stones/shared/theme/typography.dart';
 import 'package:grazia_stones/shared/theme/spacing.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
+import 'package:grazia_stones/features/cart/presentation/checkout_screen.dart';
 
 // ─── Cart State Model ──────────────────────────────────────
 class CartItem {
@@ -122,7 +123,7 @@ class CartScreen extends ConsumerWidget {
             actions: [
               if (items.isNotEmpty)
                 TextButton(
-                  onPressed: () {
+                  onPressed: () async {
                     HapticFeedback.mediumImpact();
                     ref.read(cartProvider.notifier).clear();
                   },
@@ -300,54 +301,23 @@ class CartScreen extends ConsumerWidget {
                     child: ElevatedButton(
                       onPressed: () {
                         HapticFeedback.mediumImpact();
-                        showDialog(
-                          context: context,
-                          builder: (_) => AlertDialog(
-                            backgroundColor: palette.surface,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                            content: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 64,
-                                  height: 64,
-                                  decoration: BoxDecoration(
-                                    gradient: palette.primaryGradient,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Icon(Icons.check, color: palette.background, size: 30),
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Order Placed!',
-                                  style: GLuxuryTypography.h2.copyWith(color: palette.textPrimary),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Your order has been placed. Our team will contact you within 24 hours.',
-                                  textAlign: TextAlign.center,
-                                  style: GLuxuryTypography.bodySmall.copyWith(color: palette.textSecondary),
-                                ),
-                                const SizedBox(height: 20),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton(
-                                    onPressed: () {
-                                      Navigator.pop(context);
-                                      ref.read(cartProvider.notifier).clear();
-                                      context.go('/home');
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: palette.primary,
-                                      foregroundColor: palette.background,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                    ),
-                                    child: Text('Continue Shopping', style: GLuxuryTypography.labelLarge),
-                                  ),
-                                ),
-                              ],
+                        // Navigate to checkout screen
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => CheckoutScreen(
+                              items: items
+                                  .map((item) => CheckoutItem(
+                                        stoneId: item.stone.id,
+                                        name: item.stone.name,
+                                        quantity: item.quantity,
+                                        price: item.stone.pricePerSqFt,
+                                      ))
+                                  .toList(),
+                              subtotal: subtotal,
+                              gst: gst,
+                              shipping: shipping,
+                              total: total,
                             ),
                           ),
                         );

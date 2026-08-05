@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:grazia_stones/core/services/mock_data_service.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/spacing.dart';
 import 'package:grazia_stones/shared/theme/typography.dart';
@@ -10,9 +9,11 @@ import 'package:grazia_stones/features/home/presentation/widgets/home_hero_carou
 import 'package:grazia_stones/features/home/presentation/widgets/home_quick_actions.dart';
 import 'package:grazia_stones/features/home/presentation/widgets/home_collection_strip.dart';
 import 'package:grazia_stones/features/home/presentation/widgets/home_trending_grid.dart';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
+import 'package:grazia_stones/core/di.dart';
+import 'package:grazia_stones/core/models/stone.dart';
+import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -22,6 +23,9 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
+  List<Stone>? _trendingStones;
+  List<Map<String, dynamic>>? _collections;
+  Object? _error;
   bool _isLoading = true;
 
   @override
@@ -31,7 +35,38 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _loadData() async {
-    if (mounted) setState(() => _isLoading = false);
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final stoneRepo = ref.read(stoneRepositoryProvider);
+      
+      // Load trending stones and collections in parallel
+      final results = await Future.wait([
+        stoneRepo.getTrendingStones(limit: 10),
+        stoneRepo.getCollections(),
+      ]);
+
+      if (mounted) {
+        setState(() {
+          _trendingStones = results[0] as List<Stone>;
+          _collections = results[1] as List<Map<String, dynamic>>;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('❌ Home screen error: $e');
+      if (mounted) {
+        setState(() {
+          _error = e;
+          _isLoading = false;
+        });
+        // Show snackbar but don't block UI completely
+        showErrorSnackbar(context, e, onRetry: _loadData);
+      }
+    }
   }
 
   @override
@@ -141,8 +176,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildContent(LuxuryPalette palette) {
-    final trendingStones = MockDataService.getTrendingStones();
-    final collections = MockDataService.collections;
+    // Show error state if data failed to load
+    if (_error != null && _trendingStones == null && _collections == null) {
+      return ErrorHandlerWidget(
+        error: _error!,
+        onRetry: _loadData,
+      );
+    }
+
+    // Use loaded data or show empty defaults
+    final trendingStones = _trendingStones ?? [];
+    final collections = _collections ?? [];
+    
     final quickActions = [
       {'icon': Icons.auto_awesome_outlined, 'label': 'AI Viz', 'route': '/ai-viz'},
       {'icon': Icons.camera_alt_outlined, 'label': 'AR View', 'route': '/ar-view'},
@@ -151,19 +196,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ];
 
     return RefreshIndicator(
-      onRefresh: () async {
-        setState(() => _isLoading = true);
-        await _loadData();
-      },
+      onRefresh: _loadData,
       color: palette.primary,
       backgroundColor: palette.background,
       child: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          SliverToBoxAdapter(
-            child: HomeHeroCarousel(stones: trendingStones),
-          ),
+          // Hero Carousel
+          if (trendingStones.isNotEmpty)
+            SliverToBoxAdapter(
+              child: HomeHeroCarousel(stones: trendingStones),
+            )
+          else
+            SliverToBoxAdapter(
+              child: Container(
+                height: 220,
+                margin: GLuxurySpacing.horizontalBase,
+                decoration: BoxDecoration(
+                  color: palette.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: palette.border),
+                ),
+                child: Center(
+                  child: Text(
+                    'No trending stones available',
+                    style: GLuxuryTypography.bodyMedium.copyWith(
+                      color: palette.textSecondary,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            
           SliverToBoxAdapter(child: GLuxurySpacing.gapXl),
+          
+          // Quick Actions
           SliverToBoxAdapter(child: _SectionTitle(title: 'Quick Actions')),
           SliverToBoxAdapter(child: GLuxurySpacing.gapMd),
           SliverToBoxAdapter(
@@ -175,28 +242,61 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               },
             ),
           ),
+          
           SliverToBoxAdapter(child: GLuxurySpacing.gapXxl),
-          SliverToBoxAdapter(
-            child: _SectionTitle(
-              title: 'Collections',
-              actionLabel: 'View All',
-              onAction: () => context.push('/collections'),
+          
+          // Collections
+          if (collections.isNotEmpty) ...[
+            SliverToBoxAdapter(
+              child: _SectionTitle(
+                title: 'Collections',
+                actionLabel: 'View All',
+                onAction: () => context.push('/collections'),
+              ),
             ),
-          ),
-          SliverToBoxAdapter(child: GLuxurySpacing.gapMd),
-          SliverToBoxAdapter(
-            child: HomeCollectionStrip(
-              collections: collections,
-              onCollectionTap: (c) =>
-                  context.push('/collections/${c.id}'),
+            SliverToBoxAdapter(child: GLuxurySpacing.gapMd),
+            SliverToBoxAdapter(
+              child: HomeCollectionStrip(
+                collections: collections.map((c) {
+                  // Convert Map to Collection object format
+                  return {
+                    'id': c['id'] ?? '',
+                    'name': c['name'] ?? '',
+                    'description': c['description'] ?? '',
+                    'imageUrl': c['image_url'] ?? c['imageUrl'] ?? '',
+                    'stoneCount': c['stone_count'] ?? c['stoneCount'] ?? 0,
+                  };
+                }).toList(),
+                onCollectionTap: (c) {
+                  final id = c['id'] as String?;
+                  if (id != null) context.push('/collections/$id');
+                },
+              ),
             ),
-          ),
+          ] else ...[
+            SliverToBoxAdapter(child: GLuxurySpacing.gapBase),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: GLuxurySpacing.horizontalBase,
+                child: Text(
+                  'No collections available',
+                  style: GLuxuryTypography.bodyMedium.copyWith(
+                    color: palette.textSecondary,
+                  ),
+                ),
+              ),
+            ),
+          ],
+          
           SliverToBoxAdapter(child: GLuxurySpacing.gapXxl),
+          
+          // Trending Stones
           const SliverToBoxAdapter(
             child: _SectionTitle(title: 'Trending Stones'),
           ),
           SliverToBoxAdapter(child: GLuxurySpacing.gapMd),
           const SliverToBoxAdapter(child: HomeTrendingGrid()),
+          
           const SliverToBoxAdapter(child: SizedBox(height: 100)),
         ],
       ),

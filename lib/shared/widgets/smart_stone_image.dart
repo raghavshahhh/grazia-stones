@@ -40,7 +40,7 @@ class SmartStoneImage extends StatelessWidget {
         fit: fit,
         width: width,
         height: height,
-        errorBuilder: (_, __, ___) => _buildPlaceholder(activePalette),
+        errorBuilder: (_, _, _) => _buildPlaceholder(activePalette),
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) return child;
           return _buildPlaceholder(activePalette);
@@ -54,7 +54,7 @@ class SmartStoneImage extends StatelessWidget {
       fit: fit,
       width: width,
       height: height,
-      errorBuilder: (_, __, ___) => _buildPlaceholder(activePalette),
+      errorBuilder: (_, _, _) => _buildPlaceholder(activePalette),
     );
   }
 

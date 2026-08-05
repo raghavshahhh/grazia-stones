@@ -53,7 +53,7 @@ class CollectionDetailScreen extends StatelessWidget {
                     children: [
                       _buildStatCard(palette, '${stones.length}', 'Products'),
                       const SizedBox(width: 12),
-                      _buildStatCard(palette, '${_calculatePriceRange(stones)}', 'Price Range'),
+                      _buildStatCard(palette, _calculatePriceRange(stones), 'Price Range'),
                     ],
                   ),
                   GLuxurySpacing.gapXl,
@@ -163,7 +163,7 @@ class _StoneCard extends StatelessWidget {
                   child: Image.network(
                     stone.imageUrl ?? '',
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
+                    errorBuilder: (_, _, _) => Container(
                       color: palette.surfaceDark,
                       child: Icon(Icons.image_outlined, color: palette.textTertiary, size: 40),
                     ),

@@ -162,17 +162,4 @@ class GStoneCard extends StatelessWidget {
       ),
     );
   }
-
-  Widget _buildPlaceholder(LuxuryPalette palette) {
-    return Container(
-      color: palette.surfaceLight,
-      child: Center(
-        child: Icon(
-          Icons.texture_rounded,
-          size: 48,
-          color: palette.textTertiary.withValues(alpha: 0.3),
-        ),
-      ),
-    );
-  }
 }

@@ -198,7 +198,7 @@ class _QuoteRequestScreenState extends State<QuoteRequestScreen> {
                         width: 50,
                         height: 50,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
+                        errorBuilder: (_, _, _) => Container(
                           width: 50,
                           height: 50,
                           color: palette.surfaceDark,
