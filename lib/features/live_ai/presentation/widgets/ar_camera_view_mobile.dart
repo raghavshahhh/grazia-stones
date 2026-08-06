@@ -15,16 +15,25 @@ class ARCameraView extends StatefulWidget {
     this.onError,
     this.stoneImagePath,
     this.opacity = 0.72,
+    this.scale = 1.0,
+    this.position = Offset.zero,
+    this.rotation = 0.0,
   });
 
   final VoidCallback? onReady;
   final VoidCallback? onError;
   final String? stoneImagePath;
   final double opacity;
+  final double scale;
+  final Offset position;
+  final double rotation;
 
   // Static control API
   static String? _currentStoneTexture;
   static double _currentOpacity = 0.72;
+  static double _currentScale = 1.0;
+  static Offset _currentPosition = Offset.zero;
+  static double _currentRotation = 0.0;
   static bool _showBoundary = false;
   static final _controller = StreamController<_ARUpdate>.broadcast();
 
@@ -37,6 +46,21 @@ class ARCameraView extends StatefulWidget {
   static void updateOpacity(double opacity) {
     _currentOpacity = opacity;
     _controller.add(_ARUpdate(opacity: opacity));
+  }
+
+  static void updateScale(double scale) {
+    _currentScale = scale;
+    _controller.add(_ARUpdate(scale: scale));
+  }
+
+  static void updatePosition(Offset position) {
+    _currentPosition = position;
+    _controller.add(_ARUpdate(position: position));
+  }
+
+  static void updateRotation(double rotation) {
+    _currentRotation = rotation;
+    _controller.add(_ARUpdate(rotation: rotation));
   }
 
   static void showWallBoundary(bool show) {
@@ -55,10 +79,21 @@ class ARCameraView extends StatefulWidget {
 class _ARUpdate {
   final String? stone;
   final double? opacity;
+  final double? scale;
+  final Offset? position;
+  final double? rotation;
   final bool? showBoundary;
   final bool? stop;
 
-  _ARUpdate({this.stone, this.opacity, this.showBoundary, this.stop});
+  _ARUpdate({
+    this.stone,
+    this.opacity,
+    this.scale,
+    this.position,
+    this.rotation,
+    this.showBoundary,
+    this.stop,
+  });
 }
 
 class _ARCameraViewState extends State<ARCameraView>
@@ -71,6 +106,9 @@ class _ARCameraViewState extends State<ARCameraView>
 
   String? _displayStoneTexture;
   double _displayOpacity = 0.72;
+  double _displayScale = 1.0;
+  Offset _displayPosition = Offset.zero;
+  double _displayRotation = 0.0;
   bool _showWallBracket = false;
 
   StreamSubscription? _updateSubscription;
@@ -81,6 +119,9 @@ class _ARCameraViewState extends State<ARCameraView>
     WidgetsBinding.instance.addObserver(this);
     _displayStoneTexture = widget.stoneImagePath;
     _displayOpacity = widget.opacity;
+    _displayScale = widget.scale;
+    _displayPosition = widget.position;
+    _displayRotation = widget.rotation;
     _initializeCamera();
 
     // Listen to static updates
@@ -89,6 +130,9 @@ class _ARCameraViewState extends State<ARCameraView>
       setState(() {
         if (update.stone != null) _displayStoneTexture = update.stone;
         if (update.opacity != null) _displayOpacity = update.opacity!;
+        if (update.scale != null) _displayScale = update.scale!;
+        if (update.position != null) _displayPosition = update.position!;
+        if (update.rotation != null) _displayRotation = update.rotation!;
         if (update.showBoundary != null) _showWallBracket = update.showBoundary!;
         if (update.stop == true) _disposeCamera();
       });
@@ -188,10 +232,16 @@ class _ARCameraViewState extends State<ARCameraView>
   void didUpdateWidget(ARCameraView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.stoneImagePath != widget.stoneImagePath ||
-        oldWidget.opacity != widget.opacity) {
+        oldWidget.opacity != widget.opacity ||
+        oldWidget.scale != widget.scale ||
+        oldWidget.position != widget.position ||
+        oldWidget.rotation != widget.rotation) {
       setState(() {
         _displayStoneTexture = widget.stoneImagePath;
         _displayOpacity = widget.opacity;
+        _displayScale = widget.scale;
+        _displayPosition = widget.position;
+        _displayRotation = widget.rotation;
       });
     }
   }
@@ -240,40 +290,73 @@ class _ARCameraViewState extends State<ARCameraView>
           ),
         ),
 
-        // Stone texture overlay
+        // Stone texture overlay with realistic blending + interactive transforms
+        // 80% opacity + multiply blend + edge feathering + scale + position + rotation
         if (_displayStoneTexture != null)
           Positioned.fill(
-            child: Opacity(
-              opacity: _displayOpacity,
-              child: Container(
-                decoration: BoxDecoration(
-                  image: DecorationImage(
-                    image: AssetImage(_displayStoneTexture!),
-                    repeat: ImageRepeat.repeat,
-                    scale: 3.0, // Make pattern larger
+            child: Transform.translate(
+              offset: _displayPosition,
+              child: Transform.rotate(
+                angle: _displayRotation,
+                child: Transform.scale(
+                  scale: _displayScale,
+                  child: Opacity(
+                    opacity: _displayOpacity,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        image: DecorationImage(
+                          image: AssetImage(_displayStoneTexture!),
+                          repeat: ImageRepeat.repeat,
+                          scale: 2.5 / _displayScale, // Adjust tile size based on scale
+                        ),
+                      ),
+                      // Multiply blend mode preserves shadows and lighting
+                      foregroundDecoration: BoxDecoration(
+                        color: Colors.transparent,
+                        backgroundBlendMode: BlendMode.multiply,
+                      ),
+                    ),
                   ),
-                ),
-                // Use multiply blend mode for realistic effect
-                // This darkens lighter areas and preserves darker areas
-                foregroundDecoration: BoxDecoration(
-                  color: Colors.transparent,
-                  backgroundBlendMode: BlendMode.multiply,
                 ),
               ),
             ),
           ),
 
-        // Subtle vignette
+        // Edge feathering gradient (2-4px soft edges)
+        if (_displayStoneTexture != null)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: 0.12),
+                      Colors.transparent,
+                      Colors.transparent,
+                      Colors.black.withValues(alpha: 0.12),
+                    ],
+                    stops: const [0.0, 0.06, 0.94, 1.0],
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+        // Subtle vignette for depth
         Positioned.fill(
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment.center,
-                radius: 0.8,
-                colors: [
-                  Colors.transparent,
-                  Colors.black.withValues(alpha: 0.25),
-                ],
+          child: IgnorePointer(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment.center,
+                  radius: 0.85,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: 0.20),
+                  ],
+                ),
               ),
             ),
           ),

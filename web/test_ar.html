@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Grazia AR Test</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #000;
+      color: #fff;
+    }
+    #grazia-ar-container {
+      width: 100vw;
+      height: 100vh;
+    }
+    #controls {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.8);
+      padding: 15px;
+      border-radius: 12px;
+      display: flex;
+      gap: 10px;
+      z-index: 1000;
+    }
+    button {
+      background: #C8A53C;
+      color: #000;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover {
+      opacity: 0.8;
+    }
+  </style>
+</head>
+<body>
+  <div id="grazia-ar-container"></div>
+  
+  <div id="controls">
+    <button onclick="startCamera()">Start Camera</button>
+    <button onclick="loadTexture1()">Marble Texture</button>
+    <button onclick="loadTexture2()">Granite Texture</button>
+    <button onclick="stopCamera()">Stop</button>
+  </div>
+
+  <script src="ar_camera.js"></script>
+  <script>
+    console.log('[Test] GraziaAR available:', typeof GraziaAR !== 'undefined');
+    
+    // Initialize
+    const initialized = GraziaAR.init('grazia-ar-container');
+    console.log('[Test] Initialized:', initialized);
+    
+    function startCamera() {
+      console.log('[Test] Starting camera...');
+      GraziaAR.startCamera()
+        .then(function(result) {
+          console.log('[Test] Camera started:', result);
+        })
+        .catch(function(err) {
+          console.error('[Test] Camera error:', err);
+          alert('Camera error: ' + err);
+        });
+    }
+    
+    function loadTexture1() {
+      // Use a sample marble texture URL
+      const textureUrl = 'https://images.unsplash.com/photo-1615529182904-14819c35db37?w=400';
+      console.log('[Test] Loading texture:', textureUrl);
+      GraziaAR.setTexture(textureUrl);
+    }
+    
+    function loadTexture2() {
+      // Use a sample granite texture URL
+      const textureUrl = 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=400';
+      console.log('[Test] Loading texture:', textureUrl);
+      GraziaAR.setTexture(textureUrl);
+    }
+    
+    function stopCamera() {
+      console.log('[Test] Stopping camera...');
+      GraziaAR.stopCamera();
+    }
+  </script>
+</body>
+</html>

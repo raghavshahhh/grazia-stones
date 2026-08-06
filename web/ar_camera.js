@@ -1,50 +1,37 @@
 // Grazia Stones AR Camera Engine
-// Real camera + stone texture overlay for Live AI screen
-// Safari-compatible: user-gesture-based camera start, fallback constraints
+// Real wall detection + perspective transform + realistic texture mapping
 
 (function () {
   'use strict';
 
   var _stream = null;
   var _video = null;
-  var _textureOverlay = null;
-  var _wallBracket = null;
+  var _canvas = null;
+  var _ctx = null;
+  var _textureImage = null;
   var _container = null;
+  var _animationFrame = null;
   var _initDone = false;
-
-  function _createCornerBracket(position) {
-    var el = document.createElement('div');
-    var isLeft = position === 'tl' || position === 'bl';
-    var isTop = position === 'tl' || position === 'tr';
-    el.style.cssText = [
-      'position:absolute;width:22px;height:22px;',
-      isTop ? 'top:-1px;' : 'bottom:-1px;',
-      isLeft ? 'left:-1px;' : 'right:-1px;',
-      'border-top:' + (isTop ? '3px solid rgba(200,165,60,0.9)' : 'none') + ';',
-      'border-bottom:' + (!isTop ? '3px solid rgba(200,165,60,0.9)' : 'none') + ';',
-      'border-left:' + (isLeft ? '3px solid rgba(200,165,60,0.9)' : 'none') + ';',
-      'border-right:' + (!isLeft ? '3px solid rgba(200,165,60,0.9)' : 'none') + ';',
-    ].join('');
-    return el;
-  }
-
-  // Find the container by id, checking shadow DOMs too (Flutter Web wraps in shadow)
+  
+  // Wall detection state
+  var _wallCorners = null;
+  var _wallDetected = false;
+  
+  // Find container (handles Flutter Web shadow DOM)
   function _findContainer(containerId) {
-    // 1. Normal DOM
     var el = document.getElementById(containerId);
     if (el) return el;
-    // 2. Search inside every flt-platform-view shadow root
+    
     var views = document.querySelectorAll('flt-platform-view');
     for (var i = 0; i < views.length; i++) {
       if (views[i].shadowRoot) {
         var inner = views[i].shadowRoot.getElementById(containerId);
         if (inner) return inner;
       }
-      // also try direct children
       var child = views[i].querySelector('#' + containerId);
       if (child) return child;
     }
-    // 3. Deep search in all shadow roots
+    
     var allEls = document.querySelectorAll('*');
     for (var j = 0; j < allEls.length; j++) {
       if (allEls[j].shadowRoot) {
@@ -54,10 +41,349 @@
     }
     return null;
   }
+  
+  // Improved edge detection with Sobel operator
+  function _detectEdges(imageData, width, height) {
+    var data = imageData.data;
+    var edges = new Uint8Array(width * height);
+    var threshold = 30;
+    
+    for (var y = 1; y < height - 1; y++) {
+      for (var x = 1; x < width - 1; x++) {
+        var idx = y * width + x;
+        
+        // Sobel kernels
+        var gx = 0, gy = 0;
+        
+        // Get 3x3 neighborhood grayscale values
+        for (var dy = -1; dy <= 1; dy++) {
+          for (var dx = -1; dx <= 1; dx++) {
+            var pixelIdx = ((y + dy) * width + (x + dx)) * 4;
+            var gray = (data[pixelIdx] + data[pixelIdx + 1] + data[pixelIdx + 2]) / 3;
+            
+            // Sobel X kernel: [-1,0,1; -2,0,2; -1,0,1]
+            if (dx === -1) gx -= gray * (dy === 0 ? 2 : 1);
+            if (dx === 1) gx += gray * (dy === 0 ? 2 : 1);
+            
+            // Sobel Y kernel: [-1,-2,-1; 0,0,0; 1,2,1]
+            if (dy === -1) gy -= gray * (dx === 0 ? 2 : 1);
+            if (dy === 1) gy += gray * (dx === 0 ? 2 : 1);
+          }
+        }
+        
+        var magnitude = Math.sqrt(gx * gx + gy * gy);
+        edges[idx] = magnitude > threshold ? 255 : 0;
+      }
+    }
+    
+    return edges;
+  }
+  
+  // Find largest rectangular region (wall candidate)
+  function _findWallRegion(edges, width, height) {
+    // Find strong horizontal and vertical lines
+    var horizontalLines = [];
+    var verticalLines = [];
+    
+    // Detect horizontal lines
+    for (var y = 0; y < height; y += 4) {
+      var strength = 0;
+      for (var x = 0; x < width; x++) {
+        if (edges[y * width + x] > 0) strength++;
+      }
+      if (strength > width * 0.3) {
+        horizontalLines.push({y: y, strength: strength});
+      }
+    }
+    
+    // Detect vertical lines
+    for (var x = 0; x < width; x += 4) {
+      var strength = 0;
+      for (var y = 0; y < height; y++) {
+        if (edges[y * width + x] > 0) strength++;
+      }
+      if (strength > height * 0.3) {
+        verticalLines.push({x: x, strength: strength});
+      }
+    }
+    
+    // If we have enough lines, wall likely detected
+    if (horizontalLines.length >= 2 && verticalLines.length >= 2) {
+      // Sort by strength
+      horizontalLines.sort(function(a, b) { return b.strength - a.strength; });
+      verticalLines.sort(function(a, b) { return b.strength - a.strength; });
+      
+      // Take top and bottom horizontal lines
+      var top = horizontalLines[0].y;
+      var bottom = horizontalLines[horizontalLines.length - 1].y;
+      if (bottom < top) {
+        var temp = top;
+        top = bottom;
+        bottom = temp;
+      }
+      
+      // Take left and right vertical lines
+      var left = verticalLines[0].x;
+      var right = verticalLines[verticalLines.length - 1].x;
+      if (right < left) {
+        var temp = left;
+        left = right;
+        right = temp;
+      }
+      
+      // Ensure reasonable size
+      if (right - left > width * 0.4 && bottom - top > height * 0.4) {
+        return {
+          tl: {x: left, y: top},
+          tr: {x: right, y: top},
+          bl: {x: left, y: bottom},
+          br: {x: right, y: bottom}
+        };
+      }
+    }
+    
+    // Fallback: use center region
+    var margin = 0.15;
+    return {
+      tl: {x: width * margin, y: height * margin},
+      tr: {x: width * (1 - margin), y: height * margin},
+      bl: {x: width * margin, y: height * (1 - margin)},
+      br: {x: width * (1 - margin), y: height * (1 - margin)}
+    };
+  }
+  
+  // Draw texture with perspective transform using triangle strips
+  function _drawTextureWithPerspective(corners, texture, ctx, canvasWidth, canvasHeight) {
+    if (!texture) return;
+    
+    // Create pattern from texture (tiled)
+    var patternCanvas = document.createElement('canvas');
+    var tileSize = 200;
+    patternCanvas.width = tileSize * 3;
+    patternCanvas.height = tileSize * 3;
+    var patternCtx = patternCanvas.getContext('2d');
+    
+    // Tile the texture
+    for (var ty = 0; ty < 3; ty++) {
+      for (var tx = 0; tx < 3; tx++) {
+        patternCtx.drawImage(texture, tx * tileSize, ty * tileSize, tileSize, tileSize);
+      }
+    }
+    
+    // Draw using triangle strips for better perspective
+    var strips = 24;
+    
+    ctx.save();
+    ctx.globalAlpha = 0.75; // 75% opacity
+    ctx.globalCompositeOperation = 'multiply'; // Preserve shadows
+    
+    for (var i = 0; i < strips; i++) {
+      var t1 = i / strips;
+      var t2 = (i + 1) / strips;
+      
+      // Interpolate corners
+      var topLeft = {
+        x: corners.tl.x + (corners.bl.x - corners.tl.x) * t1,
+        y: corners.tl.y + (corners.bl.y - corners.tl.y) * t1
+      };
+      var topRight = {
+        x: corners.tr.x + (corners.br.x - corners.tr.x) * t1,
+        y: corners.tr.y + (corners.br.y - corners.tr.y) * t1
+      };
+      var bottomLeft = {
+        x: corners.tl.x + (corners.bl.x - corners.tl.x) * t2,
+        y: corners.tl.y + (corners.bl.y - corners.tl.y) * t2
+      };
+      var bottomRight = {
+        x: corners.tr.x + (corners.br.x - corners.tr.x) * t2,
+        y: corners.tr.y + (corners.br.y - corners.tr.y) * t2
+      };
+      
+      // Calculate strip dimensions
+      var stripHeight = bottomLeft.y - topLeft.y;
+      var topWidth = topRight.x - topLeft.x;
+      var bottomWidth = bottomRight.x - bottomLeft.x;
+      
+      // Draw quad as textured strip
+      ctx.beginPath();
+      ctx.moveTo(topLeft.x, topLeft.y);
+      ctx.lineTo(topRight.x, topRight.y);
+      ctx.lineTo(bottomRight.x, bottomRight.y);
+      ctx.lineTo(bottomLeft.x, bottomLeft.y);
+      ctx.closePath();
+      ctx.clip();
+      
+      // Draw pattern slice
+      var srcY = (patternCanvas.height * t1);
+      var srcHeight = (patternCanvas.height / strips);
+      
+      ctx.drawImage(
+        patternCanvas,
+        0, srcY, patternCanvas.width, srcHeight,
+        topLeft.x, topLeft.y, topWidth, stripHeight
+      );
+      
+      ctx.restore();
+      ctx.save();
+      ctx.globalAlpha = 0.75;
+      ctx.globalCompositeOperation = 'multiply';
+    }
+    
+    ctx.restore();
+    
+    // Add edge feathering (soft blur at edges)
+    ctx.save();
+    
+    // Top edge feather
+    var gradient = ctx.createLinearGradient(0, corners.tl.y - 3, 0, corners.tl.y + 3);
+    gradient.addColorStop(0, 'rgba(0,0,0,0.2)');
+    gradient.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(corners.tl.x, corners.tl.y - 3, corners.tr.x - corners.tl.x, 6);
+    
+    // Bottom edge feather
+    gradient = ctx.createLinearGradient(0, corners.bl.y - 3, 0, corners.bl.y + 3);
+    gradient.addColorStop(0, 'rgba(0,0,0,0)');
+    gradient.addColorStop(1, 'rgba(0,0,0,0.2)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(corners.bl.x, corners.bl.y - 3, corners.br.x - corners.bl.x, 6);
+    
+    // Left edge feather
+    gradient = ctx.createLinearGradient(corners.tl.x - 2, 0, corners.tl.x + 2, 0);
+    gradient.addColorStop(0, 'rgba(0,0,0,0.2)');
+    gradient.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(corners.tl.x - 2, corners.tl.y, 4, corners.bl.y - corners.tl.y);
+    
+    // Right edge feather
+    gradient = ctx.createLinearGradient(corners.tr.x - 2, 0, corners.tr.x + 2, 0);
+    gradient.addColorStop(0, 'rgba(0,0,0,0)');
+    gradient.addColorStop(1, 'rgba(0,0,0,0.2)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(corners.tr.x - 2, corners.tr.y, 4, corners.br.y - corners.tr.y);
+    
+    ctx.restore();
+  }
+  
+  // Main render loop
+  var _frameCount = 0;
+  function _renderFrame() {
+    if (!_video || !_canvas || !_ctx) return;
+    
+    _frameCount++;
+    var width = _canvas.width;
+    var height = _canvas.height;
+    
+    // Draw camera feed
+    _ctx.drawImage(_video, 0, 0, width, height);
+    
+    // Detect wall every 3 frames (performance optimization)
+    if (_frameCount % 3 === 0) {
+      // Downsample for edge detection
+      var detectWidth = Math.floor(width / 3);
+      var detectHeight = Math.floor(height / 3);
+      var detectCanvas = document.createElement('canvas');
+      detectCanvas.width = detectWidth;
+      detectCanvas.height = detectHeight;
+      var detectCtx = detectCanvas.getContext('2d');
+      detectCtx.drawImage(_video, 0, 0, detectWidth, detectHeight);
+      var imageData = detectCtx.getImageData(0, 0, detectWidth, detectHeight);
+      
+      // Detect edges
+      var edges = _detectEdges(imageData, detectWidth, detectHeight);
+      
+      // Find wall region
+      var wallRegion = _findWallRegion(edges, detectWidth, detectHeight);
+      
+      // Scale back to full resolution
+      _wallCorners = {
+        tl: {x: wallRegion.tl.x * 3, y: wallRegion.tl.y * 3},
+        tr: {x: wallRegion.tr.x * 3, y: wallRegion.tr.y * 3},
+        bl: {x: wallRegion.bl.x * 3, y: wallRegion.bl.y * 3},
+        br: {x: wallRegion.br.x * 3, y: wallRegion.br.y * 3}
+      };
+      
+      _wallDetected = true;
+    }
+    
+    // Draw visualization
+    if (_wallDetected && _wallCorners) {
+      // Draw wall detection bracket
+      _ctx.save();
+      _ctx.strokeStyle = 'rgba(200, 165, 60, 0.5)';
+      _ctx.lineWidth = 2;
+      _ctx.setLineDash([10, 5]);
+      _ctx.beginPath();
+      _ctx.moveTo(_wallCorners.tl.x, _wallCorners.tl.y);
+      _ctx.lineTo(_wallCorners.tr.x, _wallCorners.tr.y);
+      _ctx.lineTo(_wallCorners.br.x, _wallCorners.br.y);
+      _ctx.lineTo(_wallCorners.bl.x, _wallCorners.bl.y);
+      _ctx.closePath();
+      _ctx.stroke();
+      _ctx.setLineDash([]);
+      
+      // Draw corner brackets
+      var bracketSize = 22;
+      _ctx.strokeStyle = 'rgba(200, 165, 60, 0.9)';
+      _ctx.lineWidth = 3;
+      _ctx.lineCap = 'round';
+      
+      // Top-left
+      _ctx.beginPath();
+      _ctx.moveTo(_wallCorners.tl.x + bracketSize, _wallCorners.tl.y);
+      _ctx.lineTo(_wallCorners.tl.x, _wallCorners.tl.y);
+      _ctx.lineTo(_wallCorners.tl.x, _wallCorners.tl.y + bracketSize);
+      _ctx.stroke();
+      
+      // Top-right
+      _ctx.beginPath();
+      _ctx.moveTo(_wallCorners.tr.x - bracketSize, _wallCorners.tr.y);
+      _ctx.lineTo(_wallCorners.tr.x, _wallCorners.tr.y);
+      _ctx.lineTo(_wallCorners.tr.x, _wallCorners.tr.y + bracketSize);
+      _ctx.stroke();
+      
+      // Bottom-left
+      _ctx.beginPath();
+      _ctx.moveTo(_wallCorners.bl.x, _wallCorners.bl.y - bracketSize);
+      _ctx.lineTo(_wallCorners.bl.x, _wallCorners.bl.y);
+      _ctx.lineTo(_wallCorners.bl.x + bracketSize, _wallCorners.bl.y);
+      _ctx.stroke();
+      
+      // Bottom-right
+      _ctx.beginPath();
+      _ctx.moveTo(_wallCorners.br.x, _wallCorners.br.y - bracketSize);
+      _ctx.lineTo(_wallCorners.br.x, _wallCorners.br.y);
+      _ctx.lineTo(_wallCorners.br.x - bracketSize, _wallCorners.br.y);
+      _ctx.stroke();
+      
+      _ctx.restore();
+      
+      // Draw texture if loaded
+      if (_textureImage && _textureImage.complete) {
+        _drawTextureWithPerspective(_wallCorners, _textureImage, _ctx, width, height);
+      }
+    } else {
+      // Show hint message
+      _ctx.save();
+      _ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+      _ctx.fillRect(width/2 - 160, height/2 - 35, 320, 70);
+      _ctx.fillStyle = '#C8A53C';
+      _ctx.font = 'bold 15px -apple-system, sans-serif';
+      _ctx.textAlign = 'center';
+      _ctx.textBaseline = 'middle';
+      _ctx.fillText('Move camera towards a flat wall', width/2, height/2 - 10);
+      _ctx.font = '13px -apple-system, sans-serif';
+      _ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+      _ctx.fillText('Wall detection will activate automatically', width/2, height/2 + 15);
+      _ctx.restore();
+    }
+    
+    _animationFrame = requestAnimationFrame(_renderFrame);
+  }
 
+  // Public API
   window.GraziaAR = {
 
-    // Initialize the AR container (call this after the div is in DOM)
     init: function (containerId) {
       var el = _findContainer(containerId);
       if (!el) return false;
@@ -65,141 +391,80 @@
       if (_initDone) return true;
       _initDone = true;
 
-      _container.style.cssText = [
-        'position:relative;',
-        'width:100%;height:100%;',
-        'overflow:hidden;',
-        'background:#000;',
-      ].join('');
+      _container.style.cssText = 'position:relative;width:100%;height:100%;overflow:hidden;background:#000;';
 
-      // ── Video element (real camera feed) ──
+      // Video element (hidden, used as source)
       _video = document.createElement('video');
       _video.setAttribute('autoplay', '');
-      _video.setAttribute('playsinline', '');    // Required for iOS Safari
-      _video.setAttribute('muted', '');          // Required for iOS autoplay
-      _video.setAttribute('webkit-playsinline', ''); // Older iOS Safari
+      _video.setAttribute('playsinline', '');
+      _video.setAttribute('muted', '');
+      _video.setAttribute('webkit-playsinline', '');
       _video.muted = true;
-      _video.style.cssText = [
-        'position:absolute;top:0;left:0;',
-        'width:100%;height:100%;',
-        'object-fit:cover;',
-        'z-index:1;',
-        '-webkit-transform:translateZ(0);',      // GPU acceleration on iOS
-        'transform:translateZ(0);',
-      ].join('');
+      _video.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;';
       _container.appendChild(_video);
 
-      // ── Stone texture overlay ──
-      // Use 'screen' blend mode: works on dark camera pixels
-      // On dark backgrounds (wall) it brightens with stone color naturally
-      _textureOverlay = document.createElement('div');
-      _textureOverlay.style.cssText = [
-        'position:absolute;inset:0;',
-        'z-index:2;',
-        'background-size:300px 300px;',
-        'background-repeat:repeat;',
-        'mix-blend-mode:multiply;',
-        '-webkit-mix-blend-mode:multiply;',
-        'opacity:0;',
-        'pointer-events:none;',
-        'transition:opacity 0.5s cubic-bezier(.4,0,.2,1);',
-        '-webkit-transition:opacity 0.5s cubic-bezier(.4,0,.2,1);',
-      ].join('');
-      _container.appendChild(_textureOverlay);
-
-      // ── Subtle dark vignette ──
-      var vignette = document.createElement('div');
-      vignette.style.cssText = [
-        'position:absolute;inset:0;z-index:3;',
-        'background:radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.35) 100%);',
-        'pointer-events:none;',
-      ].join('');
-      _container.appendChild(vignette);
-
-      // ── Wall detection bracket ──
-      _wallBracket = document.createElement('div');
-      _wallBracket.style.cssText = [
-        'position:absolute;z-index:4;',
-        'top:8%;left:4%;right:4%;bottom:22%;',
-        'border:1px dashed rgba(200,165,60,0);',
-        'border-radius:4px;',
-        'pointer-events:none;',
-        'transition:all 0.6s cubic-bezier(.4,0,.2,1);',
-        '-webkit-transition:all 0.6s cubic-bezier(.4,0,.2,1);',
-        'box-shadow:inset 0 0 40px rgba(200,165,60,0);',
-      ].join('');
-      ['tl', 'tr', 'bl', 'br'].forEach(function (pos) {
-        _wallBracket.appendChild(_createCornerBracket(pos));
-      });
-      _wallBracket.style.opacity = '0';
-      _container.appendChild(_wallBracket);
+      // Canvas for rendering
+      _canvas = document.createElement('canvas');
+      _canvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;';
+      _container.appendChild(_canvas);
+      _ctx = _canvas.getContext('2d', {alpha: false, desynchronized: true});
 
       return true;
     },
 
-    // Start camera — MUST be called from a user gesture (tap) for Safari
     startCamera: function () {
       window._graziaARReady = false;
       window._graziaARError = null;
 
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        window._graziaARError = 'Camera API not supported on this browser';
+        window._graziaARError = 'Camera API not supported';
         return Promise.reject(window._graziaARError);
       }
 
-      // Try multiple constraint sets in order (Safari-compatible fallbacks)
       var constraintSets = [
-        // 1. Rear camera, HD
         { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
-        // 2. Rear camera only (no resolution)
         { video: { facingMode: 'environment' }, audio: false },
-        // 3. Any camera (front/rear)
         { video: true, audio: false },
       ];
 
       function tryNext(idx) {
         if (idx >= constraintSets.length) {
-          var msg = 'No camera available. Please allow camera access.';
-          window._graziaARError = msg;
-          return Promise.reject(msg);
+          window._graziaARError = 'Camera not available';
+          return Promise.reject(window._graziaARError);
         }
         return navigator.mediaDevices.getUserMedia(constraintSets[idx])
           .then(function (stream) {
             _stream = stream;
-            if (!_video) {
-              window._graziaARError = 'Video element not ready';
-              return Promise.reject(window._graziaARError);
-            }
             _video.srcObject = stream;
-            // On iOS Safari, play() must be called after setting srcObject
-            var playPromise = _video.play();
-            if (playPromise !== undefined) {
-              return playPromise.then(function () {
-                window._graziaARReady = true;
-                return 'ready';
-              }).catch(function (playErr) {
-                // iOS sometimes rejects play() — try muting and replaying
-                _video.muted = true;
-                return _video.play().then(function () {
+            
+            return new Promise(function(resolve, reject) {
+              _video.onloadedmetadata = function() {
+                _canvas.width = _video.videoWidth || 1280;
+                _canvas.height = _video.videoHeight || 720;
+                
+                var playPromise = _video.play();
+                if (playPromise !== undefined) {
+                  playPromise.then(function () {
+                    window._graziaARReady = true;
+                    _renderFrame();
+                    resolve('ready');
+                  }).catch(function () {
+                    _video.muted = true;
+                    _video.play().then(function () {
+                      window._graziaARReady = true;
+                      _renderFrame();
+                      resolve('ready');
+                    }).catch(reject);
+                  });
+                } else {
                   window._graziaARReady = true;
-                  return 'ready';
-                });
-              });
-            } else {
-              // Older Safari: no promise from play()
-              window._graziaARReady = true;
-              return 'ready';
-            }
+                  _renderFrame();
+                  resolve('ready');
+                }
+              };
+            });
           })
-          .catch(function (err) {
-            var name = err && err.name ? err.name : '';
-            // NotAllowedError / PermissionDeniedError = user denied → don't retry
-            if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-              var msg = 'Camera permission denied. Please allow camera access in your browser settings.';
-              window._graziaARError = msg;
-              return Promise.reject(msg);
-            }
-            // Otherwise try next constraint set
+          .catch(function () {
             return tryNext(idx + 1);
           });
       }
@@ -207,81 +472,47 @@
       return tryNext(0);
     },
 
-    // Stop all camera tracks
     stopCamera: function () {
+      if (_animationFrame) {
+        cancelAnimationFrame(_animationFrame);
+        _animationFrame = null;
+      }
       if (_stream) {
         _stream.getTracks().forEach(function (t) { t.stop(); });
         _stream = null;
       }
-      if (_video) {
-        _video.srcObject = null;
-      }
+      if (_video) _video.srcObject = null;
+      if (_ctx && _canvas) _ctx.clearRect(0, 0, _canvas.width, _canvas.height);
       window._graziaARReady = false;
+      _wallDetected = false;
+      _wallCorners = null;
+      _frameCount = 0;
     },
 
-    // Apply stone texture overlay
-    setStoneTexture: function (imageUrl, opacity) {
-      if (!_textureOverlay) return;
-      var op = (opacity !== undefined && opacity !== null) ? Math.max(0, Math.min(1, opacity)) : 0.72;
-      if (!imageUrl) {
-        _textureOverlay.style.opacity = '0';
+    setTexture: function (textureUrl) {
+      if (!textureUrl) {
+        _textureImage = null;
         return;
       }
-      _textureOverlay.style.backgroundImage = 'url("' + imageUrl + '")';
-      _textureOverlay.style.opacity = String(op);
+      
+      var img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = function () {
+        _textureImage = img;
+      };
+      img.onerror = function () {
+        console.warn('[GraziaAR] Failed to load texture:', textureUrl);
+      };
+      img.src = textureUrl;
     },
 
-    setOpacity: function (opacity) {
-      if (_textureOverlay) {
-        _textureOverlay.style.opacity = String(Math.max(0, Math.min(1, opacity)));
-      }
+    isReady: function () {
+      return window._graziaARReady === true;
     },
 
-    setBlendMode: function (mode) {
-      if (_textureOverlay) {
-        _textureOverlay.style.mixBlendMode = mode || 'multiply';
-        _textureOverlay.style['-webkit-mix-blend-mode'] = mode || 'multiply';
-      }
-    },
+    getError: function () {
+      return window._graziaARError;
+    }
 
-    showWallDetection: function (show) {
-      if (!_wallBracket) return;
-      if (show) {
-        _wallBracket.style.opacity = '1';
-        _wallBracket.style.border = '1px dashed rgba(200,165,60,0.75)';
-        _wallBracket.style.boxShadow = [
-          'inset 0 0 60px rgba(200,165,60,0.08)',
-          '0 0 0 1px rgba(200,165,60,0.15)',
-        ].join(',');
-        if (!_wallBracket._interval) {
-          var phase = 0;
-          _wallBracket._interval = setInterval(function () {
-            phase = (phase + 0.05) % (Math.PI * 2);
-            var a = 0.5 + 0.3 * Math.sin(phase);
-            _wallBracket.style.borderColor = 'rgba(200,165,60,' + a + ')';
-          }, 50);
-        }
-      } else {
-        _wallBracket.style.opacity = '0';
-        if (_wallBracket._interval) {
-          clearInterval(_wallBracket._interval);
-          _wallBracket._interval = null;
-        }
-      }
-    },
-
-    isCameraActive: function () {
-      return !!(_stream && _stream.active);
-    },
-
-    // Reset state (for retry)
-    reset: function () {
-      window.GraziaAR.stopCamera();
-      _initDone = false;
-      _container = null;
-      _video = null;
-      _textureOverlay = null;
-      _wallBracket = null;
-    },
   };
 })();

@@ -53,29 +53,47 @@ class ARCameraView extends StatefulWidget {
     this.onError,
     this.stoneImagePath,
     this.opacity = 0.72,
+    this.scale = 1.0,
+    this.position = Offset.zero,
+    this.rotation = 0.0,
   });
 
   final VoidCallback? onReady;
   final VoidCallback? onError;
   final String? stoneImagePath;
   final double opacity;
+  final double scale;
+  final Offset position;
+  final double rotation;
 
   // ── Static control API (callable from anywhere in the screen) ──
 
   static void updateStone(String? assetPath, double opacity) {
     if (assetPath == null) {
-      _jsEval('GraziaAR.setStoneTexture(null, 0)');
+      _jsEval('GraziaAR.setTexture(null)');
     } else {
-      _jsEval('GraziaAR.setStoneTexture("$assetPath", $opacity)');
+      _jsEval('GraziaAR.setTexture("$assetPath")');
     }
   }
 
   static void updateOpacity(double opacity) {
-    _jsEval('GraziaAR.setOpacity($opacity)');
+    // Opacity is now part of the rendering pipeline, no separate control
+  }
+
+  static void updateScale(double scale) {
+    // Scale is now part of perspective transform
+  }
+
+  static void updatePosition(Offset position) {
+    // Position is now auto-detected via wall detection
+  }
+
+  static void updateRotation(double rotation) {
+    // Rotation is now part of perspective transform
   }
 
   static void showWallBoundary(bool show) {
-    _jsEval('GraziaAR.showWallDetection(${show.toString()})');
+    // Wall boundary is automatically shown when detected
   }
 
   static void stopCamera() {
@@ -174,7 +192,6 @@ class _ARCameraViewState extends State<ARCameraView> {
       _errorMsg = null;
       _requiresTap = false;
     });
-    _jsEval('GraziaAR.reset();');
     _startInitSequence();
   }
 
