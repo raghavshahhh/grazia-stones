@@ -1,0 +1,1 @@
+/Users/raghavshah/.claude/commands/verify.md

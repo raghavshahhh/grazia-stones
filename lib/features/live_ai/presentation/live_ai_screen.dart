@@ -7,22 +7,7 @@ import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/services/mock_data_service.dart';
 import 'widgets/ar_camera_view.dart';
 
-/// Premium Luxury Live AI Screen - IKEA Place / TilesView / Asian Paints Style
-/// 
-/// ✅ Features:
-/// - 100% full-screen real camera feed
-/// - Wall detection with perspective mapping
-/// - Instagram filter-style circular stone thumbnails
-/// - Glassmorphism floating UI panels
-/// - Interactive gesture controls (drag, pinch, rotate)
-/// - Direct product page navigation
-/// - Realistic texture blending (80% opacity, multiply blend, edge feather)
-/// 
-/// ❌ NO Fake Elements:
-/// - No FPS counter
-/// - No AI label
-/// - No Tracking indicator
-/// - No Depth sensor badge
+/// Premium Luxury Live AI Screen - Real Camera + Wall Texture Visualization
 class LiveAIScreen extends StatefulWidget {
   const LiveAIScreen({super.key});
 
@@ -35,7 +20,7 @@ class _LiveAIScreenState extends State<LiveAIScreen>
   // Stone selection state
   int _selectedStoneIndex = 0;
   List<Stone> _filteredStones = MockDataService.stones;
-  
+
   // Category filter state
   String _selectedCategory = 'All';
   final List<String> _categories = [
@@ -48,16 +33,12 @@ class _LiveAIScreenState extends State<LiveAIScreen>
     'Premium',
   ];
 
-  // Camera state
+  // Camera state (defaults to true so camera opens immediately on screen enter!)
   bool _cameraReady = false;
-  bool _cameraStarted = false; // NEW: Track if user started camera
-  bool _wallDetected = false;
+  final bool _wallDetected = true;
 
   // Texture mapping state
-  double _textureOpacity = 0.72; // Realistic opacity (not 100%)
-  double _textureScale = 1.0;
-  double _textureRotation = 0.0;
-  Offset _texturePosition = Offset.zero;
+  final double _textureOpacity = 0.80; // Realistic 80% opacity
 
   // Controllers
   late PageController _stonePageController;
@@ -68,24 +49,22 @@ class _LiveAIScreenState extends State<LiveAIScreen>
   @override
   void initState() {
     super.initState();
-    
-    // Initialize controllers
+
     _stonePageController = PageController(
-      viewportFraction: 0.22,
+      viewportFraction: 0.23,
       initialPage: 0,
     );
     _categoryScrollController = ScrollController();
-    
-    // Pulse animation for wall guidance
+
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2000),
     )..repeat(reverse: true);
-    
+
     _pulseAnimation = Tween<double>(begin: 0.6, end: 1.0).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
-    
+
     _updateFilteredStones();
   }
 
@@ -134,268 +113,50 @@ class _LiveAIScreenState extends State<LiveAIScreen>
 
   void _navigateToProduct() {
     HapticFeedback.mediumImpact();
-    context.push('/stone/${_selectedStone.id}');
+    context.push('/stones/${_selectedStone.id}');
   }
 
   @override
   Widget build(BuildContext context) {
-    final bottomPadding = MediaQuery.of(context).padding.bottom;
-
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // ═══════════════════════════════════════════════════════════
           // 1. FULL-SCREEN REAL CAMERA FEED (100% of screen)
-          // ═══════════════════════════════════════════════════════════
-          if (_cameraStarted) _buildFullScreenCamera(),
+          _buildFullScreenCamera(),
 
-          // ═══════════════════════════════════════════════════════════
-          // 1B. START CAMERA BUTTON (before camera starts)
-          // ═══════════════════════════════════════════════════════════
-          if (!_cameraStarted) _buildStartCameraScreen(),
+          // 2. WALL GUIDANCE TOAST
+          _buildWallGuidanceToast(),
 
-          // ═══════════════════════════════════════════════════════════
-          // 2. WALL GUIDANCE TOAST (when wall not detected)
-          // ═══════════════════════════════════════════════════════════
-          if (_cameraStarted && !_wallDetected) _buildWallGuidanceToast(),
-
-          // ═══════════════════════════════════════════════════════════
           // 3. MINIMAL LUXURY TOP BAR (← Back, Title, Search)
-          // ═══════════════════════════════════════════════════════════
-          if (_cameraStarted) _buildMinimalTopBar(),
+          _buildMinimalTopBar(),
 
-          // ═══════════════════════════════════════════════════════════
-          // 4. FLOATING GLASSMORPHISM BOTTOM PANEL
-          //    - Row 1: Category chips (horizontal scroll)
-          //    - Row 2: Circular stone thumbnails (Instagram style)
-          //    - Row 3: Product info + View Product button
-          // ═══════════════════════════════════════════════════════════
-          if (_cameraStarted) _buildFloatingBottomPanel(bottomPadding),
-
-          // ═══════════════════════════════════════════════════════════
-          // 5. OPACITY SLIDER (vertical, right side)
-          // ═══════════════════════════════════════════════════════════
-          if (_cameraReady) _buildOpacitySlider(),
-
-          // ═══════════════════════════════════════════════════════════
-          // 6. GESTURE CONTROLS HINT (bottom-left, fades after 3s)
-          // ═══════════════════════════════════════════════════════════
-          if (_cameraReady && _wallDetected) _buildGestureHint(),
-
-          // ═══════════════════════════════════════════════════════════
-          // 7. ROTATION CONTROL (top-right circular dial)
-          // ═══════════════════════════════════════════════════════════
-          if (_cameraReady && _wallDetected) _buildRotationControl(),
+          // 4. FLOATING GLASSMORPHISM BOTTOM PANEL (Sitting cleanly above Bottom Nav)
+          _buildFloatingBottomPanel(),
         ],
       ),
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════
-  // BUILD METHODS
-  // ═══════════════════════════════════════════════════════════════════════
-
-  /// 1. Full-Screen Camera Feed with Interactive Gesture Controls
+  /// 1. Full-Screen Camera Feed
   Widget _buildFullScreenCamera() {
-    final stone = _selectedStone;
-    final assetPath = stone.images.isNotEmpty ? stone.images.first : null;
+    final assetPath =
+        _selectedStone.images.isNotEmpty ? _selectedStone.images.first : null;
 
     return Positioned.fill(
       child: ARCameraView(
-        key: const ValueKey('premium-ar-camera'),
-        stoneImagePath: _cameraReady ? assetPath : null,
+        key: const ValueKey('ar-camera-view-main'),
+        stoneImagePath: assetPath,
         opacity: _textureOpacity,
-        scale: _textureScale,
-        position: _texturePosition,
-        rotation: _textureRotation,
         onReady: () {
           if (!mounted) return;
           setState(() => _cameraReady = true);
           if (assetPath != null) {
             ARCameraView.updateStone(assetPath, _textureOpacity);
           }
-          // Simulate wall detection after 2 seconds
-          Future.delayed(const Duration(seconds: 2), () {
-            if (mounted) setState(() => _wallDetected = true);
-          });
+          ARCameraView.showWallBoundary(true);
         },
-        onError: () {
-          if (mounted) setState(() {
-            _cameraReady = false;
-            _wallDetected = false;
-          });
-        },
-      ),
-    );
-  }
-
-  /// 1B. Start Camera Screen (before camera is activated)
-  Widget _buildStartCameraScreen() {
-    final topPadding = MediaQuery.of(context).padding.top;
-
-    return Positioned.fill(
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.black,
-              const Color(0xFF1A1A1A),
-              Colors.black,
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Back button
-              Align(
-                alignment: Alignment.topLeft,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: IconButton(
-                    onPressed: () => context.pop(),
-                    icon: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.5),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          width: 1,
-                        ),
-                      ),
-                      child: const Icon(
-                        Icons.arrow_back_ios_new_rounded,
-                        size: 16,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-              const Spacer(),
-
-              // Camera Icon
-              Container(
-                padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.goldWarm.withValues(alpha: 0.15),
-                  border: Border.all(
-                    color: AppColors.goldWarm.withValues(alpha: 0.4),
-                    width: 2,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.goldWarm.withValues(alpha: 0.3),
-                      blurRadius: 30,
-                      spreadRadius: 5,
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.camera_alt_rounded,
-                  size: 64,
-                  color: AppColors.goldWarm,
-                ),
-              ),
-
-              const SizedBox(height: 32),
-
-              // Title
-              const Text(
-                'Live AI Visualizer',
-                style: TextStyle(
-                  fontFamily: 'Playfair Display',
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.goldWarm,
-                  letterSpacing: 1.2,
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // Description
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 48),
-                child: Text(
-                  'See stones on your wall in real-time with AI-powered perspective mapping',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.white.withValues(alpha: 0.7),
-                    height: 1.6,
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 48),
-
-              // Start Camera Button
-              ElevatedButton(
-                onPressed: () {
-                  HapticFeedback.mediumImpact();
-                  setState(() => _cameraStarted = true);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.goldWarm,
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 48,
-                    vertical: 18,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  elevation: 8,
-                  shadowColor: AppColors.goldWarm.withValues(alpha: 0.6),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    Icon(Icons.videocam_rounded, size: 24),
-                    SizedBox(width: 12),
-                    Text(
-                      'Start Camera',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Permission hint
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 48),
-                child: Text(
-                  'Camera permission required',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.white.withValues(alpha: 0.5),
-                  ),
-                ),
-              ),
-
-              const Spacer(flex: 2),
-            ],
-          ),
-        ),
+        onError: () {},
       ),
     );
   }
@@ -405,22 +166,22 @@ class _LiveAIScreenState extends State<LiveAIScreen>
     final topPadding = MediaQuery.of(context).padding.top;
 
     return Positioned(
-      top: topPadding + 70,
+      top: topPadding + 62,
       left: 0,
       right: 0,
       child: Center(
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(20),
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.6),
-                borderRadius: BorderRadius.circular(24),
+                color: Colors.black.withValues(alpha: 0.65),
+                borderRadius: BorderRadius.circular(20),
                 border: Border.all(
                   color: AppColors.goldWarm.withValues(alpha: 0.35),
-                  width: 1,
+                  width: 0.8,
                 ),
               ),
               child: Row(
@@ -431,18 +192,18 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                     builder: (context, child) {
                       return Icon(
                         Icons.videocam_outlined,
-                        size: 16,
+                        size: 14,
                         color: AppColors.goldWarm.withValues(alpha: _pulseAnimation.value),
                       );
                     },
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
                   const Text(
                     'Point camera towards a flat wall',
                     style: TextStyle(
                       fontFamily: 'Inter',
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
                       color: Colors.white,
                       letterSpacing: 0.3,
                     ),
@@ -465,7 +226,7 @@ class _LiveAIScreenState extends State<LiveAIScreen>
       left: 0,
       right: 0,
       child: Container(
-        padding: EdgeInsets.fromLTRB(12, topPadding + 8, 12, 14),
+        padding: EdgeInsets.fromLTRB(12, topPadding + 6, 12, 12),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
@@ -488,18 +249,18 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                 }
               },
               icon: Container(
-                padding: const EdgeInsets.all(9),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.45),
                   shape: BoxShape.circle,
                   border: Border.all(
                     color: Colors.white.withValues(alpha: 0.2),
-                    width: 1,
+                    width: 0.8,
                   ),
                 ),
                 child: const Icon(
                   Icons.arrow_back_ios_new_rounded,
-                  size: 16,
+                  size: 15,
                   color: Colors.white,
                 ),
               ),
@@ -515,10 +276,10 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                   'LIVE AI VISUALIZER',
                   style: TextStyle(
                     fontFamily: 'Playfair Display',
-                    fontSize: 16,
+                    fontSize: 15,
                     fontWeight: FontWeight.w700,
                     color: AppColors.goldWarm,
-                    letterSpacing: 2.4,
+                    letterSpacing: 2.2,
                     shadows: [
                       Shadow(
                         color: Colors.black.withValues(alpha: 0.5),
@@ -535,7 +296,7 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                     fontSize: 8,
                     fontWeight: FontWeight.w600,
                     color: Colors.white.withValues(alpha: 0.7),
-                    letterSpacing: 1.6,
+                    letterSpacing: 1.4,
                   ),
                 ),
               ],
@@ -547,18 +308,18 @@ class _LiveAIScreenState extends State<LiveAIScreen>
             IconButton(
               onPressed: () => context.push('/search'),
               icon: Container(
-                padding: const EdgeInsets.all(9),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.45),
                   shape: BoxShape.circle,
                   border: Border.all(
                     color: Colors.white.withValues(alpha: 0.2),
-                    width: 1,
+                    width: 0.8,
                   ),
                 ),
                 child: const Icon(
                   Icons.search_rounded,
-                  size: 18,
+                  size: 17,
                   color: Colors.white,
                 ),
               ),
@@ -569,63 +330,61 @@ class _LiveAIScreenState extends State<LiveAIScreen>
     );
   }
 
-  /// 4. Floating Glassmorphism Bottom Panel (Instagram Style)
-  Widget _buildFloatingBottomPanel(double bottomPadding) {
+  /// 4. Floating Glassmorphism Bottom Panel (Positioned above GraziaBottomNav)
+  Widget _buildFloatingBottomPanel() {
     final stone = _selectedStone;
 
     return Positioned(
-      bottom: 0,
-      left: 0,
-      right: 0,
+      bottom: 82.0, // Floating cleanly above bottom navigation bar!
+      left: 12,
+      right: 12,
       child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        borderRadius: BorderRadius.circular(24),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 32, sigmaY: 32),
+          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
           child: Container(
-            padding: EdgeInsets.fromLTRB(18, 14, 18, bottomPadding + 16),
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.85),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+              color: Colors.black.withValues(alpha: 0.82),
+              borderRadius: BorderRadius.circular(24),
               border: Border.all(
                 color: AppColors.goldWarm.withValues(alpha: 0.3),
                 width: 1,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.7),
-                  blurRadius: 40,
-                  spreadRadius: 10,
+                  color: Colors.black.withValues(alpha: 0.6),
+                  blurRadius: 30,
+                  spreadRadius: 6,
                 ),
               ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Drag indicator
+                // Drag handle bar
                 Container(
-                  width: 42,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 14),
+                  width: 36,
+                  height: 3.5,
+                  margin: const EdgeInsets.only(bottom: 10),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.3),
+                    color: Colors.white.withValues(alpha: 0.25),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
 
-                // ─────────────────────────────────────────────────────
-                // ROW 1: Horizontal Category Chips
-                // ─────────────────────────────────────────────────────
+                // ── ROW 1: Horizontal Category Chips ──
                 SizedBox(
-                  height: 34,
+                  height: 32,
                   child: ListView.separated(
                     controller: _categoryScrollController,
                     scrollDirection: Axis.horizontal,
                     itemCount: _categories.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    separatorBuilder: (_, __) => const SizedBox(width: 6),
                     itemBuilder: (context, index) {
                       final category = _categories[index];
                       final isSelected = category == _selectedCategory;
-                      
+
                       return GestureDetector(
                         onTap: () {
                           HapticFeedback.selectionClick();
@@ -635,37 +394,28 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                           });
                         },
                         child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 280),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          duration: const Duration(milliseconds: 250),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                           decoration: BoxDecoration(
                             color: isSelected
                                 ? AppColors.goldWarm
                                 : Colors.white.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(17),
+                            borderRadius: BorderRadius.circular(16),
                             border: Border.all(
                               color: isSelected
                                   ? AppColors.goldWarm
-                                  : Colors.white.withValues(alpha: 0.18),
-                              width: 1.2,
+                                  : Colors.white.withValues(alpha: 0.15),
+                              width: 1,
                             ),
-                            boxShadow: isSelected
-                                ? [
-                                    BoxShadow(
-                                      color: AppColors.goldWarm.withValues(alpha: 0.4),
-                                      blurRadius: 12,
-                                      spreadRadius: 1,
-                                    ),
-                                  ]
-                                : null,
                           ),
                           child: Text(
                             category,
                             style: TextStyle(
                               fontFamily: 'Inter',
-                              fontSize: 12,
+                              fontSize: 11,
                               fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
                               color: isSelected ? Colors.black : Colors.white,
-                              letterSpacing: 0.5,
+                              letterSpacing: 0.3,
                             ),
                           ),
                         ),
@@ -674,13 +424,11 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                   ),
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
 
-                // ─────────────────────────────────────────────────────
-                // ROW 2: Circular Stone Thumbnails (Instagram Filter Style)
-                // ─────────────────────────────────────────────────────
+                // ── ROW 2: Circular Stone Thumbnails (Instagram Stories Filter Style) ──
                 SizedBox(
-                  height: 90,
+                  height: 82,
                   child: PageView.builder(
                     controller: _stonePageController,
                     itemCount: _filteredStones.length,
@@ -696,7 +444,7 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                         onTap: () {
                           _stonePageController.animateToPage(
                             index,
-                            duration: const Duration(milliseconds: 400),
+                            duration: const Duration(milliseconds: 350),
                             curve: Curves.easeOutCubic,
                           );
                           _selectStone(index);
@@ -704,12 +452,11 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            // Circular Thumbnail with Instagram-style ring
                             AnimatedContainer(
-                              duration: const Duration(milliseconds: 350),
-                              width: isSelected ? 62 : 54,
-                              height: isSelected ? 62 : 54,
-                              padding: const EdgeInsets.all(3),
+                              duration: const Duration(milliseconds: 300),
+                              width: isSelected ? 56 : 48,
+                              height: isSelected ? 56 : 48,
+                              padding: const EdgeInsets.all(2.5),
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 gradient: isSelected
@@ -719,22 +466,20 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                                           AppColors.goldLight,
                                           AppColors.goldWarm,
                                         ],
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
                                       )
                                     : null,
                                 border: !isSelected
                                     ? Border.all(
-                                        color: Colors.white.withValues(alpha: 0.25),
-                                        width: 1.5,
+                                        color: Colors.white.withValues(alpha: 0.2),
+                                        width: 1,
                                       )
                                     : null,
                                 boxShadow: isSelected
                                     ? [
                                         BoxShadow(
-                                          color: AppColors.goldWarm.withValues(alpha: 0.6),
-                                          blurRadius: 16,
-                                          spreadRadius: 2,
+                                          color: AppColors.goldWarm.withValues(alpha: 0.5),
+                                          blurRadius: 14,
+                                          spreadRadius: 1,
                                         ),
                                       ]
                                     : null,
@@ -749,21 +494,22 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                                     thumbPath,
                                     fit: BoxFit.cover,
                                     errorBuilder: (ctx, err, stack) => Container(
-                                      color: const Color(0xFF1A1A1A),
+                                      color: const Color(0xFF222222),
                                       child: const Icon(
                                         Icons.texture,
                                         color: AppColors.goldWarm,
-                                        size: 24,
+                                        size: 18,
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 6),
-                            // Stone Name Label
+                            const SizedBox(height: 5),
                             Text(
-                              item.productCode,
+                              item.productCode.isNotEmpty
+                                  ? item.productCode
+                                  : item.name.split(' ').first,
                               style: TextStyle(
                                 fontFamily: 'Inter',
                                 fontSize: 9,
@@ -771,7 +517,6 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                                 color: isSelected
                                     ? AppColors.goldWarm
                                     : Colors.white.withValues(alpha: 0.75),
-                                letterSpacing: 0.3,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -783,118 +528,109 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                   ),
                 ),
 
-                const SizedBox(height: 14),
+                const SizedBox(height: 10),
 
-                // ─────────────────────────────────────────────────────
-                // ROW 3: Product Info + View Product Button
-                // ─────────────────────────────────────────────────────
+                // ── ROW 3: Product Info + Direct View Product Button ──
                 Container(
-                  padding: const EdgeInsets.all(14),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.06),
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: Colors.white.withValues(alpha: 0.12),
-                      width: 1,
+                      width: 0.8,
                     ),
                   ),
                   child: Row(
                     children: [
                       // Stone Thumbnail
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(8),
                         child: Image.asset(
                           stone.images.isNotEmpty
                               ? stone.images.first
                               : 'assets/images/placeholder_stone.png',
-                          width: 42,
-                          height: 42,
+                          width: 38,
+                          height: 38,
                           fit: BoxFit.cover,
                           errorBuilder: (ctx, err, stack) => Container(
-                            width: 42,
-                            height: 42,
+                            width: 38,
+                            height: 38,
                             color: const Color(0xFF2A2A2A),
                             child: const Icon(
                               Icons.texture,
                               color: AppColors.goldWarm,
-                              size: 20,
+                              size: 18,
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 10),
 
-                      // Stone Info
+                      // Stone Title & Price (Clean horizontal layout)
                       Expanded(
-                        child: Row(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    stone.name,
-                                    style: const TextStyle(
-                                      fontFamily: 'Inter',
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.white,
-                                      letterSpacing: 0.2,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    '₹${stone.pricePerSqFt}/sq.ft',
-                                    style: const TextStyle(
-                                      fontFamily: 'Inter',
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.goldWarm,
-                                      letterSpacing: 0.3,
-                                    ),
-                                  ),
-                                ],
+                            Text(
+                              stone.name,
+                              style: const TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                letterSpacing: 0.2,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '₹${stone.pricePerSqFt}/sq.ft',
+                              style: const TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.goldWarm,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         ),
                       ),
 
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 8),
 
-                      // View Product Button (Direct Navigation)
+                      // View Product Button (Direct Navigation to /stones/:id)
                       ElevatedButton(
                         onPressed: _navigateToProduct,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.goldWarm,
                           foregroundColor: Colors.black,
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 12,
+                            horizontal: 14,
+                            vertical: 10,
                           ),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          elevation: 4,
-                          shadowColor: AppColors.goldWarm.withValues(alpha: 0.5),
+                          elevation: 0,
                         ),
-                        child: Row(
+                        child: const Row(
                           mainAxisSize: MainAxisSize.min,
-                          children: const [
+                          children: [
                             Text(
                               'View Product',
                               style: TextStyle(
                                 fontFamily: 'Inter',
-                                fontSize: 12,
+                                fontSize: 11,
                                 fontWeight: FontWeight.w700,
-                                letterSpacing: 0.4,
                               ),
                             ),
                             SizedBox(width: 4),
-                            Icon(Icons.arrow_forward_rounded, size: 16),
+                            Icon(Icons.arrow_forward_rounded, size: 12),
                           ],
                         ),
                       ),
@@ -902,251 +638,6 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                   ),
                 ),
               ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// 5. Opacity Slider (Vertical, Right Side)
-  Widget _buildOpacitySlider() {
-    return Positioned(
-      right: 14,
-      top: MediaQuery.of(context).size.height * 0.35,
-      bottom: MediaQuery.of(context).size.height * 0.35,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-          child: Container(
-            width: 48,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.4),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.15),
-                width: 1,
-              ),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.opacity_outlined,
-                  color: AppColors.goldWarm,
-                  size: 18,
-                ),
-                const SizedBox(height: 10),
-                Expanded(
-                  child: RotatedBox(
-                    quarterTurns: 3,
-                    child: SliderTheme(
-                      data: SliderThemeData(
-                        trackHeight: 3,
-                        activeTrackColor: AppColors.goldWarm,
-                        inactiveTrackColor: Colors.white.withValues(alpha: 0.2),
-                        thumbColor: AppColors.goldWarm,
-                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                        overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
-                        overlayColor: AppColors.goldWarm.withValues(alpha: 0.3),
-                      ),
-                      child: Slider(
-                        value: _textureOpacity,
-                        min: 0.3,
-                        max: 1.0,
-                        onChanged: (value) {
-                          setState(() => _textureOpacity = value);
-                          ARCameraView.updateOpacity(value);
-                          HapticFeedback.selectionClick();
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  '${(_textureOpacity * 100).toInt()}%',
-                  style: const TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// 6. Gesture Controls Hint (fades after 5 seconds)
-  Widget _buildGestureHint() {
-    return Positioned(
-      bottom: 320,
-      left: 16,
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 1.0, end: 0.0),
-        duration: const Duration(seconds: 5),
-        curve: Curves.easeInOut,
-        builder: (context, opacity, child) {
-          if (opacity < 0.05) return const SizedBox.shrink();
-          
-          return Opacity(
-            opacity: opacity,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.7),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: AppColors.goldWarm.withValues(alpha: 0.3),
-                      width: 1,
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: const [
-                          Icon(Icons.pan_tool_rounded, 
-                            size: 14, 
-                            color: AppColors.goldWarm,
-                          ),
-                          SizedBox(width: 6),
-                          Text(
-                            'Drag to move',
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: const [
-                          Icon(Icons.pinch_rounded, 
-                            size: 14, 
-                            color: AppColors.goldWarm,
-                          ),
-                          SizedBox(width: 6),
-                          Text(
-                            'Pinch to scale',
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: const [
-                          Icon(Icons.rotate_90_degrees_ccw_rounded, 
-                            size: 14, 
-                            color: AppColors.goldWarm,
-                          ),
-                          SizedBox(width: 6),
-                          Text(
-                            'Use dial to rotate',
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  /// 7. Rotation Control Dial (top-right)
-  Widget _buildRotationControl() {
-    final topPadding = MediaQuery.of(context).padding.top;
-
-    return Positioned(
-      top: topPadding + 70,
-      right: 16,
-      child: GestureDetector(
-        onPanUpdate: (details) {
-          // Calculate rotation based on drag
-          final center = Offset(32, 32);
-          final angle = (details.localPosition - center).direction;
-          setState(() {
-            _textureRotation = angle;
-          });
-          HapticFeedback.selectionClick();
-        },
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(32),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-            child: Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.5),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: AppColors.goldWarm.withValues(alpha: 0.4),
-                  width: 2,
-                ),
-              ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  // Rotation indicator line
-                  Transform.rotate(
-                    angle: _textureRotation,
-                    child: Container(
-                      width: 2,
-                      height: 20,
-                      decoration: BoxDecoration(
-                        color: AppColors.goldWarm,
-                        borderRadius: BorderRadius.circular(1),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.goldWarm.withValues(alpha: 0.6),
-                            blurRadius: 8,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  // Center icon
-                  const Icon(
-                    Icons.rotate_90_degrees_ccw_rounded,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                ],
-              ),
             ),
           ),
         ),

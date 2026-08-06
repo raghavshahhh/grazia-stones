@@ -275,8 +275,9 @@ class _ARCameraViewState extends State<ARCameraView> {
         (_errorMsg!.contains('denied') || _errorMsg!.contains('NotAllowed'));
 
     return Container(
-      color: Colors.black.withValues(alpha: 0.90),
-      child: Center(
+      color: Colors.black.withValues(alpha: 0.88),
+      child: Align(
+        alignment: const Alignment(0, -0.35), // Positioned in upper-middle viewport above bottom sheet
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 28),
           child: Column(
