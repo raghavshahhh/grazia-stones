@@ -268,11 +268,19 @@
   // Main render loop
   var _frameCount = 0;
   function _renderFrame() {
-    if (!_video || !_canvas || !_ctx) return;
+    if (!_video || !_canvas || !_ctx) {
+      console.warn('[GraziaAR] Render skipped - missing elements');
+      return;
+    }
     
     _frameCount++;
     var width = _canvas.width;
     var height = _canvas.height;
+    
+    // Debug log every 60 frames (once per second at 60fps)
+    if (_frameCount % 60 === 0) {
+      console.log('[GraziaAR] Rendering frame', _frameCount, 'video ready:', _video.readyState, 'size:', width, 'x', height);
+    }
     
     // Draw camera feed
     _ctx.drawImage(_video, 0, 0, width, height);
@@ -415,9 +423,12 @@
     startCamera: function () {
       window._graziaARReady = false;
       window._graziaARError = null;
+      
+      console.log('[GraziaAR] startCamera() called');
 
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         window._graziaARError = 'Camera API not supported';
+        console.error('[GraziaAR]', window._graziaARError);
         return Promise.reject(window._graziaARError);
       }
 
@@ -430,33 +441,41 @@
       function tryNext(idx) {
         if (idx >= constraintSets.length) {
           window._graziaARError = 'Camera not available';
+          console.error('[GraziaAR]', window._graziaARError);
           return Promise.reject(window._graziaARError);
         }
+        console.log('[GraziaAR] Trying constraint set', idx);
         return navigator.mediaDevices.getUserMedia(constraintSets[idx])
           .then(function (stream) {
+            console.log('[GraziaAR] Got media stream', stream);
             _stream = stream;
             _video.srcObject = stream;
             
             return new Promise(function(resolve, reject) {
               _video.onloadedmetadata = function() {
+                console.log('[GraziaAR] Video metadata loaded, dimensions:', _video.videoWidth, 'x', _video.videoHeight);
                 _canvas.width = _video.videoWidth || 1280;
                 _canvas.height = _video.videoHeight || 720;
                 
                 var playPromise = _video.play();
                 if (playPromise !== undefined) {
                   playPromise.then(function () {
+                    console.log('[GraziaAR] Video playing');
                     window._graziaARReady = true;
                     _renderFrame();
                     resolve('ready');
-                  }).catch(function () {
+                  }).catch(function (err) {
+                    console.warn('[GraziaAR] Play failed, retrying with muted');
                     _video.muted = true;
                     _video.play().then(function () {
+                      console.log('[GraziaAR] Video playing (muted)');
                       window._graziaARReady = true;
                       _renderFrame();
                       resolve('ready');
                     }).catch(reject);
                   });
                 } else {
+                  console.log('[GraziaAR] Video playing (no promise)');
                   window._graziaARReady = true;
                   _renderFrame();
                   resolve('ready');
@@ -464,7 +483,8 @@
               };
             });
           })
-          .catch(function () {
+          .catch(function (err) {
+            console.warn('[GraziaAR] Constraint set', idx, 'failed:', err);
             return tryNext(idx + 1);
           });
       }

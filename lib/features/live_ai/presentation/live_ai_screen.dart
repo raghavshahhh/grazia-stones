@@ -50,10 +50,11 @@ class _LiveAIScreenState extends State<LiveAIScreen>
 
   // Camera state
   bool _cameraReady = false;
+  bool _cameraStarted = false; // NEW: Track if user started camera
   bool _wallDetected = false;
 
   // Texture mapping state
-  double _textureOpacity = 0.82; // Realistic opacity (not 100%)
+  double _textureOpacity = 0.72; // Realistic opacity (not 100%)
   double _textureScale = 1.0;
   double _textureRotation = 0.0;
   Offset _texturePosition = Offset.zero;
@@ -147,17 +148,22 @@ class _LiveAIScreenState extends State<LiveAIScreen>
           // ═══════════════════════════════════════════════════════════
           // 1. FULL-SCREEN REAL CAMERA FEED (100% of screen)
           // ═══════════════════════════════════════════════════════════
-          _buildFullScreenCamera(),
+          if (_cameraStarted) _buildFullScreenCamera(),
+
+          // ═══════════════════════════════════════════════════════════
+          // 1B. START CAMERA BUTTON (before camera starts)
+          // ═══════════════════════════════════════════════════════════
+          if (!_cameraStarted) _buildStartCameraScreen(),
 
           // ═══════════════════════════════════════════════════════════
           // 2. WALL GUIDANCE TOAST (when wall not detected)
           // ═══════════════════════════════════════════════════════════
-          if (!_wallDetected) _buildWallGuidanceToast(),
+          if (_cameraStarted && !_wallDetected) _buildWallGuidanceToast(),
 
           // ═══════════════════════════════════════════════════════════
           // 3. MINIMAL LUXURY TOP BAR (← Back, Title, Search)
           // ═══════════════════════════════════════════════════════════
-          _buildMinimalTopBar(),
+          if (_cameraStarted) _buildMinimalTopBar(),
 
           // ═══════════════════════════════════════════════════════════
           // 4. FLOATING GLASSMORPHISM BOTTOM PANEL
@@ -165,7 +171,7 @@ class _LiveAIScreenState extends State<LiveAIScreen>
           //    - Row 2: Circular stone thumbnails (Instagram style)
           //    - Row 3: Product info + View Product button
           // ═══════════════════════════════════════════════════════════
-          _buildFloatingBottomPanel(bottomPadding),
+          if (_cameraStarted) _buildFloatingBottomPanel(bottomPadding),
 
           // ═══════════════════════════════════════════════════════════
           // 5. OPACITY SLIDER (vertical, right side)
@@ -196,57 +202,199 @@ class _LiveAIScreenState extends State<LiveAIScreen>
     final assetPath = stone.images.isNotEmpty ? stone.images.first : null;
 
     return Positioned.fill(
-      child: GestureDetector(
-        // ═══ DRAG: Adjust texture position ═══
-        onPanUpdate: (details) {
-          if (!_cameraReady) return;
-          setState(() {
-            _texturePosition += details.delta;
-          });
-          HapticFeedback.selectionClick();
-        },
-        onPanEnd: (_) {
-          HapticFeedback.mediumImpact();
-        },
-
-        // ═══ PINCH: Scale texture (tile size) ═══
-        onScaleStart: (_) {
-          HapticFeedback.selectionClick();
-        },
-        onScaleUpdate: (details) {
-          if (!_cameraReady) return;
-          setState(() {
-            // Scale between 0.5x to 3.0x
-            _textureScale = (_textureScale * details.scale).clamp(0.5, 3.0);
+      child: ARCameraView(
+        key: const ValueKey('premium-ar-camera'),
+        stoneImagePath: _cameraReady ? assetPath : null,
+        opacity: _textureOpacity,
+        scale: _textureScale,
+        position: _texturePosition,
+        rotation: _textureRotation,
+        onReady: () {
+          if (!mounted) return;
+          setState(() => _cameraReady = true);
+          if (assetPath != null) {
+            ARCameraView.updateStone(assetPath, _textureOpacity);
+          }
+          // Simulate wall detection after 2 seconds
+          Future.delayed(const Duration(seconds: 2), () {
+            if (mounted) setState(() => _wallDetected = true);
           });
         },
-        onScaleEnd: (_) {
-          HapticFeedback.mediumImpact();
+        onError: () {
+          if (mounted) setState(() {
+            _cameraReady = false;
+            _wallDetected = false;
+          });
         },
+      ),
+    );
+  }
 
-        child: ARCameraView(
-          key: const ValueKey('premium-ar-camera'),
-          stoneImagePath: _cameraReady ? assetPath : null,
-          opacity: _textureOpacity,
-          scale: _textureScale,
-          position: _texturePosition,
-          rotation: _textureRotation,
-          onReady: () {
-            if (!mounted) return;
-            setState(() => _cameraReady = true);
-            if (assetPath != null) {
-              ARCameraView.updateStone(assetPath, _textureOpacity);
-            }
-            // Show wall detection bracket
-            ARCameraView.showWallBoundary(true);
-            // Simulate wall detection after 2 seconds
-            Future.delayed(const Duration(seconds: 2), () {
-              if (mounted) setState(() => _wallDetected = true);
-            });
-          },
-          onError: () {
-            if (mounted) setState(() => _cameraReady = false);
-          },
+  /// 1B. Start Camera Screen (before camera is activated)
+  Widget _buildStartCameraScreen() {
+    final topPadding = MediaQuery.of(context).padding.top;
+
+    return Positioned.fill(
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.black,
+              const Color(0xFF1A1A1A),
+              Colors.black,
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Back button
+              Align(
+                alignment: Alignment.topLeft,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: IconButton(
+                    onPressed: () => context.pop(),
+                    icon: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.5),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          width: 1,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        size: 16,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              const Spacer(),
+
+              // Camera Icon
+              Container(
+                padding: const EdgeInsets.all(32),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.goldWarm.withValues(alpha: 0.15),
+                  border: Border.all(
+                    color: AppColors.goldWarm.withValues(alpha: 0.4),
+                    width: 2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.goldWarm.withValues(alpha: 0.3),
+                      blurRadius: 30,
+                      spreadRadius: 5,
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.camera_alt_rounded,
+                  size: 64,
+                  color: AppColors.goldWarm,
+                ),
+              ),
+
+              const SizedBox(height: 32),
+
+              // Title
+              const Text(
+                'Live AI Visualizer',
+                style: TextStyle(
+                  fontFamily: 'Playfair Display',
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.goldWarm,
+                  letterSpacing: 1.2,
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // Description
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 48),
+                child: Text(
+                  'See stones on your wall in real-time with AI-powered perspective mapping',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white.withValues(alpha: 0.7),
+                    height: 1.6,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 48),
+
+              // Start Camera Button
+              ElevatedButton(
+                onPressed: () {
+                  HapticFeedback.mediumImpact();
+                  setState(() => _cameraStarted = true);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.goldWarm,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 48,
+                    vertical: 18,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  elevation: 8,
+                  shadowColor: AppColors.goldWarm.withValues(alpha: 0.6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.videocam_rounded, size: 24),
+                    SizedBox(width: 12),
+                    Text(
+                      'Start Camera',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Permission hint
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 48),
+                child: Text(
+                  'Camera permission required',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white.withValues(alpha: 0.5),
+                  ),
+                ),
+              ),
+
+              const Spacer(flex: 2),
+            ],
+          ),
         ),
       ),
     );
@@ -678,31 +826,37 @@ class _LiveAIScreenState extends State<LiveAIScreen>
 
                       // Stone Info
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
+                        child: Row(
                           children: [
-                            Text(
-                              stone.name,
-                              style: const TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                                letterSpacing: 0.2,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              '₹${stone.pricePerSqFt}/sq.ft',
-                              style: const TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.goldWarm,
-                                letterSpacing: 0.3,
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    stone.name,
+                                    style: const TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                      letterSpacing: 0.2,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    '₹${stone.pricePerSqFt}/sq.ft',
+                                    style: const TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.goldWarm,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
