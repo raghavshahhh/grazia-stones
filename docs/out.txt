@@ -1,0 +1,200 @@
+                  R AGSPRO
+
+
+
+
+     Grazia Stones
+AI Smart Estimator — Complete MVP Proposal
+
+
+
+
+             Prepared for: Grazia Stones
+
+     Prepared by: RAGSPRO — raghav@ragspro.com
+
+                 Date: August 2026
+                             RAGSPRO • Grazia Stones AI Smart Estimator
+
+
+
+
+  Overview
+
+A single, complete build of the Grazia Stones AI Smart Estimator — real AI-powered wall
+visualization, live AR tile placement, instant cost estimation, and dealer/lead management,
+delivered as one unified package on both Android and iOS.
+
+
+
+
+                      RAGSPRO | ragspro.com | raghav@ragspro.com — Page 2 of 5
+                                RAGSPRO • Grazia Stones AI Smart Estimator
+
+
+
+
+  What's Included — Complete MVP Package
+
+✓ Real AI Wall Visualization
+   AI-generated realistic preview of tiles/stones on a customer's actual wall
+
+
+✓ Real AR — Android + iPhone
+   Live camera-based augmented reality placement, no markers needed
+
+
+✓ Automatic Wall Detection
+   Detects wall surfaces automatically for accurate AR placement
+
+
+✓ Automatic Tile Fit
+   Tiles auto-align and scale to the detected wall dimensions
+
+
+✓ Live Swipe Design Change
+   Instantly switch between stone/tile designs while viewing the wall
+
+
+✓ AI Room Photo Mode
+   Upload a room photo and visualize tile designs without live AR
+
+
+✓ Wall Measurement
+   Height × width measurement directly from the camera
+
+
+✓ Tile Quantity Calculator
+   Auto-calculates tile/box quantity needed from wall area
+
+
+✓ Cost Estimator
+   Instant price estimate based on selected design and quantity
+
+
+✓ PDF BOQ / Quotation
+   Auto-generated, shareable PDF quote for the customer
+
+
+✓ Admin Panel
+   Manage products, pricing, designs, and catalogue centrally
+
+
+✓ Dealer Panel & Lead Management
+   Dealers get their own login; leads are tracked and assigned
+
+
+✓ Payment Gateway & Online Ordering
+   Accept payments and orders directly in-app
+
+
+✓ Play Store + App Store Deployment
+   Full listing and submission on both platforms
+
+
+
+
+                        RAGSPRO | ragspro.com | raghav@ragspro.com — Page 3 of 5
+                               RAGSPRO • Grazia Stones AI Smart Estimator
+
+
+
+
+✓ 30 Days Post-Launch Support
+   Bug fixes and minor adjustments after go-live
+
+
+
+
+  AI API usage is based on actual consumption. For normal business usage, the monthly cost
+  is generally low and is billed separately only when applicable — this keeps your development
+  investment fixed and predictable.
+
+
+
+
+  Investment
+
+
+
+                                      T O TA L I N V E S T M E N T
+
+
+
+                                  ₹1,49,000
+                               + AI API usage (actual consumption only)
+
+
+
+
+ Milestone                                                    Payment              Amount
+
+
+ Advance — on sign-off                                        40%                  ₹59,600
+
+
+ Midway — on AI/AR module demo                                30%                  ₹44,700
+
+
+ On delivery — before store publish                           30%                  ₹44,700
+
+
+ Total                                                        100%                 ₹1,49,000
+
+
+
+
+                        RAGSPRO | ragspro.com | raghav@ragspro.com — Page 4 of 5
+                                 RAGSPRO • Grazia Stones AI Smart Estimator
+
+
+
+
+  Timeline
+
+ Phase               Deliverable
+
+
+ Week 1–2            Backend setup, Admin Panel, product & catalogue management
+
+
+ Week 3–4            Real AI Visualization + Real AR (wall detection, auto tile fit)
+
+
+ Week 5              Wall measurement, tile calculator, cost estimator, PDF BOQ
+
+
+ Week 6              Testing, Play Store + App Store submission
+
+
+ Total               6 weeks from scope sign-off
+
+
+
+  Optional Future Enhancements
+
+Available as a next phase once the core platform is live — kept separate to keep this build
+focused and on-budget.
+
+
+→ Multi-brand / White-label platform                                                       + ₹45,000
+   Re-brandable app for dealers/franchises under their own name
+
+
+→ CAD / BIM integration for architects                                                     + ₹75,000
+   Import/export CAD & BIM files for architect workflows
+
+
+→ Custom AI model training                                                                 + ₹95,000
+   Trained on Grazia's own catalogue for sharper, brand-specific results
+
+
+
+
+   Everything included — Core MVP + all enhancements above                             ₹3,64,000
+
+
+
+
+                         RAGSPRO | ragspro.com | raghav@ragspro.com — Page 5 of 5
+

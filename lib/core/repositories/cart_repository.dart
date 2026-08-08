@@ -1,106 +1,93 @@
 import '../models/cart_item.dart';
-import '../repositories/base_repository.dart';
-import '../network/endpoints/cart_api.dart';
+import '../services/supabase_service.dart';
 
-class CartRepository extends BaseRepository {
-  CartRepository(super.api);
-  
-  final CartApi _cartApi = CartApi();
+/// Cart repository backed by Supabase `cart_items` table.
+class CartRepository {
+  final SupabaseService _sb = SupabaseService.instance;
 
-  // ═══════════════════════════════════════════════════════════════════════
-  // CART MANAGEMENT
-  // ═══════════════════════════════════════════════════════════════════════
-
-  Future<List<CartItem>> getCartItems() async {
-    return safeCall(() async {
-      return await _cartApi.getCart();
-    });
+  String get _userId {
+    final id = _sb.currentUser?.id;
+    if (id == null) throw Exception('Not logged in');
+    return id;
   }
 
-  Future<void> addToCart(
-    String stoneId,
-    int quantity, {
-    String finish = 'Polished',
-    String? colorHex,
-  }) async {
-    await safeCall(() async {
-      await _cartApi.addToCart(
-        stoneId: stoneId,
-        quantity: quantity,
-        finish: finish,
-        colorHex: colorHex,
-      );
-    });
+  Future<List<CartItem>> getCartItems() async {
+    final data = await _sb.client
+        .from('cart_items')
+        .select('*, stones(id, name, images, price_per_sqft, product_code, stock_status)')
+        .eq('user_id', _userId)
+        .order('created_at');
+    return data.map((j) => CartItem.fromJson(j)).toList();
+  }
+
+  Future<void> addToCart(String stoneId, int quantity, {String? notes}) async {
+    // Upsert: if item exists, increment quantity
+    final existing = await _sb.client
+        .from('cart_items')
+        .select('id, quantity')
+        .eq('user_id', _userId)
+        .eq('stone_id', stoneId)
+        .maybeSingle();
+
+    if (existing != null) {
+      await _sb.client.from('cart_items').update({
+        'quantity': existing['quantity'] + quantity,
+      }).eq('id', existing['id']);
+    } else {
+      // Get stone price
+      final stone = await _sb.client
+          .from('stones')
+          .select('price_per_sqft')
+          .eq('id', stoneId)
+          .single();
+      await _sb.client.from('cart_items').insert({
+        'user_id': _userId,
+        'stone_id': stoneId,
+        'quantity': quantity,
+        'unit_price': stone['price_per_sqft'],
+        'notes': notes,
+      });
+    }
   }
 
   Future<void> updateCartItem(String itemId, int quantity) async {
-    await safeCall(() async {
-      await _cartApi.updateCartItem(
-        cartItemId: itemId,
-        quantity: quantity,
-      );
-    });
+    if (quantity <= 0) {
+      await removeFromCart(itemId);
+      return;
+    }
+    await _sb.client
+        .from('cart_items')
+        .update({'quantity': quantity})
+        .eq('id', itemId)
+        .eq('user_id', _userId);
   }
 
   Future<void> removeFromCart(String itemId) async {
-    await safeCall(() async {
-      await _cartApi.removeFromCart(itemId);
-    });
+    await _sb.client
+        .from('cart_items')
+        .delete()
+        .eq('id', itemId)
+        .eq('user_id', _userId);
   }
 
   Future<void> clearCart() async {
-    await safeCall(() async {
-      await _cartApi.clearCart();
-    });
+    await _sb.client
+        .from('cart_items')
+        .delete()
+        .eq('user_id', _userId);
   }
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // CART SUMMARY
-  // ═══════════════════════════════════════════════════════════════════════
 
   Future<Map<String, dynamic>> getCartSummary() async {
-    return safeCall(() async {
-      return await _cartApi.getCartSummary();
-    });
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // COUPONS
-  // ═══════════════════════════════════════════════════════════════════════
-
-  Future<Map<String, dynamic>> applyCoupon(String couponCode) async {
-    return safeCall(() async {
-      return await _cartApi.applyCoupon(couponCode);
-    });
-  }
-
-  Future<void> removeCoupon() async {
-    await safeCall(() async {
-      await _cartApi.removeCoupon();
-    });
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // CHECKOUT
-  // ═══════════════════════════════════════════════════════════════════════
-
-  Future<Map<String, dynamic>> checkout({
-    required String addressId,
-    required String paymentMethod,
-    String? notes,
-  }) async {
-    return safeCall(() async {
-      return await _cartApi.checkout(
-        addressId: addressId,
-        paymentMethod: paymentMethod,
-        notes: notes,
-      );
-    });
-  }
-
-  Future<Map<String, dynamic>> validateCart() async {
-    return safeCall(() async {
-      return await _cartApi.validateCart();
-    });
+    final items = await getCartItems();
+    final subtotal = items.fold<double>(0, (sum, i) => sum + (i.pricePerSqFt * i.quantity));
+    final total = subtotal; // Add tax/shipping logic here later
+    return {
+      'items': items,
+      'subtotal': subtotal,
+      'shipping': 0.0,
+      'tax': 0.0,
+      'total': total,
+      'itemCount': items.length,
+    };
   }
 }

@@ -1,27 +1,61 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/typography.dart';
 import 'package:grazia_stones/shared/theme/spacing.dart';
 import 'package:grazia_stones/shared/theme/tokens.dart';
-import 'package:grazia_stones/core/services/mock_data_service.dart';
+import 'package:grazia_stones/core/providers/stone_providers.dart';
 import 'package:grazia_stones/shared/widgets/grazia_app_bar.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 
-class CollectionDetailScreen extends StatelessWidget {
+class CollectionDetailScreen extends ConsumerWidget {
   final String collectionId;
-  
+
   const CollectionDetailScreen({super.key, required this.collectionId});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final palette = GLuxuryPalettes.gold;
-    final collection = MockDataService.collections.firstWhere((c) => c.id == collectionId);
-    final stones = MockDataService.stones.where((s) => 
-      s.collection.toLowerCase().replaceAll(' ', '-') == collectionId
-    ).toList();
+    final collectionsAsync = ref.watch(allCollectionsProvider);
+    final stonesAsync = ref.watch(allStonesProvider);
 
+    return collectionsAsync.when(
+      loading: () => Scaffold(
+        backgroundColor: palette.background,
+        body: Center(child: CircularProgressIndicator(color: palette.primary)),
+      ),
+      error: (e, _) => Scaffold(
+        backgroundColor: palette.background,
+        body: Center(child: Text('Failed to load collections', style: GLuxuryTypography.bodyLarge)),
+      ),
+      data: (collections) {
+        final collection = collections.firstWhere(
+          (c) => c.id == collectionId,
+          orElse: () => collections.first,
+        );
+        return stonesAsync.when(
+          loading: () => Scaffold(
+            backgroundColor: palette.background,
+            body: Center(child: CircularProgressIndicator(color: palette.primary)),
+          ),
+          error: (e, _) => Scaffold(
+            backgroundColor: palette.background,
+            body: Center(child: Text('Failed to load stones', style: GLuxuryTypography.bodyLarge)),
+          ),
+          data: (allStones) {
+            final stones = allStones.where((s) =>
+              s.collection.toLowerCase().replaceAll(' ', '-') == collectionId
+            ).toList();
+            return _buildScreen(context, palette, collection, stones);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildScreen(BuildContext context, LuxuryPalette palette, dynamic collection, List stones) {
     return Scaffold(
       backgroundColor: palette.background,
       appBar: GraziaAppBar(

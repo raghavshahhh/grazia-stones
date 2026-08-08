@@ -91,7 +91,7 @@ class StoneRiverpodNotifier extends StateNotifier<StoneRiverpodState> {
     final repo = _repo;
     if (repo == null) return;
     try {
-      final stones = await repo.getPopularStones();
+      final stones = await repo.getTrendingStones();
       state = state.copyWith(popularStones: stones);
     } catch (_) {}
   }

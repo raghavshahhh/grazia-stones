@@ -2,14 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:grazia_stones/core/services/mock_data_service.dart';
-import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/di.dart';
+import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/typography.dart';
 import 'package:grazia_stones/shared/theme/spacing.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
+
+/// Wishlist items provider — fetches from Supabase
+final wishlistProvider = FutureProvider.autoDispose<List<Stone>>((ref) async {
+  final repo = ref.watch(stoneRepositoryProvider);
+  return repo.getWishlist();
+});
 
 class WishlistScreen extends ConsumerStatefulWidget {
   const WishlistScreen({super.key});
@@ -19,23 +24,14 @@ class WishlistScreen extends ConsumerStatefulWidget {
 }
 
 class _WishlistScreenState extends ConsumerState<WishlistScreen> {
-  // Mock wishlist (first 4 stones)
-  List<Stone> _wishlist = [];
   Set<String> _selectedIds = {};
   bool _isSelectionMode = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _wishlist = MockDataService.getAllStones().take(4).toList();
-  }
-
   void _removeItem(String id) {
     HapticFeedback.mediumImpact();
-    setState(() {
-      _wishlist.removeWhere((s) => s.id == id);
-      _selectedIds.remove(id);
-    });
+    ref.read(stoneRepositoryProvider).removeFromWishlist(id);
+    ref.invalidate(wishlistProvider);
+    _selectedIds.remove(id);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Removed from wishlist'), backgroundColor: Colors.red),
     );
@@ -44,11 +40,13 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
   void _removeSelected() {
     if (_selectedIds.isEmpty) return;
     HapticFeedback.mediumImpact();
-    setState(() {
-      _wishlist.removeWhere((s) => _selectedIds.contains(s.id));
-      _selectedIds.clear();
-      _isSelectionMode = false;
-    });
+    final repo = ref.read(stoneRepositoryProvider);
+    for (final id in _selectedIds) {
+      repo.removeFromWishlist(id);
+    }
+    _selectedIds.clear();
+    _isSelectionMode = false;
+    ref.invalidate(wishlistProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Removed selected items'), backgroundColor: Colors.red),
     );
@@ -64,34 +62,11 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
     });
   }
 
-  void _selectAll() {
-    setState(() {
-      if (_selectedIds.length == _wishlist.length) {
-        _selectedIds.clear();
-      } else {
-        _selectedIds = _wishlist.map((s) => s.id).toSet();
-      }
-    });
-  }
-
   void _clearAll() {
     HapticFeedback.mediumImpact();
-    setState(() => _wishlist.clear());
+    ref.invalidate(wishlistProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Wishlist cleared')),
-    );
-  }
-
-  void _moveAllToCart() {
-    if (_wishlist.isEmpty) return;
-    HapticFeedback.mediumImpact();
-    for (final stone in _wishlist) {
-      ref.read(cartRiverpodProvider.notifier).addItem(stone);
-    }
-    final count = _wishlist.length;
-    setState(() => _wishlist.clear());
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$count item${count > 1 ? 's' : ''} moved to cart')),
     );
   }
 
@@ -106,6 +81,7 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
   @override
   Widget build(BuildContext context) {
     final palette = ref.watch(themePaletteProvider);
+    final wishlistAsync = ref.watch(wishlistProvider);
 
     return Scaffold(
       backgroundColor: palette.background,
@@ -121,22 +97,43 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
           style: GLuxuryTypography.h2.copyWith(color: palette.textPrimary),
         ),
         actions: [
-          if (_wishlist.isNotEmpty)
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  _isSelectionMode = !_isSelectionMode;
-                  if (!_isSelectionMode) _selectedIds.clear();
-                });
-              },
-              child: Text(
-                _isSelectionMode ? 'Cancel' : 'Select',
-                style: GLuxuryTypography.labelMedium.copyWith(color: palette.primary),
-              ),
-            ),
+          wishlistAsync.when(
+            data: (wishlist) {
+              if (_isSelectionMode) {
+                return TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _isSelectionMode = false;
+                      _selectedIds.clear();
+                    });
+                  },
+                  child: Text('Cancel', style: GLuxuryTypography.labelMedium.copyWith(color: palette.primary)),
+                );
+              }
+              return wishlist.isNotEmpty
+                  ? TextButton(
+                      onPressed: () {
+                        setState(() {
+                          _isSelectionMode = true;
+                        });
+                      },
+                      child: Text('Select', style: GLuxuryTypography.labelMedium.copyWith(color: palette.primary)),
+                    )
+                  : const SizedBox.shrink();
+            },
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
+          ),
         ],
       ),
-      body: _wishlist.isEmpty ? _buildEmptyState(palette) : _buildWishlistContent(palette),
+      body: wishlistAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('Error: $e', style: TextStyle(color: palette.error))),
+        data: (wishlist) {
+          if (wishlist.isEmpty) return _buildEmptyState(palette);
+          return _buildWishlistContent(wishlist, palette);
+        },
+      ),
       bottomNavigationBar: _isSelectionMode && _selectedIds.isNotEmpty
           ? _buildBottomBar(palette)
           : null,
@@ -150,15 +147,9 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
         children: [
           Icon(Icons.favorite_border, size: 80, color: palette.textTertiary.withValues(alpha: 0.3)),
           GLuxurySpacing.gapBase,
-          Text(
-            'Your wishlist is empty',
-            style: GLuxuryTypography.h2.copyWith(color: palette.textPrimary),
-          ),
+          Text('Your wishlist is empty', style: GLuxuryTypography.h2.copyWith(color: palette.textPrimary)),
           GLuxurySpacing.gapSm,
-          Text(
-            'Add stones you love to your wishlist',
-            style: GLuxuryTypography.bodyMedium.copyWith(color: palette.textSecondary),
-          ),
+          Text('Add stones you love to your wishlist', style: GLuxuryTypography.bodyMedium.copyWith(color: palette.textSecondary)),
           GLuxurySpacing.gapXl,
           ElevatedButton(
             onPressed: () => context.go('/home'),
@@ -175,19 +166,29 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
     );
   }
 
-  Widget _buildWishlistContent(LuxuryPalette palette) {
+  Widget _buildWishlistContent(List<Stone> wishlist, LuxuryPalette palette) {
     return Column(
       children: [
         if (_isSelectionMode)
-          _buildSelectionHeader(palette)
-        else if (_wishlist.isNotEmpty)
+          _buildSelectionHeader(wishlist, palette)
+        else if (wishlist.isNotEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
             child: Row(
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: _moveAllToCart,
+                    onPressed: () {
+                      for (final stone in wishlist) {
+                        ref.read(cartRiverpodProvider.notifier).addItem(stone);
+                      }
+                      final repo = ref.read(stoneRepositoryProvider);
+                      for (final s in wishlist) { repo.removeFromWishlist(s.id); }
+                      ref.invalidate(wishlistProvider);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('${wishlist.length} item${wishlist.length > 1 ? 's' : ''} moved to cart')),
+                      );
+                    },
                     icon: Icon(Icons.add_shopping_cart, size: 16, color: palette.primary),
                     label: Text('Move All to Cart', style: GLuxuryTypography.labelMedium.copyWith(color: palette.primary)),
                     style: OutlinedButton.styleFrom(
@@ -214,9 +215,9 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
         Expanded(
           child: ListView.builder(
             padding: const EdgeInsets.all(16),
-            itemCount: _wishlist.length,
+            itemCount: wishlist.length,
             itemBuilder: (context, i) {
-              final stone = _wishlist[i];
+              final stone = wishlist[i];
               final isSelected = _selectedIds.contains(stone.id);
               return _buildWishlistCard(stone, isSelected, palette);
             },
@@ -226,7 +227,7 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
     );
   }
 
-  Widget _buildSelectionHeader(LuxuryPalette palette) {
+  Widget _buildSelectionHeader(List<Stone> wishlist, LuxuryPalette palette) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
@@ -236,14 +237,19 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
       child: Row(
         children: [
           Checkbox(
-            value: _selectedIds.length == _wishlist.length && _wishlist.isNotEmpty,
-            onChanged: (_) => _selectAll(),
+            value: _selectedIds.length == wishlist.length && wishlist.isNotEmpty,
+            onChanged: (_) {
+              setState(() {
+                if (_selectedIds.length == wishlist.length) {
+                  _selectedIds.clear();
+                } else {
+                  _selectedIds = wishlist.map((s) => s.id).toSet();
+                }
+              });
+            },
             activeColor: palette.primary,
           ),
-          Text(
-            '${_selectedIds.length} selected',
-            style: GLuxuryTypography.bodyMedium.copyWith(color: palette.textPrimary),
-          ),
+          Text('${_selectedIds.length} selected', style: GLuxuryTypography.bodyMedium.copyWith(color: palette.textPrimary)),
         ],
       ),
     );
@@ -256,10 +262,7 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
       onDismissed: (_) => _removeItem(stone.id),
       background: Container(
         margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(
-          color: Colors.red,
-          borderRadius: BorderRadius.circular(16),
-        ),
+        decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(16)),
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         child: const Icon(Icons.delete_outline, color: Colors.white, size: 28),
@@ -294,14 +297,8 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: SizedBox(
-                  width: 80,
-                  height: 80,
-                  child: SmartStoneImage(
-                    imageUrl: stone.imageUrl,
-                    width: 80,
-                    height: 80,
-                    palette: palette,
-                  ),
+                  width: 80, height: 80,
+                  child: SmartStoneImage(imageUrl: stone.imageUrl, width: 80, height: 80, palette: palette),
                 ),
               ),
               const SizedBox(width: 12),
@@ -309,41 +306,15 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      stone.name,
-                      style: GLuxuryTypography.h3.copyWith(color: palette.textPrimary),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    Text(stone.name, style: GLuxuryTypography.h3.copyWith(color: palette.textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 4),
-                    Text(
-                      stone.collection,
-                      style: GLuxuryTypography.bodySmall.copyWith(color: palette.textSecondary),
-                    ),
+                    Text(stone.collection, style: GLuxuryTypography.bodySmall.copyWith(color: palette.textSecondary)),
                     const SizedBox(height: 8),
                     Row(
                       children: [
                         Icon(Icons.star_rounded, color: palette.primary, size: 16),
                         const SizedBox(width: 4),
-                        Text(
-                          stone.rating.toString(),
-                          style: GLuxuryTypography.bodySmall.copyWith(color: palette.textPrimary),
-                        ),
-                        const SizedBox(width: 12),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: palette.primary.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            stone.finish,
-                            style: GLuxuryTypography.labelSmall.copyWith(
-                              color: palette.primary,
-                              fontSize: 10,
-                            ),
-                          ),
-                        ),
+                        Text(stone.rating.toString(), style: GLuxuryTypography.bodySmall.copyWith(color: palette.textPrimary)),
                       ],
                     ),
                   ],
@@ -352,32 +323,14 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(
-                    '₹${stone.pricePerSqFt.toInt()}',
-                    style: GLuxuryTypography.h3.copyWith(color: palette.primary),
-                  ),
-                  Text(
-                    '/sq ft',
-                    style: GLuxuryTypography.labelSmall.copyWith(color: palette.textTertiary),
-                  ),
+                  Text('₹${stone.pricePerSqFt.toInt()}', style: GLuxuryTypography.h3.copyWith(color: palette.primary)),
                   const SizedBox(height: 8),
                   if (!_isSelectionMode)
-                    Column(
-                      children: [
-                        IconButton(
-                          onPressed: () => _addToCart(stone),
-                          icon: Icon(Icons.add_shopping_cart, color: palette.primary, size: 20),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        ),
-                        const SizedBox(height: 4),
-                        IconButton(
-                          onPressed: () => _removeItem(stone.id),
-                          icon: Icon(Icons.close, color: palette.textTertiary, size: 20),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        ),
-                      ],
+                    IconButton(
+                      onPressed: () => _addToCart(stone),
+                      icon: Icon(Icons.add_shopping_cart, color: palette.primary, size: 20),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
                     ),
                 ],
               ),
@@ -391,9 +344,7 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
   Widget _buildBottomBar(LuxuryPalette palette) {
     return Container(
       padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        top: 16,
+        left: 16, right: 16, top: 16,
         bottom: MediaQuery.of(context).padding.bottom + 16,
       ),
       decoration: BoxDecoration(
@@ -402,32 +353,6 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
       ),
       child: Row(
         children: [
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: () {
-                for (final stone in _wishlist.where((s) => _selectedIds.contains(s.id))) {
-                  ref.read(cartRiverpodProvider.notifier).addItem(stone);
-                }
-                final count = _selectedIds.length;
-                setState(() {
-                  _wishlist.removeWhere((s) => _selectedIds.contains(s.id));
-                  _selectedIds.clear();
-                  _isSelectionMode = false;
-                });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('$count item${count > 1 ? 's' : ''} added to cart')),
-                );
-              },
-              icon: Icon(Icons.add_shopping_cart, size: 18, color: palette.primary),
-              label: Text('Add to Cart', style: GLuxuryTypography.labelMedium.copyWith(color: palette.primary)),
-              style: OutlinedButton.styleFrom(
-                side: BorderSide(color: palette.primary.withValues(alpha: 0.3)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
           Expanded(
             child: ElevatedButton.icon(
               onPressed: _removeSelected,

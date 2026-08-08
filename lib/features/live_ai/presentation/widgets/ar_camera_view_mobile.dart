@@ -29,42 +29,29 @@ class ARCameraView extends StatefulWidget {
   final double rotation;
 
   // Static control API
-  static String? _currentStoneTexture;
-  static double _currentOpacity = 0.72;
-  static double _currentScale = 1.0;
-  static Offset _currentPosition = Offset.zero;
-  static double _currentRotation = 0.0;
-  static bool _showBoundary = false;
   static final _controller = StreamController<_ARUpdate>.broadcast();
 
   static void updateStone(String? assetPath, double opacity) {
-    _currentStoneTexture = assetPath;
-    _currentOpacity = opacity;
     _controller.add(_ARUpdate(stone: assetPath, opacity: opacity));
   }
 
   static void updateOpacity(double opacity) {
-    _currentOpacity = opacity;
     _controller.add(_ARUpdate(opacity: opacity));
   }
 
   static void updateScale(double scale) {
-    _currentScale = scale;
     _controller.add(_ARUpdate(scale: scale));
   }
 
   static void updatePosition(Offset position) {
-    _currentPosition = position;
     _controller.add(_ARUpdate(position: position));
   }
 
   static void updateRotation(double rotation) {
-    _currentRotation = rotation;
     _controller.add(_ARUpdate(rotation: rotation));
   }
 
   static void showWallBoundary(bool show) {
-    _showBoundary = show;
     _controller.add(_ARUpdate(showBoundary: show));
   }
 
@@ -102,7 +89,6 @@ class _ARCameraViewState extends State<ARCameraView>
   bool _isInitialized = false;
   bool _isPermissionDenied = false;
   String? _error;
-  List<CameraDescription>? _cameras;
 
   String? _displayStoneTexture;
   double _displayOpacity = 0.72;
@@ -141,7 +127,6 @@ class _ARCameraViewState extends State<ARCameraView>
 
   Future<void> _initializeCamera() async {
     try {
-      // Request camera permission
       final status = await Permission.camera.request();
       if (!status.isGranted) {
         setState(() {
@@ -152,31 +137,23 @@ class _ARCameraViewState extends State<ARCameraView>
         return;
       }
 
-      // Get available cameras
-      _cameras = await availableCameras();
-      if (_cameras == null || _cameras!.isEmpty) {
-        setState(() {
-          _error = 'No cameras available on this device';
-        });
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) {
+        setState(() => _error = 'No cameras available');
         widget.onError?.call();
         return;
       }
 
-      // Find back camera (environment)
       CameraDescription? backCamera;
-      for (final camera in _cameras!) {
+      for (final camera in cameras) {
         if (camera.lensDirection == CameraLensDirection.back) {
           backCamera = camera;
           break;
         }
       }
 
-      // Fallback to first camera if no back camera
-      final selectedCamera = backCamera ?? _cameras!.first;
-
-      // Initialize camera controller
       _controller = CameraController(
-        selectedCamera,
+        backCamera ?? cameras.first,
         ResolutionPreset.high,
         enableAudio: false,
         imageFormatGroup: Platform.isAndroid
@@ -188,22 +165,15 @@ class _ARCameraViewState extends State<ARCameraView>
 
       if (!mounted) return;
 
-      setState(() {
-        _isInitialized = true;
-        _error = null;
-      });
-
+      setState(() => _isInitialized = true);
       widget.onReady?.call();
 
-      // Apply initial stone texture if provided
       if (_displayStoneTexture != null) {
         ARCameraView.updateStone(_displayStoneTexture, _displayOpacity);
       }
-      ARCameraView.showWallBoundary(true);
     } catch (e) {
-      setState(() {
-        _error = 'Camera initialization failed: ${e.toString()}';
-      });
+      if (!mounted) return;
+      setState(() => _error = 'Camera failed: $e');
       widget.onError?.call();
     }
   }
@@ -211,39 +181,7 @@ class _ARCameraViewState extends State<ARCameraView>
   void _disposeCamera() {
     _controller?.dispose();
     _controller = null;
-    _isInitialized = false;
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    final controller = _controller;
-    if (controller == null || !controller.value.isInitialized) {
-      return;
-    }
-
-    if (state == AppLifecycleState.inactive) {
-      controller.dispose();
-    } else if (state == AppLifecycleState.resumed) {
-      _initializeCamera();
-    }
-  }
-
-  @override
-  void didUpdateWidget(ARCameraView oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.stoneImagePath != widget.stoneImagePath ||
-        oldWidget.opacity != widget.opacity ||
-        oldWidget.scale != widget.scale ||
-        oldWidget.position != widget.position ||
-        oldWidget.rotation != widget.rotation) {
-      setState(() {
-        _displayStoneTexture = widget.stoneImagePath;
-        _displayOpacity = widget.opacity;
-        _displayScale = widget.scale;
-        _displayPosition = widget.position;
-        _displayRotation = widget.rotation;
-      });
-    }
+    if (mounted) setState(() => _isInitialized = false);
   }
 
   @override
@@ -255,155 +193,79 @@ class _ARCameraViewState extends State<ARCameraView>
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_controller == null || !_controller!.value.isInitialized) return;
+    if (state == AppLifecycleState.inactive) {
+      _disposeCamera();
+    } else if (state == AppLifecycleState.resumed) {
+      _initializeCamera();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Error state
-    if (_error != null) {
-      return _buildErrorState();
-    }
-
-    // Permission denied
-    if (_isPermissionDenied) {
-      return _buildPermissionDenied();
-    }
-
-    // Loading state
+    if (_isPermissionDenied) return _buildPermissionDenied();
+    if (_error != null) return _buildErrorState();
     if (!_isInitialized || _controller == null) {
-      return _buildLoadingState();
+      return const SizedBox.shrink();
     }
+    return _buildCameraPreview();
+  }
 
-    // Camera view with overlay
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        // Real camera feed
-        ClipRect(
-          child: OverflowBox(
-            alignment: Alignment.center,
-            child: FittedBox(
-              fit: BoxFit.cover,
-              child: SizedBox(
-                width: _controller!.value.previewSize!.height,
-                height: _controller!.value.previewSize!.width,
-                child: CameraPreview(_controller!),
-              ),
-            ),
-          ),
-        ),
-
-        // Stone texture overlay with realistic blending + interactive transforms
-        // 80% opacity + multiply blend + edge feathering + scale + position + rotation
-        if (_displayStoneTexture != null)
-          Positioned.fill(
-            child: Transform.translate(
-              offset: _displayPosition,
-              child: Transform.rotate(
-                angle: _displayRotation,
-                child: Transform.scale(
-                  scale: _displayScale,
-                  child: Opacity(
-                    opacity: _displayOpacity,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        image: DecorationImage(
-                          image: AssetImage(_displayStoneTexture!),
-                          repeat: ImageRepeat.repeat,
-                          scale: 2.5 / _displayScale, // Adjust tile size based on scale
-                        ),
-                      ),
-                      // Multiply blend mode preserves shadows and lighting
-                      foregroundDecoration: BoxDecoration(
-                        color: Colors.transparent,
-                        backgroundBlendMode: BlendMode.multiply,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-        // Edge feathering gradient (2-4px soft edges)
-        if (_displayStoneTexture != null)
-          Positioned.fill(
-            child: IgnorePointer(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.black.withValues(alpha: 0.12),
-                      Colors.transparent,
-                      Colors.transparent,
-                      Colors.black.withValues(alpha: 0.12),
-                    ],
-                    stops: const [0.0, 0.06, 0.94, 1.0],
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-        // Subtle vignette for depth
-        Positioned.fill(
-          child: IgnorePointer(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment.center,
-                  radius: 0.85,
-                  colors: [
-                    Colors.transparent,
-                    Colors.black.withValues(alpha: 0.20),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-
-        // Wall detection bracket
-        if (_showWallBracket) _buildWallBracket(),
-      ],
+  Widget _buildCameraPreview() {
+    return ClipRect(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Camera feed - fills entire screen
+          _buildCameraFeed(),
+          // Stone texture overlay
+          if (_displayStoneTexture != null) _buildTextureOverlay(),
+          // Wall boundary bracket
+          if (_showWallBracket) _buildWallBracket(),
+        ],
+      ),
     );
   }
 
-  Widget _buildLoadingState() {
-    return Container(
-      color: Colors.black,
-      child: const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 48,
-              height: 48,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.5,
-                color: Color(0xFFC8A53C),
+  /// Camera feed using FittedBox with BoxFit.cover for proper screen fill
+  Widget _buildCameraFeed() {
+    final previewSize = _controller!.value.previewSize!;
+
+    return FittedBox(
+      fit: BoxFit.cover,
+      clipBehavior: Clip.hardEdge,
+      child: SizedBox(
+        width: previewSize.height,
+        height: previewSize.width,
+        child: RotatedBox(
+          quarterTurns: 1,
+          child: CameraPreview(_controller!),
+        ),
+      ),
+    );
+  }
+
+  /// Stone texture overlay with opacity, scale, and rotation
+  Widget _buildTextureOverlay() {
+    return Positioned.fill(
+      child: Opacity(
+        opacity: _displayOpacity,
+        child: Transform.scale(
+          scale: _displayScale,
+          child: Transform.translate(
+            offset: _displayPosition,
+            child: Transform.rotate(
+              angle: _displayRotation,
+              child: Image.asset(
+                _displayStoneTexture!,
+                fit: BoxFit.cover,
+                errorBuilder: (ctx, err, stack) => Container(
+                  color: Colors.amber.withValues(alpha: 0.3),
+                ),
               ),
             ),
-            SizedBox(height: 20),
-            Text(
-              'Initializing Camera…',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                fontFamily: 'Inter',
-              ),
-            ),
-            SizedBox(height: 8),
-            Text(
-              'Please allow camera access if prompted',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white54,
-                fontSize: 12,
-                fontFamily: 'Inter',
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -413,75 +275,41 @@ class _ARCameraViewState extends State<ARCameraView>
     return Container(
       color: Colors.black,
       child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color(0xFFC8A53C).withValues(alpha: 0.15),
-                  border: Border.all(
-                    color: const Color(0xFFC8A53C).withValues(alpha: 0.4),
-                  ),
-                ),
-                child: const Icon(
-                  Icons.videocam_off_rounded,
-                  color: Color(0xFFC8A53C),
-                  size: 48,
-                ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.camera_alt_outlined, color: Colors.white.withValues(alpha: 0.5), size: 48),
+            const SizedBox(height: 16),
+            Text(
+              'Camera permission denied',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.8),
+                fontFamily: 'Inter',
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
               ),
-              const SizedBox(height: 24),
-              const Text(
-                'Camera Permission Required',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  fontFamily: 'Inter',
-                ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Enable in Settings',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.5),
+                fontFamily: 'Inter',
+                fontSize: 12,
               ),
-              const SizedBox(height: 12),
-              Text(
-                'To use Live AR, please grant camera permissions in your device settings.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.7),
-                  fontSize: 14,
-                  height: 1.5,
-                  fontFamily: 'Inter',
-                ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () => openAppSettings(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFC8A53C),
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               ),
-              const SizedBox(height: 32),
-              ElevatedButton.icon(
-                onPressed: () async {
-                  await openAppSettings();
-                },
-                icon: const Icon(Icons.settings, size: 20),
-                label: const Text(
-                  'Open Settings',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFC8A53C),
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 28,
-                    vertical: 14,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(28),
-                  ),
-                ),
-              ),
-            ],
-          ),
+              child: const Text('Open Settings', style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w700)),
+            ),
+          ],
         ),
       ),
     );
@@ -496,33 +324,19 @@ class _ARCameraViewState extends State<ARCameraView>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
-                Icons.error_outline,
-                color: Colors.red,
-                size: 64,
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Camera Error',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  fontFamily: 'Inter',
-                ),
-              ),
-              const SizedBox(height: 12),
+              Icon(Icons.error_outline, color: Colors.red.withValues(alpha: 0.8), size: 48),
+              const SizedBox(height: 16),
               Text(
-                _error ?? 'An unknown error occurred',
+                _error ?? 'Unknown error',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.7),
+                  color: Colors.white.withValues(alpha: 0.8),
+                  fontFamily: 'Inter',
                   fontSize: 14,
                   height: 1.5,
-                  fontFamily: 'Inter',
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
               ElevatedButton.icon(
                 onPressed: () {
                   setState(() {
@@ -531,25 +345,13 @@ class _ARCameraViewState extends State<ARCameraView>
                   });
                   _initializeCamera();
                 },
-                icon: const Icon(Icons.refresh, size: 20),
-                label: const Text(
-                  'Retry',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('Retry', style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w700)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFC8A53C),
                   foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 28,
-                    vertical: 14,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(28),
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 ),
               ),
             ],
@@ -565,44 +367,22 @@ class _ARCameraViewState extends State<ARCameraView>
       left: MediaQuery.of(context).size.width * 0.04,
       right: MediaQuery.of(context).size.width * 0.04,
       bottom: MediaQuery.of(context).size.height * 0.22,
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0.0, end: 1.0),
-        duration: const Duration(milliseconds: 600),
-        curve: Curves.easeOutCubic,
-        builder: (context, value, child) {
-          return Opacity(
-            opacity: value,
-            child: Container(
-              decoration: BoxDecoration(
-                border: Border.all(
-                  color: Color.lerp(
-                    Colors.transparent,
-                    const Color(0xFFC8A53C),
-                    value,
-                  )!,
-                  width: 1.5,
-                ),
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFC8A53C).withValues(alpha: 0.1 * value),
-                    blurRadius: 40,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
-              child: Stack(
-                children: [
-                  // Corner brackets
-                  _buildCornerBracket(Alignment.topLeft),
-                  _buildCornerBracket(Alignment.topRight),
-                  _buildCornerBracket(Alignment.bottomLeft),
-                  _buildCornerBracket(Alignment.bottomRight),
-                ],
-              ),
-            ),
-          );
-        },
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: const Color(0xFFC8A53C).withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Stack(
+          children: [
+            _buildCornerBracket(Alignment.topLeft),
+            _buildCornerBracket(Alignment.topRight),
+            _buildCornerBracket(Alignment.bottomLeft),
+            _buildCornerBracket(Alignment.bottomRight),
+          ],
+        ),
       ),
     );
   }
@@ -619,28 +399,16 @@ class _ARCameraViewState extends State<ARCameraView>
         decoration: BoxDecoration(
           border: Border(
             top: isTop
-                ? const BorderSide(
-                    color: Color(0xFFC8A53C),
-                    width: 3,
-                  )
+                ? const BorderSide(color: Color(0xFFC8A53C), width: 3)
                 : BorderSide.none,
             bottom: !isTop
-                ? const BorderSide(
-                    color: Color(0xFFC8A53C),
-                    width: 3,
-                  )
+                ? const BorderSide(color: Color(0xFFC8A53C), width: 3)
                 : BorderSide.none,
             left: isLeft
-                ? const BorderSide(
-                    color: Color(0xFFC8A53C),
-                    width: 3,
-                  )
+                ? const BorderSide(color: Color(0xFFC8A53C), width: 3)
                 : BorderSide.none,
             right: !isLeft
-                ? const BorderSide(
-                    color: Color(0xFFC8A53C),
-                    width: 3,
-                  )
+                ? const BorderSide(color: Color(0xFFC8A53C), width: 3)
                 : BorderSide.none,
           ),
         ),

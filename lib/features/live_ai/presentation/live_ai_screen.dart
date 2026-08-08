@@ -1,27 +1,27 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/models/stone.dart';
-import 'package:grazia_stones/core/services/mock_data_service.dart';
+import 'package:grazia_stones/core/providers/stone_providers.dart';
 import 'widgets/ar_camera_view.dart';
 
-/// Premium Luxury Live AI Screen - Real Camera + Wall Texture Visualization
-class LiveAIScreen extends StatefulWidget {
+/// Live AI Visualizer — real camera + wall texture visualization
+class LiveAIScreen extends ConsumerStatefulWidget {
   const LiveAIScreen({super.key});
 
   @override
-  State<LiveAIScreen> createState() => _LiveAIScreenState();
+  ConsumerState<LiveAIScreen> createState() => _LiveAIScreenState();
 }
 
-class _LiveAIScreenState extends State<LiveAIScreen>
-    with TickerProviderStateMixin {
-  // Stone selection state
+class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
+  // Stone selection
   int _selectedStoneIndex = 0;
-  List<Stone> _filteredStones = MockDataService.stones;
+  List<Stone> _filteredStones = [];
 
-  // Category filter state
+  // Category filter
   String _selectedCategory = 'All';
   final List<String> _categories = [
     'All',
@@ -35,39 +35,23 @@ class _LiveAIScreenState extends State<LiveAIScreen>
 
   // Camera state
   bool _cameraReady = false;
-  bool _wallDetected = false;
 
-  // Texture controls (mutable now)
+  // Texture controls
   double _textureOpacity = 0.75;
   double _textureScale = 1.0;
-  bool _showWallBoundary = true;
-  bool _controlsExpanded = false;
 
   // Controllers
   late PageController _stonePageController;
   late ScrollController _categoryScrollController;
-  late AnimationController _wallDetectController;
-  late Animation<double> _wallDetectAnimation;
 
   @override
   void initState() {
     super.initState();
-
     _stonePageController = PageController(
       viewportFraction: 0.23,
       initialPage: 0,
     );
     _categoryScrollController = ScrollController();
-
-    _wallDetectController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
-
-    _wallDetectAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _wallDetectController, curve: Curves.easeOut),
-    );
-
     _updateFilteredStones();
   }
 
@@ -75,39 +59,37 @@ class _LiveAIScreenState extends State<LiveAIScreen>
   void dispose() {
     _stonePageController.dispose();
     _categoryScrollController.dispose();
-    _wallDetectController.dispose();
     super.dispose();
   }
 
   void _updateFilteredStones() {
+    final allStones = ref.read(allStonesProvider).valueOrNull ?? [];
     setState(() {
       if (_selectedCategory == 'All') {
-        _filteredStones = MockDataService.stones;
+        _filteredStones = List<Stone>.from(allStones);
       } else {
-        _filteredStones = MockDataService.stones
+        _filteredStones = allStones
             .where((s) =>
                 s.category.toLowerCase().contains(_selectedCategory.toLowerCase()) ||
                 s.collection.toLowerCase().contains(_selectedCategory.toLowerCase()))
             .toList();
         if (_filteredStones.isEmpty) {
-          _filteredStones = MockDataService.stones;
+          _filteredStones = List<Stone>.from(allStones);
         }
       }
       _selectedStoneIndex = 0;
     });
   }
 
-  Stone get _selectedStone => _filteredStones.isEmpty
-      ? MockDataService.stones.first
+  Stone? get _selectedStone => _filteredStones.isEmpty
+      ? null
       : _filteredStones[_selectedStoneIndex % _filteredStones.length];
 
   void _selectStone(int index) {
     HapticFeedback.selectionClick();
-    setState(() {
-      _selectedStoneIndex = index;
-    });
-
+    setState(() => _selectedStoneIndex = index);
     final stone = _selectedStone;
+    if (stone == null) return;
     final path = stone.images.isNotEmpty ? stone.images.first : null;
     if (path != null && _cameraReady) {
       ARCameraView.updateStone(path, _textureOpacity);
@@ -124,14 +106,10 @@ class _LiveAIScreenState extends State<LiveAIScreen>
     ARCameraView.updateScale(value);
   }
 
-  void _toggleWallBoundary() {
-    setState(() => _showWallBoundary = !_showWallBoundary);
-    ARCameraView.showWallBoundary(_showWallBoundary);
-  }
-
   void _navigateToProduct() {
     HapticFeedback.mediumImpact();
-    context.push('/stones/${_selectedStone.id}');
+    final stone = _selectedStone;
+    if (stone != null) context.push('/stones/${stone.id}');
   }
 
   @override
@@ -140,125 +118,45 @@ class _LiveAIScreenState extends State<LiveAIScreen>
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // 1. FULL-SCREEN REAL CAMERA FEED
-          _buildFullScreenCamera(),
+          // 1. Full-screen camera feed
+          _buildCamera(),
 
-          // 2. WALL DETECTION STATUS
-          _buildWallDetectionStatus(),
+          // 2. Top bar
+          _buildTopBar(),
 
-          // 3. MINIMAL LUXURY TOP BAR
-          _buildMinimalTopBar(),
-
-          // 4. FLOATING CONTROLS PANEL
-          _buildFloatingControlsPanel(),
-
-          // 5. FLOATING GLASSMORPHISM BOTTOM PANEL
-          _buildFloatingBottomPanel(),
+          // 3. Bottom panel with stone selector
+          _buildBottomPanel(),
         ],
       ),
     );
   }
 
-  /// 1. Full-Screen Camera Feed
-  Widget _buildFullScreenCamera() {
+  /// Camera feed
+  Widget _buildCamera() {
     final assetPath =
-        _selectedStone.images.isNotEmpty ? _selectedStone.images.first : null;
+        _selectedStone != null && _selectedStone!.images.isNotEmpty
+            ? _selectedStone!.images.first
+            : null;
 
     return Positioned.fill(
       child: ARCameraView(
-        key: const ValueKey('ar-camera-view-main'),
+        key: const ValueKey('ar-camera-main'),
         stoneImagePath: assetPath,
         opacity: _textureOpacity,
         onReady: () {
           if (!mounted) return;
-          setState(() {
-            _cameraReady = true;
-            _wallDetected = true;
-          });
-          _wallDetectController.forward();
+          setState(() => _cameraReady = true);
           if (assetPath != null) {
             ARCameraView.updateStone(assetPath, _textureOpacity);
           }
-          ARCameraView.showWallBoundary(_showWallBoundary);
         },
         onError: () {},
       ),
     );
   }
 
-  /// 2. Wall Detection Status Indicator
-  Widget _buildWallDetectionStatus() {
-    final topPadding = MediaQuery.of(context).padding.top;
-
-    return Positioned(
-      top: topPadding + 62,
-      left: 0,
-      right: 0,
-      child: Center(
-        child: AnimatedBuilder(
-          animation: _wallDetectAnimation,
-          builder: (context, child) {
-            return ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.65),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: _wallDetected
-                          ? AppColors.goldWarm.withValues(alpha: 0.5)
-                          : Colors.white.withValues(alpha: 0.2),
-                      width: 0.8,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Status dot
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 300),
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: _wallDetected ? const Color(0xFF4CAF50) : AppColors.goldWarm,
-                          boxShadow: _wallDetected
-                              ? [
-                                  BoxShadow(
-                                    color: const Color(0xFF4CAF50).withValues(alpha: 0.6),
-                                    blurRadius: 6,
-                                  ),
-                                ]
-                              : null,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _wallDetected ? 'Wall detected — texture applied' : 'Point camera towards a flat wall',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white,
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  /// 3. Minimal Luxury Top Bar
-  Widget _buildMinimalTopBar() {
+  /// Top bar — back button, title, settings toggle
+  Widget _buildTopBar() {
     final topPadding = MediaQuery.of(context).padding.top;
 
     return Positioned(
@@ -279,7 +177,7 @@ class _LiveAIScreenState extends State<LiveAIScreen>
         ),
         child: Row(
           children: [
-            // Back Button
+            // Back button
             IconButton(
               onPressed: () {
                 if (context.canPop()) {
@@ -344,37 +242,9 @@ class _LiveAIScreenState extends State<LiveAIScreen>
 
             const Spacer(),
 
-            // Controls Toggle Button
+            // Settings button
             IconButton(
-              onPressed: () {
-                HapticFeedback.selectionClick();
-                setState(() => _controlsExpanded = !_controlsExpanded);
-              },
-              icon: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: _controlsExpanded
-                      ? AppColors.goldWarm.withValues(alpha: 0.3)
-                      : Colors.black.withValues(alpha: 0.45),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: _controlsExpanded
-                        ? AppColors.goldWarm.withValues(alpha: 0.6)
-                        : Colors.white.withValues(alpha: 0.2),
-                    width: 0.8,
-                  ),
-                ),
-                child: Icon(
-                  Icons.tune_rounded,
-                  size: 17,
-                  color: _controlsExpanded ? AppColors.goldWarm : Colors.white,
-                ),
-              ),
-            ),
-
-            // Search Button
-            IconButton(
-              onPressed: () => context.push('/search'),
+              onPressed: _showSettingsSheet,
               icon: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
@@ -386,7 +256,7 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                   ),
                 ),
                 child: const Icon(
-                  Icons.search_rounded,
+                  Icons.tune_rounded,
                   size: 17,
                   color: Colors.white,
                 ),
@@ -398,211 +268,38 @@ class _LiveAIScreenState extends State<LiveAIScreen>
     );
   }
 
-  /// 4. Floating Controls Panel (Opacity, Scale, Wall Toggle)
-  Widget _buildFloatingControlsPanel() {
-    final topPadding = MediaQuery.of(context).padding.top;
-
-    return AnimatedPositioned(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOutCubic,
-      top: _controlsExpanded ? topPadding + 105 : -200,
-      left: 12,
-      right: 12,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.82),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: AppColors.goldWarm.withValues(alpha: 0.3),
-                width: 0.8,
-              ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Opacity Control
-                _buildControlRow(
-                  icon: Icons.opacity_rounded,
-                  label: 'Opacity',
-                  value: _textureOpacity,
-                  min: 0.1,
-                  max: 1.0,
-                  onChanged: _onOpacityChanged,
-                  displayValue: '${(_textureOpacity * 100).round()}%',
-                ),
-                const SizedBox(height: 12),
-                // Scale Control
-                _buildControlRow(
-                  icon: Icons.zoom_out_map_rounded,
-                  label: 'Scale',
-                  value: _textureScale,
-                  min: 0.3,
-                  max: 3.0,
-                  onChanged: _onScaleChanged,
-                  displayValue: '${_textureScale.toStringAsFixed(1)}x',
-                ),
-                const SizedBox(height: 12),
-                // Wall Boundary Toggle
-                Row(
-                  children: [
-                    Icon(
-                      Icons.crop_free_rounded,
-                      size: 18,
-                      color: AppColors.goldWarm.withValues(alpha: 0.8),
-                    ),
-                    const SizedBox(width: 10),
-                    const Expanded(
-                      child: Text(
-                        'Wall Boundary',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        _toggleWallBoundary();
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        width: 44,
-                        height: 24,
-                        decoration: BoxDecoration(
-                          color: _showWallBoundary
-                              ? AppColors.goldWarm
-                              : Colors.white.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: AnimatedAlign(
-                          duration: const Duration(milliseconds: 200),
-                          alignment: _showWallBoundary
-                              ? Alignment.centerRight
-                              : Alignment.centerLeft,
-                          child: Container(
-                            width: 20,
-                            height: 20,
-                            margin: const EdgeInsets.symmetric(horizontal: 2),
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildControlRow({
-    required IconData icon,
-    required String label,
-    required double value,
-    required double min,
-    required double max,
-    required ValueChanged<double> onChanged,
-    required String displayValue,
-  }) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: AppColors.goldWarm.withValues(alpha: 0.8)),
-        const SizedBox(width: 10),
-        SizedBox(
-          width: 55,
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontFamily: 'Inter',
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
-            ),
-          ),
-        ),
-        Expanded(
-          child: SliderTheme(
-            data: SliderThemeData(
-              trackHeight: 3,
-              activeTrackColor: AppColors.goldWarm,
-              inactiveTrackColor: Colors.white.withValues(alpha: 0.15),
-              thumbColor: AppColors.goldWarm,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
-              overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-              overlayColor: AppColors.goldWarm.withValues(alpha: 0.15),
-            ),
-            child: Slider(
-              value: value,
-              min: min,
-              max: max,
-              onChanged: onChanged,
-            ),
-          ),
-        ),
-        SizedBox(
-          width: 36,
-          child: Text(
-            displayValue,
-            textAlign: TextAlign.right,
-            style: TextStyle(
-              fontFamily: 'Inter',
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: AppColors.goldWarm,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// 5. Floating Glassmorphism Bottom Panel
-  Widget _buildFloatingBottomPanel() {
+  /// Bottom panel — category chips + stone selector + product info
+  Widget _buildBottomPanel() {
     final stone = _selectedStone;
+    if (stone == null) return const SizedBox.shrink();
 
     return Positioned(
-      bottom: 82.0,
-      left: 12,
-      right: 12,
+      bottom: 0,
+      left: 0,
+      right: 0,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
           child: Container(
-            padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+            padding: EdgeInsets.fromLTRB(
+              14,
+              10,
+              14,
+              MediaQuery.of(context).padding.bottom + 12,
+            ),
             decoration: BoxDecoration(
               color: Colors.black.withValues(alpha: 0.82),
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
               border: Border.all(
                 color: AppColors.goldWarm.withValues(alpha: 0.3),
                 width: 1,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.6),
-                  blurRadius: 30,
-                  spreadRadius: 6,
-                ),
-              ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Drag handle bar
+                // Drag handle
                 Container(
                   width: 36,
                   height: 3.5,
@@ -613,7 +310,7 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                   ),
                 ),
 
-                // ── ROW 1: Horizontal Category Chips ──
+                // Category chips
                 SizedBox(
                   height: 32,
                   child: ListView.separated(
@@ -635,7 +332,8 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                         },
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 250),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 6),
                           decoration: BoxDecoration(
                             color: isSelected
                                 ? AppColors.goldWarm
@@ -653,7 +351,8 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                             style: TextStyle(
                               fontFamily: 'Inter',
                               fontSize: 11,
-                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                              fontWeight:
+                                  isSelected ? FontWeight.w700 : FontWeight.w600,
                               color: isSelected ? Colors.black : Colors.white,
                               letterSpacing: 0.3,
                             ),
@@ -666,7 +365,7 @@ class _LiveAIScreenState extends State<LiveAIScreen>
 
                 const SizedBox(height: 12),
 
-                // ── ROW 2: Circular Stone Thumbnails ──
+                // Stone thumbnails
                 SizedBox(
                   height: 82,
                   child: PageView.builder(
@@ -710,14 +409,16 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                                     : null,
                                 border: !isSelected
                                     ? Border.all(
-                                        color: Colors.white.withValues(alpha: 0.2),
+                                        color:
+                                            Colors.white.withValues(alpha: 0.2),
                                         width: 1,
                                       )
                                     : null,
                                 boxShadow: isSelected
                                     ? [
                                         BoxShadow(
-                                          color: AppColors.goldWarm.withValues(alpha: 0.5),
+                                          color: AppColors.goldWarm
+                                              .withValues(alpha: 0.5),
                                           blurRadius: 14,
                                           spreadRadius: 1,
                                         ),
@@ -733,7 +434,8 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                                   child: Image.asset(
                                     thumbPath,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (ctx, err, stack) => Container(
+                                    errorBuilder: (ctx, err, stack) =>
+                                        Container(
                                       color: const Color(0xFF222222),
                                       child: const Icon(
                                         Icons.texture,
@@ -753,7 +455,9 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                               style: TextStyle(
                                 fontFamily: 'Inter',
                                 fontSize: 9,
-                                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                fontWeight: isSelected
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
                                 color: isSelected
                                     ? AppColors.goldWarm
                                     : Colors.white.withValues(alpha: 0.75),
@@ -770,9 +474,10 @@ class _LiveAIScreenState extends State<LiveAIScreen>
 
                 const SizedBox(height: 10),
 
-                // ── ROW 3: Product Info + View Button ──
+                // Product info + View button
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.06),
                     borderRadius: BorderRadius.circular(16),
@@ -783,7 +488,7 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                   ),
                   child: Row(
                     children: [
-                      // Stone Thumbnail
+                      // Thumbnail
                       ClipRRect(
                         borderRadius: BorderRadius.circular(8),
                         child: Image.asset(
@@ -807,7 +512,7 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                       ),
                       const SizedBox(width: 10),
 
-                      // Stone Title & Price
+                      // Name + Price
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -843,16 +548,14 @@ class _LiveAIScreenState extends State<LiveAIScreen>
 
                       const SizedBox(width: 8),
 
-                      // View Product Button
+                      // View Product
                       ElevatedButton(
                         onPressed: _navigateToProduct,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.goldWarm,
                           foregroundColor: Colors.black,
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 10,
-                          ),
+                              horizontal: 14, vertical: 10),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -882,6 +585,159 @@ class _LiveAIScreenState extends State<LiveAIScreen>
           ),
         ),
       ),
+    );
+  }
+
+  /// Settings bottom sheet for opacity + scale controls
+  void _showSettingsSheet() {
+    HapticFeedback.selectionClick();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return ClipRRect(
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(20)),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.9),
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(20)),
+                    border: Border.all(
+                      color: AppColors.goldWarm.withValues(alpha: 0.3),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Handle
+                      Container(
+                        width: 36,
+                        height: 3.5,
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.25),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+
+                      // Title
+                      const Text(
+                        'Texture Settings',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Opacity slider
+                      _buildSliderRow(
+                        icon: Icons.opacity_rounded,
+                        label: 'Opacity',
+                        value: _textureOpacity,
+                        min: 0.1,
+                        max: 1.0,
+                        displayValue: '${(_textureOpacity * 100).round()}%',
+                        onChanged: (v) {
+                          setSheetState(() => _textureOpacity = v);
+                          _onOpacityChanged(v);
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Scale slider
+                      _buildSliderRow(
+                        icon: Icons.zoom_out_map_rounded,
+                        label: 'Scale',
+                        value: _textureScale,
+                        min: 0.3,
+                        max: 3.0,
+                        displayValue: '${_textureScale.toStringAsFixed(1)}x',
+                        onChanged: (v) {
+                          setSheetState(() => _textureScale = v);
+                          _onScaleChanged(v);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildSliderRow({
+    required IconData icon,
+    required String label,
+    required double value,
+    required double min,
+    required double max,
+    required String displayValue,
+    required ValueChanged<double> onChanged,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: AppColors.goldWarm.withValues(alpha: 0.8)),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 55,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+        ),
+        Expanded(
+          child: SliderTheme(
+            data: SliderThemeData(
+              trackHeight: 3,
+              activeTrackColor: AppColors.goldWarm,
+              inactiveTrackColor: Colors.white.withValues(alpha: 0.15),
+              thumbColor: AppColors.goldWarm,
+              thumbShape:
+                  const RoundSliderThumbShape(enabledThumbRadius: 7),
+              overlayShape:
+                  const RoundSliderOverlayShape(overlayRadius: 14),
+              overlayColor: AppColors.goldWarm.withValues(alpha: 0.15),
+            ),
+            child: Slider(
+              value: value,
+              min: min,
+              max: max,
+              onChanged: onChanged,
+            ),
+          ),
+        ),
+        SizedBox(
+          width: 36,
+          child: Text(
+            displayValue,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppColors.goldWarm,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

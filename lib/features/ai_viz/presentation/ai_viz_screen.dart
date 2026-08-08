@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:grazia_stones/core/services/mock_data_service.dart';
+import 'package:grazia_stones/core/providers/stone_providers.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/typography.dart';
 import 'package:grazia_stones/shared/theme/spacing.dart';
@@ -95,8 +95,9 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen>
 
     if (_mode == 'live') {
       // Live camera: directly update the AR overlay
-      final stone = MockDataService.stones
-          .firstWhere((s) => s.id == _selectedStoneId);
+      final allStones = ref.read(allStonesProvider).valueOrNull ?? [];
+      final stone = allStones
+          .firstWhere((s) => s.id == _selectedStoneId, orElse: () => allStones.first);
       final path = stone.images.isNotEmpty ? stone.images.first : null;
       ARCameraView.updateStone(path, _arOpacity);
       ARCameraView.showWallBoundary(true);
@@ -193,8 +194,9 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen>
               if (_textureApplied && _selectedStoneId != null) ...[
                 Positioned.fill(
                   child: Builder(builder: (context) {
-                    final stone = MockDataService.stones
-                        .firstWhere((s) => s.id == _selectedStoneId);
+                    final allStones = ref.read(allStonesProvider).valueOrNull ?? [];
+                    final stone = allStones
+                        .firstWhere((s) => s.id == _selectedStoneId, orElse: () => allStones.first);
                     return Opacity(
                       opacity: _arOpacity,
                       child: SmartStoneImage(
@@ -281,11 +283,14 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen>
               ARCameraView(
                 key: const ValueKey('aiviz-ar-camera'),
                 stoneImagePath: _cameraReady && _selectedStoneId != null
-                    ? MockDataService.stones
-                        .firstWhere((s) => s.id == _selectedStoneId,
-                            orElse: () => MockDataService.stones.first)
-                        .images
-                        .firstOrNull
+                    ? (() {
+                        final allStones = ref.read(allStonesProvider).valueOrNull ?? [];
+                        return allStones
+                            .firstWhere((s) => s.id == _selectedStoneId,
+                                orElse: () => allStones.first)
+                            .images
+                            .firstOrNull;
+                      })()
                     : null,
                 opacity: _arOpacity,
                 onReady: () {
@@ -293,8 +298,9 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen>
                     _cameraReady = true;
                   });
                   if (_selectedStoneId != null) {
-                    final stone = MockDataService.stones
-                        .firstWhere((s) => s.id == _selectedStoneId);
+                    final allStones = ref.read(allStonesProvider).valueOrNull ?? [];
+                    final stone = allStones
+                        .firstWhere((s) => s.id == _selectedStoneId, orElse: () => allStones.first);
                     ARCameraView.updateStone(
                         stone.images.isNotEmpty ? stone.images.first : null,
                         _arOpacity);
@@ -691,7 +697,8 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen>
   @override
   Widget build(BuildContext context) {
     final palette = ref.watch(themePaletteProvider);
-    final stones = MockDataService.getAllStones().take(9).toList();
+    final allStones = ref.watch(allStonesProvider).valueOrNull ?? [];
+    final stones = allStones.take(9).toList();
     final selectedStone = _selectedStoneId != null
         ? stones.firstWhere((s) => s.id == _selectedStoneId, orElse: () => stones.first)
         : null;

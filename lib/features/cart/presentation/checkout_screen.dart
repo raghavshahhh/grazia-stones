@@ -75,16 +75,25 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     HapticFeedback.mediumImpact();
 
     try {
-      // Call CartApi.applyCoupon
-      final cartRepo = ref.read(cartRepositoryProvider);
-      final result = await cartRepo.applyCoupon(_couponController.text.trim());
+      final code = _couponController.text.trim().toUpperCase();
+      // Simple coupon validation - can be extended with API check
+      double discount = 0;
+      if (code == 'WELCOME10') {
+        discount = widget.subtotal * 0.10;
+      } else if (code == 'GRAB20') {
+        discount = widget.subtotal * 0.20;
+      } else if (code == 'FESTIVE15') {
+        discount = widget.subtotal * 0.15;
+      } else {
+        throw Exception('Invalid coupon code');
+      }
 
       if (mounted) {
         setState(() {
           _isApplyingCoupon = false;
-          _discount = result['discount'] ?? 0;
+          _discount = discount;
         });
-        showSuccessSnackbar(context, 'Coupon applied successfully!');
+        HapticFeedback.mediumImpact();
       }
     } catch (e) {
       if (mounted) {
@@ -103,24 +112,35 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       final cartRepo = ref.read(cartRepositoryProvider);
 
       // 1. Validate cart
-      await cartRepo.validateCart();
+      final summary = await cartRepo.getCartSummary();
+      if (summary['itemCount'] == 0) {
+        throw Exception('Cart is empty');
+      }
 
       // 2. Create order
       final orderItems = widget.items
           .map((item) => {
                 'stone_id': item.stoneId,
+                'name': item.name,
+                'product_code': '',
+                'image_url': '',
+                'unit_price': item.price,
                 'quantity': item.quantity,
-                'price': item.price,
               })
           .toList();
 
+      final addr = _addresses[_selectedAddressIndex];
       final order = await orderRepo.createOrder(
         items: orderItems,
-        addressId: _addresses[_selectedAddressIndex]['id']!,
+        address: {
+          'name': addr['name'] ?? '',
+          'phone': addr['phone'] ?? '',
+          'address_line1': addr['address'] ?? '',
+          'city': addr['city'] ?? '',
+          'state': addr['state'] ?? '',
+          'pincode': addr['pincode'] ?? '',
+        },
         paymentMethod: _selectedPaymentMethod,
-        couponCode: _couponController.text.trim().isNotEmpty 
-            ? _couponController.text.trim() 
-            : null,
         notes: 'Checkout from app',
       );
 

@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:grazia_stones/core/models/stone.dart';
-import 'package:grazia_stones/core/services/mock_data_service.dart';
+import 'package:grazia_stones/core/providers/stone_providers.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/typography.dart';
 import 'package:grazia_stones/shared/theme/spacing.dart';
@@ -24,19 +24,33 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
   int _currentImageIndex = 0;
   bool _isWishlisted = false;
 
-  Stone? get _stone => MockDataService.getStoneById(widget.stoneId);
-
   @override
   Widget build(BuildContext context) {
     final palette = ref.watch(themePaletteProvider);
-    final stone = _stone;
+    final stoneAsync = ref.watch(stoneByIdProvider(widget.stoneId));
 
-    if (stone == null) {
-      return Scaffold(
+    return stoneAsync.when(
+      loading: () => Scaffold(
         backgroundColor: palette.background,
-        body: Center(child: Text('Stone not found', style: GLuxuryTypography.bodyLarge)),
-      );
-    }
+        body: Center(child: CircularProgressIndicator(color: palette.primary)),
+      ),
+      error: (e, _) => Scaffold(
+        backgroundColor: palette.background,
+        body: Center(child: Text('Failed to load stone', style: GLuxuryTypography.bodyLarge)),
+      ),
+      data: (stone) {
+        if (stone == null) {
+          return Scaffold(
+            backgroundColor: palette.background,
+            body: Center(child: Text('Stone not found', style: GLuxuryTypography.bodyLarge)),
+          );
+        }
+        return _buildStoneDetail(palette, stone);
+      },
+    );
+  }
+
+  Widget _buildStoneDetail(LuxuryPalette palette, Stone stone) {
 
     final images = stone.images.isNotEmpty ? stone.images : [stone.imageUrl ?? ''];
 

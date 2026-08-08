@@ -58,7 +58,8 @@ class OrderRiverpodNotifier extends StateNotifier<OrderRiverpodState> {
   }
 
   Future<void> createOrder({
-    required String shippingAddress,
+    required List<Map<String, dynamic>> items,
+    required Map<String, dynamic> address,
     required String paymentMethod,
     String? notes,
   }) async {
@@ -67,8 +68,8 @@ class OrderRiverpodNotifier extends StateNotifier<OrderRiverpodState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final order = await repo.createOrder(
-        items: const [],
-        addressId: shippingAddress,
+        items: items,
+        address: address,
         paymentMethod: paymentMethod,
         notes: notes,
       );

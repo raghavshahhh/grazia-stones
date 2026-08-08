@@ -1,21 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:grazia_stones/core/services/mock_data_service.dart';
+import 'package:grazia_stones/core/providers/stone_providers.dart';
 import 'package:grazia_stones/core/utils/validators.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/typography.dart';
 import 'package:grazia_stones/shared/theme/spacing.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 
-class QuoteRequestScreen extends StatefulWidget {
+class QuoteRequestScreen extends ConsumerStatefulWidget {
   const QuoteRequestScreen({super.key});
 
   @override
-  State<QuoteRequestScreen> createState() => _QuoteRequestScreenState();
+  ConsumerState<QuoteRequestScreen> createState() => _QuoteRequestScreenState();
 }
 
-class _QuoteRequestScreenState extends State<QuoteRequestScreen> {
+class _QuoteRequestScreenState extends ConsumerState<QuoteRequestScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -65,7 +66,8 @@ class _QuoteRequestScreenState extends State<QuoteRequestScreen> {
   @override
   Widget build(BuildContext context) {
     final palette = GLuxuryPalettes.gold;
-    final stones = MockDataService.getAllStones();
+    final stonesAsync = ref.watch(allStonesProvider);
+    final stones = stonesAsync.valueOrNull ?? [];
 
     return Scaffold(
       backgroundColor: palette.background,

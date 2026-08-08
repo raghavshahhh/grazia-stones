@@ -57,6 +57,19 @@ class EnvConfig {
   }
 
   // ═══════════════════════════════════════════════════════════════════════
+  // REPLICATE (AI) CONFIGURATION
+  // ═══════════════════════════════════════════════════════════════════════
+
+  String get replicateApiKey {
+    return const String.fromEnvironment(
+      'REPLICATE_API_TOKEN',
+      defaultValue: '',
+    );
+  }
+
+  String get replicateBaseUrl => 'https://api.replicate.com/v1';
+
+  // ═══════════════════════════════════════════════════════════════════════
   // PAYMENT CONFIGURATION
   // ═══════════════════════════════════════════════════════════════════════
 

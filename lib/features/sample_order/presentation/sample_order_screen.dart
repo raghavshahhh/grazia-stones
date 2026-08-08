@@ -96,14 +96,12 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
       for (final stoneId in _selectedStones) {
         await orderRepo.requestSample(
           stoneId: stoneId,
-          addressId: 'default', // TODO: Use actual address ID when user addresses are implemented
-          notes: '''
-Name: ${_nameController.text}
-Phone: ${_phoneController.text}
-Email: ${_emailController.text.isNotEmpty ? _emailController.text : 'N/A'}
-Address: ${_addressController.text}, ${_cityController.text} - ${_pincodeController.text}
-${_notesController.text.isNotEmpty ? 'Notes: ${_notesController.text}' : ''}
-          '''.trim(),
+          name: _nameController.text,
+          phone: _phoneController.text,
+          address: _addressController.text,
+          city: _cityController.text,
+          pincode: _pincodeController.text,
+          notes: _notesController.text.isNotEmpty ? _notesController.text : null,
         );
       }
       

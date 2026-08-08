@@ -1,21 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:grazia_stones/core/services/mock_data_service.dart';
+import 'package:grazia_stones/core/providers/stone_providers.dart';
 import 'package:grazia_stones/core/models/dealer.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/typography.dart';
 import 'package:grazia_stones/shared/theme/spacing.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class DealerLocatorScreen extends StatefulWidget {
+class DealerLocatorScreen extends ConsumerStatefulWidget {
   const DealerLocatorScreen({super.key});
 
   @override
-  State<DealerLocatorScreen> createState() => _DealerLocatorScreenState();
+  ConsumerState<DealerLocatorScreen> createState() => _DealerLocatorScreenState();
 }
 
-class _DealerLocatorScreenState extends State<DealerLocatorScreen> {
+class _DealerLocatorScreenState extends ConsumerState<DealerLocatorScreen> {
   bool _isMapView = false;
 
   void _makePhoneCall(String phone) async {
@@ -36,7 +37,7 @@ class _DealerLocatorScreenState extends State<DealerLocatorScreen> {
   @override
   Widget build(BuildContext context) {
     final palette = GLuxuryPalettes.gold;
-    final dealers = MockDataService.getAllDealers();
+    final dealersAsync = ref.watch(allDealersProvider);
 
     return Scaffold(
       backgroundColor: palette.background,
@@ -64,7 +65,13 @@ class _DealerLocatorScreenState extends State<DealerLocatorScreen> {
           ),
         ],
       ),
-      body: _isMapView ? _buildMapView(palette, dealers) : _buildListView(palette, dealers),
+      body: dealersAsync.when(
+        loading: () => Center(child: CircularProgressIndicator(color: palette.primary)),
+        error: (e, _) => Center(
+          child: Text('Failed to load dealers', style: TextStyle(color: palette.textSecondary)),
+        ),
+        data: (dealers) => _isMapView ? _buildMapView(palette, dealers) : _buildListView(palette, dealers),
+      ),
     );
   }
 

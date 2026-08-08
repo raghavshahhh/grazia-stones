@@ -1,135 +1,263 @@
 import '../models/order.dart';
-import '../repositories/base_repository.dart';
-import '../network/endpoints/order_api.dart';
+import '../services/supabase_service.dart';
 
-class OrderRepository extends BaseRepository {
-  OrderRepository(super.api);
-  
-  final OrderApi _orderApi = OrderApi();
+/// Order repository backed by Supabase `orders` + `order_items` tables.
+class OrderRepository {
+  final SupabaseService _sb = SupabaseService.instance;
 
-  // ═══════════════════════════════════════════════════════════════════════
-  // ORDERS
-  // ═══════════════════════════════════════════════════════════════════════
+  String get _userId {
+    final id = _sb.currentUser?.id;
+    if (id == null) throw Exception('Not logged in');
+    return id;
+  }
 
-  Future<List<Order>> getOrders({
-    int page = 1,
-    int limit = 20,
-    String? status,
-  }) async {
-    return safeCall(() async {
-      return await _orderApi.getOrders(
-        page: page,
-        limit: limit,
-        status: status,
-      );
-    });
+  Future<List<Order>> getOrders({int page = 1, int limit = 20, String? status}) async {
+    var query = _sb.client
+        .from('orders')
+        .select('*, order_items(*)')
+        .eq('user_id', _userId);
+
+    if (status != null && status != 'all') {
+      query = query.eq('status', status);
+    }
+
+    final from = (page - 1) * limit;
+    final data = await query
+        .order('created_at', ascending: false)
+        .range(from, from + limit - 1);
+    return data.map((j) => Order.fromJson(j)).toList();
   }
 
   Future<Order> getOrderById(String id) async {
-    return safeCall(() async {
-      return await _orderApi.getOrderById(id);
-    });
+    final data = await _sb.client
+        .from('orders')
+        .select('*, order_items(*)')
+        .eq('id', id)
+        .single();
+    return Order.fromJson(data);
   }
 
   Future<Order> createOrder({
     required List<Map<String, dynamic>> items,
-    required String addressId,
+    required Map<String, dynamic> address,
     required String paymentMethod,
-    String? couponCode,
     String? notes,
   }) async {
-    return safeCall(() async {
-      return await _orderApi.createOrder(
-        items: items,
-        addressId: addressId,
-        paymentMethod: paymentMethod,
-        couponCode: couponCode,
-        notes: notes,
-      );
-    });
-  }
+    // Generate order number
+    final now = DateTime.now();
+    final orderNum = 'GS-${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}-${now.millisecondsSinceEpoch.toString().substring(8)}';
 
-  Future<void> cancelOrder(String orderId, {String? reason}) async {
-    await safeCall(() async {
-      await _orderApi.cancelOrder(orderId, reason: reason);
-    });
-  }
+    // Calculate totals
+    double subtotal = 0;
+    for (final item in items) {
+      subtotal += (item['unit_price'] as double) * (item['quantity'] as int);
+    }
 
-  Future<Map<String, dynamic>> trackOrder(String orderId) async {
-    return safeCall(() async {
-      return await _orderApi.trackOrder(orderId);
-    });
-  }
+    final orderData = {
+      'user_id': _userId,
+      'order_number': orderNum,
+      'status': 'pending',
+      'subtotal': subtotal,
+      'shipping_cost': 0,
+      'tax': 0,
+      'discount': 0,
+      'total': subtotal,
+      'currency': 'INR',
+      'shipping_name': address['name'],
+      'shipping_phone': address['phone'],
+      'shipping_address': address['address_line1'],
+      'shipping_city': address['city'],
+      'shipping_state': address['state'],
+      'shipping_pincode': address['pincode'],
+      'payment_method': paymentMethod,
+      'payment_status': 'pending',
+      'notes': notes,
+    };
 
-  Future<String> getOrderInvoice(String orderId) async {
-    return safeCall(() async {
-      return await _orderApi.getOrderInvoice(orderId);
-    });
+    final orderRes = await _sb.client.from('orders').insert(orderData).select().single();
+
+    // Insert order items
+    final orderItems = items.map((item) => {
+      'order_id': orderRes['id'],
+      'stone_id': item['stone_id'],
+      'name': item['name'],
+      'product_code': item['product_code'],
+      'image_url': item['image_url'],
+      'quantity': item['quantity'],
+      'unit_price': item['unit_price'],
+      'total_price': (item['unit_price'] as double) * (item['quantity'] as int),
+    }).toList();
+
+    await _sb.client.from('order_items').insert(orderItems);
+
+    // Clear cart after successful order
+    await _sb.client.from('cart_items').delete().eq('user_id', _userId);
+
+    return getOrderById(orderRes['id']);
   }
 
   // ═══════════════════════════════════════════════════════════════════════
-  // SAMPLE ORDERS
-  // ═══════════════════════════════════════════════════════════════════════
-
-  Future<Map<String, dynamic>> requestSample({
-    required String stoneId,
-    required String addressId,
-    String? notes,
-  }) async {
-    return safeCall(() async {
-      return await _orderApi.requestSample(
-        stoneId: stoneId,
-        addressId: addressId,
-        notes: notes,
-      );
-    });
-  }
-
-  Future<List<Map<String, dynamic>>> getSampleOrders() async {
-    return safeCall(() async {
-      return await _orderApi.getSampleOrders();
-    });
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // PAYMENT
+  // PAYMENTS
   // ═══════════════════════════════════════════════════════════════════════
 
   Future<Map<String, dynamic>> initiatePayment({
     required String orderId,
     required String paymentMethod,
   }) async {
-    return safeCall(() async {
-      return await _orderApi.initiatePayment(
-        orderId: orderId,
-        paymentMethod: paymentMethod,
-      );
-    });
+    // Update order with payment method
+    await _sb.client.from('orders').update({
+      'payment_method': paymentMethod,
+      'payment_status': 'initiated',
+    }).eq('id', orderId).eq('user_id', _userId);
+
+    // Return order info for Razorpay checkout
+    final order = await getOrderById(orderId);
+    return {
+      'razorpay_order_id': orderId,
+      'amount': order.total,
+      'currency': order.currency ?? 'INR',
+    };
   }
 
-  Future<bool> verifyPayment({
+  Future<void> verifyPayment({
     required String orderId,
     required String paymentId,
     required String signature,
   }) async {
-    return safeCall(() async {
-      return await _orderApi.verifyPayment(
-        orderId: orderId,
-        paymentId: paymentId,
-        signature: signature,
-      );
-    });
+    await _sb.client.from('orders').update({
+      'payment_status': 'completed',
+      'razorpay_payment_id': paymentId,
+      'razorpay_signature': signature,
+      'status': 'confirmed',
+    }).eq('id', orderId).eq('user_id', _userId);
   }
 
-  Future<bool> paymentFailed({
+  Future<void> paymentFailed({
     required String orderId,
     required String reason,
   }) async {
-    return safeCall(() async {
-      return await _orderApi.paymentFailed(
-        orderId: orderId,
-        reason: reason,
-      );
+    await _sb.client.from('orders').update({
+      'payment_status': 'failed',
+      'payment_failure_reason': reason,
+    }).eq('id', orderId).eq('user_id', _userId);
+  }
+
+  Future<void> cancelOrder(String orderId, {String? reason}) async {
+    await _sb.client.from('orders').update({
+      'status': 'cancelled',
+      'cancellation_reason': reason,
+    }).eq('id', orderId).eq('user_id', _userId);
+  }
+
+  Future<Map<String, dynamic>> trackOrder(String orderId) async {
+    final data = await _sb.client
+        .from('orders')
+        .select('status, tracking_number, carrier, shipped_at, delivered_at')
+        .eq('id', orderId)
+        .single();
+    return data;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // QUOTES
+  // ═══════════════════════════════════════════════════════════════════════
+
+  Future<void> submitQuote({
+    required String name,
+    required String phone,
+    String? email,
+    String? company,
+    String? stoneId,
+    String? stoneName,
+    int? quantity,
+    double? areaSqft,
+    String? message,
+  }) async {
+    await _sb.client.from('quote_requests').insert({
+      'user_id': _sb.currentUser?.id,
+      'name': name,
+      'phone': phone,
+      'email': email,
+      'company': company,
+      'stone_id': stoneId,
+      'stone_name': stoneName,
+      'quantity': quantity,
+      'area_sqft': areaSqft,
+      'message': message,
     });
+  }
+
+  Future<List<Map<String, dynamic>>> getQuotes() async {
+    final data = await _sb.client
+        .from('quote_requests')
+        .select()
+        .eq('user_id', _userId)
+        .order('created_at', ascending: false);
+    return data;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // SAMPLE ORDERS
+  // ═══════════════════════════════════════════════════════════════════════
+
+  Future<Order> requestSample({
+    required String stoneId,
+    required String name,
+    required String phone,
+    required String address,
+    required String city,
+    required String pincode,
+    String? notes,
+  }) async {
+    final now = DateTime.now();
+    final orderNum = 'GS-SAMPLE-${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}-${now.millisecondsSinceEpoch.toString().substring(8)}';
+
+    final orderData = {
+      'user_id': _userId,
+      'order_number': orderNum,
+      'status': 'pending',
+      'subtotal': 0,
+      'shipping_cost': 0,
+      'tax': 0,
+      'discount': 0,
+      'total': 0,
+      'currency': 'INR',
+      'shipping_name': name,
+      'shipping_phone': phone,
+      'shipping_address': address,
+      'shipping_city': city,
+      'shipping_state': '',
+      'shipping_pincode': pincode,
+      'payment_method': 'cod',
+      'payment_status': 'pending',
+      'notes': 'SAMPLE ORDER - $notes',
+      'is_sample': true,
+    };
+
+    final orderRes = await _sb.client.from('orders').insert(orderData).select().single();
+
+    // Insert sample order item
+    await _sb.client.from('order_items').insert({
+      'order_id': orderRes['id'],
+      'stone_id': stoneId,
+      'name': 'Sample',
+      'product_code': '',
+      'image_url': '',
+      'quantity': 1,
+      'unit_price': 0,
+      'total_price': 0,
+    });
+
+    return getOrderById(orderRes['id']);
+  }
+
+  Future<List<Order>> getSampleOrders() async {
+    final data = await _sb.client
+        .from('orders')
+        .select('*, order_items(*)')
+        .eq('user_id', _userId)
+        .eq('is_sample', true)
+        .order('created_at', ascending: false);
+    return data.map((j) => Order.fromJson(j)).toList();
   }
 }

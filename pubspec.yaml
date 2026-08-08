@@ -66,6 +66,10 @@ dependencies:
   firebase_storage: ^12.3.4
   firebase_analytics: ^11.3.3
 
+  # Supabase (replacing MockDataService + REST backend)
+  supabase_flutter: ^2.8.0
+  flutter_dotenv: ^5.2.1
+
   # Utils
   share_plus: ^10.1.4
   permission_handler: ^10.4.5

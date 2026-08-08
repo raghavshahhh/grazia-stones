@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
@@ -298,8 +299,6 @@ enum AIErrorType {
 // ═══════════════════════════════════════════════════════════════════════════
 // BASE64 ENCODING
 // ═══════════════════════════════════════════════════════════════════════════
-
-import 'dart:convert';
 
 String base64Encode(List<int> bytes) {
   return base64.encode(bytes);

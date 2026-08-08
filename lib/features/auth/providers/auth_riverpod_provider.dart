@@ -2,8 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
 import '../../../core/models/user.dart';
 import '../../../core/repositories/auth_repository.dart';
-import '../../../core/services/firebase_service.dart';
 import '../../../core/services/storage_service.dart';
+import '../../../core/services/supabase_service.dart';
 
 // ─── State ───
 class AuthRiverpodState {
@@ -73,35 +73,33 @@ class AuthRiverpodState {
 
 // ─── Notifier ───
 class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
-  final AuthRepository? _repo;
-  final FirebaseService _firebase = FirebaseService.instance;
+  final AuthRepository _repo;
   final StorageService _storage = StorageService.instance;
 
-  AuthRiverpodNotifier([this._repo]) : super(AuthRiverpodState()) {
-    // Load persisted auth state on init
+  AuthRiverpodNotifier(this._repo) : super(AuthRiverpodState()) {
     _loadPersistedState();
   }
 
-  /// Load auth state from storage on app start
   Future<void> _loadPersistedState() async {
     try {
-      // Check onboarding status
       final onboardingComplete = _storage.getOnboardingCompleted();
-      
-      // DEMO MODE: Skip Firebase check if not initialized
-      if (!_firebase.isInitialized) {
-        state = state.copyWith(onboardingComplete: onboardingComplete);
-        debugPrint('⚠️ Auth state: Firebase disabled, using local storage only');
-        return;
-      }
-      
-      // Check if user is logged in via Firebase
-      final firebaseUser = _firebase.currentUser;
-      
-      if (firebaseUser != null) {
-        // User is logged in, load profile from storage
+
+      // Check if Supabase has an active session
+      if (_repo.isLoggedIn()) {
+        final user = await _repo.getProfile();
+        state = state.copyWith(
+          userId: user.id,
+          userName: user.name,
+          userPhone: user.phone,
+          userEmail: user.email,
+          avatarUrl: user.avatarUrl,
+          isLoggedIn: true,
+          onboardingComplete: onboardingComplete,
+        );
+        debugPrint('✅ Auth state restored from Supabase session');
+      } else {
+        // No session — check local cache
         final userData = _storage.getUser();
-        
         if (userData != null) {
           state = state.copyWith(
             userId: userData['id'] as String?,
@@ -112,83 +110,35 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
             isLoggedIn: true,
             onboardingComplete: onboardingComplete,
           );
-          
-          debugPrint('✅ Auth state restored from storage');
         } else {
-          // Firebase user exists but no local data, fetch from Firestore
-          await _syncUserDataFromFirestore();
+          state = state.copyWith(onboardingComplete: onboardingComplete);
         }
-      } else {
-        // No Firebase user, just set onboarding status
-        state = state.copyWith(onboardingComplete: onboardingComplete);
       }
     } catch (e) {
       debugPrint('❌ Error loading persisted auth state: $e');
-    }
-  }
-
-  /// Sync user data from Firestore to local storage
-  Future<void> _syncUserDataFromFirestore() async {
-    try {
-      final userData = await _firebase.getUserData();
-      if (userData != null) {
-        await _storage.saveUser(userData);
-        state = state.copyWith(
-          userId: userData['id'] as String?,
-          userName: userData['name'] as String?,
-          userPhone: userData['phone'] as String?,
-          userEmail: userData['email'] as String?,
-          avatarUrl: userData['avatar_url'] as String?,
-          isLoggedIn: true,
-        );
-        debugPrint('✅ User data synced from Firestore');
-      }
-    } catch (e) {
-      debugPrint('❌ Error syncing from Firestore: $e');
+      final onboardingComplete = _storage.getOnboardingCompleted();
+      state = state.copyWith(onboardingComplete: onboardingComplete);
     }
   }
 
   /// Send OTP to phone number
   Future<bool> sendOTP(String phoneNumber) async {
     state = state.copyWith(isLoading: true, clearError: true);
-    
+
     try {
-      bool success = false;
-      
-      await _firebase.sendOTP(
-        phoneNumber: phoneNumber,
-        onCodeSent: (verificationId) {
-          state = state.copyWith(
-            verificationId: verificationId,
-            isLoading: false,
-            clearError: true,
-          );
-          success = true;
-          debugPrint('✅ OTP sent successfully');
-        },
-        onError: (error) {
-          state = state.copyWith(
-            error: error,
-            isLoading: false,
-          );
-          success = false;
-          debugPrint('❌ OTP send error: $error');
-        },
-        onTimeout: () {
-          state = state.copyWith(
-            error: 'OTP request timed out',
-            isLoading: false,
-          );
-          success = false;
-        },
+      await _repo.sendOtp(phoneNumber);
+      state = state.copyWith(
+        isLoading: false,
+        userPhone: phoneNumber,
       );
-      
-      return success;
+      debugPrint('✅ OTP sent to $phoneNumber');
+      return true;
     } catch (e) {
       state = state.copyWith(
         error: e.toString(),
         isLoading: false,
       );
+      debugPrint('❌ OTP send error: $e');
       return false;
     }
   }
@@ -196,61 +146,12 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
   /// Verify OTP and complete login
   Future<bool> verifyOTP(String otp, {String? name, String? email, bool isRegistration = false}) async {
     state = state.copyWith(isLoading: true, clearError: true);
-    
+
     try {
-      final userCredential = await _firebase.verifyOTP(
-        otp: otp,
-        verificationId: state.verificationId,
-      );
+      final user = await _repo.verifyOtp(state.userPhone ?? '', otp);
 
-      if (userCredential?.user == null) {
-        state = state.copyWith(
-          error: 'Verification failed',
-          isLoading: false,
-        );
-        return false;
-      }
-
-      final firebaseUser = userCredential!.user!;
-      
-      // Create user data object
-      final userData = {
-        'id': firebaseUser.uid,
-        'name': name ?? firebaseUser.displayName ?? 'User',
-        'phone': firebaseUser.phoneNumber,
-        'email': email ?? firebaseUser.email,
-        'avatar_url': firebaseUser.photoURL,
-        'created_at': DateTime.now().toIso8601String(),
-      };
-
-      // Save to Firestore
-      if (isRegistration) {
-        await _firebase.saveUserData(userData);
-      }
-
-      // Save to local storage
-      await _storage.saveUser(userData);
-
-      // Get auth token
-      final token = await _firebase.getIdToken();
-      if (token != null) {
-        await _storage.saveAuthToken(token);
-      }
-
-      // Update state
-      state = state.copyWith(
-        userId: userData['id'] as String,
-        userName: userData['name'] as String,
-        userPhone: userData['phone'],
-        userEmail: userData['email'],
-        avatarUrl: userData['avatar_url'],
-        isLoggedIn: true,
-        isLoading: false,
-        clearError: true,
-        clearVerificationId: true,
-      );
-
-      debugPrint('✅ User authenticated successfully');
+      await _saveAndSetState(user);
+      debugPrint('✅ OTP verified, user authenticated');
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -259,6 +160,28 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
       );
       debugPrint('❌ OTP verification error: $e');
       return false;
+    }
+  }
+
+  /// Login with email/password
+  Future<void> loginWithApi(String email, String password) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final user = await _repo.login(email, password);
+      await _saveAndSetState(user);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+
+  /// Register with email/password
+  Future<void> register(String name, String email, String password, {String? phone}) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final user = await _repo.register(name: name, email: email, password: password, phone: phone);
+      await _saveAndSetState(user);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
@@ -273,7 +196,6 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
       error: null,
     );
 
-    // Save to storage
     await _storage.saveUser({
       'id': userId,
       'name': name,
@@ -285,20 +207,14 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
   /// Logout
   Future<void> logout() async {
     try {
-      // Sign out from Firebase
-      await _firebase.signOut();
-      
-      // Clear local storage (except theme)
+      await _repo.logout();
       await _storage.clearAllExceptTheme();
-      
-      // Reset state
+
       state = AuthRiverpodState(
         onboardingComplete: state.onboardingComplete,
       );
-      
-      _repo?.logout();
-      
-      debugPrint('✅ User logged out successfully');
+
+      debugPrint('✅ User logged out');
     } catch (e) {
       debugPrint('❌ Logout error: $e');
     }
@@ -315,16 +231,8 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
     try {
       state = state.copyWith(isLoading: true);
 
-      // Update local state
-      final newState = state.copyWith(
-        userName: name,
-        userPhone: phone,
-        userEmail: email,
-        avatarUrl: avatarUrl,
-        isLoading: false,
-      );
+      await _repo.updateProfile(name: name, phone: phone, email: email, avatarUrl: avatarUrl);
 
-      // Update in storage
       final userData = {
         'id': state.userId,
         'name': name ?? state.userName,
@@ -334,15 +242,31 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
       };
       await _storage.saveUser(userData);
 
-      // Update in Firestore
-      await _firebase.saveUserData(userData);
-
-      state = newState;
-      debugPrint('✅ Profile updated successfully');
+      state = state.copyWith(
+        userName: name,
+        userPhone: phone,
+        userEmail: email,
+        avatarUrl: avatarUrl,
+        isLoading: false,
+      );
+      debugPrint('✅ Profile updated');
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
       debugPrint('❌ Profile update error: $e');
     }
+  }
+
+  Future<void> loadProfile() async {
+    try {
+      final user = await _repo.getProfile();
+      state = state.copyWith(
+        userId: user.id,
+        userName: user.name,
+        userPhone: user.phone,
+        userEmail: user.email,
+        avatarUrl: user.avatarUrl,
+      );
+    } catch (_) {}
   }
 
   void setLoading(bool loading) {
@@ -357,42 +281,26 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
     state = state.copyWith(clearError: true);
   }
 
-  // ─── API methods (legacy compatibility) ───
-  Future<void> loginWithApi(String email, String password) async {
-    if (_repo == null) return;
-    state = state.copyWith(isLoading: true, error: null);
-    try {
-      final user = await _repo.login(email, password);
-      login(user.id, user.name, user.phone ?? '', email: user.email);
-      state = state.copyWith(isLoading: false);
-    } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
-    }
-  }
+  // ─── Helpers ───
+  Future<void> _saveAndSetState(User user) async {
+    await _storage.saveUser({
+      'id': user.id,
+      'name': user.name,
+      'phone': user.phone,
+      'email': user.email,
+      'avatar_url': user.avatarUrl,
+    });
 
-  Future<void> register(String name, String email, String password, {String? phone}) async {
-    if (_repo == null) return;
-    state = state.copyWith(isLoading: true, error: null);
-    try {
-      final user = await _repo.register(name: name, email: email, password: password, phone: phone);
-      login(user.id, user.name, user.phone ?? '', email: user.email);
-      state = state.copyWith(isLoading: false);
-    } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
-    }
-  }
-
-  Future<void> loadProfile() async {
-    if (_repo == null) return;
-    try {
-      final user = await _repo.getProfile();
-      state = state.copyWith(
-        userId: user.id,
-        userName: user.name,
-        userPhone: user.phone,
-        userEmail: user.email,
-        avatarUrl: user.avatarUrl,
-      );
-    } catch (_) {}
+    state = state.copyWith(
+      userId: user.id,
+      userName: user.name,
+      userPhone: user.phone,
+      userEmail: user.email,
+      avatarUrl: user.avatarUrl,
+      isLoggedIn: true,
+      isLoading: false,
+      clearError: true,
+      clearVerificationId: true,
+    );
   }
 }

@@ -1,38 +1,52 @@
 import '../models/user.dart';
-import '../repositories/base_repository.dart';
-import '../network/endpoints/user_api.dart';
+import '../services/supabase_service.dart';
 
-class UserRepository extends BaseRepository {
-  UserRepository(super.api);
-  
-  final UserApi _userApi = UserApi();
+/// User repository backed by Supabase.
+class UserRepository {
+  final SupabaseService _sb = SupabaseService.instance;
+
+  String get _userId {
+    final id = _sb.currentUser?.id;
+    if (id == null) throw Exception('Not logged in');
+    return id;
+  }
 
   // ═══════════════════════════════════════════════════════════════════════
   // PROFILE
   // ═══════════════════════════════════════════════════════════════════════
 
   Future<User> getProfile() async {
-    return safeCall(() async {
-      return await _userApi.getProfile();
-    });
+    final data = await _sb.client
+        .from('users')
+        .select()
+        .eq('id', _userId)
+        .single();
+    return User.fromJson(data);
   }
 
-  Future<void> updateProfile({
+  Future<User> updateProfile({
     String? name,
-    String? email,
     String? phone,
+    String? email,
     String? companyName,
-    bool? isArchitect,
+    String? avatarUrl,
   }) async {
-    await safeCall(() async {
-      await _userApi.updateProfile(
-        name: name,
-        email: email,
-        phone: phone,
-        companyName: companyName,
-        isArchitect: isArchitect,
-      );
-    });
+    final updates = <String, dynamic>{
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+    if (name != null) updates['full_name'] = name;
+    if (phone != null) updates['phone'] = phone;
+    if (email != null) updates['email'] = email;
+    if (companyName != null) updates['company_name'] = companyName;
+    if (avatarUrl != null) updates['avatar_url'] = avatarUrl;
+
+    final data = await _sb.client
+        .from('users')
+        .update(updates)
+        .eq('id', _userId)
+        .select()
+        .single();
+    return User.fromJson(data);
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -40,69 +54,44 @@ class UserRepository extends BaseRepository {
   // ═══════════════════════════════════════════════════════════════════════
 
   Future<List<Map<String, dynamic>>> getAddresses() async {
-    return safeCall(() async {
-      return await _userApi.getAddresses();
-    });
+    final data = await _sb.client
+        .from('user_addresses')
+        .select()
+        .eq('user_id', _userId)
+        .order('is_default', ascending: false);
+    return data;
   }
 
   Future<Map<String, dynamic>> addAddress({
     required String name,
+    required String phone,
     required String addressLine1,
     String? addressLine2,
     required String city,
     required String state,
     required String pincode,
-    required String phone,
     bool isDefault = false,
   }) async {
-    return safeCall(() async {
-      final fullAddr = addressLine2 != null && addressLine2.isNotEmpty
-          ? '$addressLine1, $addressLine2'
-          : addressLine1;
-      return await _userApi.addAddress(
-        label: name,
-        address: fullAddr,
-        city: city,
-        state: state,
-        pincode: pincode,
-        phone: phone,
-        isDefault: isDefault,
-      );
-    });
-  }
-
-  Future<void> updateAddress({
-    required String addressId,
-    String? name,
-    String? addressLine1,
-    String? addressLine2,
-    String? city,
-    String? state,
-    String? pincode,
-    String? phone,
-    bool? isDefault,
-  }) async {
-    await safeCall(() async {
-      final data = <String, dynamic>{
-        if (name != null) 'label': name,
-        if (addressLine1 != null)
-          'address': addressLine2 != null && addressLine2.isNotEmpty
-              ? '$addressLine1, $addressLine2'
-              : addressLine1,
-        if (city != null) 'city': city,
-        if (state != null) 'state': state,
-        if (pincode != null) 'pincode': pincode,
-        if (phone != null) 'phone': phone,
-        if (isDefault != null) 'is_default': isDefault,
-      };
-      await _userApi.updateAddress(addressId, data);
-    });
+    final data = await _sb.client.from('user_addresses').insert({
+      'user_id': _userId,
+      'name': name,
+      'phone': phone,
+      'address_line1': addressLine1,
+      'address_line2': addressLine2,
+      'city': city,
+      'state': state,
+      'pincode': pincode,
+      'is_default': isDefault,
+    }).select().single();
+    return data;
   }
 
   Future<void> deleteAddress(String addressId) async {
-    await safeCall(() async {
-      await _userApi.deleteAddress(addressId);
-    });
+    await _sb.client
+        .from('user_addresses')
+        .delete()
+        .eq('id', addressId)
+        .eq('user_id', _userId);
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -110,27 +99,19 @@ class UserRepository extends BaseRepository {
   // ═══════════════════════════════════════════════════════════════════════
 
   Future<Map<String, dynamic>> getPreferences() async {
-    return safeCall(() async {
-      return await _userApi.getPreferences();
-    });
+    final data = await _sb.client
+        .from('users')
+        .select('preferences')
+        .eq('id', _userId)
+        .single();
+    return data['preferences'] ?? {};
   }
 
-  Future<void> updatePreferences({
-    String? theme,
-    String? language,
-    bool? notifications,
-    bool? emailNotifications,
-    bool? smsNotifications,
-  }) async {
-    await safeCall(() async {
-      await _userApi.updatePreferences({
-        if (theme != null) 'theme': theme,
-        if (language != null) 'language': language,
-        if (notifications != null) 'notifications': notifications,
-        if (emailNotifications != null) 'email_notifications': emailNotifications,
-        if (smsNotifications != null) 'sms_notifications': smsNotifications,
-      });
-    });
+  Future<void> updatePreferences(Map<String, dynamic> prefs) async {
+    await _sb.client.from('users').update({
+      'preferences': prefs,
+      'updated_at': DateTime.now().toIso8601String(),
+    }).eq('id', _userId);
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -141,30 +122,19 @@ class UserRepository extends BaseRepository {
     int page = 1,
     int limit = 20,
   }) async {
-    return safeCall(() async {
-      return await _userApi.getNotifications(page: page, limit: limit);
-    });
+    final from = (page - 1) * limit;
+    final data = await _sb.client
+        .from('notifications')
+        .select()
+        .eq('user_id', _userId)
+        .order('created_at', ascending: false)
+        .range(from, from + limit - 1);
+    return data;
   }
 
-  Future<void> markNotificationAsRead(String notificationId) async {
-    await safeCall(() async {
-      await _userApi.markNotificationRead(notificationId);
-    });
-  }
-
-  Future<void> markAllNotificationsAsRead() async {
-    await safeCall(() async {
-      await _userApi.markAllNotificationsRead();
-    });
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // FCM TOKEN
-  // ═══════════════════════════════════════════════════════════════════════
-
-  Future<void> updateFcmToken(String token) async {
-    await safeCall(() async {
-      await _userApi.registerFCMToken(token);
-    });
+  Future<void> markNotificationRead(String notificationId) async {
+    await _sb.client.from('notifications').update({
+      'read': true,
+    }).eq('id', notificationId);
   }
 }

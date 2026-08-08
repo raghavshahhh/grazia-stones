@@ -6,7 +6,7 @@ import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/typography.dart';
 import 'package:grazia_stones/shared/theme/spacing.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
-import 'package:grazia_stones/core/services/mock_data_service.dart';
+import 'package:grazia_stones/core/providers/stone_providers.dart';
 
 // ─── Quote Model ─────────────────────────────────────────
 class QuoteEntry {
@@ -87,8 +87,11 @@ class _QuotesScreenState extends ConsumerState<QuotesScreen> {
   Widget build(BuildContext context) {
     final palette = ref.watch(themePaletteProvider);
     final quotes = ref.watch(quotesProvider);
-    final stones = MockDataService.getAllStones();
-    _selectedStoneId ??= stones.first.id;
+    final stonesAsync = ref.watch(allStonesProvider);
+    final stones = stonesAsync.valueOrNull ?? [];
+    if (stones.isNotEmpty && _selectedStoneId == null) {
+      _selectedStoneId = stones.first.id;
+    }
 
     return Scaffold(
       backgroundColor: palette.background,
@@ -288,7 +291,8 @@ class _QuotesScreenState extends ConsumerState<QuotesScreen> {
     }
 
     final palette = ref.read(themePaletteProvider);
-    final stone = MockDataService.getAllStones().firstWhere((s) => s.id == _selectedStoneId!);
+    final stonesList = ref.read(allStonesProvider).valueOrNull ?? [];
+    final stone = stonesList.firstWhere((s) => s.id == _selectedStoneId!);
 
     ref.read(quotesProvider.notifier).addQuote(QuoteEntry(
       id: 'q${DateTime.now().millisecondsSinceEpoch}',
