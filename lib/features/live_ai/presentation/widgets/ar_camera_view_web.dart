@@ -4,6 +4,7 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 // ignore: uri_does_not_exist
 import 'dart:html' as html;
 // ignore: uri_does_not_exist
@@ -13,6 +14,7 @@ import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 // ── Platform view registration ──────────────────────────────────────────────
 
@@ -44,6 +46,41 @@ dynamic _jsEval(String expr) {
   }
 }
 
+// ── Asset → data:image/png;base64 converter for JS texture loading ──────────
+
+Future<String?> _assetToDataUrl(String assetPath) async {
+  try {
+    final data = await rootBundle.load(assetPath);
+    final bytes = data.buffer.asUint8List();
+    final base64Str = base64Encode(bytes);
+    return 'data:image/png;base64,$base64Str';
+  } catch (e) {
+    if (kDebugMode) debugPrint('[GraziaAR] Failed to load asset "$assetPath": $e');
+    return null;
+  }
+}
+
+// ── Static texture cache (avoids reloading same texture) ────────────────────
+
+final Map<String, String> _textureCache = {};
+
+Future<void> _loadAndSetTexture(String assetPath, double opacity) async {
+  if (_textureCache.containsKey(assetPath)) {
+    final cached = _textureCache[assetPath]!;
+    _jsEval('GraziaAR.setTexture("$cached")');
+    _jsEval('GraziaAR.setOpacity($opacity)');
+    return;
+  }
+  final dataUrl = await _assetToDataUrl(assetPath);
+  if (dataUrl != null) {
+    _textureCache[assetPath] = dataUrl;
+    // JS-escape the data URL (contains + / = chars)
+    final safeUrl = dataUrl.replaceAll("'", "\\'");
+    _jsEval("GraziaAR.setTexture('$safeUrl')");
+    _jsEval('GraziaAR.setOpacity($opacity)');
+  }
+}
+
 // ── Widget ───────────────────────────────────────────────────────────────────
 
 class ARCameraView extends StatefulWidget {
@@ -71,29 +108,30 @@ class ARCameraView extends StatefulWidget {
   static void updateStone(String? assetPath, double opacity) {
     if (assetPath == null) {
       _jsEval('GraziaAR.setTexture(null)');
-    } else {
-      _jsEval('GraziaAR.setTexture("$assetPath")');
+      return;
     }
+    // Async load: check cache first, then load from asset bundle
+    _loadAndSetTexture(assetPath, opacity);
   }
 
   static void updateOpacity(double opacity) {
-    // Opacity is now part of the rendering pipeline, no separate control
+    _jsEval('GraziaAR.setOpacity($opacity)');
   }
 
   static void updateScale(double scale) {
-    // Scale is now part of perspective transform
+    _jsEval('GraziaAR.setScale($scale)');
   }
 
   static void updatePosition(Offset position) {
-    // Position is now auto-detected via wall detection
+    _jsEval('GraziaAR.setPosition(${position.dx}, ${position.dy})');
   }
 
   static void updateRotation(double rotation) {
-    // Rotation is now part of perspective transform
+    _jsEval('GraziaAR.setRotation($rotation)');
   }
 
   static void showWallBoundary(bool show) {
-    // Wall boundary is automatically shown when detected
+    _jsEval('GraziaAR.showWallBoundary($show)');
   }
 
   static void stopCamera() {
@@ -104,16 +142,26 @@ class ARCameraView extends StatefulWidget {
   State<ARCameraView> createState() => _ARCameraViewState();
 }
 
-class _ARCameraViewState extends State<ARCameraView> {
+class _ARCameraViewState extends State<ARCameraView>
+    with SingleTickerProviderStateMixin {
   bool _cameraReady = false;
   bool _requiresTap = false;
   String? _errorMsg;
   Timer? _pollTimer;
   int _initAttempts = 0;
+  late final AnimationController _pulseCtrl;
+  late final Animation<double> _pulseAnim;
 
   @override
   void initState() {
     super.initState();
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+    _pulseAnim = Tween<double>(begin: 0.4, end: 1.0).animate(
+      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
+    );
     _ensureRegistered();
     WidgetsBinding.instance.addPostFrameCallback((_) => _startInitSequence());
   }
@@ -129,9 +177,8 @@ class _ARCameraViewState extends State<ARCameraView> {
 
     if (initResult == true) {
       _startCameraStream();
-    } else if (_initAttempts < 15) {
-      // Retry waiting for Shadow DOM/Platform View mount
-      Future.delayed(const Duration(milliseconds: 200), () {
+    } else if (_initAttempts < 20) {
+      Future.delayed(const Duration(milliseconds: 250), () {
         if (mounted) _tryInitContainerAndCamera();
       });
     } else {
@@ -179,7 +226,6 @@ class _ARCameraViewState extends State<ARCameraView> {
         final errStr = err.toString();
         setState(() {
           _errorMsg = errStr;
-          // If Safari block/gesture issue or permission needed, offer direct tap button
           _requiresTap = true;
         });
         widget.onError?.call();
@@ -207,6 +253,7 @@ class _ARCameraViewState extends State<ARCameraView> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _pulseCtrl.dispose();
     ARCameraView.stopCamera();
     super.dispose();
   }
@@ -215,16 +262,15 @@ class _ARCameraViewState extends State<ARCameraView> {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // ── Real camera feed via HtmlElementView ──
         const HtmlElementView(viewType: _kViewType),
-
-        // ── Interactive overlay for Safari gesture / error state ──
-        if (_errorMsg != null || _requiresTap)
-          _buildTapToStartOverlay(),
-
-        // ── Loading state ──
-        if (!_cameraReady && _errorMsg == null && !_requiresTap)
-          _buildLoadingState(),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          child: _cameraReady
+              ? const SizedBox.shrink()
+              : _errorMsg != null || _requiresTap
+                  ? _buildTapToStartOverlay()
+                  : _buildLoadingState(),
+        ),
       ],
     );
   }
@@ -233,38 +279,41 @@ class _ARCameraViewState extends State<ARCameraView> {
     return Container(
       color: Colors.black.withValues(alpha: 0.85),
       child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(
-              width: 48,
-              height: 48,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.5,
-                color: Color(0xFFC8A53C),
+        child: FadeTransition(
+          opacity: _pulseAnim,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(
+                width: 48,
+                height: 48,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: Color(0xFFC8A53C),
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'Initializing Camera…',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                fontFamily: 'Inter',
+              const SizedBox(height: 20),
+              const Text(
+                'Initializing Camera…',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  fontFamily: 'Inter',
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Allow camera access when prompted by Safari / browser',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.6),
-                fontSize: 12,
-                fontFamily: 'Inter',
+              const SizedBox(height: 8),
+              Text(
+                'Allow camera access when prompted by browser',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.6),
+                  fontSize: 12,
+                  fontFamily: 'Inter',
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -277,7 +326,7 @@ class _ARCameraViewState extends State<ARCameraView> {
     return Container(
       color: Colors.black.withValues(alpha: 0.88),
       child: Align(
-        alignment: const Alignment(0, -0.35), // Positioned in upper-middle viewport above bottom sheet
+        alignment: const Alignment(0, -0.35),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 28),
           child: Column(
@@ -302,7 +351,9 @@ class _ARCameraViewState extends State<ARCameraView> {
               ),
               const SizedBox(height: 20),
               Text(
-                isPermissionDenied ? 'Camera Permission Required' : 'Enable Live AR Camera',
+                isPermissionDenied
+                    ? 'Camera Permission Required'
+                    : 'Enable Live AR Camera',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 18,
@@ -313,7 +364,7 @@ class _ARCameraViewState extends State<ARCameraView> {
               const SizedBox(height: 10),
               Text(
                 isPermissionDenied
-                    ? 'Safari blocked camera access.\nPlease allow camera permissions in Safari / iOS Settings and tap below.'
+                    ? 'Camera access was blocked.\nPlease allow camera permissions in your browser settings and tap below.'
                     : (_errorMsg ?? 'Tap below to launch real-time camera view.'),
                 textAlign: TextAlign.center,
                 style: TextStyle(

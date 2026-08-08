@@ -33,18 +33,21 @@ class _LiveAIScreenState extends State<LiveAIScreen>
     'Premium',
   ];
 
-  // Camera state (defaults to true so camera opens immediately on screen enter!)
+  // Camera state
   bool _cameraReady = false;
-  final bool _wallDetected = true;
+  bool _wallDetected = false;
 
-  // Texture mapping state
-  final double _textureOpacity = 0.80; // Realistic 80% opacity
+  // Texture controls (mutable now)
+  double _textureOpacity = 0.75;
+  double _textureScale = 1.0;
+  bool _showWallBoundary = true;
+  bool _controlsExpanded = false;
 
   // Controllers
   late PageController _stonePageController;
   late ScrollController _categoryScrollController;
-  late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
+  late AnimationController _wallDetectController;
+  late Animation<double> _wallDetectAnimation;
 
   @override
   void initState() {
@@ -56,13 +59,13 @@ class _LiveAIScreenState extends State<LiveAIScreen>
     );
     _categoryScrollController = ScrollController();
 
-    _pulseController = AnimationController(
+    _wallDetectController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2000),
-    )..repeat(reverse: true);
+      duration: const Duration(milliseconds: 800),
+    );
 
-    _pulseAnimation = Tween<double>(begin: 0.6, end: 1.0).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    _wallDetectAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _wallDetectController, curve: Curves.easeOut),
     );
 
     _updateFilteredStones();
@@ -72,7 +75,7 @@ class _LiveAIScreenState extends State<LiveAIScreen>
   void dispose() {
     _stonePageController.dispose();
     _categoryScrollController.dispose();
-    _pulseController.dispose();
+    _wallDetectController.dispose();
     super.dispose();
   }
 
@@ -111,6 +114,21 @@ class _LiveAIScreenState extends State<LiveAIScreen>
     }
   }
 
+  void _onOpacityChanged(double value) {
+    setState(() => _textureOpacity = value);
+    ARCameraView.updateOpacity(value);
+  }
+
+  void _onScaleChanged(double value) {
+    setState(() => _textureScale = value);
+    ARCameraView.updateScale(value);
+  }
+
+  void _toggleWallBoundary() {
+    setState(() => _showWallBoundary = !_showWallBoundary);
+    ARCameraView.showWallBoundary(_showWallBoundary);
+  }
+
   void _navigateToProduct() {
     HapticFeedback.mediumImpact();
     context.push('/stones/${_selectedStone.id}');
@@ -122,16 +140,19 @@ class _LiveAIScreenState extends State<LiveAIScreen>
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // 1. FULL-SCREEN REAL CAMERA FEED (100% of screen)
+          // 1. FULL-SCREEN REAL CAMERA FEED
           _buildFullScreenCamera(),
 
-          // 2. WALL GUIDANCE TOAST
-          _buildWallGuidanceToast(),
+          // 2. WALL DETECTION STATUS
+          _buildWallDetectionStatus(),
 
-          // 3. MINIMAL LUXURY TOP BAR (← Back, Title, Search)
+          // 3. MINIMAL LUXURY TOP BAR
           _buildMinimalTopBar(),
 
-          // 4. FLOATING GLASSMORPHISM BOTTOM PANEL (Sitting cleanly above Bottom Nav)
+          // 4. FLOATING CONTROLS PANEL
+          _buildFloatingControlsPanel(),
+
+          // 5. FLOATING GLASSMORPHISM BOTTOM PANEL
           _buildFloatingBottomPanel(),
         ],
       ),
@@ -150,19 +171,23 @@ class _LiveAIScreenState extends State<LiveAIScreen>
         opacity: _textureOpacity,
         onReady: () {
           if (!mounted) return;
-          setState(() => _cameraReady = true);
+          setState(() {
+            _cameraReady = true;
+            _wallDetected = true;
+          });
+          _wallDetectController.forward();
           if (assetPath != null) {
             ARCameraView.updateStone(assetPath, _textureOpacity);
           }
-          ARCameraView.showWallBoundary(true);
+          ARCameraView.showWallBoundary(_showWallBoundary);
         },
         onError: () {},
       ),
     );
   }
 
-  /// 2. Wall Guidance Toast
-  Widget _buildWallGuidanceToast() {
+  /// 2. Wall Detection Status Indicator
+  Widget _buildWallDetectionStatus() {
     final topPadding = MediaQuery.of(context).padding.top;
 
     return Positioned(
@@ -170,48 +195,63 @@ class _LiveAIScreenState extends State<LiveAIScreen>
       left: 0,
       right: 0,
       child: Center(
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.65),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: AppColors.goldWarm.withValues(alpha: 0.35),
-                  width: 0.8,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  AnimatedBuilder(
-                    animation: _pulseAnimation,
-                    builder: (context, child) {
-                      return Icon(
-                        Icons.videocam_outlined,
-                        size: 14,
-                        color: AppColors.goldWarm.withValues(alpha: _pulseAnimation.value),
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Point camera towards a flat wall',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.white,
-                      letterSpacing: 0.3,
+        child: AnimatedBuilder(
+          animation: _wallDetectAnimation,
+          builder: (context, child) {
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.65),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: _wallDetected
+                          ? AppColors.goldWarm.withValues(alpha: 0.5)
+                          : Colors.white.withValues(alpha: 0.2),
+                      width: 0.8,
                     ),
                   ),
-                ],
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Status dot
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: _wallDetected ? const Color(0xFF4CAF50) : AppColors.goldWarm,
+                          boxShadow: _wallDetected
+                              ? [
+                                  BoxShadow(
+                                    color: const Color(0xFF4CAF50).withValues(alpha: 0.6),
+                                    blurRadius: 6,
+                                  ),
+                                ]
+                              : null,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _wallDetected ? 'Wall detected — texture applied' : 'Point camera towards a flat wall',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );
@@ -304,6 +344,34 @@ class _LiveAIScreenState extends State<LiveAIScreen>
 
             const Spacer(),
 
+            // Controls Toggle Button
+            IconButton(
+              onPressed: () {
+                HapticFeedback.selectionClick();
+                setState(() => _controlsExpanded = !_controlsExpanded);
+              },
+              icon: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _controlsExpanded
+                      ? AppColors.goldWarm.withValues(alpha: 0.3)
+                      : Colors.black.withValues(alpha: 0.45),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: _controlsExpanded
+                        ? AppColors.goldWarm.withValues(alpha: 0.6)
+                        : Colors.white.withValues(alpha: 0.2),
+                    width: 0.8,
+                  ),
+                ),
+                child: Icon(
+                  Icons.tune_rounded,
+                  size: 17,
+                  color: _controlsExpanded ? AppColors.goldWarm : Colors.white,
+                ),
+              ),
+            ),
+
             // Search Button
             IconButton(
               onPressed: () => context.push('/search'),
@@ -330,12 +398,184 @@ class _LiveAIScreenState extends State<LiveAIScreen>
     );
   }
 
-  /// 4. Floating Glassmorphism Bottom Panel (Positioned above GraziaBottomNav)
+  /// 4. Floating Controls Panel (Opacity, Scale, Wall Toggle)
+  Widget _buildFloatingControlsPanel() {
+    final topPadding = MediaQuery.of(context).padding.top;
+
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+      top: _controlsExpanded ? topPadding + 105 : -200,
+      left: 12,
+      right: 12,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.82),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: AppColors.goldWarm.withValues(alpha: 0.3),
+                width: 0.8,
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Opacity Control
+                _buildControlRow(
+                  icon: Icons.opacity_rounded,
+                  label: 'Opacity',
+                  value: _textureOpacity,
+                  min: 0.1,
+                  max: 1.0,
+                  onChanged: _onOpacityChanged,
+                  displayValue: '${(_textureOpacity * 100).round()}%',
+                ),
+                const SizedBox(height: 12),
+                // Scale Control
+                _buildControlRow(
+                  icon: Icons.zoom_out_map_rounded,
+                  label: 'Scale',
+                  value: _textureScale,
+                  min: 0.3,
+                  max: 3.0,
+                  onChanged: _onScaleChanged,
+                  displayValue: '${_textureScale.toStringAsFixed(1)}x',
+                ),
+                const SizedBox(height: 12),
+                // Wall Boundary Toggle
+                Row(
+                  children: [
+                    Icon(
+                      Icons.crop_free_rounded,
+                      size: 18,
+                      color: AppColors.goldWarm.withValues(alpha: 0.8),
+                    ),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'Wall Boundary',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        _toggleWallBoundary();
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 44,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: _showWallBoundary
+                              ? AppColors.goldWarm
+                              : Colors.white.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: AnimatedAlign(
+                          duration: const Duration(milliseconds: 200),
+                          alignment: _showWallBoundary
+                              ? Alignment.centerRight
+                              : Alignment.centerLeft,
+                          child: Container(
+                            width: 20,
+                            height: 20,
+                            margin: const EdgeInsets.symmetric(horizontal: 2),
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildControlRow({
+    required IconData icon,
+    required String label,
+    required double value,
+    required double min,
+    required double max,
+    required ValueChanged<double> onChanged,
+    required String displayValue,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: AppColors.goldWarm.withValues(alpha: 0.8)),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 55,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+        ),
+        Expanded(
+          child: SliderTheme(
+            data: SliderThemeData(
+              trackHeight: 3,
+              activeTrackColor: AppColors.goldWarm,
+              inactiveTrackColor: Colors.white.withValues(alpha: 0.15),
+              thumbColor: AppColors.goldWarm,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+              overlayColor: AppColors.goldWarm.withValues(alpha: 0.15),
+            ),
+            child: Slider(
+              value: value,
+              min: min,
+              max: max,
+              onChanged: onChanged,
+            ),
+          ),
+        ),
+        SizedBox(
+          width: 36,
+          child: Text(
+            displayValue,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppColors.goldWarm,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 5. Floating Glassmorphism Bottom Panel
   Widget _buildFloatingBottomPanel() {
     final stone = _selectedStone;
 
     return Positioned(
-      bottom: 82.0, // Floating cleanly above bottom navigation bar!
+      bottom: 82.0,
       left: 12,
       right: 12,
       child: ClipRRect(
@@ -426,7 +666,7 @@ class _LiveAIScreenState extends State<LiveAIScreen>
 
                 const SizedBox(height: 12),
 
-                // ── ROW 2: Circular Stone Thumbnails (Instagram Stories Filter Style) ──
+                // ── ROW 2: Circular Stone Thumbnails ──
                 SizedBox(
                   height: 82,
                   child: PageView.builder(
@@ -530,7 +770,7 @@ class _LiveAIScreenState extends State<LiveAIScreen>
 
                 const SizedBox(height: 10),
 
-                // ── ROW 3: Product Info + Direct View Product Button ──
+                // ── ROW 3: Product Info + View Button ──
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
@@ -567,7 +807,7 @@ class _LiveAIScreenState extends State<LiveAIScreen>
                       ),
                       const SizedBox(width: 10),
 
-                      // Stone Title & Price (Clean horizontal layout)
+                      // Stone Title & Price
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -603,7 +843,7 @@ class _LiveAIScreenState extends State<LiveAIScreen>
 
                       const SizedBox(width: 8),
 
-                      // View Product Button (Direct Navigation to /stones/:id)
+                      // View Product Button
                       ElevatedButton(
                         onPressed: _navigateToProduct,
                         style: ElevatedButton.styleFrom(

@@ -17,6 +17,13 @@
   var _wallCorners = null;
   var _wallDetected = false;
   
+  // Stone control state
+  var _opacity = 0.75;
+  var _scale = 1.0;
+  var _position = {x: 0, y: 0};
+  var _rotation = 0;
+  var _showWallBoundary = true;
+  
   // Find container (handles Flutter Web shadow DOM)
   function _findContainer(containerId) {
     var el = document.getElementById(containerId);
@@ -174,7 +181,7 @@
     var strips = 24;
     
     ctx.save();
-    ctx.globalAlpha = 0.75; // 75% opacity
+    ctx.globalAlpha = _opacity;
     ctx.globalCompositeOperation = 'multiply'; // Preserve shadows
     
     for (var i = 0; i < strips; i++) {
@@ -225,7 +232,7 @@
       
       ctx.restore();
       ctx.save();
-      ctx.globalAlpha = 0.75;
+      ctx.globalAlpha = _opacity;
       ctx.globalCompositeOperation = 'multiply';
     }
     
@@ -315,7 +322,7 @@
     }
     
     // Draw visualization
-    if (_wallDetected && _wallCorners) {
+    if (_wallDetected && _wallCorners && _showWallBoundary) {
       // Draw wall detection bracket
       _ctx.save();
       _ctx.strokeStyle = 'rgba(200, 165, 60, 0.5)';
@@ -366,9 +373,19 @@
       
       _ctx.restore();
       
-      // Draw texture if loaded
+      // Draw texture if loaded, otherwise show selection hint
       if (_textureImage && _textureImage.complete) {
         _drawTextureWithPerspective(_wallCorners, _textureImage, _ctx, width, height);
+      } else {
+        _ctx.save();
+        _ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        _ctx.fillRect(width/2 - 140, height/2 - 25, 280, 50);
+        _ctx.fillStyle = '#C8A53C';
+        _ctx.font = 'bold 14px -apple-system, sans-serif';
+        _ctx.textAlign = 'center';
+        _ctx.textBaseline = 'middle';
+        _ctx.fillText('Select a stone to preview on wall', width/2, height/2);
+        _ctx.restore();
       }
     } else {
       // Show hint message
@@ -417,7 +434,35 @@
       _container.appendChild(_canvas);
       _ctx = _canvas.getContext('2d', {alpha: false, desynchronized: true});
 
+      // Auto-resize canvas when container changes size
+      if (typeof ResizeObserver !== 'undefined') {
+        var ro = new ResizeObserver(function () {
+          window.GraziaAR._resizeCanvas();
+        });
+        ro.observe(_container);
+      }
+
       return true;
+    },
+
+    // Handle canvas resize when container size changes
+    _resizeCanvas: function () {
+      if (!_canvas || !_video) return;
+      var parent = _canvas.parentElement;
+      if (!parent) return;
+      var rect = parent.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        // Keep aspect ratio from video but fit container
+        var videoAspect = (_video.videoWidth || 1280) / (_video.videoHeight || 720);
+        var containerAspect = rect.width / rect.height;
+        if (containerAspect > videoAspect) {
+          _canvas.height = rect.height;
+          _canvas.width = Math.floor(rect.height * videoAspect);
+        } else {
+          _canvas.width = rect.width;
+          _canvas.height = Math.floor(rect.width / videoAspect);
+        }
+      }
     },
 
     startCamera: function () {
@@ -532,6 +577,45 @@
 
     getError: function () {
       return window._graziaARError;
+    },
+
+    setOpacity: function (value) {
+      _opacity = Math.max(0.0, Math.min(1.0, value));
+      console.log('[GraziaAR] Opacity set to', _opacity);
+    },
+
+    setScale: function (value) {
+      _scale = Math.max(0.1, Math.min(5.0, value));
+      console.log('[GraziaAR] Scale set to', _scale);
+    },
+
+    setPosition: function (x, y) {
+      _position = {x: x || 0, y: y || 0};
+      console.log('[GraziaAR] Position set to', _position);
+    },
+
+    setRotation: function (degrees) {
+      _rotation = degrees || 0;
+      console.log('[GraziaAR] Rotation set to', _rotation, 'degrees');
+    },
+
+    showWallBoundary: function (show) {
+      _showWallBoundary = show !== false;
+      console.log('[GraziaAR] Wall boundary', _showWallBoundary ? 'shown' : 'hidden');
+    },
+
+    getWallCorners: function () {
+      if (!_wallCorners) return null;
+      return {
+        tl: {x: _wallCorners.tl.x, y: _wallCorners.tl.y},
+        tr: {x: _wallCorners.tr.x, y: _wallCorners.tr.y},
+        bl: {x: _wallCorners.bl.x, y: _wallCorners.bl.y},
+        br: {x: _wallCorners.br.x, y: _wallCorners.br.y}
+      };
+    },
+
+    getWallDetected: function () {
+      return _wallDetected;
     }
 
   };

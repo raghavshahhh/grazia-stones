@@ -379,6 +379,78 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
 
             const SizedBox(height: 40),
 
+            // Camera Scan Section
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: palette.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: palette.primary.withValues(alpha: 0.3),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.camera_alt_outlined, color: palette.primary, size: 22),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Scan Room with Camera',
+                          style: GLuxuryTypography.h3.copyWith(color: palette.textPrimary),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Use AI-powered camera to automatically detect walls and measure your room',
+                    style: GLuxuryTypography.bodySmall.copyWith(color: palette.textSecondary),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () => context.push('/live-ai'),
+                          icon: const Icon(Icons.camera_roll_outlined, size: 18),
+                          label: const Text('Live AI Detection'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: palette.primary,
+                            foregroundColor: palette.background,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            elevation: 0,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => context.push('/ar-view'),
+                          icon: Icon(Icons.view_in_ar_outlined, size: 18, color: palette.primary),
+                          label: Text(
+                            'AR Visualizer',
+                            style: TextStyle(color: palette.primary),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: palette.primary.withValues(alpha: 0.5)),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 40),
+
             // Tips
             Container(
               padding: const EdgeInsets.all(16),
