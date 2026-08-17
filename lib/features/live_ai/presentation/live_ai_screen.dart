@@ -48,7 +48,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
   void initState() {
     super.initState();
     _stonePageController = PageController(
-      viewportFraction: 0.23,
+      viewportFraction: 0.32,
       initialPage: 0,
     );
     _categoryScrollController = ScrollController();
@@ -124,7 +124,10 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
           // 2. Top bar
           _buildTopBar(),
 
-          // 3. Bottom panel with stone selector
+          // 3. Side tile rail — swipe to select a stone
+          _buildSideTileRail(),
+
+          // 4. Bottom panel — category + product info
           _buildBottomPanel(),
         ],
       ),
@@ -268,6 +271,129 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     );
   }
 
+  /// Vertical side rail — swipe up/down to browse stones, tap to select.
+  /// Sits on the right edge, native-camera-filter style.
+  Widget _buildSideTileRail() {
+    if (_filteredStones.isEmpty) return const SizedBox.shrink();
+
+    return Positioned(
+      right: 10,
+      top: MediaQuery.of(context).padding.top + 90,
+      bottom: 220,
+      child: SizedBox(
+        width: 64,
+        child: PageView.builder(
+          controller: _stonePageController,
+          scrollDirection: Axis.vertical,
+          itemCount: _filteredStones.length,
+          onPageChanged: (index) => _selectStone(index),
+          itemBuilder: (context, index) {
+            final item = _filteredStones[index];
+            final isSelected = index == _selectedStoneIndex;
+            final thumbPath = item.images.isNotEmpty
+                ? item.images.first
+                : 'assets/images/placeholder_stone.png';
+
+            return Center(
+              child: GestureDetector(
+                onTap: () {
+                  _stonePageController.animateToPage(
+                    index,
+                    duration: const Duration(milliseconds: 350),
+                    curve: Curves.easeOutCubic,
+                  );
+                  _selectStone(index);
+                },
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      width: isSelected ? 56 : 46,
+                      height: isSelected ? 56 : 46,
+                      padding: const EdgeInsets.all(2.5),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: isSelected
+                            ? const LinearGradient(
+                                colors: [
+                                  AppColors.goldWarm,
+                                  AppColors.goldLight,
+                                  AppColors.goldWarm,
+                                ],
+                              )
+                            : null,
+                        color: isSelected
+                            ? null
+                            : Colors.black.withValues(alpha: 0.35),
+                        border: !isSelected
+                            ? Border.all(
+                                color: Colors.white.withValues(alpha: 0.3),
+                                width: 1,
+                              )
+                            : null,
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color:
+                                      AppColors.goldWarm.withValues(alpha: 0.5),
+                                  blurRadius: 14,
+                                  spreadRadius: 1,
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.black,
+                        ),
+                        child: ClipOval(
+                          child: Image.asset(
+                            thumbPath,
+                            fit: BoxFit.cover,
+                            errorBuilder: (ctx, err, stack) => Container(
+                              color: const Color(0xFF222222),
+                              child: const Icon(
+                                Icons.texture,
+                                color: AppColors.goldWarm,
+                                size: 16,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      item.productCode.isNotEmpty
+                          ? item.productCode
+                          : item.name.split(' ').first,
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 8,
+                        fontWeight:
+                            isSelected ? FontWeight.w700 : FontWeight.w500,
+                        color: isSelected
+                            ? AppColors.goldWarm
+                            : Colors.white.withValues(alpha: 0.8),
+                        shadows: const [
+                          Shadow(color: Colors.black, blurRadius: 4),
+                        ],
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   /// Bottom panel — category chips + stone selector + product info
   Widget _buildBottomPanel() {
     final stone = _selectedStone;
@@ -357,115 +483,6 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                               letterSpacing: 0.3,
                             ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                // Stone thumbnails
-                SizedBox(
-                  height: 82,
-                  child: PageView.builder(
-                    controller: _stonePageController,
-                    itemCount: _filteredStones.length,
-                    onPageChanged: (index) => _selectStone(index),
-                    itemBuilder: (context, index) {
-                      final item = _filteredStones[index];
-                      final isSelected = index == _selectedStoneIndex;
-                      final thumbPath = item.images.isNotEmpty
-                          ? item.images.first
-                          : 'assets/images/placeholder_stone.png';
-
-                      return GestureDetector(
-                        onTap: () {
-                          _stonePageController.animateToPage(
-                            index,
-                            duration: const Duration(milliseconds: 350),
-                            curve: Curves.easeOutCubic,
-                          );
-                          _selectStone(index);
-                        },
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 300),
-                              width: isSelected ? 56 : 48,
-                              height: isSelected ? 56 : 48,
-                              padding: const EdgeInsets.all(2.5),
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: isSelected
-                                    ? const LinearGradient(
-                                        colors: [
-                                          AppColors.goldWarm,
-                                          AppColors.goldLight,
-                                          AppColors.goldWarm,
-                                        ],
-                                      )
-                                    : null,
-                                border: !isSelected
-                                    ? Border.all(
-                                        color:
-                                            Colors.white.withValues(alpha: 0.2),
-                                        width: 1,
-                                      )
-                                    : null,
-                                boxShadow: isSelected
-                                    ? [
-                                        BoxShadow(
-                                          color: AppColors.goldWarm
-                                              .withValues(alpha: 0.5),
-                                          blurRadius: 14,
-                                          spreadRadius: 1,
-                                        ),
-                                      ]
-                                    : null,
-                              ),
-                              child: Container(
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.black,
-                                ),
-                                child: ClipOval(
-                                  child: Image.asset(
-                                    thumbPath,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (ctx, err, stack) =>
-                                        Container(
-                                      color: const Color(0xFF222222),
-                                      child: const Icon(
-                                        Icons.texture,
-                                        color: AppColors.goldWarm,
-                                        size: 18,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              item.productCode.isNotEmpty
-                                  ? item.productCode
-                                  : item.name.split(' ').first,
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 9,
-                                fontWeight: isSelected
-                                    ? FontWeight.w700
-                                    : FontWeight.w500,
-                                color: isSelected
-                                    ? AppColors.goldWarm
-                                    : Colors.white.withValues(alpha: 0.75),
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
                         ),
                       );
                     },
