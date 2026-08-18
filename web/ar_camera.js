@@ -18,6 +18,12 @@
   var _wallDetected = false;
   var _hasRealLock = false; // true once a real (non-fallback) wall was found
   var _lostFrames = 0; // consecutive detection cycles without real edges
+
+  // AI-assisted wall detection (NVIDIA NIM, via server proxy) — periodic
+  // correction on top of the local edge heuristic, not a per-frame replacement.
+  var _aiRequestInFlight = false;
+  var _lastAiRequestAt = 0;
+  var AI_REQUEST_INTERVAL_MS = 3000;
   
   // Stone control state
   var _opacity = 0.75;
@@ -182,7 +188,53 @@
       br: lerpPt(from.br, to.br)
     };
   }
-  
+
+  // Ask the server-side NIM proxy where the wall is, roughly every
+  // AI_REQUEST_INTERVAL_MS. Cloud round-trips are too slow for per-frame use,
+  // so this only *corrects* the local edge-detection heuristic above, it
+  // doesn't replace it. Fire-and-forget: never blocks the render loop.
+  function _requestAiWallDetection(width, height) {
+    if (_aiRequestInFlight || !_video || _video.readyState < 2) return;
+    var now = Date.now();
+    if (now - _lastAiRequestAt < AI_REQUEST_INTERVAL_MS) return;
+    _lastAiRequestAt = now;
+    _aiRequestInFlight = true;
+
+    var snapW = 320;
+    var snapH = Math.round((height / width) * snapW) || 240;
+    var snapCanvas = document.createElement('canvas');
+    snapCanvas.width = snapW;
+    snapCanvas.height = snapH;
+    snapCanvas.getContext('2d').drawImage(_video, 0, 0, snapW, snapH);
+    var dataUrl = snapCanvas.toDataURL('image/jpeg', 0.6);
+
+    fetch('/api/wall-detect', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({image: dataUrl})
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (result) {
+        if (!result || !result.found) return;
+        var x = result.x * width, y = result.y * height;
+        var w = result.width * width, h = result.height * height;
+        var aiCorners = {
+          tl: {x: x, y: y},
+          tr: {x: x + w, y: y},
+          bl: {x: x, y: y + h},
+          br: {x: x + w, y: y + h}
+        };
+        // Treat an AI hit as a real, higher-confidence detection — snap
+        // most of the way there, keep the same smoothing/anchor system.
+        _lostFrames = 0;
+        _hasRealLock = true;
+        _wallCorners = _wallCorners ? _lerpCorners(_wallCorners, aiCorners, 0.6) : aiCorners;
+        _wallDetected = true;
+      })
+      .catch(function () { /* ponytail: silent — local heuristic keeps running regardless */ })
+      .finally(function () { _aiRequestInFlight = false; });
+  }
+
   // Draw texture with perspective transform using triangle strips
   function _drawTextureWithPerspective(corners, texture, ctx, canvasWidth, canvasHeight) {
     if (!texture) return;
@@ -369,8 +421,9 @@
       }
 
       _wallDetected = true;
+      _requestAiWallDetection(width, height);
     }
-    
+
     // Draw visualization
     if (_wallDetected && _wallCorners && _showWallBoundary) {
       // Draw wall detection bracket
