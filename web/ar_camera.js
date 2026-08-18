@@ -380,6 +380,7 @@
       // angle/perspective — trust them completely, skip heuristic detection.
       _wallCorners = _manualCorners;
       _wallDetected = true;
+      _hasRealLock = true;
     } else
     // Detect wall every 3 frames (performance optimization)
     if (_frameCount % 3 === 0) {
@@ -437,8 +438,12 @@
       _requestAiWallDetection(width, height);
     }
 
-    // Draw visualization
-    if (_wallDetected && _wallCorners && _showWallBoundary) {
+    // Draw visualization — only once we have a REAL detected wall, never for
+    // the guessed fallback placeholder. Painting texture over an unconfirmed
+    // guess is what made the overlay look like a flat image slapped over the
+    // whole screen (floor/furniture included) instead of real tiles on the
+    // actual wall.
+    if (_hasRealLock && _wallDetected && _wallCorners && _showWallBoundary) {
       // Draw wall detection bracket
       _ctx.save();
       _ctx.strokeStyle = 'rgba(200, 165, 60, 0.5)';

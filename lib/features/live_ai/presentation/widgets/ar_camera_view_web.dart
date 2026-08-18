@@ -174,6 +174,7 @@ class _ARCameraViewState extends State<ARCameraView>
     with SingleTickerProviderStateMixin {
   bool _cameraReady = false;
   bool _requiresTap = false;
+  bool _containerReady = false;
   String? _errorMsg;
   Timer? _pollTimer;
   int _initAttempts = 0;
@@ -204,7 +205,16 @@ class _ARCameraViewState extends State<ARCameraView>
     final initResult = _jsEval('GraziaAR.init("grazia-ar-container")');
 
     if (initResult == true) {
-      _startCameraStream();
+      // ponytail: skip the auto-start attempt entirely — iOS Safari requires
+      // a gesture-fresh call to getUserMedia() anyway (see 7s-hang comment
+      // that used to live in _startCameraStream), so an unprompted auto call
+      // just wastes time with no visible feedback ("button does nothing").
+      // Go straight to the tap button; tapping it IS the fresh gesture.
+      _containerReady = true;
+      setState(() {
+        _errorMsg = 'Tap below to start the camera.';
+        _requiresTap = true;
+      });
     } else if (_initAttempts < 20) {
       Future.delayed(const Duration(milliseconds: 250), () {
         if (mounted) _tryInitContainerAndCamera();
@@ -280,7 +290,11 @@ class _ARCameraViewState extends State<ARCameraView>
       _errorMsg = null;
       _requiresTap = false;
     });
-    _startInitSequence();
+    if (_containerReady) {
+      _startCameraStream();
+    } else {
+      _startInitSequence();
+    }
   }
 
   @override
