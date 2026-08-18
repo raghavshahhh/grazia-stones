@@ -5,6 +5,27 @@
 
 const NIM_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
 const NIM_MODEL = 'meta/llama-3.2-11b-vision-instruct';
+const MAX_IMAGE_LENGTH = 200_000; // client sends a 320px jpeg (~20-40KB base64); leaves headroom
+const ALLOWED_ORIGINS = ['https://grazia-stones.vercel.app'];
+
+// ponytail: per-instance in-memory counter, not a real distributed rate
+// limiter — resets on cold start and doesn't share state across instances.
+// Stops casual/scripted abuse cheaply; move to Upstash/Vercel KV if this
+// endpoint ever needs to survive a real attack.
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = 20;
+const _rateLimitHits = new Map();
+
+function _isRateLimited(ip) {
+  const now = Date.now();
+  const hit = _rateLimitHits.get(ip);
+  if (!hit || now - hit.windowStart > RATE_LIMIT_WINDOW_MS) {
+    _rateLimitHits.set(ip, { windowStart: now, count: 1 });
+    return false;
+  }
+  hit.count++;
+  return hit.count > RATE_LIMIT_MAX;
+}
 
 const PROMPT = `You are a computer-vision assistant for an AR room-visualizer.
 Look at this photo of an indoor room and find the single largest flat, unobstructed
@@ -21,15 +42,32 @@ module.exports = async function handler(req, res) {
     return;
   }
 
+  const origin = req.headers.origin || req.headers.referer || '';
+  if (!ALLOWED_ORIGINS.some((allowed) => origin.startsWith(allowed))) {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
+  if (_isRateLimited(ip)) {
+    res.status(429).json({ error: 'Too many requests' });
+    return;
+  }
+
   const apiKey = process.env.NVIDIA_NIM_API_KEY;
   if (!apiKey) {
-    res.status(500).json({ error: 'NVIDIA_NIM_API_KEY not configured' });
+    console.error('[wall-detect] NVIDIA_NIM_API_KEY not configured');
+    res.status(500).json({ error: 'Service not configured' });
     return;
   }
 
   const { image } = req.body || {};
   if (!image || typeof image !== 'string' || !image.startsWith('data:image/')) {
     res.status(400).json({ error: 'image must be a data:image/... base64 URL' });
+    return;
+  }
+  if (image.length > MAX_IMAGE_LENGTH) {
+    res.status(413).json({ error: 'Image too large' });
     return;
   }
 
@@ -58,8 +96,8 @@ module.exports = async function handler(req, res) {
     });
 
     if (!nimRes.ok) {
-      const detail = await nimRes.text();
-      res.status(502).json({ error: 'NIM request failed', detail });
+      console.error('[wall-detect] NIM request failed', nimRes.status, await nimRes.text());
+      res.status(502).json({ error: 'Detection service unavailable' });
       return;
     }
 
@@ -74,6 +112,7 @@ module.exports = async function handler(req, res) {
     const parsed = JSON.parse(jsonMatch[0]);
     res.status(200).json(parsed);
   } catch (err) {
-    res.status(502).json({ error: 'NIM proxy error', detail: String(err) });
+    console.error('[wall-detect] proxy error', err);
+    res.status(502).json({ error: 'Detection service unavailable' });
   }
 };
