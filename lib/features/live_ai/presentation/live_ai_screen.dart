@@ -7,6 +7,7 @@ import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/providers/stone_providers.dart';
 import 'widgets/ar_camera_view.dart';
+import 'widgets/measure_overlay.dart';
 
 /// Live AI Visualizer — real camera + wall texture visualization
 class LiveAIScreen extends ConsumerStatefulWidget {
@@ -29,6 +30,9 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
   // Info card toggle (shown via the "i" button)
   bool _showInfoCard = false;
+
+  // Measure mode toggle (shown via the ruler button)
+  bool _measureMode = false;
 
   // Texture controls
   double _textureOpacity = 0.75;
@@ -120,6 +124,10 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
           // 4. Info button — product name/price + link to product page
           _buildInfoButton(),
+
+          // 5. Tap-to-measure overlay
+          if (_measureMode)
+            MeasureOverlay(onClose: () => setState(() => _measureMode = false)),
         ],
       ),
     );
@@ -232,6 +240,30 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
             ),
 
             const Spacer(),
+
+            // Measure button
+            IconButton(
+              onPressed: () {
+                HapticFeedback.selectionClick();
+                setState(() => _measureMode = true);
+              },
+              icon: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.45),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    width: 0.8,
+                  ),
+                ),
+                child: const Icon(
+                  Icons.straighten_rounded,
+                  size: 16,
+                  color: Colors.white,
+                ),
+              ),
+            ),
 
             // Settings button
             IconButton(

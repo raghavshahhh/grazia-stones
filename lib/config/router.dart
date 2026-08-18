@@ -23,6 +23,7 @@ import '../features/profile/presentation/profile_screen.dart';
 import '../features/wishlist/presentation/wishlist_screen.dart';
 import '../features/sample_order/presentation/sample_order_screen.dart';
 import '../features/measure/presentation/measure_screen.dart';
+import '../features/settings/presentation/settings_screen.dart';
 import '../shared/widgets/grazia_bottom_nav.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -294,6 +295,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
             _slideUpPage(const MeasureScreen(), state),
+      ),
+      GoRoute(
+        path: '/settings',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const SettingsScreen(), state),
       ),
     ],
   );
