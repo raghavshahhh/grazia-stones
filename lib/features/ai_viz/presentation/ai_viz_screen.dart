@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -27,6 +28,8 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen>
   String _mode = 'photo';
 
   Uint8List? _selectedImage;
+  Uint8List? _visualizedImage;
+  bool _wallNotDetected = false;
   String? _selectedStoneId;
   bool _isProcessing = false;
   bool _textureApplied = false;
@@ -72,7 +75,9 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen>
         if (!mounted) return;
         setState(() {
           _selectedImage = bytes;
+          _visualizedImage = null;
           _textureApplied = false;
+          _wallNotDetected = false;
         });
         HapticFeedback.mediumImpact();
       }
@@ -84,7 +89,7 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen>
     }
   }
 
-  void _applyStoneTexture() {
+  Future<void> _applyStoneTexture() async {
     if ((_mode == 'photo' && (_selectedImage == null || _selectedStoneId == null)) ||
         (_mode == 'live' && _selectedStoneId == null)) {
       return;
@@ -92,6 +97,36 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen>
 
     setState(() => _isProcessing = true);
     HapticFeedback.mediumImpact();
+
+    if (_mode == 'photo') {
+      final allStones = ref.read(allStonesProvider).valueOrNull ?? [];
+      final stone = allStones.firstWhere((s) => s.id == _selectedStoneId,
+          orElse: () => allStones.first);
+      final textureUrl = stone.images.isNotEmpty ? stone.images.first : null;
+
+      String? resultDataUrl;
+      if (textureUrl != null) {
+        final roomDataUrl = 'data:image/jpeg;base64,${base64Encode(_selectedImage!)}';
+        resultDataUrl = await ARCameraView.renderStaticVisualization(
+            roomDataUrl, textureUrl, _arOpacity);
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _isProcessing = false;
+        if (resultDataUrl != null) {
+          _visualizedImage = base64Decode(resultDataUrl.split(',').last);
+          _textureApplied = true;
+          _wallNotDetected = false;
+        } else {
+          _visualizedImage = null;
+          _textureApplied = false;
+          _wallNotDetected = true;
+        }
+      });
+      HapticFeedback.heavyImpact();
+      return;
+    }
 
     if (_mode == 'live') {
       // Live camera: directly update the AR overlay
@@ -102,16 +137,6 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen>
       ARCameraView.updateStone(path, _arOpacity);
       ARCameraView.showWallBoundary(true);
       Future.delayed(const Duration(milliseconds: 600), () {
-        if (!mounted) return;
-        setState(() {
-          _isProcessing = false;
-          _textureApplied = true;
-        });
-        HapticFeedback.heavyImpact();
-      });
-    } else {
-      // Photo mode: simulate AI processing
-      Future.delayed(const Duration(seconds: 2), () {
         if (!mounted) return;
         setState(() {
           _isProcessing = false;
@@ -160,6 +185,31 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen>
           else
             _buildImagePreview(palette),
 
+          if (_wallNotDetected) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline, color: Colors.orange, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "Couldn't clearly detect a wall in this photo. Try a photo taken "
+                      "straight-on with the wall clearly visible and well-lit.",
+                      style: GLuxuryTypography.bodySmall.copyWith(color: palette.textSecondary),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
           GLuxurySpacing.gapXl,
 
           // Step 2: Select stone
@@ -184,39 +234,15 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen>
           borderRadius: BorderRadius.circular(16),
           child: Stack(
             children: [
+              // Composited result (real tiles painted only onto the
+              // detected wall region) once available, else the raw upload.
               Image.memory(
-                _selectedImage!,
+                _visualizedImage ?? _selectedImage!,
                 height: 260,
                 width: double.infinity,
                 fit: BoxFit.cover,
               ),
-              // Stone overlay simulation (when applied)
-              if (_textureApplied && _selectedStoneId != null) ...[
-                Positioned.fill(
-                  child: Builder(builder: (context) {
-                    final allStones = ref.read(allStonesProvider).valueOrNull ?? [];
-                    final stone = allStones
-                        .firstWhere((s) => s.id == _selectedStoneId, orElse: () => allStones.first);
-                    return Opacity(
-                      opacity: _arOpacity,
-                      child: SmartStoneImage(
-                        imageUrl: stone.images.isNotEmpty ? stone.images.first : null,
-                        palette: palette,
-                      ),
-                    );
-                  }),
-                ),
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Colors.black.withValues(alpha: 0.1), Colors.transparent],
-                      ),
-                    ),
-                  ),
-                ),
+              if (_textureApplied && _visualizedImage != null) ...[
                 Positioned(
                   bottom: 12,
                   right: 12,
@@ -253,8 +279,10 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen>
           child: GestureDetector(
             onTap: () => setState(() {
               _selectedImage = null;
+              _visualizedImage = null;
               _selectedStoneId = null;
               _textureApplied = false;
+              _wallNotDetected = false;
             }),
             child: Container(
               padding: const EdgeInsets.all(6),
@@ -649,8 +677,10 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen>
             onPressed: () {
               setState(() {
                 _selectedImage = null;
+                _visualizedImage = null;
                 _textureApplied = false;
                 _selectedStoneId = null;
+                _wallNotDetected = false;
               });
             },
             child: Text('Reset', style: TextStyle(color: palette.primary)),

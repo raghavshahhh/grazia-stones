@@ -166,6 +166,35 @@ class ARCameraView extends StatefulWidget {
     _jsEval('GraziaAR.clearManualCorners()');
   }
 
+  /// Composites [textureDataUrl] onto the detected wall region of
+  /// [roomImageDataUrl] only — returns the composited image as a data URL,
+  /// or null if no wall could be confidently detected (caller should show
+  /// the original photo unchanged rather than guessing).
+  static Future<String?> renderStaticVisualization(
+    String roomImageDataUrl,
+    String textureDataUrl,
+    double opacity,
+  ) async {
+    final safeRoom = roomImageDataUrl.replaceAll("'", "\\'");
+    final safeTexture = textureDataUrl.replaceAll("'", "\\'");
+    _jsEval(
+      "GraziaAR.renderStaticVisualization('$safeRoom', '$safeTexture', $opacity)",
+    );
+
+    final startedAt = DateTime.now();
+    while (DateTime.now().difference(startedAt) < const Duration(seconds: 20)) {
+      await Future.delayed(const Duration(milliseconds: 200));
+      final raw = js.context['_graziaARStaticResult'];
+      final err = js.context['_graziaARStaticError'];
+      if (raw != null) {
+        final decoded = jsonDecode(raw.toString()) as Map<String, dynamic>;
+        return decoded['success'] == true ? decoded['image'] as String : null;
+      }
+      if (err != null) return null;
+    }
+    return null;
+  }
+
   @override
   State<ARCameraView> createState() => _ARCameraViewState();
 }

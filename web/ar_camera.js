@@ -355,6 +355,89 @@
     ctx.restore();
   }
   
+  // Photo-mode visualization: detect the wall in a still room photo (same
+  // Sobel heuristic + server AI check used for live AR, just run once
+  // instead of per-frame) and composite the stone texture onto ONLY that
+  // region, warped to match its perspective. Everything else in the photo
+  // (floor, furniture, ceiling) is left byte-for-byte untouched.
+  function _loadImage(src) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = function () { resolve(img); };
+      img.onerror = function () { reject(new Error('Failed to load image: ' + src)); };
+      img.src = src;
+    });
+  }
+
+  function renderStaticVisualization(roomImageUrl, textureUrl, opacity) {
+    return Promise.all([_loadImage(roomImageUrl), _loadImage(textureUrl)])
+      .then(function (imgs) {
+        var roomImg = imgs[0], textureImg = imgs[1];
+
+        // Cap working resolution — full phone-camera photos (4000px+) make
+        // the Sobel scan take seconds for no detection-quality benefit.
+        var maxDim = 1400;
+        var scale = Math.min(1, maxDim / Math.max(roomImg.naturalWidth, roomImg.naturalHeight));
+        var w = Math.round(roomImg.naturalWidth * scale);
+        var h = Math.round(roomImg.naturalHeight * scale);
+
+        var canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(roomImg, 0, 0, w, h);
+
+        // 1) Local heuristic (instant, no network dependency).
+        var imageData = ctx.getImageData(0, 0, w, h);
+        var edges = _detectEdges(imageData, w, h);
+        var localRegion = _findWallRegion(edges, w, h);
+
+        // 2) Ask the server AI detector too — it's a single request here
+        // (not fire-and-forget like the live loop), so we can afford to
+        // wait for a more reliable quad before compositing.
+        var snapCanvas = document.createElement('canvas');
+        snapCanvas.width = 320;
+        snapCanvas.height = Math.round((h / w) * 320) || 240;
+        snapCanvas.getContext('2d').drawImage(canvas, 0, 0, snapCanvas.width, snapCanvas.height);
+
+        return fetch('/api/wall-detect', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({image: snapCanvas.toDataURL('image/jpeg', 0.7)})
+        })
+          .then(function (r) { return r.json(); })
+          .catch(function () { return null; })
+          .then(function (aiResult) {
+            var region = localRegion;
+            if (aiResult && aiResult.found) {
+              region = {
+                real: true,
+                corners: {
+                  tl: {x: aiResult.x * w, y: aiResult.y * h},
+                  tr: {x: (aiResult.x + aiResult.width) * w, y: aiResult.y * h},
+                  bl: {x: aiResult.x * w, y: (aiResult.y + aiResult.height) * h},
+                  br: {x: (aiResult.x + aiResult.width) * w, y: (aiResult.y + aiResult.height) * h}
+                }
+              };
+            }
+
+            if (!region.real) {
+              // No confident wall found — don't guess across the whole
+              // photo, that's the exact "fake overlay" bug being fixed.
+              return {success: false, image: canvas.toDataURL('image/jpeg', 0.92)};
+            }
+
+            var prevOpacity = _opacity;
+            _opacity = Math.max(0.0, Math.min(1.0, opacity));
+            _drawTextureWithPerspective(region.corners, textureImg, ctx, w, h);
+            _opacity = prevOpacity;
+
+            return {success: true, image: canvas.toDataURL('image/jpeg', 0.92)};
+          });
+      });
+  }
+
   // Main render loop
   var _frameCount = 0;
   function _renderFrame() {
@@ -734,6 +817,16 @@
     setRotation: function (degrees) {
       _rotation = degrees || 0;
       console.log('[GraziaAR] Rotation set to', _rotation, 'degrees');
+    },
+
+    renderStaticVisualization: function (roomImageUrl, textureUrl, opacity) {
+      window._graziaARStaticResult = null;
+      window._graziaARStaticError = null;
+      renderStaticVisualization(roomImageUrl, textureUrl, opacity)
+        .then(function (result) { window._graziaARStaticResult = JSON.stringify(result); })
+        .catch(function (e) {
+          window._graziaARStaticError = e ? (e.message || e.toString()) : 'Visualization failed';
+        });
     },
 
     showWallBoundary: function (show) {

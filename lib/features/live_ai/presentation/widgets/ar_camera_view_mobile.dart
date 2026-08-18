@@ -67,6 +67,10 @@ class ARCameraView extends StatefulWidget {
 
   static void clearManualCorners() {}
 
+  static Future<String?> renderStaticVisualization(
+          String roomImageDataUrl, String textureDataUrl, double opacity) async =>
+      null;
+
   static void stopCamera() {
     _controller.add(_ARUpdate(stop: true));
   }
