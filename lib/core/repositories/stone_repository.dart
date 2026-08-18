@@ -1,9 +1,11 @@
 import '../models/stone.dart';
 import '../models/collection.dart';
 import '../services/supabase_service.dart';
+import '../services/mock_data_service.dart';
 
 /// Stone & collection repository backed by Supabase.
-/// Replaces MockDataService fallbacks and Dio/REST calls.
+/// Falls back to MockDataService if Supabase isn't configured/reachable
+/// (e.g. no live project wired up yet) so browsing still works.
 class StoneRepository {
   final SupabaseService _sb = SupabaseService.instance;
 
@@ -22,77 +24,112 @@ class StoneRepository {
     String? sortBy,
     String? sortOrder,
   }) async {
-    var query = _sb.client
-        .from('stones')
-        .select('*, collections(name, slug)')
-        .eq('active', true);
+    try {
+      var query = _sb.client
+          .from('stones')
+          .select('*, collections(name, slug)')
+          .eq('active', true);
 
-    if (search != null && search.isNotEmpty) {
-      query = query.or('name.ilike.%$search%,product_code.ilike.%$search%,description.ilike.%$search%');
-    }
-    if (collectionId != null) {
-      query = query.eq('collection_id', collectionId);
-    }
-    if (finish != null) {
-      query = query.eq('finish', finish);
-    }
-    if (minPrice != null) {
-      query = query.gte('price_per_sqft', minPrice);
-    }
-    if (maxPrice != null) {
-      query = query.lte('price_per_sqft', maxPrice);
-    }
+      if (search != null && search.isNotEmpty) {
+        query = query.or('name.ilike.%$search%,product_code.ilike.%$search%,description.ilike.%$search%');
+      }
+      if (collectionId != null) {
+        query = query.eq('collection_id', collectionId);
+      }
+      if (finish != null) {
+        query = query.eq('finish', finish);
+      }
+      if (minPrice != null) {
+        query = query.gte('price_per_sqft', minPrice);
+      }
+      if (maxPrice != null) {
+        query = query.lte('price_per_sqft', maxPrice);
+      }
 
-    final from = (page - 1) * limit;
-    final to = from + limit - 1;
-    final data = await query
-        .order(sortBy ?? 'sort_order', ascending: sortOrder == 'asc')
-        .range(from, to);
-    return data.map((j) => Stone.fromJson(j)).toList();
+      final from = (page - 1) * limit;
+      final to = from + limit - 1;
+      final data = await query
+          .order(sortBy ?? 'sort_order', ascending: sortOrder == 'asc')
+          .range(from, to);
+      return data.map((j) => Stone.fromJson(j)).toList();
+    } catch (_) {
+      var stones = search != null && search.isNotEmpty
+          ? MockDataService.searchStones(search)
+          : collectionId != null
+              ? MockDataService.getStonesByCollection(collectionId)
+              : MockDataService.getAllStones();
+      if (finish != null) stones = stones.where((s) => s.finish == finish).toList();
+      if (minPrice != null) stones = stones.where((s) => s.pricePerSqFt >= minPrice).toList();
+      if (maxPrice != null) stones = stones.where((s) => s.pricePerSqFt <= maxPrice).toList();
+      return stones;
+    }
   }
 
   Future<Stone> getStoneById(String id) async {
-    final data = await _sb.client
-        .from('stones')
-        .select('*, collections(name, slug)')
-        .eq('id', id)
-        .single();
-    return Stone.fromJson(data);
+    try {
+      final data = await _sb.client
+          .from('stones')
+          .select('*, collections(name, slug)')
+          .eq('id', id)
+          .single();
+      return Stone.fromJson(data);
+    } catch (_) {
+      final stone = MockDataService.getStoneById(id);
+      if (stone == null) rethrow;
+      return stone;
+    }
   }
 
   Future<List<Stone>> searchStones(String query, {int limit = 20}) async {
-    final data = await _sb.client
-        .from('stones')
-        .select('*, collections(name, slug)')
-        .eq('active', true)
-        .or('name.ilike.%$query%,product_code.ilike.%$query%,tags.cs.{$query}')
-        .order('sort_order')
-        .limit(limit);
-    return data.map((j) => Stone.fromJson(j)).toList();
+    try {
+      final data = await _sb.client
+          .from('stones')
+          .select('*, collections(name, slug)')
+          .eq('active', true)
+          .or('name.ilike.%$query%,product_code.ilike.%$query%,tags.cs.{$query}')
+          .order('sort_order')
+          .limit(limit);
+      return data.map((j) => Stone.fromJson(j)).toList();
+    } catch (_) {
+      return MockDataService.searchStones(query);
+    }
   }
 
   Future<List<Stone>> getTrendingStones({int limit = 10}) async {
-    final data = await _sb.client
-        .from('stones')
-        .select('*, collections(name, slug)')
-        .eq('active', true)
-        .eq('featured', true)
-        .order('sort_order')
-        .limit(limit);
-    return data.map((j) => Stone.fromJson(j)).toList();
+    try {
+      final data = await _sb.client
+          .from('stones')
+          .select('*, collections(name, slug)')
+          .eq('active', true)
+          .eq('featured', true)
+          .order('sort_order')
+          .limit(limit);
+      return data.map((j) => Stone.fromJson(j)).toList();
+    } catch (_) {
+      return MockDataService.getTrendingStones();
+    }
   }
 
   Future<List<Stone>> getSimilarStones(String stoneId, {int limit = 5}) async {
-    // Get the stone first to find its collection
-    final stone = await getStoneById(stoneId);
-    final data = await _sb.client
-        .from('stones')
-        .select('*, collections(name, slug)')
-        .eq('active', true)
-        .eq('collection_id', stone.collection)
-        .neq('id', stoneId)
-        .limit(limit);
-    return data.map((j) => Stone.fromJson(j)).toList();
+    try {
+      // Get the stone first to find its collection
+      final stone = await getStoneById(stoneId);
+      final data = await _sb.client
+          .from('stones')
+          .select('*, collections(name, slug)')
+          .eq('active', true)
+          .eq('collection_id', stone.collection)
+          .neq('id', stoneId)
+          .limit(limit);
+      return data.map((j) => Stone.fromJson(j)).toList();
+    } catch (_) {
+      final stone = MockDataService.getStoneById(stoneId);
+      if (stone == null) return [];
+      return MockDataService.getAllStones()
+          .where((s) => s.collection == stone.collection && s.id != stoneId)
+          .take(limit)
+          .toList();
+    }
   }
 
   Future<List<Stone>> getNewArrivals({int limit = 20}) async {
@@ -104,33 +141,45 @@ class StoneRepository {
   // ═══════════════════════════════════════════════════════════════════════
 
   Future<List<Collection>> getCollections() async {
-    final data = await _sb.client
-        .from('collections')
-        .select()
-        .eq('active', true)
-        .order('sort_order');
-    return data.map((j) => Collection.fromJson(j)).toList();
+    try {
+      final data = await _sb.client
+          .from('collections')
+          .select()
+          .eq('active', true)
+          .order('sort_order');
+      return data.map((j) => Collection.fromJson(j)).toList();
+    } catch (_) {
+      return MockDataService.getAllCollections();
+    }
   }
 
   Future<Collection> getCollectionById(String id) async {
-    final data = await _sb.client
-        .from('collections')
-        .select()
-        .eq('id', id)
-        .single();
-    return Collection.fromJson(data);
+    try {
+      final data = await _sb.client
+          .from('collections')
+          .select()
+          .eq('id', id)
+          .single();
+      return Collection.fromJson(data);
+    } catch (_) {
+      return MockDataService.getAllCollections().firstWhere((c) => c.id == id);
+    }
   }
 
   Future<List<Stone>> getStonesByCollection(String collectionId, {int page = 1, int limit = 20}) async {
-    final from = (page - 1) * limit;
-    final data = await _sb.client
-        .from('stones')
-        .select('*, collections(name, slug)')
-        .eq('active', true)
-        .eq('collection_id', collectionId)
-        .order('sort_order')
-        .range(from, from + limit - 1);
-    return data.map((j) => Stone.fromJson(j)).toList();
+    try {
+      final from = (page - 1) * limit;
+      final data = await _sb.client
+          .from('stones')
+          .select('*, collections(name, slug)')
+          .eq('active', true)
+          .eq('collection_id', collectionId)
+          .order('sort_order')
+          .range(from, from + limit - 1);
+      return data.map((j) => Stone.fromJson(j)).toList();
+    } catch (_) {
+      return MockDataService.getStonesByCollection(collectionId);
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -186,35 +235,53 @@ class StoneRepository {
   // ═══════════════════════════════════════════════════════════════════════
 
   Future<List<String>> getFinishes() async {
-    final data = await _sb.client
-        .from('stones')
-        .select('finish')
-        .eq('active', true)
-        .not('finish', 'is', null);
-    return data.map((j) => j['finish'] as String).toSet().toList()..sort();
+    try {
+      final data = await _sb.client
+          .from('stones')
+          .select('finish')
+          .eq('active', true)
+          .not('finish', 'is', null);
+      return data.map((j) => j['finish'] as String).toSet().toList()..sort();
+    } catch (_) {
+      return MockDataService.getAllStones().map((s) => s.finish).toSet().toList()..sort();
+    }
   }
 
   Future<List<String>> getColors() async {
-    final data = await _sb.client
-        .from('stones')
-        .select('colors')
-        .eq('active', true);
-    final allColors = <String>{};
-    for (final row in data) {
-      if (row['colors'] is List) {
-        allColors.addAll(List<String>.from(row['colors']));
+    try {
+      final data = await _sb.client
+          .from('stones')
+          .select('colors')
+          .eq('active', true);
+      final allColors = <String>{};
+      for (final row in data) {
+        if (row['colors'] is List) {
+          allColors.addAll(List<String>.from(row['colors']));
+        }
       }
+      return allColors.toList()..sort();
+    } catch (_) {
+      final allColors = <String>{};
+      for (final s in MockDataService.getAllStones()) {
+        allColors.addAll(s.availableColors);
+      }
+      return allColors.toList()..sort();
     }
-    return allColors.toList()..sort();
   }
 
   Future<Map<String, double>> getPriceRange() async {
-    final data = await _sb.client
-        .from('stones')
-        .select('price_per_sqft')
-        .eq('active', true);
-    if (data.isEmpty) return {'min': 0, 'max': 0};
-    final prices = data.map((j) => (j['price_per_sqft'] as num).toDouble()).toList();
-    return {'min': prices.reduce((a, b) => a < b ? a : b), 'max': prices.reduce((a, b) => a > b ? a : b)};
+    try {
+      final data = await _sb.client
+          .from('stones')
+          .select('price_per_sqft')
+          .eq('active', true);
+      if (data.isEmpty) return {'min': 0, 'max': 0};
+      final prices = data.map((j) => (j['price_per_sqft'] as num).toDouble()).toList();
+      return {'min': prices.reduce((a, b) => a < b ? a : b), 'max': prices.reduce((a, b) => a > b ? a : b)};
+    } catch (_) {
+      final prices = MockDataService.getAllStones().map((s) => s.pricePerSqFt).toList();
+      if (prices.isEmpty) return {'min': 0, 'max': 0};
+      return {'min': prices.reduce((a, b) => a < b ? a : b), 'max': prices.reduce((a, b) => a > b ? a : b)};
+    }
   }
 }
