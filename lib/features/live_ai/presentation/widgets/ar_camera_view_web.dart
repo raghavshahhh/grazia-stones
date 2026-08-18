@@ -18,15 +18,17 @@ import 'package:flutter/services.dart';
 
 // ── Platform view registration ──────────────────────────────────────────────
 
-const _kViewType = 'grazia-ar-camera-v1';
-bool _registered = false;
+// Each ARCameraView instance gets its own view type + container id.
+// The old shared hardcoded id let a second concurrently-mounted instance
+// (e.g. AI Viz's "Live Camera" tab, mounted on top of the Shell's Live AI
+// tab) collide with the first — GraziaAR.init() could resolve to a stale or
+// wrong container, leaving the new one blank/black.
+int _instanceCounter = 0;
 
-void _ensureRegistered() {
-  if (_registered) return;
-  _registered = true;
-  ui_web.platformViewRegistry.registerViewFactory(_kViewType, (int viewId) {
+void _registerContainer(String id, String viewType) {
+  ui_web.platformViewRegistry.registerViewFactory(viewType, (int viewId) {
     final div = html.DivElement()
-      ..id = 'grazia-ar-container'
+      ..id = id
       ..style.width = '100%'
       ..style.height = '100%'
       ..style.overflow = 'hidden'
@@ -209,10 +211,15 @@ class _ARCameraViewState extends State<ARCameraView>
   int _initAttempts = 0;
   late final AnimationController _pulseCtrl;
   late final Animation<double> _pulseAnim;
+  late final String _containerId;
+  late final String _viewType;
 
   @override
   void initState() {
     super.initState();
+    _containerId = 'grazia-ar-container-${++_instanceCounter}';
+    _viewType = 'grazia-ar-camera-v1-$_containerId';
+    _registerContainer(_containerId, _viewType);
     _pulseCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
@@ -220,7 +227,6 @@ class _ARCameraViewState extends State<ARCameraView>
     _pulseAnim = Tween<double>(begin: 0.4, end: 1.0).animate(
       CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
     );
-    _ensureRegistered();
     WidgetsBinding.instance.addPostFrameCallback((_) => _startInitSequence());
   }
 
@@ -231,7 +237,7 @@ class _ARCameraViewState extends State<ARCameraView>
 
   void _tryInitContainerAndCamera() {
     _initAttempts++;
-    final initResult = _jsEval('GraziaAR.init("grazia-ar-container")');
+    final initResult = _jsEval('GraziaAR.init("$_containerId")');
 
     if (initResult == true) {
       // ponytail: skip the auto-start attempt entirely — iOS Safari requires
@@ -347,7 +353,7 @@ class _ARCameraViewState extends State<ARCameraView>
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        const HtmlElementView(viewType: _kViewType),
+        HtmlElementView(viewType: _viewType),
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 300),
           child: _cameraReady

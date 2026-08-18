@@ -129,26 +129,19 @@
 
     // If we have enough lines, wall likely detected
     if (horizontalLines.length >= 2 && verticalLines.length >= 2) {
-      // Sort by strength
-      horizontalLines.sort(function(a, b) { return b.strength - a.strength; });
-      verticalLines.sort(function(a, b) { return b.strength - a.strength; });
-
-      // Take top and bottom horizontal lines
-      var top = horizontalLines[0].y;
-      var bottom = horizontalLines[horizontalLines.length - 1].y;
-      if (bottom < top) {
-        var temp = top;
-        top = bottom;
-        bottom = temp;
+      // Box = outermost qualifying edges (min/max position), not the
+      // strongest-vs-weakest line — ranking by strength picks a different
+      // pair of lines almost every pass (noise reorders the ranking), which
+      // is what made the box grow/shrink frame to frame. Position extremes
+      // are stable: the same physical wall edge is still the outermost one.
+      var top = height, bottom = 0, left = width, right = 0;
+      for (var hi = 0; hi < horizontalLines.length; hi++) {
+        if (horizontalLines[hi].y < top) top = horizontalLines[hi].y;
+        if (horizontalLines[hi].y > bottom) bottom = horizontalLines[hi].y;
       }
-
-      // Take left and right vertical lines
-      var left = verticalLines[0].x;
-      var right = verticalLines[verticalLines.length - 1].x;
-      if (right < left) {
-        var temp = left;
-        left = right;
-        right = temp;
+      for (var vi = 0; vi < verticalLines.length; vi++) {
+        if (verticalLines[vi].x < left) left = verticalLines[vi].x;
+        if (verticalLines[vi].x > right) right = verticalLines[vi].x;
       }
 
       // Ensure reasonable size
@@ -712,9 +705,13 @@
             return new Promise(function(resolve, reject) {
               _video.onloadedmetadata = function() {
                 console.log('[GraziaAR] Video metadata loaded, dimensions:', _video.videoWidth, 'x', _video.videoHeight);
-                _canvas.width = _video.videoWidth || 1280;
-                _canvas.height = _video.videoHeight || 720;
-                
+                // Backing store must match the container's CSS pixel size
+                // (not the raw video resolution) — _wallCorners/manual drag
+                // coordinates are all in CSS-pixel space, same as the
+                // Flutter overlay's Offsets. Sizing to video resolution here
+                // desynced the two spaces and broke corner dragging.
+                window.GraziaAR._resizeCanvas();
+
                 var playPromise = _video.play();
                 if (playPromise !== undefined) {
                   playPromise.then(function () {
