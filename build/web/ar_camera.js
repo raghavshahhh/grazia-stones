@@ -246,10 +246,14 @@
     patternCanvas.height = tileSize * 3;
     var patternCtx = patternCanvas.getContext('2d');
     
-    // Tile the texture
+    // Tile the texture — sample a centered square crop so non-square source
+    // images (our cropped stone textures) don't stretch when tiled.
+    var srcSize = Math.min(texture.naturalWidth || texture.width, texture.naturalHeight || texture.height);
+    var srcX = ((texture.naturalWidth || texture.width) - srcSize) / 2;
+    var srcY0 = ((texture.naturalHeight || texture.height) - srcSize) / 2;
     for (var ty = 0; ty < 3; ty++) {
       for (var tx = 0; tx < 3; tx++) {
-        patternCtx.drawImage(texture, tx * tileSize, ty * tileSize, tileSize, tileSize);
+        patternCtx.drawImage(texture, srcX, srcY0, srcSize, srcSize, tx * tileSize, ty * tileSize, tileSize, tileSize);
       }
     }
     

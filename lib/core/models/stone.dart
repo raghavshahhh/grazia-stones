@@ -8,6 +8,7 @@ class Stone {
   final String description;
   final List<String> images; // Multiple images
   final String? mainImageUrl; // Primary display image
+  final String? arTexture; // Cropped, logo-free texture used for AR wall overlay
   final double rating;
   final int reviewCount;
   
@@ -53,6 +54,7 @@ class Stone {
     required this.description,
     this.images = const [],
     this.mainImageUrl,
+    this.arTexture,
     this.rating = 0.0,
     this.reviewCount = 0,
     this.length = '',
@@ -87,6 +89,7 @@ class Stone {
     'description': description,
     'images': images,
     'mainImageUrl': mainImageUrl,
+    'arTexture': arTexture,
     'rating': rating,
     'reviewCount': reviewCount,
     'length': length,
@@ -114,6 +117,9 @@ class Stone {
   // Backward compatibility - get first image as imageUrl
   String? get imageUrl => mainImageUrl ?? (images.isNotEmpty ? images.first : null);
 
+  // AR overlay uses a cropped, logo-free texture when available, falling back to the main photo
+  String? get arTextureUrl => arTexture ?? imageUrl;
+
   factory Stone.fromJson(Map<String, dynamic> json) => Stone.fromMap(json);
 
   Map<String, dynamic> toJson() => toMap();
@@ -128,6 +134,7 @@ class Stone {
     description: map['description'] ?? '',
     images: List<String>.from(map['images'] ?? []),
     mainImageUrl: map['mainImageUrl'] ?? map['imageUrl'], // Backward compatibility
+    arTexture: map['arTexture'],
     rating: (map['rating'] ?? 0).toDouble(),
     reviewCount: map['reviewCount'] ?? 0,
     length: map['length'] ?? '',
@@ -162,6 +169,7 @@ class Stone {
     String? description,
     List<String>? images,
     String? mainImageUrl,
+    String? arTexture,
     double? rating,
     int? reviewCount,
     String? length,
@@ -194,6 +202,7 @@ class Stone {
     description: description ?? this.description,
     images: images ?? this.images,
     mainImageUrl: mainImageUrl ?? this.mainImageUrl,
+    arTexture: arTexture ?? this.arTexture,
     rating: rating ?? this.rating,
     reviewCount: reviewCount ?? this.reviewCount,
     length: length ?? this.length,

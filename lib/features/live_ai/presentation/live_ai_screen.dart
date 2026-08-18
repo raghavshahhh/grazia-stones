@@ -81,7 +81,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     setState(() => _selectedStoneIndex = index);
     final stone = _selectedStone;
     if (stone == null) return;
-    final path = stone.images.isNotEmpty ? stone.images.first : null;
+    final path = stone.arTextureUrl;
     if (path != null && _cameraReady) {
       ARCameraView.updateStone(path, _textureOpacity);
     }
@@ -127,10 +127,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
   /// Camera feed
   Widget _buildCamera() {
-    final assetPath =
-        _selectedStone != null && _selectedStone!.images.isNotEmpty
-            ? _selectedStone!.images.first
-            : null;
+    final assetPath = _selectedStone?.arTextureUrl;
 
     return Positioned.fill(
       child: ARCameraView(
