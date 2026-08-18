@@ -12,10 +12,13 @@
   var _container = null;
   var _animationFrame = null;
   var _initDone = false;
-  
+  var _mediaRecorder = null;
+  var _recordedChunks = [];
+
   // Wall detection state
   var _wallCorners = null;
   var _wallDetected = false;
+  var _manualCorners = null; // user-dragged corner override, {tl,tr,bl,br} or null
   var _hasRealLock = false; // true once a real (non-fallback) wall was found
   var _lostFrames = 0; // consecutive detection cycles without real edges
 
@@ -371,7 +374,13 @@
     
     // Draw camera feed
     _ctx.drawImage(_video, 0, 0, width, height);
-    
+
+    if (_manualCorners) {
+      // User has manually corrected the wall corners to match the real
+      // angle/perspective — trust them completely, skip heuristic detection.
+      _wallCorners = _manualCorners;
+      _wallDetected = true;
+    } else
     // Detect wall every 3 frames (performance optimization)
     if (_frameCount % 3 === 0) {
       // Downsample for edge detection
@@ -654,6 +663,11 @@
     },
 
     stopCamera: function () {
+      if (_mediaRecorder) {
+        _mediaRecorder.stop();
+        _mediaRecorder = null;
+        _recordedChunks = [];
+      }
       if (_animationFrame) {
         cancelAnimationFrame(_animationFrame);
         _animationFrame = null;
@@ -734,6 +748,81 @@
 
     getWallDetected: function () {
       return _wallDetected;
+    },
+
+    // Manual corner override — the local edge heuristic only finds an
+    // axis-aligned rectangle, so it can never represent a wall photographed
+    // at an angle. Letting the user drag the 4 corners onto the real wall
+    // outline is the reliable fix; _drawTextureWithPerspective already
+    // supports arbitrary (non-rectangular) quads.
+    setManualCorner: function (name, x, y) {
+      if (!_wallCorners) return;
+      if (!_manualCorners) {
+        _manualCorners = {
+          tl: {x: _wallCorners.tl.x, y: _wallCorners.tl.y},
+          tr: {x: _wallCorners.tr.x, y: _wallCorners.tr.y},
+          bl: {x: _wallCorners.bl.x, y: _wallCorners.bl.y},
+          br: {x: _wallCorners.br.x, y: _wallCorners.br.y}
+        };
+      }
+      _manualCorners[name] = {x: x, y: y};
+    },
+
+    clearManualCorners: function () {
+      _manualCorners = null;
+    },
+
+    hasManualCorners: function () {
+      return _manualCorners !== null;
+    },
+
+    getWallCornersJson: function () {
+      if (!_wallCorners) return null;
+      return JSON.stringify(_wallCorners);
+    },
+
+    // Records exactly what's on screen (camera + texture overlay) by
+    // capturing the render canvas itself — no separate compositing needed.
+    startRecording: function () {
+      if (!_canvas || _mediaRecorder) return false;
+      var stream = _canvas.captureStream(30);
+      var mimeType = MediaRecorder.isTypeSupported('video/mp4')
+        ? 'video/mp4'
+        : (MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm');
+      _recordedChunks = [];
+      _mediaRecorder = new MediaRecorder(stream, { mimeType: mimeType });
+      _mediaRecorder.ondataavailable = function (e) {
+        if (e.data && e.data.size > 0) _recordedChunks.push(e.data);
+      };
+      _mediaRecorder.start();
+      console.log('[GraziaAR] Recording started');
+      return true;
+    },
+
+    // Stops recording and triggers a browser download of the captured clip.
+    stopRecording: function () {
+      if (!_mediaRecorder) return false;
+      var mimeType = _mediaRecorder.mimeType || 'video/webm';
+      _mediaRecorder.onstop = function () {
+        var blob = new Blob(_recordedChunks, { type: mimeType });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'grazia-ar-' + Date.now() + (mimeType.indexOf('mp4') >= 0 ? '.mp4' : '.webm');
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
+        _recordedChunks = [];
+        console.log('[GraziaAR] Recording saved');
+      };
+      _mediaRecorder.stop();
+      _mediaRecorder = null;
+      return true;
+    },
+
+    isRecording: function () {
+      return _mediaRecorder !== null && _mediaRecorder.state === 'recording';
     }
 
   };

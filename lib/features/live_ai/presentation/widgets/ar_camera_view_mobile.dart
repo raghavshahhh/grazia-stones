@@ -55,6 +55,18 @@ class ARCameraView extends StatefulWidget {
     _controller.add(_ARUpdate(showBoundary: show));
   }
 
+  // ponytail: no native video capture on mobile yet, web is the only
+  // deployed target — wire up camera-package recording if mobile ships.
+  static void startRecording() {}
+
+  static void stopRecording() {}
+
+  static Map<String, Offset>? getWallCorners() => null;
+
+  static void setManualCorner(String name, Offset value) {}
+
+  static void clearManualCorners() {}
+
   static void stopCamera() {
     _controller.add(_ARUpdate(stop: true));
   }

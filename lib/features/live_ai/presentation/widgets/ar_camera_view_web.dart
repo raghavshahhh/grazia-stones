@@ -138,6 +138,34 @@ class ARCameraView extends StatefulWidget {
     _jsEval('GraziaAR.stopCamera()');
   }
 
+  static void startRecording() {
+    _jsEval('GraziaAR.startRecording()');
+  }
+
+  static void stopRecording() {
+    _jsEval('GraziaAR.stopRecording()');
+  }
+
+  static Map<String, Offset>? getWallCorners() {
+    final raw = _jsEval('GraziaAR.getWallCornersJson()');
+    if (raw == null) return null;
+    final decoded = jsonDecode(raw.toString()) as Map<String, dynamic>;
+    return decoded.map(
+      (key, value) => MapEntry(
+        key,
+        Offset((value['x'] as num).toDouble(), (value['y'] as num).toDouble()),
+      ),
+    );
+  }
+
+  static void setManualCorner(String name, Offset value) {
+    _jsEval('GraziaAR.setManualCorner("$name", ${value.dx}, ${value.dy})');
+  }
+
+  static void clearManualCorners() {
+    _jsEval('GraziaAR.clearManualCorners()');
+  }
+
   @override
   State<ARCameraView> createState() => _ARCameraViewState();
 }
@@ -200,6 +228,7 @@ class _ARCameraViewState extends State<ARCameraView>
     );
 
     _pollTimer?.cancel();
+    final startedAt = DateTime.now();
     _pollTimer = Timer.periodic(const Duration(milliseconds: 250), (t) {
       if (!mounted) {
         t.cancel();
@@ -226,6 +255,19 @@ class _ARCameraViewState extends State<ARCameraView>
         final errStr = err.toString();
         setState(() {
           _errorMsg = errStr;
+          _requiresTap = true;
+        });
+        widget.onError?.call();
+      } else if (DateTime.now().difference(startedAt) > const Duration(seconds: 7)) {
+        // ponytail: iOS Safari can silently never resolve/reject getUserMedia
+        // when it's called a few async ticks removed from the tap that
+        // triggered it (auto-start on nav isn't "gesture-fresh" enough for
+        // WebKit) — no permission prompt, no error, just an infinite hang.
+        // Bail to the tap-to-start button, whose onPressed IS a fresh
+        // synchronous gesture and reliably triggers the permission prompt.
+        t.cancel();
+        setState(() {
+          _errorMsg = 'Tap below to start the camera.';
           _requiresTap = true;
         });
         widget.onError?.call();

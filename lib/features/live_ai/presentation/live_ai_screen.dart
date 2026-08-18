@@ -7,6 +7,7 @@ import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/providers/stone_providers.dart';
 import 'widgets/ar_camera_view.dart';
+import 'widgets/corner_adjust_overlay.dart';
 import 'widgets/measure_overlay.dart';
 
 /// Live AI Visualizer — real camera + wall texture visualization
@@ -33,6 +34,12 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
   // Measure mode toggle (shown via the ruler button)
   bool _measureMode = false;
+
+  // Recording state — same button as measure: tap = measure, hold = record
+  bool _isRecording = false;
+
+  // Manual wall-corner adjustment (fixes texture not matching wall angle)
+  bool _adjustingCorners = false;
 
   // Texture controls
   double _textureOpacity = 0.75;
@@ -101,6 +108,20 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     ARCameraView.updateScale(value);
   }
 
+  void _startRecording() {
+    if (!_cameraReady || _isRecording) return;
+    HapticFeedback.mediumImpact();
+    ARCameraView.startRecording();
+    setState(() => _isRecording = true);
+  }
+
+  void _stopRecording() {
+    if (!_isRecording) return;
+    HapticFeedback.selectionClick();
+    ARCameraView.stopRecording();
+    setState(() => _isRecording = false);
+  }
+
   void _navigateToProduct() {
     HapticFeedback.mediumImpact();
     final stone = _selectedStone;
@@ -128,6 +149,11 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
           // 5. Tap-to-measure overlay
           if (_measureMode)
             MeasureOverlay(onClose: () => setState(() => _measureMode = false)),
+
+          // 6. Manual wall-corner adjustment overlay
+          if (_adjustingCorners)
+            CornerAdjustOverlay(
+                onClose: () => setState(() => _adjustingCorners = false)),
         ],
       ),
     );
@@ -241,24 +267,32 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
             const Spacer(),
 
-            // Measure button
-            IconButton(
-              onPressed: () {
+            // Measure / record button — tap to measure, press-and-hold to record
+            GestureDetector(
+              onTap: () {
                 HapticFeedback.selectionClick();
                 setState(() => _measureMode = true);
               },
-              icon: Container(
+              onLongPressStart: (_) => _startRecording(),
+              onLongPressEnd: (_) => _stopRecording(),
+              child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.45),
+                  color: _isRecording
+                      ? Colors.red.withValues(alpha: 0.55)
+                      : Colors.black.withValues(alpha: 0.45),
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    width: 0.8,
+                    color: _isRecording
+                        ? Colors.red
+                        : Colors.white.withValues(alpha: 0.2),
+                    width: _isRecording ? 1.4 : 0.8,
                   ),
                 ),
-                child: const Icon(
-                  Icons.straighten_rounded,
+                child: Icon(
+                  _isRecording
+                      ? Icons.fiber_manual_record_rounded
+                      : Icons.straighten_rounded,
                   size: 16,
                   color: Colors.white,
                 ),
@@ -636,6 +670,28 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                           setSheetState(() => _textureScale = v);
                           _onScaleChanged(v);
                         },
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Fix wall angle — manual corner adjustment
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: !_cameraReady
+                              ? null
+                              : () {
+                                  Navigator.of(context).pop();
+                                  setState(() => _adjustingCorners = true);
+                                },
+                          icon: const Icon(Icons.crop_free_rounded, size: 18),
+                          label: const Text('Fix Wall Angle'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.goldWarm,
+                            side: BorderSide(
+                                color: AppColors.goldWarm.withValues(alpha: 0.5)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
                       ),
                     ],
                   ),
