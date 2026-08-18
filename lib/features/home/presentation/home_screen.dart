@@ -25,7 +25,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   List<Stone>? _trendingStones;
-  List<Map<String, dynamic>>? _collections;
+  List<Collection>? _collections;
   Object? _error;
   bool _isLoading = true;
 
@@ -53,7 +53,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       if (mounted) {
         setState(() {
           _trendingStones = results[0] as List<Stone>;
-          _collections = results[1] as List<Map<String, dynamic>>;
+          _collections = results[1] as List<Collection>;
           _isLoading = false;
         });
       }
@@ -257,7 +257,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             SliverToBoxAdapter(child: GLuxurySpacing.gapMd),
             SliverToBoxAdapter(
               child: HomeCollectionStrip(
-                collections: _collections!.map((map) => Collection.fromMap(map)).toList(),
+                collections: _collections!,
                 onCollectionTap: (c) {
                   if (c.id.isNotEmpty) context.push('/collections/${c.id}');
                 },
