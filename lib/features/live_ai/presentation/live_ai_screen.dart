@@ -279,7 +279,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     return Positioned(
       right: 10,
       top: MediaQuery.of(context).padding.top + 90,
-      bottom: 220,
+      bottom: MediaQuery.of(context).padding.bottom + 200,
       child: SizedBox(
         width: 64,
         child: PageView.builder(
