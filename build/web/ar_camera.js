@@ -16,6 +16,8 @@
   // Wall detection state
   var _wallCorners = null;
   var _wallDetected = false;
+  var _hasRealLock = false; // true once a real (non-fallback) wall was found
+  var _lostFrames = 0; // consecutive detection cycles without real edges
   
   // Stone control state
   var _opacity = 0.75;
@@ -86,40 +88,42 @@
     return edges;
   }
   
-  // Find largest rectangular region (wall candidate)
+  // Find largest rectangular region (wall candidate).
+  // Returns { corners, real } — real=false means no strong edges were found
+  // and the caller fell back to a fixed placeholder region.
   function _findWallRegion(edges, width, height) {
     // Find strong horizontal and vertical lines
     var horizontalLines = [];
     var verticalLines = [];
-    
+
     // Detect horizontal lines
     for (var y = 0; y < height; y += 4) {
       var strength = 0;
       for (var x = 0; x < width; x++) {
         if (edges[y * width + x] > 0) strength++;
       }
-      if (strength > width * 0.3) {
+      if (strength > width * 0.22) {
         horizontalLines.push({y: y, strength: strength});
       }
     }
-    
+
     // Detect vertical lines
     for (var x = 0; x < width; x += 4) {
       var strength = 0;
       for (var y = 0; y < height; y++) {
         if (edges[y * width + x] > 0) strength++;
       }
-      if (strength > height * 0.3) {
+      if (strength > height * 0.22) {
         verticalLines.push({x: x, strength: strength});
       }
     }
-    
+
     // If we have enough lines, wall likely detected
     if (horizontalLines.length >= 2 && verticalLines.length >= 2) {
       // Sort by strength
       horizontalLines.sort(function(a, b) { return b.strength - a.strength; });
       verticalLines.sort(function(a, b) { return b.strength - a.strength; });
-      
+
       // Take top and bottom horizontal lines
       var top = horizontalLines[0].y;
       var bottom = horizontalLines[horizontalLines.length - 1].y;
@@ -128,7 +132,7 @@
         top = bottom;
         bottom = temp;
       }
-      
+
       // Take left and right vertical lines
       var left = verticalLines[0].x;
       var right = verticalLines[verticalLines.length - 1].x;
@@ -137,25 +141,45 @@
         left = right;
         right = temp;
       }
-      
+
       // Ensure reasonable size
-      if (right - left > width * 0.4 && bottom - top > height * 0.4) {
+      if (right - left > width * 0.3 && bottom - top > height * 0.3) {
         return {
-          tl: {x: left, y: top},
-          tr: {x: right, y: top},
-          bl: {x: left, y: bottom},
-          br: {x: right, y: bottom}
+          real: true,
+          corners: {
+            tl: {x: left, y: top},
+            tr: {x: right, y: top},
+            bl: {x: left, y: bottom},
+            br: {x: right, y: bottom}
+          }
         };
       }
     }
-    
-    // Fallback: use center region
+
+    // Fallback: use center region (only used when no real edges seen yet)
     var margin = 0.15;
     return {
-      tl: {x: width * margin, y: height * margin},
-      tr: {x: width * (1 - margin), y: height * margin},
-      bl: {x: width * margin, y: height * (1 - margin)},
-      br: {x: width * (1 - margin), y: height * (1 - margin)}
+      real: false,
+      corners: {
+        tl: {x: width * margin, y: height * margin},
+        tr: {x: width * (1 - margin), y: height * margin},
+        bl: {x: width * margin, y: height * (1 - margin)},
+        br: {x: width * (1 - margin), y: height * (1 - margin)}
+      }
+    };
+  }
+
+  // Blend corners toward a target (exponential smoothing) so the overlay
+  // doesn't jitter/snap between detections — reads as "anchored" to the wall.
+  function _lerpCorners(from, to, t) {
+    function lerpPt(a, b) {
+      return {x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t};
+    }
+    return {
+      tl: lerpPt(from.tl, to.tl),
+      tr: lerpPt(from.tr, to.tr),
+      bl: lerpPt(from.bl, to.bl),
+      br: lerpPt(from.br, to.br)
     };
   }
   
@@ -309,15 +333,41 @@
       
       // Find wall region
       var wallRegion = _findWallRegion(edges, detectWidth, detectHeight);
-      
+
       // Scale back to full resolution
-      _wallCorners = {
-        tl: {x: wallRegion.tl.x * 3, y: wallRegion.tl.y * 3},
-        tr: {x: wallRegion.tr.x * 3, y: wallRegion.tr.y * 3},
-        bl: {x: wallRegion.bl.x * 3, y: wallRegion.bl.y * 3},
-        br: {x: wallRegion.br.x * 3, y: wallRegion.br.y * 3}
+      var scaledCorners = {
+        tl: {x: wallRegion.corners.tl.x * 3, y: wallRegion.corners.tl.y * 3},
+        tr: {x: wallRegion.corners.tr.x * 3, y: wallRegion.corners.tr.y * 3},
+        bl: {x: wallRegion.corners.bl.x * 3, y: wallRegion.corners.bl.y * 3},
+        br: {x: wallRegion.corners.br.x * 3, y: wallRegion.corners.br.y * 3}
       };
-      
+
+      if (wallRegion.real) {
+        // Real edges found — smoothly blend toward the new reading so the
+        // overlay tracks the wall without jittering frame to frame.
+        _lostFrames = 0;
+        _hasRealLock = true;
+        _wallCorners = _wallCorners
+          ? _lerpCorners(_wallCorners, scaledCorners, 0.35)
+          : scaledCorners;
+      } else if (_hasRealLock && _wallCorners) {
+        // Briefly lost strong edges (motion blur while moving closer/back,
+        // low light, etc). Stay anchored to the last known wall position
+        // instead of snapping to the fixed placeholder.
+        // ponytail: heuristic dead-reckoning, not real 3D tracking — release
+        // after ~2s (MAX_LOST_FRAMES) of no edges, i.e. camera panned away.
+        _lostFrames++;
+        var MAX_LOST_FRAMES = 20;
+        if (_lostFrames > MAX_LOST_FRAMES) {
+          _hasRealLock = false;
+          _wallCorners = scaledCorners;
+        }
+      } else {
+        // Never had a real lock yet — show the fallback placeholder so
+        // there's still visual feedback while the user aims at a wall.
+        _wallCorners = scaledCorners;
+      }
+
       _wallDetected = true;
     }
     
@@ -412,27 +462,35 @@
     init: function (containerId) {
       var el = _findContainer(containerId);
       if (!el) return false;
+
+      // Flutter tears down and recreates the platform-view container on every
+      // navigation, so re-parent the existing video/canvas into the new node
+      // instead of only ever wiring them up once.
+      if (_initDone && _container === el) return true;
+
+      el.style.cssText = 'position:relative;width:100%;height:100%;overflow:hidden;background:#000;';
+
+      if (!_initDone) {
+        _initDone = true;
+
+        // Video element (hidden, used as source)
+        _video = document.createElement('video');
+        _video.setAttribute('autoplay', '');
+        _video.setAttribute('playsinline', '');
+        _video.setAttribute('muted', '');
+        _video.setAttribute('webkit-playsinline', '');
+        _video.muted = true;
+        _video.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;';
+
+        // Canvas for rendering
+        _canvas = document.createElement('canvas');
+        _canvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;';
+        _ctx = _canvas.getContext('2d', {alpha: false, desynchronized: true});
+      }
+
+      el.appendChild(_video);
+      el.appendChild(_canvas);
       _container = el;
-      if (_initDone) return true;
-      _initDone = true;
-
-      _container.style.cssText = 'position:relative;width:100%;height:100%;overflow:hidden;background:#000;';
-
-      // Video element (hidden, used as source)
-      _video = document.createElement('video');
-      _video.setAttribute('autoplay', '');
-      _video.setAttribute('playsinline', '');
-      _video.setAttribute('muted', '');
-      _video.setAttribute('webkit-playsinline', '');
-      _video.muted = true;
-      _video.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;';
-      _container.appendChild(_video);
-
-      // Canvas for rendering
-      _canvas = document.createElement('canvas');
-      _canvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;';
-      _container.appendChild(_canvas);
-      _ctx = _canvas.getContext('2d', {alpha: false, desynchronized: true});
 
       // Auto-resize canvas when container changes size
       if (typeof ResizeObserver !== 'undefined') {
@@ -441,6 +499,7 @@
         });
         ro.observe(_container);
       }
+      window.GraziaAR._resizeCanvas();
 
       return true;
     },
@@ -551,6 +610,8 @@
       window._graziaARReady = false;
       _wallDetected = false;
       _wallCorners = null;
+      _hasRealLock = false;
+      _lostFrames = 0;
       _frameCount = 0;
     },
 

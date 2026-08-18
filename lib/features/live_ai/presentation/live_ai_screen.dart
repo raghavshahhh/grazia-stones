@@ -21,20 +21,14 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
   int _selectedStoneIndex = 0;
   List<Stone> _filteredStones = [];
 
-  // Category filter
-  String _selectedCategory = 'All';
-  final List<String> _categories = [
-    'All',
-    'Marble',
-    'Granite',
-    'Quartz',
-    'Ceramic',
-    'Outdoor',
-    'Premium',
-  ];
+  // Category filter (kept internally as "All"; UI chips removed per request)
+  final String _selectedCategory = 'All';
 
   // Camera state
   bool _cameraReady = false;
+
+  // Info card toggle (shown via the "i" button)
+  bool _showInfoCard = false;
 
   // Texture controls
   double _textureOpacity = 0.75;
@@ -42,7 +36,6 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
   // Controllers
   late PageController _stonePageController;
-  late ScrollController _categoryScrollController;
 
   @override
   void initState() {
@@ -51,14 +44,12 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
       viewportFraction: 0.32,
       initialPage: 0,
     );
-    _categoryScrollController = ScrollController();
     _updateFilteredStones();
   }
 
   @override
   void dispose() {
     _stonePageController.dispose();
-    _categoryScrollController.dispose();
     super.dispose();
   }
 
@@ -127,8 +118,8 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
           // 3. Side tile rail — swipe to select a stone
           _buildSideTileRail(),
 
-          // 4. Bottom panel — category + product info
-          _buildBottomPanel(),
+          // 4. Info button — product name/price + link to product page
+          _buildInfoButton(),
         ],
       ),
     );
@@ -279,7 +270,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     return Positioned(
       right: 10,
       top: MediaQuery.of(context).padding.top + 90,
-      bottom: MediaQuery.of(context).padding.bottom + 200,
+      bottom: MediaQuery.of(context).padding.bottom + 30,
       child: SizedBox(
         width: 64,
         child: PageView.builder(
@@ -394,213 +385,146 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     );
   }
 
-  /// Bottom panel — category chips + stone selector + product info
-  Widget _buildBottomPanel() {
+  /// Floating "i" button (bottom-left) — toggles a compact product info
+  /// card with pricing and a link through to the product page.
+  Widget _buildInfoButton() {
     final stone = _selectedStone;
     if (stone == null) return const SizedBox.shrink();
 
+    final bottomInset = MediaQuery.of(context).padding.bottom;
+
     return Positioned(
-      bottom: 0,
-      left: 0,
-      right: 0,
-      child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-          child: Container(
-            padding: EdgeInsets.fromLTRB(
-              14,
-              10,
-              14,
-              MediaQuery.of(context).padding.bottom + 12,
-            ),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.82),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-              border: Border.all(
-                color: AppColors.goldWarm.withValues(alpha: 0.3),
-                width: 1,
-              ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Drag handle
-                Container(
-                  width: 36,
-                  height: 3.5,
-                  margin: const EdgeInsets.only(bottom: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.25),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-
-                // Category chips
-                SizedBox(
-                  height: 32,
-                  child: ListView.separated(
-                    controller: _categoryScrollController,
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _categories.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 6),
-                    itemBuilder: (context, index) {
-                      final category = _categories[index];
-                      final isSelected = category == _selectedCategory;
-
-                      return GestureDetector(
-                        onTap: () {
-                          HapticFeedback.selectionClick();
-                          setState(() {
-                            _selectedCategory = category;
-                            _updateFilteredStones();
-                          });
-                        },
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 250),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? AppColors.goldWarm
-                                : Colors.white.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: isSelected
-                                  ? AppColors.goldWarm
-                                  : Colors.white.withValues(alpha: 0.15),
-                              width: 1,
-                            ),
-                          ),
-                          child: Text(
-                            category,
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 11,
-                              fontWeight:
-                                  isSelected ? FontWeight.w700 : FontWeight.w600,
-                              color: isSelected ? Colors.black : Colors.white,
-                              letterSpacing: 0.3,
-                            ),
+      left: 14,
+      bottom: bottomInset + 14,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Expandable info card
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            child: !_showInfoCard
+                ? const SizedBox.shrink()
+                : ClipRRect(
+                    key: const ValueKey('info-card'),
+                    borderRadius: BorderRadius.circular(16),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        constraints: const BoxConstraints(maxWidth: 220),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.82),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: AppColors.goldWarm.withValues(alpha: 0.3),
+                            width: 1,
                           ),
                         ),
-                      );
-                    },
-                  ),
-                ),
-
-                const SizedBox(height: 10),
-
-                // Product info + View button
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.06),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.12),
-                      width: 0.8,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.asset(
+                                stone.images.isNotEmpty
+                                    ? stone.images.first
+                                    : 'assets/images/placeholder_stone.png',
+                                width: 38,
+                                height: 38,
+                                fit: BoxFit.cover,
+                                errorBuilder: (ctx, err, stack) => Container(
+                                  width: 38,
+                                  height: 38,
+                                  color: const Color(0xFF2A2A2A),
+                                  child: const Icon(
+                                    Icons.texture,
+                                    color: AppColors.goldWarm,
+                                    size: 18,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    stone.name,
+                                    style: const TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '₹${stone.pricePerSqFt}/sq.ft',
+                                    style: const TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.goldWarm,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            GestureDetector(
+                              onTap: _navigateToProduct,
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: const BoxDecoration(
+                                  color: AppColors.goldWarm,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.arrow_forward_rounded,
+                                  size: 14,
+                                  color: Colors.black,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
-                  child: Row(
-                    children: [
-                      // Thumbnail
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.asset(
-                          stone.images.isNotEmpty
-                              ? stone.images.first
-                              : 'assets/images/placeholder_stone.png',
-                          width: 38,
-                          height: 38,
-                          fit: BoxFit.cover,
-                          errorBuilder: (ctx, err, stack) => Container(
-                            width: 38,
-                            height: 38,
-                            color: const Color(0xFF2A2A2A),
-                            child: const Icon(
-                              Icons.texture,
-                              color: AppColors.goldWarm,
-                              size: 18,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
+          ),
 
-                      // Name + Price
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              stone.name,
-                              style: const TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                                letterSpacing: 0.2,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '₹${stone.pricePerSqFt}/sq.ft',
-                              style: const TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.goldWarm,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      const SizedBox(width: 8),
-
-                      // View Product
-                      ElevatedButton(
-                        onPressed: _navigateToProduct,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.goldWarm,
-                          foregroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 10),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'View Product',
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            SizedBox(width: 4),
-                            Icon(Icons.arrow_forward_rounded, size: 12),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+          // "i" toggle button
+          GestureDetector(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              setState(() => _showInfoCard = !_showInfoCard);
+            },
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.55),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: AppColors.goldWarm.withValues(alpha: 0.5),
+                  width: 1,
                 ),
-              ],
+              ),
+              child: const Icon(
+                Icons.info_outline_rounded,
+                color: AppColors.goldWarm,
+                size: 20,
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
