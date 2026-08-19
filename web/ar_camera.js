@@ -236,21 +236,48 @@
     if (!texture) return;
     
     // Create pattern from texture (tiled)
-    var patternCanvas = document.createElement('canvas');
+    // Tile count scales with the wall's actual on-screen size so each tile
+    // stays roughly TILE_SCREEN_PX wide regardless of how big/small the
+    // detected wall is — a fixed 3x3 grid squashed to fit the quad (the old
+    // approach) made tiles look stretched into giant fake slabs on a big
+    // wall and squeezed into slivers on a small one.
     var tileSize = 200;
-    patternCanvas.width = tileSize * 3;
-    patternCanvas.height = tileSize * 3;
+    var wallWidthPx = Math.hypot(corners.tr.x - corners.tl.x, corners.tr.y - corners.tl.y);
+    var wallHeightPx = Math.hypot(corners.bl.x - corners.tl.x, corners.bl.y - corners.tl.y);
+    var tilesAcross = Math.min(12, Math.max(1, Math.round(wallWidthPx / tileSize)));
+    var tilesDown = Math.min(12, Math.max(1, Math.round(wallHeightPx / tileSize)));
+
+    var patternCanvas = document.createElement('canvas');
+    patternCanvas.width = tileSize * tilesAcross;
+    patternCanvas.height = tileSize * tilesDown;
     var patternCtx = patternCanvas.getContext('2d');
-    
+
     // Tile the texture — sample a centered square crop so non-square source
     // images (our cropped stone textures) don't stretch when tiled.
     var srcSize = Math.min(texture.naturalWidth || texture.width, texture.naturalHeight || texture.height);
     var srcX = ((texture.naturalWidth || texture.width) - srcSize) / 2;
     var srcY0 = ((texture.naturalHeight || texture.height) - srcSize) / 2;
-    for (var ty = 0; ty < 3; ty++) {
-      for (var tx = 0; tx < 3; tx++) {
+    for (var ty = 0; ty < tilesDown; ty++) {
+      for (var tx = 0; tx < tilesAcross; tx++) {
         patternCtx.drawImage(texture, srcX, srcY0, srcSize, srcSize, tx * tileSize, ty * tileSize, tileSize, tileSize);
       }
+    }
+
+    // Grout lines between tiles — a seamless stretched image reads as a
+    // flat photo pasted on the wall rather than individually laid tiles.
+    patternCtx.strokeStyle = 'rgba(0,0,0,0.35)';
+    patternCtx.lineWidth = 2;
+    for (var gx = 1; gx < tilesAcross; gx++) {
+      patternCtx.beginPath();
+      patternCtx.moveTo(gx * tileSize, 0);
+      patternCtx.lineTo(gx * tileSize, patternCanvas.height);
+      patternCtx.stroke();
+    }
+    for (var gy = 1; gy < tilesDown; gy++) {
+      patternCtx.beginPath();
+      patternCtx.moveTo(0, gy * tileSize);
+      patternCtx.lineTo(patternCanvas.width, gy * tileSize);
+      patternCtx.stroke();
     }
     
     // Draw using triangle strips for better perspective
