@@ -34,7 +34,7 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen>
   bool _isProcessing = false;
   bool _textureApplied = false;
   bool _cameraReady = false;
-  double _arOpacity = 0.72;
+  double _arOpacity = 0.96;
   final _picker = ImagePicker();
 
   late TabController _tabController;

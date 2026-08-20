@@ -31008,7 +31008,7 @@ _.y=_.x=null
 _.z=!1
 _.Q=null
 _.ax=_.at=_.as=!1
-_.ay=0.72
+_.ay=0.96
 _.ch=a
 _.CW=$
 _.dm$=b
@@ -31421,7 +31421,7 @@ Oe:function Oe(a){var _=this
 _.w=0
 _.x=a
 _.ax=_.at=_.as=_.Q=_.z=!1
-_.ay=0.75
+_.ay=0.96
 _.ch=1
 _.d=_.CW=$
 _.c=_.a=null},

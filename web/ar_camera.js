@@ -29,7 +29,7 @@
   var AI_REQUEST_INTERVAL_MS = 3000;
   
   // Stone control state
-  var _opacity = 0.75;
+  var _opacity = 0.96; // near-opaque: user wants the true selected tile, not the wall showing through
   var _scale = 1.0;
   var _position = {x: 0, y: 0};
   var _rotation = 0;
@@ -100,6 +100,12 @@
   // Find largest rectangular region (wall candidate).
   // Returns { corners, real } — real=false means no strong edges were found
   // and the caller fell back to a fixed placeholder region.
+  function _avg(list, from, to, key) {
+    var sum = 0, count = to - from;
+    for (var i = from; i < to; i++) sum += list[i][key];
+    return sum / count;
+  }
+
   function _findWallRegion(edges, width, height) {
     // Find strong horizontal and vertical lines
     var horizontalLines = [];
@@ -129,20 +135,19 @@
 
     // If we have enough lines, wall likely detected
     if (horizontalLines.length >= 2 && verticalLines.length >= 2) {
-      // Box = outermost qualifying edges (min/max position), not the
-      // strongest-vs-weakest line — ranking by strength picks a different
-      // pair of lines almost every pass (noise reorders the ranking), which
-      // is what made the box grow/shrink frame to frame. Position extremes
-      // are stable: the same physical wall edge is still the outermost one.
-      var top = height, bottom = 0, left = width, right = 0;
-      for (var hi = 0; hi < horizontalLines.length; hi++) {
-        if (horizontalLines[hi].y < top) top = horizontalLines[hi].y;
-        if (horizontalLines[hi].y > bottom) bottom = horizontalLines[hi].y;
-      }
-      for (var vi = 0; vi < verticalLines.length; vi++) {
-        if (verticalLines[vi].x < left) left = verticalLines[vi].x;
-        if (verticalLines[vi].x > right) right = verticalLines[vi].x;
-      }
+      // Box = average of the outermost few qualifying edges on each side,
+      // not a single min/max line — a lone noisy pixel row/column at the
+      // true extreme flips the box edge every pass (this is what still
+      // "breathed"/resized constantly even after switching off strength
+      // ranking). Averaging a small cluster near each extreme is far less
+      // sensitive to one-frame noise while still tracking the real edge.
+      horizontalLines.sort(function (a, b) { return a.y - b.y; });
+      verticalLines.sort(function (a, b) { return a.x - b.x; });
+      var N = 3;
+      var top = _avg(horizontalLines, 0, Math.min(N, horizontalLines.length), 'y');
+      var bottom = _avg(horizontalLines, Math.max(0, horizontalLines.length - N), horizontalLines.length, 'y');
+      var left = _avg(verticalLines, 0, Math.min(N, verticalLines.length), 'x');
+      var right = _avg(verticalLines, Math.max(0, verticalLines.length - N), verticalLines.length, 'x');
 
       // Ensure reasonable size
       if (right - left > width * 0.3 && bottom - top > height * 0.3) {
@@ -285,7 +290,7 @@
     
     ctx.save();
     ctx.globalAlpha = _opacity;
-    ctx.globalCompositeOperation = 'multiply'; // Preserve shadows
+    ctx.globalCompositeOperation = 'source-over'; // true tile color, not tinted by wall lighting
     
     for (var i = 0; i < strips; i++) {
       var t1 = i / strips;
@@ -336,7 +341,7 @@
       ctx.restore();
       ctx.save();
       ctx.globalAlpha = _opacity;
-      ctx.globalCompositeOperation = 'multiply';
+      ctx.globalCompositeOperation = 'source-over';
     }
     
     ctx.restore();
@@ -517,7 +522,7 @@
         _lostFrames = 0;
         _hasRealLock = true;
         _wallCorners = _wallCorners
-          ? _lerpCorners(_wallCorners, scaledCorners, 0.35)
+          ? _lerpCorners(_wallCorners, scaledCorners, 0.18)
           : scaledCorners;
       } else if (_hasRealLock && _wallCorners) {
         // Briefly lost strong edges (motion blur while moving closer/back,

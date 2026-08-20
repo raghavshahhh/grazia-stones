@@ -42,7 +42,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
   bool _adjustingCorners = false;
 
   // Texture controls
-  double _textureOpacity = 0.75;
+  double _textureOpacity = 0.96;
   double _textureScale = 1.0;
 
   // Controllers
