@@ -7,7 +7,7 @@
 //     ↓
 //   AI WALL/OBJECT UNDERSTANDING (periodic, async, 3s interval)
 //     ↓
-//   WALL SEGMENTATION / REGION (polygon from AI, refined locally)
+//   WALL REGION (polygon from VLM, refined locally with edge detection)
 //     ↓
 //   PLANE / QUAD ESTIMATION (homography from 4 corners)
 //     ↓
@@ -15,15 +15,20 @@
 //     ↓
 //   TRACKING (local high-freq + AI low-freq correction)
 //     ↓
-//   OCCLUSION MASK (objects excluded from tile rendering)
+//   OCCLUSION MASK (objects excluded from tile rendering via polygon clipping)
 //     ↓
 //   TILE MATERIAL GENERATION (repeatable, perspective-correct, grout)
 //     ↓
-//   PERSPECTIVE / HOMOGRAPHY (quad warp)
+//   PERSPECTIVE / HOMOGRAPHY (quad warp with 24-strip homography)
 //     ↓
 //   LIGHTING / SHADOW / BLENDING (edge feather, luminance adaptation)
 //     ↓
 //   FINAL COMPOSITE
+// 
+// NOTE: This implementation uses VLM-generated polygons (NVIDIA Llama 3.2 Vision)
+// for wall and object boundaries. True pixel-level segmentation masks are not
+// available from the NVIDIA NIM chat completions API. Polygon-based clipping
+// is used for wall masking and object occlusion.
 
 (function () {
   'use strict';
@@ -63,7 +68,8 @@
 
   // AI-assisted wall detection (NVIDIA NIM, via server proxy) — periodic
   // correction on top of the local edge heuristic, not a per-frame replacement.
-  // Now supports pixel-level segmentation masks from SAM.
+  // Uses VLM (Llama 3.2 Vision) for semantic understanding + geometry.
+  // True pixel-level segmentation masks are not available from NIM chat API.
   var _aiRequestInFlight = false;
   var _lastAiRequestAt = 0;
   var AI_REQUEST_INTERVAL_MS = 3000; // 3s for VLM, 10s for SAM (more expensive)
@@ -95,8 +101,8 @@
   var _lastSegmentationAt = 0;
   var SEGMENTATION_INTERVAL_MS = 10000; // SAM is expensive, run less frequently
 
-  // Wall masks for pixel-level rendering
-  var _wallMasks = {}; // wallId -> {polygon, maskCanvas, maskData}
+  // Wall masks for polygon-based rendering (VLM provides polygons, not true pixel masks)
+  var _wallMasks = {}; // wallId -> {polygon, maskCanvas}
 
   // Confidence thresholds
   var WALL_CONFIDENCE_THRESHOLD = 0.65;
@@ -725,7 +731,14 @@
 
     // Use polygon-based wall mask if available for exact clipping
     var selectedWall = _walls.find(function(w) { return w.id === _selectedWallId; });
-    var usePolygonMask = selectedWall && _wallMaskCanvases[selectedWall.id];
+    
+    // Ensure mask canvas exists for the selected wall
+    var maskCanvas = null;
+    if (selectedWall) {
+      maskCanvas = _ensureWallMaskCanvas(selectedWall, canvasWidth, canvasHeight);
+    }
+    
+    var usePolygonMask = maskCanvas !== null;
 
     // If we have a polygon-based mask canvas, use it for clipping
     if (usePolygonMask) {
