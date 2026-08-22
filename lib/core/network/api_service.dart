@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../services/storage_service.dart';
-import '../services/firebase_service.dart';
+import '../services/supabase_service.dart';
 import '../config/env_config.dart';
 import 'api_response.dart';
 import 'exceptions.dart';
@@ -15,7 +15,7 @@ class ApiService {
 
   late Dio _dio;
   final StorageService _storage = StorageService.instance;
-  final FirebaseService _firebase = FirebaseService.instance;
+  final SupabaseService _supabase = SupabaseService.instance;
   final EnvConfig _env = EnvConfig();
   
   // Base URL from environment config
@@ -65,8 +65,12 @@ class ApiService {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    // Get token from Firebase or storage
-    String? token = await _firebase.getIdToken();
+    // Get token from Supabase or storage
+    String? token;
+    if (_supabase.isLoggedIn) {
+      final session = _supabase.auth.currentSession;
+      token = session?.accessToken;
+    }
     token ??= await _storage.getAuthToken();
 
     if (token != null) {
@@ -98,17 +102,20 @@ class ApiService {
       debugPrint('🔄 Token expired, refreshing...');
       
       try {
-        // Refresh Firebase token
-        await _firebase.refreshToken();
-        final newToken = await _firebase.getIdToken(forceRefresh: true);
-        
-        if (newToken != null) {
-          // Retry request with new token
-          final options = err.requestOptions;
-          options.headers['Authorization'] = 'Bearer $newToken';
+        // Refresh Supabase token
+        if (_supabase.isLoggedIn) {
+          await _supabase.auth.refreshSession();
+          final session = _supabase.auth.currentSession;
+          final newToken = session?.accessToken;
           
-          final response = await _dio.fetch(options);
-          return handler.resolve(response);
+          if (newToken != null) {
+            // Retry request with new token
+            final options = err.requestOptions;
+            options.headers['Authorization'] = 'Bearer $newToken';
+            
+            final response = await _dio.fetch(options);
+            return handler.resolve(response);
+          }
         }
       } catch (e) {
         debugPrint('❌ Token refresh failed: $e');

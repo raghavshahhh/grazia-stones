@@ -2,12 +2,17 @@ import '../models/stone.dart';
 import '../models/collection.dart';
 import '../services/supabase_service.dart';
 import '../services/mock_data_service.dart';
+import '../config/env_config.dart';
+import 'package:flutter/foundation.dart';
 
 /// Stone & collection repository backed by Supabase.
-/// Falls back to MockDataService if Supabase isn't configured/reachable
-/// (e.g. no live project wired up yet) so browsing still works.
+/// Uses mock data only in development mode when Supabase isn't configured.
+/// In production, throws actual errors so they can be monitored and fixed.
 class StoneRepository {
   final SupabaseService _sb = SupabaseService.instance;
+  final EnvConfig _env = EnvConfig();
+
+  bool get _useMockData => _env.isDevelopment && _env.enableMockData;
 
   // ═══════════════════════════════════════════════════════════════════════
   // STONES
@@ -52,16 +57,20 @@ class StoneRepository {
           .order(sortBy ?? 'sort_order', ascending: sortOrder == 'asc')
           .range(from, to);
       return data.map((j) => Stone.fromJson(j)).toList();
-    } catch (_) {
-      var stones = search != null && search.isNotEmpty
-          ? MockDataService.searchStones(search)
-          : collectionId != null
-              ? MockDataService.getStonesByCollection(collectionId)
-              : MockDataService.getAllStones();
-      if (finish != null) stones = stones.where((s) => s.finish == finish).toList();
-      if (minPrice != null) stones = stones.where((s) => s.pricePerSqFt >= minPrice).toList();
-      if (maxPrice != null) stones = stones.where((s) => s.pricePerSqFt <= maxPrice).toList();
-      return stones;
+    } catch (e) {
+      if (_useMockData) {
+        debugPrint('[StoneRepository] Supabase error, falling back to mock data: $e');
+        var stones = search != null && search.isNotEmpty
+            ? MockDataService.searchStones(search)
+            : collectionId != null
+                ? MockDataService.getStonesByCollection(collectionId)
+                : MockDataService.getAllStones();
+        if (finish != null) stones = stones.where((s) => s.finish == finish).toList();
+        if (minPrice != null) stones = stones.where((s) => s.pricePerSqFt >= minPrice).toList();
+        if (maxPrice != null) stones = stones.where((s) => s.pricePerSqFt <= maxPrice).toList();
+        return stones;
+      }
+      rethrow;
     }
   }
 
@@ -73,10 +82,14 @@ class StoneRepository {
           .eq('id', id)
           .single();
       return Stone.fromJson(data);
-    } catch (_) {
-      final stone = MockDataService.getStoneById(id);
-      if (stone == null) rethrow;
-      return stone;
+    } catch (e) {
+      if (_useMockData) {
+        debugPrint('[StoneRepository] getStoneById fallback: $e');
+        final stone = MockDataService.getStoneById(id);
+        if (stone == null) throw Exception('Stone not found: $id');
+        return stone;
+      }
+      rethrow;
     }
   }
 
@@ -90,8 +103,12 @@ class StoneRepository {
           .order('sort_order')
           .limit(limit);
       return data.map((j) => Stone.fromJson(j)).toList();
-    } catch (_) {
-      return MockDataService.searchStones(query);
+    } catch (e) {
+      if (_useMockData) {
+        debugPrint('[StoneRepository] searchStones fallback: $e');
+        return MockDataService.searchStones(query);
+      }
+      rethrow;
     }
   }
 
@@ -105,14 +122,17 @@ class StoneRepository {
           .order('sort_order')
           .limit(limit);
       return data.map((j) => Stone.fromJson(j)).toList();
-    } catch (_) {
-      return MockDataService.getTrendingStones();
+    } catch (e) {
+      if (_useMockData) {
+        debugPrint('[StoneRepository] getTrendingStones fallback: $e');
+        return MockDataService.getTrendingStones();
+      }
+      rethrow;
     }
   }
 
   Future<List<Stone>> getSimilarStones(String stoneId, {int limit = 5}) async {
     try {
-      // Get the stone first to find its collection
       final stone = await getStoneById(stoneId);
       final data = await _sb.client
           .from('stones')
@@ -122,13 +142,17 @@ class StoneRepository {
           .neq('id', stoneId)
           .limit(limit);
       return data.map((j) => Stone.fromJson(j)).toList();
-    } catch (_) {
-      final stone = MockDataService.getStoneById(stoneId);
-      if (stone == null) return [];
-      return MockDataService.getAllStones()
-          .where((s) => s.collection == stone.collection && s.id != stoneId)
-          .take(limit)
-          .toList();
+    } catch (e) {
+      if (_useMockData) {
+        debugPrint('[StoneRepository] getSimilarStones fallback: $e');
+        final stone = MockDataService.getStoneById(stoneId);
+        if (stone == null) return [];
+        return MockDataService.getAllStones()
+            .where((s) => s.collection == stone.collection && s.id != stoneId)
+            .take(limit)
+            .toList();
+      }
+      rethrow;
     }
   }
 
@@ -136,7 +160,7 @@ class StoneRepository {
     return getStones(sortBy: 'created_at', sortOrder: 'desc', limit: limit);
   }
 
-  // ═══════════════════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════════════════════
   // COLLECTIONS
   // ═══════════════════════════════════════════════════════════════════════
 
@@ -148,8 +172,12 @@ class StoneRepository {
           .eq('active', true)
           .order('sort_order');
       return data.map((j) => Collection.fromJson(j)).toList();
-    } catch (_) {
-      return MockDataService.getAllCollections();
+    } catch (e) {
+      if (_useMockData) {
+        debugPrint('[StoneRepository] getCollections fallback: $e');
+        return MockDataService.getAllCollections();
+      }
+      rethrow;
     }
   }
 
@@ -161,8 +189,12 @@ class StoneRepository {
           .eq('id', id)
           .single();
       return Collection.fromJson(data);
-    } catch (_) {
-      return MockDataService.getAllCollections().firstWhere((c) => c.id == id);
+    } catch (e) {
+      if (_useMockData) {
+        debugPrint('[StoneRepository] getCollectionById fallback: $e');
+        return MockDataService.getAllCollections().firstWhere((c) => c.id == id);
+      }
+      rethrow;
     }
   }
 
@@ -177,14 +209,18 @@ class StoneRepository {
           .order('sort_order')
           .range(from, from + limit - 1);
       return data.map((j) => Stone.fromJson(j)).toList();
-    } catch (_) {
-      return MockDataService.getStonesByCollection(collectionId);
+    } catch (e) {
+      if (_useMockData) {
+        debugPrint('[StoneRepository] getStonesByCollection fallback: $e');
+        return MockDataService.getStonesByCollection(collectionId);
+      }
+      rethrow;
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════════════════════
   // WISHLIST
-  // ═══════════════════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════════════════════
 
   Future<List<Stone>> getWishlist() async {
     final userId = _sb.currentUser?.id;
@@ -230,9 +266,9 @@ class StoneRepository {
     return data != null;
   }
 
-  // ═══════════════════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════════════════════
   // FILTERS
-  // ═══════════════════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════════════════════
 
   Future<List<String>> getFinishes() async {
     try {
@@ -242,8 +278,12 @@ class StoneRepository {
           .eq('active', true)
           .not('finish', 'is', null);
       return data.map((j) => j['finish'] as String).toSet().toList()..sort();
-    } catch (_) {
-      return MockDataService.getAllStones().map((s) => s.finish).toSet().toList()..sort();
+    } catch (e) {
+      if (_useMockData) {
+        debugPrint('[StoneRepository] getFinishes fallback: $e');
+        return MockDataService.getAllStones().map((s) => s.finish).toSet().toList()..sort();
+      }
+      rethrow;
     }
   }
 
@@ -260,12 +300,16 @@ class StoneRepository {
         }
       }
       return allColors.toList()..sort();
-    } catch (_) {
-      final allColors = <String>{};
-      for (final s in MockDataService.getAllStones()) {
-        allColors.addAll(s.availableColors);
+    } catch (e) {
+      if (_useMockData) {
+        debugPrint('[StoneRepository] getColors fallback: $e');
+        final allColors = <String>{};
+        for (final s in MockDataService.getAllStones()) {
+          allColors.addAll(s.availableColors);
+        }
+        return allColors.toList()..sort();
       }
-      return allColors.toList()..sort();
+      rethrow;
     }
   }
 
@@ -278,10 +322,14 @@ class StoneRepository {
       if (data.isEmpty) return {'min': 0, 'max': 0};
       final prices = data.map((j) => (j['price_per_sqft'] as num).toDouble()).toList();
       return {'min': prices.reduce((a, b) => a < b ? a : b), 'max': prices.reduce((a, b) => a > b ? a : b)};
-    } catch (_) {
-      final prices = MockDataService.getAllStones().map((s) => s.pricePerSqFt).toList();
-      if (prices.isEmpty) return {'min': 0, 'max': 0};
-      return {'min': prices.reduce((a, b) => a < b ? a : b), 'max': prices.reduce((a, b) => a > b ? a : b)};
+    } catch (e) {
+      if (_useMockData) {
+        debugPrint('[StoneRepository] getPriceRange fallback: $e');
+        final prices = MockDataService.getAllStones().map((s) => s.pricePerSqFt).toList();
+        if (prices.isEmpty) return {'min': 0, 'max': 0};
+        return {'min': prices.reduce((a, b) => a < b ? a : b), 'max': prices.reduce((a, b) => a > b ? a : b)};
+      }
+      rethrow;
     }
   }
 }

@@ -35,13 +35,13 @@ class PerspectiveTransformService {
       final imgData = img.decodeImage(byteData.buffer.asUint8List());
       if (imgData == null) return null;
 
-      // Step 1: Calculate perspective transform matrix
+      // Step 1: Calculate perspective transform matrix (homography)
       final matrix = _calculatePerspectiveMatrix(
         wallDetection.corners,
         wallDetection.bounds,
       );
 
-      // Step 2: Apply perspective warp
+      // Step 2: Apply perspective warp using homography
       var transformed = _warpPerspective(imgData, matrix, wallDetection.bounds);
 
       // Step 3: Adjust brightness to match wall lighting
@@ -63,50 +63,156 @@ class PerspectiveTransformService {
     }
   }
 
-  /// Calculate perspective transform matrix
-  /// Maps texture corners to wall corners
+  /// Calculate perspective transform matrix (homography)
+  /// Maps texture corners (0,0)-(1,1) to wall corners in screen space
   Matrix4 _calculatePerspectiveMatrix(
     WallCorners wallCorners,
     ui.Rect bounds,
   ) {
-    // Source points (texture corners - normalized 0 to 1)
+    // Source points: texture corners in normalized coordinates
     final srcPoints = [
-      ui.Offset(0, 0), // Top-left
-      ui.Offset(1, 0), // Top-right
-      ui.Offset(0, 1), // Bottom-left
-      ui.Offset(1, 1), // Bottom-right
+      ui.Offset(0.0, 0.0), // Top-left
+      ui.Offset(1.0, 0.0), // Top-right
+      ui.Offset(1.0, 1.0), // Bottom-right
+      ui.Offset(0.0, 1.0), // Bottom-left
     ];
 
-    // Destination points (wall corners - in screen space)
+    // Destination points: wall corners in screen space
     final dstPoints = [
       wallCorners.topLeft,
       wallCorners.topRight,
-      wallCorners.bottomLeft,
       wallCorners.bottomRight,
+      wallCorners.bottomLeft,
     ];
 
-    // Calculate perspective matrix using homography
+    // Calculate homography matrix
     return _computeHomography(srcPoints, dstPoints);
   }
 
-  /// Compute homography matrix for perspective transform
-  /// This is a simplified version - for production, use a proper homography library
+  /// Compute homography matrix for perspective transform using DLT (Direct Linear Transform)
+  /// Maps 4 source points to 4 destination points
   Matrix4 _computeHomography(List<ui.Offset> src, List<ui.Offset> dst) {
-    // Simplified perspective transform
-    // For a full implementation, use opencv or similar
+    // DLT algorithm for homography estimation
+    // We need to solve Ah = 0 for the 8 DOF homography matrix
+    // h = [h11, h12, h13, h21, h22, h23, h31, h32, h33]^T with h33 = 1
     
-    // For now, return a basic scaling/translation matrix
-    final scaleX = (dst[1].dx - dst[0].dx) / (src[1].dx - src[0].dx);
-    final scaleY = (dst[2].dy - dst[0].dy) / (src[2].dy - src[0].dy);
-    final translateX = dst[0].dx - (src[0].dx * scaleX);
-    final translateY = dst[0].dy - (src[0].dy * scaleY);
+    final List<List<double>> A = [];
+    final List<double> b = [];
 
-    return Matrix4.identity()
-      ..translate(translateX, translateY)
-      ..scale(scaleX, scaleY);
+    for (int i = 0; i < 4; i++) {
+      final x = src[i].dx;
+      final y = src[i].dy;
+      final xp = dst[i].dx;
+      final yp = dst[i].dy;
+
+      // Two equations per point
+      A.add([x, y, 1, 0, 0, 0, -xp * x, -xp * y]);
+      b.add(xp);
+      
+      A.add([0, 0, 0, x, y, 1, -yp * x, -yp * y]);
+      b.add(yp);
+    }
+
+    // Solve using least squares: h = (A^T A)^-1 A^T b
+    final h = _solveLeastSquares(A, b);
+    
+    // Build 3x3 homography matrix
+    final h11 = h[0], h12 = h[1], h13 = h[2];
+    final h21 = h[3], h22 = h[4], h23 = h[5];
+    final h31 = h[6], h32 = h[7], h33 = 1.0;
+
+    return Matrix4(
+      h11, h12, 0, h13,
+      h21, h22, 0, h23,
+      0,   0,   1, 0,
+      h31, h32, 0, h33,
+    );
   }
 
-  /// Warp image using perspective matrix
+  /// Solve least squares problem using normal equations
+  List<double> _solveLeastSquares(List<List<double>> A, List<double> b) {
+    final m = A.length; // 8
+    final n = A[0].length; // 8
+
+    // Compute A^T A
+    final List<List<double>> ATA = List.generate(n, (_) => List.filled(n, 0.0));
+    for (int i = 0; i < n; i++) {
+      for (int j = 0; j < n; j++) {
+        double sum = 0.0;
+        for (int k = 0; k < m; k++) {
+          sum += A[k][i] * A[k][j];
+        }
+        ATA[i][j] = sum;
+      }
+    }
+
+    // Compute A^T b
+    final List<double> ATb = List.filled(n, 0.0);
+    for (int i = 0; i < n; i++) {
+      double sum = 0.0;
+      for (int k = 0; k < m; k++) {
+        sum += A[k][i] * b[k];
+      }
+      ATb[i] = sum;
+    }
+
+    // Solve ATA * h = ATb using Gaussian elimination
+    return _gaussianElimination(ATA, ATb);
+  }
+
+  /// Gaussian elimination for solving linear system
+  List<double> _gaussianElimination(List<List<double>> A, List<double> b) {
+    final n = A.length;
+    
+    // Augmented matrix
+    final List<List<double>> aug = List.generate(n, (i) => List.from(A[i])..add(b[i]));
+
+    // Forward elimination
+    for (int i = 0; i < n; i++) {
+      // Find pivot
+      int maxRow = i;
+      for (int k = i + 1; k < n; k++) {
+        if (aug[k][i].abs() > aug[maxRow][i].abs()) {
+          maxRow = k;
+        }
+      }
+      
+      // Swap rows
+      if (maxRow != i) {
+        final temp = aug[i];
+        aug[i] = aug[maxRow];
+        aug[maxRow] = temp;
+      }
+
+      // Check for singular matrix
+      if (aug[i][i].abs() < 1e-10) {
+        // Fallback: return identity-like solution
+        return List.generate(n, (i) => i < n - 1 ? 0.0 : 1.0);
+      }
+
+      // Eliminate below
+      for (int k = i + 1; k < n; k++) {
+        final factor = aug[k][i] / aug[i][i];
+        for (int j = i; j <= n; j++) {
+          aug[k][j] -= factor * aug[i][j];
+        }
+      }
+    }
+
+    // Back substitution
+    final x = List.filled(n, 0.0);
+    for (int i = n - 1; i >= 0; i--) {
+      double sum = aug[i][n];
+      for (int j = i + 1; j < n; j++) {
+        sum -= aug[i][j] * x[j];
+      }
+      x[i] = sum / aug[i][i];
+    }
+
+    return x;
+  }
+
+  /// Warp image using perspective homography matrix
   img.Image _warpPerspective(
     img.Image source,
     Matrix4 matrix,
@@ -122,46 +228,78 @@ class PerspectiveTransformService {
       numChannels: 4,
     );
 
-    // Apply perspective warp (simplified)
-    // For production, implement proper bilinear/bicubic interpolation
+    // Extract matrix elements (3x3 homography embedded in 4x4)
+    final m = matrix.storage;
+    // [h11, h12, 0, h13]
+    // [h21, h22, 0, h23]
+    // [0,   0,   1, 0]
+    // [h31, h32, 0, h33]
+    final h11 = m[0], h12 = m[4], h13 = m[12];
+    final h21 = m[1], h22 = m[5], h23 = m[13];
+    final h31 = m[3], h32 = m[7], h33 = m[15];
+
+    // Inverse mapping: for each output pixel, find source pixel
     for (int y = 0; y < targetHeight; y++) {
       for (int x = 0; x < targetWidth; x++) {
-        // Map output pixel to source pixel
-        final srcX = (x * source.width / targetWidth) % source.width;
-        final srcY = (y * source.height / targetHeight) % source.height;
+        // Homogeneous coordinates
+        final w = h31 * x + h32 * y + h33;
+        if (w.abs() < 1e-6) continue;
+        
+        final srcX = (h11 * x + h12 * y + h13) / w;
+        final srcY = (h21 * x + h22 * y + h23) / w;
 
-        final srcPixel = source.getPixel(srcX.toInt(), srcY.toInt());
-        output.setPixel(x, y, srcPixel);
+        // Check bounds
+        if (srcX >= 0 && srcX < source.width - 1 && srcY >= 0 && srcY < source.height - 1) {
+          // Bilinear interpolation
+          final x0 = srcX.floor();
+          final y0 = srcY.floor();
+          final x1 = x0 + 1;
+          final y1 = y0 + 1;
+          final dx = srcX - x0;
+          final dy = srcY - y0;
+
+          if (x1 < source.width && y1 < source.height) {
+            final p00 = source.getPixel(x0, y0);
+            final p10 = source.getPixel(x1, y0);
+            final p01 = source.getPixel(x0, y1);
+            final p11 = source.getPixel(x1, y1);
+
+            final r = _lerp(_lerp(p00.r.toDouble(), p10.r.toDouble(), dx),
+                           _lerp(p01.r.toDouble(), p11.r.toDouble(), dx), dy).round();
+            final g = _lerp(_lerp(p00.g.toDouble(), p10.g.toDouble(), dx),
+                           _lerp(p01.g.toDouble(), p11.g.toDouble(), dx), dy).round();
+            final b = _lerp(_lerp(p00.b.toDouble(), p10.b.toDouble(), dx),
+                           _lerp(p01.b.toDouble(), p11.b.toDouble(), dx), dy).round();
+            final a = _lerp(_lerp(p00.a.toDouble(), p10.a.toDouble(), dx),
+                           _lerp(p01.a.toDouble(), p11.a.toDouble(), dx), dy).round();
+
+            output.setPixelRgba(x, y, r.clamp(0, 255), g.clamp(0, 255), b.clamp(0, 255), a.clamp(0, 255));
+          }
+        }
       }
     }
 
     return output;
   }
 
+  double _lerp(double a, double b, double t) => a + (b - a) * t;
+
   /// Adjust image brightness
   img.Image _adjustBrightness(img.Image image, double amount) {
-    // amount: -1.0 to 1.0 (negative = darker, positive = brighter)
-    final adjustment = (amount * 50).round(); // Scale to -50 to +50
-
-    return img.adjustColor(
-      image,
-      brightness: adjustment,
-    );
+    final adjustment = (amount * 50).round();
+    return img.adjustColor(image, brightness: adjustment);
   }
 
-  /// Apply edge feathering (soft blur at edges)
+  /// Apply edge feathering (soft alpha gradient at edges)
   img.Image _applyEdgeFeather(img.Image image, double radius) {
     if (radius <= 0) return image;
 
-    // Create a mask for edge feathering
     final width = image.width;
     final height = image.height;
     final featherPixels = radius.toInt();
 
-    // Apply alpha gradient at edges
     for (int y = 0; y < height; y++) {
       for (int x = 0; x < width; x++) {
-        // Calculate distance from edge
         final distLeft = x;
         final distRight = width - x - 1;
         final distTop = y;
@@ -170,7 +308,6 @@ class PerspectiveTransformService {
         final minDist = [distLeft, distRight, distTop, distBottom]
             .reduce((a, b) => a < b ? a : b);
 
-        // Apply feather effect
         if (minDist < featherPixels) {
           final alpha = minDist / featherPixels;
           final pixel = image.getPixel(x, y);
@@ -178,8 +315,7 @@ class PerspectiveTransformService {
           final newAlpha = (currentAlpha * alpha).toInt();
 
           image.setPixelRgba(
-            x,
-            y,
+            x, y,
             pixel.r.toInt(),
             pixel.g.toInt(),
             pixel.b.toInt(),
@@ -202,8 +338,7 @@ class PerspectiveTransformService {
         final newAlpha = (pixel.a * opacityFactor).toInt();
 
         image.setPixelRgba(
-          x,
-          y,
+          x, y,
           pixel.r.toInt(),
           pixel.g.toInt(),
           pixel.b.toInt(),

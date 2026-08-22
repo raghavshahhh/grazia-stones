@@ -6,7 +6,8 @@ import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
-  const SplashScreen({super.key});
+  const SplashScreen({super.key, this.skipDelay = false});
+  final bool skipDelay;
 
   @override
   ConsumerState<SplashScreen> createState() => _SplashScreenState();
@@ -56,7 +57,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   Future<void> _checkAuthAndNavigate() async {
     // Wait for animation to complete
-    await Future.delayed(const Duration(milliseconds: 2500));
+    if (!widget.skipDelay) {
+      await Future.delayed(const Duration(milliseconds: 2500));
+    }
 
     if (!mounted) return;
 

@@ -180,9 +180,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   Widget _buildPage(_OnboardingPage page, LuxuryPalette palette) {
     return Padding(
       padding: GLuxurySpacing.horizontalXxl,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
+      child: SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: MediaQuery.of(context).size.height * 0.7,
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
           // Animated Icon with Gradient Circle
           AnimatedBuilder(
             animation: _iconAnimationController,
@@ -263,6 +268,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
             ),
           ),
         ],
+          ),
+        ),
       ),
     );
   }

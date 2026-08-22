@@ -5,16 +5,16 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
-// ignore: uri_does_not_exist
-import 'dart:html' as html;
-// ignore: uri_does_not_exist
-import 'dart:js' as js;
-// ignore: uri_does_not_exist
+import 'dart:js_interop';
 import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:web/web.dart' as web;
+
+@JS('eval')
+external JSAny _jsEvalRaw(String expr);
 
 // ── Platform view registration ──────────────────────────────────────────────
 
@@ -27,7 +27,7 @@ int _instanceCounter = 0;
 
 void _registerContainer(String id, String viewType) {
   ui_web.platformViewRegistry.registerViewFactory(viewType, (int viewId) {
-    final div = html.DivElement()
+    final div = web.HTMLDivElement()
       ..id = id
       ..style.width = '100%'
       ..style.height = '100%'
@@ -41,7 +41,7 @@ void _registerContainer(String id, String viewType) {
 
 dynamic _jsEval(String expr) {
   try {
-    return js.context.callMethod('eval', [expr]);
+    return _jsEvalRaw(expr);
   } catch (e) {
     if (kDebugMode) debugPrint('[GraziaAR] JS error: $e');
     return null;
@@ -186,8 +186,8 @@ class ARCameraView extends StatefulWidget {
     final startedAt = DateTime.now();
     while (DateTime.now().difference(startedAt) < const Duration(seconds: 20)) {
       await Future.delayed(const Duration(milliseconds: 200));
-      final raw = js.context['_graziaARStaticResult'];
-      final err = js.context['_graziaARStaticError'];
+      final raw = _jsEval('_graziaARStaticResult');
+      final err = _jsEval('_graziaARStaticError');
       if (raw != null) {
         final decoded = jsonDecode(raw.toString()) as Map<String, dynamic>;
         return decoded['success'] == true ? decoded['image'] as String : null;
@@ -195,6 +195,71 @@ class ARCameraView extends StatefulWidget {
       if (err != null) return null;
     }
     return null;
+  }
+
+  // ── New Enhanced API ─────────────────────────────────────────────────────
+
+/// Get all detected walls with their corners, confidence, and area
+  static List<Map<String, dynamic>>? getWalls() {
+    final raw = _jsEval('GraziaAR.getWalls()');
+    if (raw == null) return null;
+    final List<dynamic> decoded = jsonDecode(raw.toString()) as List<dynamic>;
+    return decoded.cast<Map<String, dynamic>>();
+  }
+  
+  /// Request pixel-level segmentation (SAM) for current frame
+  static void requestSegmentation() {
+    _jsEval('GraziaAR.requestSegmentation()');
+  }
+  
+  /// Set tile dimensions for accurate pattern generation
+  static void setTileDimensions(double width, double height, String unit) {
+    _jsEval('GraziaAR.setTileDimensions($width, $height, "$unit")');
+  }
+  
+  /// Get current calibration info
+  static Map<String, dynamic>? getCalibration() {
+    final raw = _jsEval('GraziaAR.getCalibration()');
+    if (raw == null) return null;
+    return jsonDecode(raw.toString()) as Map<String, dynamic>;
+  }
+
+  /// Select a specific wall by ID for texturing
+  static bool selectWall(String wallId) {
+    final raw = _jsEval('GraziaAR.selectWall("$wallId")');
+    return raw == true;
+  }
+
+  /// Start calibration mode
+  static void startCalibration({String unit = 'ft'}) {
+    _jsEval('GraziaAR.startCalibration("$unit")');
+  }
+
+  /// Finish calibration with known real-world length
+  static bool finishCalibration(double realLength) {
+    final raw = _jsEval('GraziaAR.finishCalibration($realLength)');
+    return raw == true;
+  }
+
+  /// Measure distance between two points (requires calibration)
+  static double? measureDistance(Offset p1, Offset p2) {
+    final raw = _jsEval('GraziaAR.measureDistance(${p1.dx}, ${p1.dy}, ${p2.dx}, ${p2.dy})');
+    if (raw == null) return null;
+    return (raw as num).toDouble();
+  }
+
+  /// Calculate tile quantity for the selected wall
+  static Map<String, dynamic>? calculateTileQuantity({
+    required double tileWidth,
+    required double tileHeight,
+    String tileUnit = 'ft',
+    double wastagePercent = 10.0,
+  }) {
+    final raw = _jsEval(
+      'GraziaAR.calculateTileQuantity($tileWidth, $tileHeight, "$tileUnit", $wastagePercent)'
+    );
+    if (raw == null) return null;
+    return jsonDecode(raw.toString()) as Map<String, dynamic>;
   }
 
   @override
@@ -280,8 +345,8 @@ class _ARCameraViewState extends State<ARCameraView>
         return;
       }
 
-      final ready = js.context['_graziaARReady'];
-      final err = js.context['_graziaARError'];
+      final ready = _jsEval('_graziaARReady');
+      final err = _jsEval('_graziaARError');
 
       if (ready == true) {
         t.cancel();

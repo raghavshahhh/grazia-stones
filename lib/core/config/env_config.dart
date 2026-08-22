@@ -56,9 +56,20 @@ class EnvConfig {
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════
-  // REPLICATE (AI) CONFIGURATION
-  // ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
+  // NVIDIA NIM (AI) CONFIGURATION
+  // ══════════════════════════════════════════════════════════════════════
+
+  String get nvidiaNimApiKey {
+    return const String.fromEnvironment(
+      'NVIDIA_NIM_API_KEY',
+      defaultValue: '',
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // REPLICATE (AI) CONFIGURATION (legacy - not used)
+  // ═════════════════════════════════════════════════════════════════════
 
   String get replicateApiKey {
     return const String.fromEnvironment(
@@ -200,6 +211,7 @@ class EnvConfig {
     debugPrint('CDN Base URL: $cdnBaseUrl');
     debugPrint('Firebase Project: $firebaseProjectId');
     debugPrint('Razorpay Key: ${razorpayKeyId.substring(0, 15)}...');
+    debugPrint('NVIDIA NIM API Key: ${nvidiaNimApiKey.isNotEmpty ? "CONFIGURED" : "MISSING"}');
     debugPrint('Mock Data: ${enableMockData ? "ENABLED" : "DISABLED"}');
     debugPrint('AI Visualization: ${enableAIVisualization ? "ENABLED" : "DISABLED"}');
     debugPrint('AR View: ${enableARView ? "ENABLED" : "DISABLED"}');

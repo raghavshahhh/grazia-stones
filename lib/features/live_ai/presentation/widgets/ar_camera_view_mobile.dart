@@ -71,6 +71,25 @@ class ARCameraView extends StatefulWidget {
           String roomImageDataUrl, String textureDataUrl, double opacity) async =>
       null;
 
+  // New Enhanced API stubs (mobile not yet implemented)
+  static List<Map<String, dynamic>>? getWalls() => null;
+  static bool selectWall(String wallId) => false;
+  static void startCalibration({String unit = 'ft'}) {}
+  static bool finishCalibration(double realLength) => false;
+  static Map<String, dynamic>? getCalibration() => null;
+  static double? measureDistance(Offset p1, Offset p2) => null;
+  static Map<String, dynamic>? calculateTileQuantity({
+    required double tileWidth,
+    required double tileHeight,
+    String tileUnit = 'ft',
+    double wastagePercent = 10.0,
+  }) =>
+      null;
+  
+  static void requestSegmentation() {}
+  
+  static void setTileDimensions(double width, double height, String unit) {}
+
   static void stopCamera() {
     _controller.add(_ARUpdate(stop: true));
   }

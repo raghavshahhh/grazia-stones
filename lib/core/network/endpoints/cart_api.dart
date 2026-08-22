@@ -1,6 +1,5 @@
 import '../../models/cart_item.dart';
 import '../api_service.dart';
-import '../api_response.dart';
 
 /// Cart-related API endpoints
 class CartApi {

@@ -16,11 +16,6 @@ class PaymentService {
   // Razorpay credentials from environment
   String get _keyId => _env.razorpayKeyId;
 
-  // Callbacks
-  Function(PaymentSuccessResponse)? _onPaymentSuccess;
-  Function(PaymentFailureResponse)? _onPaymentError;
-  Function()? _onExternalWallet;
-
   /// Initialize Razorpay
   void init() {
     if (_isInitialized) return;
@@ -56,11 +51,6 @@ class PaymentService {
       debugPrint('❌ Payment service not initialized');
       return;
     }
-
-    // Set callbacks
-    _onPaymentSuccess = onSuccess;
-    _onPaymentError = onError;
-    _onExternalWallet = onExternalWallet;
 
     // Convert amount to paise (1 rupee = 100 paise)
     final amountInPaise = (amount * 100).toInt();
@@ -99,24 +89,6 @@ class PaymentService {
         {'order_id': orderId},
       ));
     }
-  }
-
-  /// Handle payment success
-  void _handlePaymentSuccess(PaymentSuccessResponse response) {
-    debugPrint('✅ Payment success: ${response.paymentId}');
-    _onPaymentSuccess?.call(response);
-  }
-
-  /// Handle payment error
-  void _handlePaymentError(PaymentFailureResponse response) {
-    debugPrint('❌ Payment error: ${response.code} - ${response.message}');
-    _onPaymentError?.call(response);
-  }
-
-  /// Handle external wallet
-  void _handleExternalWallet() {
-    debugPrint('🔄 External wallet selected');
-    _onExternalWallet?.call();
   }
 
   /// Create order on backend (call before opening checkout)

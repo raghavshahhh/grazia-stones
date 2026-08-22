@@ -155,7 +155,7 @@ class ImageService {
   /// Get image dimensions
   Future<Map<String, int>?> getImageDimensions(File file) async {
     try {
-      final bytes = await file.readAsBytes();
+      final _ = await file.readAsBytes();
       // This is a simplified version - use image package for accurate dimensions
       return {'width': 0, 'height': 0};
     } catch (e) {

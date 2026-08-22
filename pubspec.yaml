@@ -59,12 +59,12 @@ dependencies:
   hive: ^2.2.3
   hive_flutter: ^1.1.0
 
-  # Firebase
-  firebase_core: ^3.6.0
-  firebase_auth: ^5.3.1
-  cloud_firestore: ^5.4.4
-  firebase_storage: ^12.3.4
-  firebase_analytics: ^11.3.3
+  # Firebase - REMOVED: Using Supabase exclusively for auth and backend
+  # firebase_core: ^3.6.0
+  # firebase_auth: ^5.3.1
+  # cloud_firestore: ^5.4.4
+  # firebase_storage: ^12.3.4
+  # firebase_analytics: ^11.3.3
 
   # Supabase (replacing MockDataService + REST backend)
   supabase_flutter: ^2.8.0
@@ -91,6 +91,7 @@ dependencies:
   # google_mlkit_image_labeling: ^0.12.0 (conflicts with Firebase nanopb)
   vector_math: ^2.1.4
   camera: ^0.11.0+2
+  web: ^1.0.0
   
   # Image Processing & ML Kit (for wall detection & perspective transform)
   google_mlkit_object_detection: ^0.12.0

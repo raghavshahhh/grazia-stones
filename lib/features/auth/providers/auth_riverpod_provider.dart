@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import '../../../core/models/user.dart';
 import '../../../core/repositories/auth_repository.dart';
 import '../../../core/services/storage_service.dart';
-import '../../../core/services/supabase_service.dart';
 
 // ─── State ───
 class AuthRiverpodState {
