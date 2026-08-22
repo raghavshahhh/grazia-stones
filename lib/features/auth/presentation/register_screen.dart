@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/typography.dart';
 import 'package:grazia_stones/shared/theme/spacing.dart';
+import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/grazia_text_field.dart';
 import 'package:grazia_stones/shared/widgets/grazia_button.dart';
 import 'package:grazia_stones/core/utils/validators.dart';
@@ -158,7 +159,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
 
   @override
   Widget build(BuildContext context) {
-    final palette = GLuxuryPalettes.gold;
+    final palette = ref.watch(themePaletteProvider);
 
     return Scaffold(
       backgroundColor: palette.background,

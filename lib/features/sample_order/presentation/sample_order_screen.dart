@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/utils/validators.dart';
 import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
-import 'package:grazia_stones/shared/theme/typography.dart';
-import 'package:grazia_stones/shared/theme/spacing.dart';
+import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 import 'package:grazia_stones/core/di.dart';
 
@@ -92,7 +92,6 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
     try {
       final orderRepo = ref.read(orderRepositoryProvider);
       
-      // Submit sample request for each selected stone
       for (final stoneId in _selectedStones) {
         await orderRepo.requestSample(
           stoneId: stoneId,
@@ -123,20 +122,25 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final palette = GLuxuryPalettes.gold;
+    final palette = ref.watch(themePaletteProvider);
 
     return Scaffold(
       backgroundColor: palette.background,
       appBar: AppBar(
         backgroundColor: palette.background,
         elevation: 0,
+        scrolledUnderElevation: 0,
         leading: IconButton(
           onPressed: () => context.pop(),
-          icon: Icon(Icons.arrow_back_ios_new, color: palette.textPrimary),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
         ),
         title: Text(
-          'Order Samples',
-          style: GLuxuryTypography.h2.copyWith(color: palette.textPrimary),
+          'Sample Dispatch',
+          style: GoogleFonts.playfairDisplay(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            color: palette.textPrimary,
+          ),
         ),
       ),
       body: _error != null
@@ -147,45 +151,52 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
           : _isLoading
               ? Center(child: CircularProgressIndicator(color: palette.primary))
               : SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                   child: Form(
                     key: _formKey,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Info
+                        // Luxury Delivery Banner
                         Container(
-                          padding: const EdgeInsets.all(16),
+                          padding: const EdgeInsets.all(18),
                           decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                palette.primary.withValues(alpha: 0.1),
-                                palette.primary.withValues(alpha: 0.05),
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: palette.primary.withValues(alpha: 0.3)),
+                            color: palette.surface,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: palette.border),
                           ),
                           child: Row(
                             children: [
-                              Icon(Icons.local_shipping_outlined, color: palette.primary, size: 24),
-                              const SizedBox(width: 12),
+                              Container(
+                                width: 48,
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  color: palette.primary.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: Icon(Icons.inventory_2_outlined, color: palette.primary, size: 24),
+                              ),
+                              const SizedBox(width: 14),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Free Sample Delivery',
-                                      style: GLuxuryTypography.h3.copyWith(
+                                      'Complimentary 4x4" Swatches',
+                                      style: GoogleFonts.playfairDisplay(
                                         color: palette.textPrimary,
-                                        fontWeight: FontWeight.w600,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 15,
                                       ),
                                     ),
-                                    const SizedBox(height: 4),
+                                    const SizedBox(height: 3),
                                     Text(
-                                      'Get samples delivered to your doorstep at no cost',
-                                      style: GLuxuryTypography.bodySmall.copyWith(
+                                      'Delivered to your architectural studio or project site in premium sample boxes.',
+                                      style: GoogleFonts.inter(
                                         color: palette.textSecondary,
+                                        fontSize: 12,
+                                        height: 1.35,
                                       ),
                                     ),
                                   ],
@@ -195,43 +206,50 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
                           ),
                         ),
                         
-                        GLuxurySpacing.gapXl,
+                        const SizedBox(height: 24),
                         
                         // Stone selection
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'Select Stones',
-                              style: GLuxuryTypography.h3.copyWith(color: palette.textPrimary),
+                              'SELECT STONE SWATCHES',
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.6,
+                                color: palette.textTertiary,
+                              ),
                             ),
                             if (_selectedStones.isNotEmpty)
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: palette.primary.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(20),
+                                  color: palette.primary.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(
-                                  '${_selectedStones.length} selected',
-                                  style: GLuxuryTypography.labelSmall.copyWith(
+                                  '${_selectedStones.length} SELECTED',
+                                  style: GoogleFonts.inter(
                                     color: palette.primary,
-                                    fontWeight: FontWeight.w600,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.5,
                                   ),
                                 ),
                               ),
                           ],
                         ),
-                        GLuxurySpacing.gapSm,
+                        const SizedBox(height: 12),
                         
                         GridView.builder(
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
                           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 3,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                            childAspectRatio: 0.75,
+                            crossAxisSpacing: 10,
+                            mainAxisSpacing: 10,
+                            childAspectRatio: 0.72,
                           ),
                           itemCount: _stones.length,
                           itemBuilder: (context, i) {
@@ -250,10 +268,11 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
                               },
                               child: Container(
                                 decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(12),
+                                  color: palette.surface,
+                                  borderRadius: BorderRadius.circular(14),
                                   border: Border.all(
                                     color: isSelected ? palette.primary : palette.border,
-                                    width: isSelected ? 3 : 1,
+                                    width: isSelected ? 2 : 1,
                                   ),
                                 ),
                                 child: Stack(
@@ -264,7 +283,7 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
                                         Expanded(
                                           child: ClipRRect(
                                             borderRadius: const BorderRadius.vertical(
-                                              top: Radius.circular(12),
+                                              top: Radius.circular(13),
                                             ),
                                             child: SmartStoneImage(
                                                imageUrl: stone.imageUrl,
@@ -274,11 +293,13 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
                                           ),
                                         ),
                                         Padding(
-                                          padding: const EdgeInsets.all(8),
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
                                           child: Text(
                                             stone.name,
-                                            style: GLuxuryTypography.labelSmall.copyWith(
+                                            style: GoogleFonts.playfairDisplay(
                                               color: palette.textPrimary,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700,
                                             ),
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
@@ -289,24 +310,18 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
                                     ),
                                     if (isSelected)
                                       Positioned(
-                                        top: 8,
-                                        right: 8,
+                                        top: 6,
+                                        right: 6,
                                         child: Container(
-                                          padding: const EdgeInsets.all(4),
+                                          padding: const EdgeInsets.all(3),
                                           decoration: BoxDecoration(
                                             color: palette.primary,
                                             shape: BoxShape.circle,
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: palette.primary.withValues(alpha: 0.4),
-                                                blurRadius: 8,
-                                              ),
-                                            ],
                                           ),
-                                          child: Icon(
+                                          child: const Icon(
                                             Icons.check,
-                                            color: palette.background,
-                                            size: 16,
+                                            color: Colors.white,
+                                            size: 13,
                                           ),
                                         ),
                                       ),
@@ -317,33 +332,38 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
                           },
                         ),
                         
-                        GLuxurySpacing.gapXl,
+                        const SizedBox(height: 28),
                         
                         // Shipping details
                         Text(
-                          'Shipping Details',
-                          style: GLuxuryTypography.h3.copyWith(color: palette.textPrimary),
+                          'STUDIO / SITE DISPATCH ADDRESS',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.6,
+                            color: palette.textTertiary,
+                          ),
                         ),
-                        GLuxurySpacing.gapBase,
+                        const SizedBox(height: 12),
                         
                         _buildTextField(
                           palette,
-                          'Full Name',
+                          'Recipient / Architect Name',
                           _nameController,
                           Validators.validateName,
                           Icons.person_outline,
                         ),
-                        GLuxurySpacing.gapBase,
+                        const SizedBox(height: 14),
                         
                         _buildTextField(
                           palette,
-                          'Phone',
+                          'Phone Number',
                           _phoneController,
                           Validators.validatePhone,
                           Icons.phone_outlined,
                           keyboardType: TextInputType.phone,
                         ),
-                        GLuxurySpacing.gapBase,
+                        const SizedBox(height: 14),
                         
                         _buildTextField(
                           palette,
@@ -353,17 +373,17 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
                           Icons.email_outlined,
                           keyboardType: TextInputType.emailAddress,
                         ),
-                        GLuxurySpacing.gapBase,
+                        const SizedBox(height: 14),
                         
                         _buildTextField(
                           palette,
-                          'Address',
+                          'Studio / Project Address',
                           _addressController,
                           (v) => v?.isEmpty ?? true ? 'Address is required' : null,
                           Icons.location_on_outlined,
-                          maxLines: 3,
+                          maxLines: 2,
                         ),
-                        GLuxurySpacing.gapBase,
+                        const SizedBox(height: 14),
                         
                         Row(
                           children: [
@@ -383,7 +403,7 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
                                 'Pincode',
                                 _pincodeController,
                                 (v) {
-                                  if (v?.isEmpty ?? true) return 'Pincode is required';
+                                  if (v?.isEmpty ?? true) return 'Pincode required';
                                   if (v!.length != 6) return 'Invalid pincode';
                                   return null;
                                 },
@@ -393,15 +413,15 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
                             ),
                           ],
                         ),
-                        GLuxurySpacing.gapBase,
+                        const SizedBox(height: 14),
                         
                         _buildTextField(
                           palette,
-                          'Additional Notes (Optional)',
+                          'Special Instructions (Optional)',
                           _notesController,
                           null,
                           Icons.note_outlined,
-                          maxLines: 3,
+                          maxLines: 2,
                         ),
                         
                         const SizedBox(height: 100),
@@ -413,43 +433,35 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
           ? null
           : Container(
               padding: EdgeInsets.only(
-                left: 16,
-                right: 16,
-                top: 16,
-                bottom: MediaQuery.of(context).padding.bottom + 16,
+                left: 18,
+                right: 18,
+                top: 14,
+                bottom: MediaQuery.of(context).padding.bottom + 14,
               ),
               decoration: BoxDecoration(
-                color: palette.background,
+                color: palette.surface,
                 border: Border(top: BorderSide(color: palette.border)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, -5),
-                  ),
-                ],
               ),
               child: ElevatedButton.icon(
                 onPressed: _isSubmitting ? null : _submitOrder,
                 icon: _isSubmitting
                     ? const SizedBox(
-                        width: 20,
-                        height: 20,
+                        width: 18,
+                        height: 18,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
                           color: Colors.white,
                         ),
                       )
-                    : const Icon(Icons.check_circle_outline),
-                label: Text(_isSubmitting ? 'Submitting...' : 'Submit Order'),
+                    : const Icon(Icons.send_rounded, size: 16),
+                label: Text(_isSubmitting ? 'Dispatching Samples...' : 'Request Free Sample Kit', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: palette.primary,
-                  foregroundColor: palette.background,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(28),
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                  disabledBackgroundColor: palette.surfaceDark,
                   elevation: 0,
                 ),
               ),
@@ -471,10 +483,14 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
       validator: validator,
       keyboardType: keyboardType,
       maxLines: maxLines,
-      style: GLuxuryTypography.bodyMedium.copyWith(color: palette.textPrimary),
+      style: GoogleFonts.inter(color: palette.textPrimary, fontSize: 14, fontWeight: FontWeight.w500),
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon, color: palette.textTertiary),
+        labelStyle: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary),
+        prefixIcon: Icon(icon, color: palette.primary, size: 20),
+        filled: true,
+        fillColor: palette.surface,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: palette.border),
@@ -485,10 +501,8 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: palette.primary, width: 2),
+          borderSide: BorderSide(color: palette.primary, width: 1.5),
         ),
-        filled: true,
-        fillColor: palette.surface,
       ),
     );
   }

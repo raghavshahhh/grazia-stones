@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/utils/validators.dart';
 import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
-import 'package:grazia_stones/shared/theme/typography.dart';
-import 'package:grazia_stones/shared/theme/spacing.dart';
+import 'package:grazia_stones/shared/theme/theme_provider.dart';
 
 class EditProfileScreen extends ConsumerStatefulWidget {
   const EditProfileScreen({super.key});
@@ -100,20 +100,25 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final palette = GLuxuryPalettes.gold;
+    final palette = ref.watch(themePaletteProvider);
 
     return Scaffold(
       backgroundColor: palette.background,
       appBar: AppBar(
         backgroundColor: palette.background,
         elevation: 0,
+        scrolledUnderElevation: 0,
         leading: IconButton(
           onPressed: () => context.pop(),
-          icon: Icon(Icons.arrow_back_ios_new, color: palette.textPrimary),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
         ),
         title: Text(
           'Edit Profile',
-          style: GLuxuryTypography.h2.copyWith(color: palette.textPrimary),
+          style: GoogleFonts.playfairDisplay(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            color: palette.textPrimary,
+          ),
         ),
       ),
       body: _error != null
@@ -124,59 +129,58 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           : _isLoading
               ? Center(child: CircularProgressIndicator(color: palette.primary))
               : SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                   child: Form(
                     key: _formKey,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Profile Picture Section
+                        // Profile Avatar
                         Center(
                           child: Stack(
                             children: [
                               Container(
-                                width: 100,
-                                height: 100,
+                                width: 88,
+                                height: 88,
                                 decoration: BoxDecoration(
-                                  gradient: palette.primaryGradient,
+                                  color: palette.primary.withValues(alpha: 0.12),
                                   shape: BoxShape.circle,
                                   border: Border.all(
-                                    color: palette.border,
-                                    width: 3,
+                                    color: palette.primary.withValues(alpha: 0.3),
+                                    width: 1.5,
                                   ),
                                 ),
-                                child: Icon(
-                                  Icons.person,
-                                  size: 50,
-                                  color: palette.background,
+                                child: Center(
+                                  child: Text(
+                                    _nameController.text.isNotEmpty
+                                        ? _nameController.text.substring(0, 1).toUpperCase()
+                                        : 'A',
+                                    style: GoogleFonts.playfairDisplay(
+                                      fontSize: 32,
+                                      fontWeight: FontWeight.w700,
+                                      color: palette.primary,
+                                    ),
+                                  ),
                                 ),
                               ),
                               Positioned(
                                 bottom: 0,
                                 right: 0,
-                                child: GestureDetector(
-                                  onTap: () {
-                                    // TODO: Implement image picker
-                                    showInfoSnackbar(
-                                      context,
-                                      'Profile picture update coming soon',
-                                    );
-                                  },
-                                  child: Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: palette.primary,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: palette.background,
-                                        width: 2,
-                                      ),
-                                    ),
-                                    child: Icon(
-                                      Icons.camera_alt,
-                                      size: 16,
+                                child: Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: palette.primary,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
                                       color: palette.background,
+                                      width: 2,
                                     ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.camera_alt,
+                                    size: 14,
+                                    color: Colors.white,
                                   ),
                                 ),
                               ),
@@ -184,16 +188,18 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                           ),
                         ),
 
-                        GLuxurySpacing.gapXl,
+                        const SizedBox(height: 28),
 
-                        // Personal Information
                         Text(
-                          'Personal Information',
-                          style: GLuxuryTypography.h3.copyWith(
-                            color: palette.textPrimary,
+                          'ARCHITECT DETAILS',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.8,
+                            color: palette.textTertiary,
                           ),
                         ),
-                        GLuxurySpacing.gapBase,
+                        const SizedBox(height: 12),
 
                         _buildTextField(
                           palette,
@@ -203,7 +209,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                           Icons.person_outline,
                           hint: 'Enter your full name',
                         ),
-                        GLuxurySpacing.gapBase,
+                        const SizedBox(height: 14),
 
                         _buildTextField(
                           palette,
@@ -214,7 +220,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                           hint: 'Enter your email',
                           keyboardType: TextInputType.emailAddress,
                         ),
-                        GLuxurySpacing.gapBase,
+                        const SizedBox(height: 14),
 
                         _buildTextField(
                           palette,
@@ -225,43 +231,42 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                           hint: 'Enter your phone number',
                           keyboardType: TextInputType.phone,
                         ),
-                        GLuxurySpacing.gapBase,
+                        const SizedBox(height: 14),
 
                         _buildTextField(
                           palette,
-                          'Address (Optional)',
+                          'Company / Firm Name (Optional)',
                           _addressController,
                           null,
-                          Icons.location_on_outlined,
-                          hint: 'Enter your address',
-                          maxLines: 3,
+                          Icons.business_outlined,
+                          hint: 'e.g. Studio Architectura',
                         ),
 
-                        GLuxurySpacing.gapXl,
+                        const SizedBox(height: 24),
 
                         // Info Card
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: palette.primary.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: palette.primary.withValues(alpha: 0.3),
-                            ),
+                            color: palette.surface,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: palette.border),
                           ),
                           child: Row(
                             children: [
                               Icon(
-                                Icons.info_outline,
+                                Icons.verified_user_outlined,
                                 color: palette.primary,
                                 size: 20,
                               ),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
-                                  'Your information is secure and will only be used for order processing.',
-                                  style: GLuxuryTypography.bodySmall.copyWith(
+                                  'Your professional profile ensures priority concierge support and seamless quote requests.',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
                                     color: palette.textSecondary,
+                                    height: 1.35,
                                   ),
                                 ),
                               ),
@@ -278,43 +283,35 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           ? null
           : Container(
               padding: EdgeInsets.only(
-                left: 16,
-                right: 16,
-                top: 16,
-                bottom: MediaQuery.of(context).padding.bottom + 16,
+                left: 18,
+                right: 18,
+                top: 14,
+                bottom: MediaQuery.of(context).padding.bottom + 14,
               ),
               decoration: BoxDecoration(
-                color: palette.background,
+                color: palette.surface,
                 border: Border(top: BorderSide(color: palette.border)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, -5),
-                  ),
-                ],
               ),
               child: ElevatedButton.icon(
                 onPressed: _isSaving ? null : _saveProfile,
                 icon: _isSaving
                     ? const SizedBox(
-                        width: 20,
-                        height: 20,
+                        width: 18,
+                        height: 18,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
                           color: Colors.white,
                         ),
                       )
-                    : const Icon(Icons.check_circle_outline),
-                label: Text(_isSaving ? 'Saving...' : 'Save Changes'),
+                    : const Icon(Icons.check_circle_outline, size: 18),
+                label: Text(_isSaving ? 'Saving Changes...' : 'Save Profile Changes'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: palette.primary,
-                  foregroundColor: palette.background,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(28),
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                  disabledBackgroundColor: palette.surfaceDark,
                   elevation: 0,
                 ),
               ),
@@ -337,23 +334,23 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       children: [
         Text(
           label,
-          style: GLuxuryTypography.bodySmall.copyWith(
+          style: GoogleFonts.inter(
             color: palette.textSecondary,
+            fontSize: 12,
             fontWeight: FontWeight.w600,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         TextFormField(
           controller: controller,
           validator: validator,
           keyboardType: keyboardType,
           maxLines: maxLines,
-          style: GLuxuryTypography.bodyMedium.copyWith(
-            color: palette.textPrimary,
-          ),
+          style: GoogleFonts.inter(fontSize: 14, color: palette.textPrimary, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             hintText: hint,
-            prefixIcon: Icon(icon, color: palette.textTertiary),
+            hintStyle: GoogleFonts.inter(fontSize: 13, color: palette.textTertiary),
+            prefixIcon: Icon(icon, color: palette.primary, size: 20),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(color: palette.border),
@@ -364,21 +361,21 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: palette.primary, width: 2),
+              borderSide: BorderSide(color: palette.primary, width: 1.5),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.red, width: 1),
+              borderSide: const BorderSide(color: Colors.red, width: 1),
             ),
             focusedErrorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.red, width: 2),
+              borderSide: const BorderSide(color: Colors.red, width: 1.5),
             ),
             filled: true,
             fillColor: palette.surface,
             contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 16,
+              horizontal: 14,
+              vertical: 14,
             ),
           ),
         ),

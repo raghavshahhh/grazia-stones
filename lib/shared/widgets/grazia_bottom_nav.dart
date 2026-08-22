@@ -36,45 +36,33 @@ class _GraziaBottomNavState extends ConsumerState<GraziaBottomNav> {
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     final palette = ref.watch(themePaletteProvider);
+    final isDark = ref.watch(themePaletteProvider.notifier).isDarkMode;
 
     return Padding(
       padding: EdgeInsets.only(
         left: 20,
         right: 20,
-        bottom: bottomPadding + 6,
+        bottom: bottomPadding + 8,
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(32),
+        borderRadius: BorderRadius.circular(28),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 32, sigmaY: 32),
+          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
           child: Container(
-            height: 56,
+            height: 60,
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  palette.surface.withValues(alpha: 0.88),
-                  palette.surface.withValues(alpha: 0.78),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(32),
+              color: palette.surface.withValues(alpha: isDark ? 0.90 : 0.96),
+              borderRadius: BorderRadius.circular(28),
               border: Border.all(
-                color: palette.border.withValues(alpha: 0.3),
-                width: 0.5,
+                color: palette.border,
+                width: 1,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.25),
+                  color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.06),
                   blurRadius: 20,
-                  spreadRadius: -6,
-                  offset: const Offset(0, 6),
-                ),
-                BoxShadow(
-                  color: palette.primary.withValues(alpha: 0.08),
-                  blurRadius: 16,
                   spreadRadius: 0,
-                  offset: const Offset(0, 2),
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
@@ -109,56 +97,35 @@ class _GraziaBottomNavState extends ConsumerState<GraziaBottomNav> {
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
         width: 56,
-        height: 55, // Explicit height to prevent overflow
+        height: 58,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              curve: Curves.easeOutCubic,
-              width: isActive ? 28 : 0,
-              height: 2,
-              margin: const EdgeInsets.only(bottom: 4),
-              decoration: BoxDecoration(
-                gradient: isActive ? palette.primaryGradient : null,
-                borderRadius: BorderRadius.circular(2),
-                boxShadow: isActive
-                    ? [
-                        BoxShadow(
-                          color: palette.primary.withValues(alpha: 0.4),
-                          blurRadius: 6,
-                          spreadRadius: -2,
-                        ),
-                      ]
-                    : null,
-              ),
+            Icon(
+              item.icon,
+              size: 20,
+              color: isActive ? palette.primary : palette.textTertiary,
             ),
-            AnimatedDefaultTextStyle(
-              duration: const Duration(milliseconds: 200),
+            const SizedBox(height: 3),
+            Text(
+              item.label,
               style: TextStyle(
-                fontSize: 20,
-                fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-                color: isActive
-                    ? palette.primary
-                    : palette.textTertiary,
-              ),
-              child: Icon(
-                item.icon,
-                size: 20,
-              ),
-            ),
-            AnimatedDefaultTextStyle(
-              duration: const Duration(milliseconds: 200),
-              style: TextStyle(
-                fontSize: 9,
+                fontSize: 10,
                 fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-                color: isActive
-                    ? palette.primary
-                    : palette.textTertiary,
-                letterSpacing: 0.3,
+                color: isActive ? palette.textPrimary : palette.textTertiary,
+                letterSpacing: 0.2,
               ),
-              child: Text(item.label),
+            ),
+            const SizedBox(height: 3),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: isActive ? 4 : 0,
+              height: 4,
+              decoration: BoxDecoration(
+                color: isActive ? palette.primary : Colors.transparent,
+                shape: BoxShape.circle,
+              ),
             ),
           ],
         ),
@@ -176,37 +143,33 @@ class _GraziaBottomNavState extends ConsumerState<GraziaBottomNav> {
         HapticFeedback.mediumImpact();
         widget.onTap(index);
       },
+      behavior: HitTestBehavior.opaque,
       child: SizedBox(
         width: 56,
-        height: 55, // Explicit height to prevent overflow
+        height: 58,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              width: 40,
-              height: 40,
+              duration: const Duration(milliseconds: 200),
+              width: 36,
+              height: 36,
               decoration: BoxDecoration(
                 gradient: palette.primaryGradient,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: palette.primary.withValues(alpha: 0.35),
-                    blurRadius: 14,
-                    spreadRadius: 0,
-                    offset: const Offset(0, 3),
+                    color: palette.primary.withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
-              child: AnimatedScale(
-                scale: isActive ? 1.1 : 1.0,
-                duration: const Duration(milliseconds: 200),
-                child: const Icon(
-                  Icons.camera_rounded,
-                  size: 18,
-                  color: Color(0xFF0D0D0D),
-                ),
+              child: const Icon(
+                Icons.camera_rounded,
+                size: 18,
+                color: Colors.white,
               ),
             ),
             const SizedBox(height: 2),
@@ -214,11 +177,9 @@ class _GraziaBottomNavState extends ConsumerState<GraziaBottomNav> {
               'Live AI',
               style: TextStyle(
                 fontSize: 9,
-                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                color: isActive
-                    ? palette.primary
-                    : palette.textTertiary,
-                letterSpacing: 0.3,
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
+                color: isActive ? palette.primary : palette.textSecondary,
+                letterSpacing: 0.2,
               ),
             ),
           ],

@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
-import 'package:grazia_stones/shared/theme/typography.dart';
-import 'package:grazia_stones/shared/theme/spacing.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/core/providers/stone_providers.dart';
 
@@ -98,43 +97,62 @@ class _QuotesScreenState extends ConsumerState<QuotesScreen> {
       appBar: AppBar(
         backgroundColor: palette.background,
         elevation: 0,
+        scrolledUnderElevation: 0,
         leading: IconButton(
           onPressed: () => context.pop(),
-          icon: Icon(Icons.arrow_back_ios_new, color: palette.textPrimary, size: 20),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
         ),
         title: Text(
-          'Request Quote',
-          style: GLuxuryTypography.h2.copyWith(color: palette.textPrimary),
+          'Project Quotes',
+          style: GoogleFonts.playfairDisplay(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            color: palette.textPrimary,
+          ),
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
+            // Architectural Banner
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                gradient: palette.primaryGradient,
-                borderRadius: BorderRadius.circular(20),
+                color: palette.surface,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: palette.border),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.request_quote_outlined, color: palette.background, size: 32),
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: palette.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(Icons.request_quote_outlined, color: palette.primary, size: 24),
+                  ),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Get a Personalized Quote',
-                          style: GLuxuryTypography.h3.copyWith(color: palette.background, fontWeight: FontWeight.w700),
+                          'Direct Architectural Pricing',
+                          style: GoogleFonts.playfairDisplay(
+                            color: palette.textPrimary,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                          ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 3),
                         Text(
-                          'Our team responds within 24 hours',
-                          style: GLuxuryTypography.bodySmall.copyWith(color: palette.background.withValues(alpha: 0.85)),
+                          'Our estimate desk computes pricing within 24 business hours.',
+                          style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 12),
                         ),
                       ],
                     ),
@@ -143,11 +161,11 @@ class _QuotesScreenState extends ConsumerState<QuotesScreen> {
               ),
             ),
 
-            GLuxurySpacing.gapXl,
+            const SizedBox(height: 24),
 
             // Stone selector
-            _Label('Select Stone', palette),
-            GLuxurySpacing.gapSm,
+            _Label('SELECT SPECIFICATION', palette),
+            const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               decoration: BoxDecoration(
@@ -161,21 +179,21 @@ class _QuotesScreenState extends ConsumerState<QuotesScreen> {
                   isExpanded: true,
                   dropdownColor: palette.surface,
                   icon: Icon(Icons.expand_more, color: palette.textSecondary),
-                  style: GLuxuryTypography.bodyMedium.copyWith(color: palette.textPrimary),
+                  style: GoogleFonts.inter(color: palette.textPrimary, fontSize: 14, fontWeight: FontWeight.w500),
                   items: stones.map((s) => DropdownMenuItem(
                     value: s.id,
-                    child: Text(s.name, style: GLuxuryTypography.bodyMedium.copyWith(color: palette.textPrimary)),
+                    child: Text(s.name, style: GoogleFonts.inter(color: palette.textPrimary, fontSize: 14)),
                   )).toList(),
                   onChanged: (v) => setState(() => _selectedStoneId = v),
                 ),
               ),
             ),
 
-            GLuxurySpacing.gapBase,
+            const SizedBox(height: 20),
 
             // Finish
-            _Label('Finish Type', palette),
-            GLuxurySpacing.gapSm,
+            _Label('SURFACE FINISH', palette),
+            const SizedBox(height: 8),
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -188,20 +206,20 @@ class _QuotesScreenState extends ConsumerState<QuotesScreen> {
                   },
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
-                      color: isSelected ? palette.primary.withValues(alpha: 0.15) : palette.surface,
-                      borderRadius: BorderRadius.circular(24),
+                      color: isSelected ? palette.primary : palette.surface,
+                      borderRadius: BorderRadius.circular(10),
                       border: Border.all(
                         color: isSelected ? palette.primary : palette.border,
-                        width: isSelected ? 1.5 : 0.8,
                       ),
                     ),
                     child: Text(
                       f,
-                      style: GLuxuryTypography.bodySmall.copyWith(
-                        color: isSelected ? palette.primary : palette.textSecondary,
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                      style: GoogleFonts.inter(
+                        color: isSelected ? Colors.white : palette.textSecondary,
+                        fontSize: 12,
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                       ),
                     ),
                   ),
@@ -209,11 +227,11 @@ class _QuotesScreenState extends ConsumerState<QuotesScreen> {
               }).toList(),
             ),
 
-            GLuxurySpacing.gapBase,
+            const SizedBox(height: 20),
 
             // Area
-            _Label('Coverage Area', palette),
-            GLuxurySpacing.gapSm,
+            _Label('ESTIMATED COVERAGE AREA', palette),
+            const SizedBox(height: 8),
             _TextField(
               controller: _areaController,
               hint: 'e.g. 150',
@@ -223,55 +241,56 @@ class _QuotesScreenState extends ConsumerState<QuotesScreen> {
               icon: Icons.square_foot_outlined,
             ),
 
-            GLuxurySpacing.gapBase,
+            const SizedBox(height: 20),
 
             // Notes
-            _Label('Additional Notes (optional)', palette),
-            GLuxurySpacing.gapSm,
+            _Label('PROJECT NOTES & SPECIFICATIONS (OPTIONAL)', palette),
+            const SizedBox(height: 8),
             _TextField(
               controller: _notesController,
-              hint: 'Any specific requirements...',
+              hint: 'e.g. living room feature wall, requires bookmatch alignment...',
               palette: palette,
               maxLines: 3,
               icon: Icons.notes_outlined,
             ),
 
-            GLuxurySpacing.gapXl,
+            const SizedBox(height: 24),
 
             // Submit
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: _submitQuote,
-                icon: const Icon(Icons.send_rounded, size: 18),
-                label: const Text('Submit Quote Request'),
+                icon: const Icon(Icons.send_rounded, size: 16),
+                label: Text('Submit Quote Request', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: palette.primary,
-                  foregroundColor: palette.background,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   elevation: 0,
                 ),
               ),
             ),
 
-            GLuxurySpacing.gapXxl,
+            const SizedBox(height: 32),
 
             // Previous quotes
             if (quotes.isNotEmpty) ...[
               Text(
-                'YOUR QUOTES',
-                style: GLuxuryTypography.labelSmall.copyWith(
+                'YOUR QUOTE INQUIRIES',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
                   color: palette.textTertiary,
-                  letterSpacing: 1.4,
+                  letterSpacing: 1.6,
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              GLuxurySpacing.gapBase,
+              const SizedBox(height: 12),
               ...quotes.map((q) => _QuoteCard(quote: q, palette: palette)),
             ],
 
-            const SizedBox(height: 32),
+            const SizedBox(height: 48),
           ],
         ),
       ),
@@ -282,7 +301,7 @@ class _QuotesScreenState extends ConsumerState<QuotesScreen> {
     if (_areaController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Please enter coverage area'),
+          content: Text('Please enter coverage area', style: GoogleFonts.inter()),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
         ),
@@ -317,18 +336,21 @@ class _QuotesScreenState extends ConsumerState<QuotesScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(gradient: palette.primaryGradient, shape: BoxShape.circle),
-              child: Icon(Icons.check_rounded, color: palette.background, size: 32),
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(color: palette.primary.withValues(alpha: 0.12), shape: BoxShape.circle),
+              child: Icon(Icons.check_rounded, color: palette.primary, size: 28),
             ),
             const SizedBox(height: 16),
-            Text('Quote Requested!', style: GLuxuryTypography.h2.copyWith(color: palette.textPrimary)),
+            Text(
+              'Quote Requested!',
+              style: GoogleFonts.playfairDisplay(fontSize: 20, fontWeight: FontWeight.w700, color: palette.textPrimary),
+            ),
             const SizedBox(height: 8),
             Text(
-              'Our team will get back to you within 24 hours with a detailed quote.',
+              'Our architectural estimation desk will compute exact slab requirements and reach out within 24 hours.',
               textAlign: TextAlign.center,
-              style: GLuxuryTypography.bodySmall.copyWith(color: palette.textSecondary),
+              style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary, height: 1.35),
             ),
             const SizedBox(height: 20),
             SizedBox(
@@ -337,8 +359,10 @@ class _QuotesScreenState extends ConsumerState<QuotesScreen> {
                 onPressed: () => Navigator.pop(context),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: palette.primary,
-                  foregroundColor: palette.background,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  elevation: 0,
                 ),
                 child: const Text('Done'),
               ),
@@ -360,10 +384,11 @@ class _Label extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: GLuxuryTypography.bodySmall.copyWith(
-        color: palette.textSecondary,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0.4,
+      style: GoogleFonts.inter(
+        color: palette.textTertiary,
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 1.4,
       ),
     );
   }
@@ -394,25 +419,26 @@ class _TextField extends StatelessWidget {
       controller: controller,
       maxLines: maxLines,
       keyboardType: keyboardType,
-      style: GLuxuryTypography.bodyMedium.copyWith(color: palette.textPrimary),
+      style: GoogleFonts.inter(color: palette.textPrimary, fontSize: 14, fontWeight: FontWeight.w500),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: GLuxuryTypography.bodyMedium.copyWith(color: palette.textTertiary),
+        hintStyle: GoogleFonts.inter(color: palette.textTertiary, fontSize: 13),
         suffixText: suffix,
-        suffixStyle: GLuxuryTypography.bodySmall.copyWith(color: palette.textSecondary),
-        prefixIcon: Icon(icon, color: palette.textSecondary, size: 20),
+        suffixStyle: GoogleFonts.inter(color: palette.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
+        prefixIcon: Icon(icon, color: palette.primary, size: 20),
         filled: true,
         fillColor: palette.surface,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: palette.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: palette.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: palette.primary, width: 1.5),
         ),
       ),
@@ -444,26 +470,35 @@ class _QuoteCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(quote.stoneName, style: GLuxuryTypography.bodyMedium.copyWith(color: palette.textPrimary, fontWeight: FontWeight.w600)),
+                Text(
+                  quote.stoneName,
+                  style: GoogleFonts.playfairDisplay(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 Text(
                   '${quote.finish} · ${quote.area} · ${quote.createdAt.day}/${quote.createdAt.month}/${quote.createdAt.year}',
-                  style: GLuxuryTypography.bodySmall.copyWith(color: palette.textSecondary),
+                  style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 12),
                 ),
               ],
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: statusColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
-              quote.status,
-              style: GLuxuryTypography.labelSmall.copyWith(
+              quote.status.toUpperCase(),
+              style: GoogleFonts.inter(
                 color: statusColor,
                 fontWeight: FontWeight.w700,
+                fontSize: 10,
+                letterSpacing: 0.5,
               ),
             ),
           ),

@@ -17,13 +17,13 @@ class ThemePaletteNotifier extends StateNotifier<LuxuryPalette> {
     _loadPersistedTheme();
   }
 
-  bool get isDarkMode => state is GoldPalette || state is ObsidianPalette || state is MidnightPalette;
+  bool get isDarkMode => state is GoldDarkPalette || state is ObsidianPalette || state is MidnightPalette;
 
   /// Load theme from storage
   Future<void> _loadPersistedTheme() async {
     try {
       final isDark = _storage.getThemeMode();
-      state = isDark ? GLuxuryPalettes.gold : GLuxuryPalettes.pearl;
+      state = isDark ? GLuxuryPalettes.goldDark : GLuxuryPalettes.gold;
       debugPrint('✅ Theme restored: ${isDark ? "Dark" : "Light"}');
     } catch (e) {
       debugPrint('❌ Error loading theme: $e');
@@ -42,17 +42,17 @@ class ThemePaletteNotifier extends StateNotifier<LuxuryPalette> {
 
   Future<void> toggleTheme() async {
     if (isDarkMode) {
-      state = GLuxuryPalettes.pearl; // Light Mode (Day)
+      state = GLuxuryPalettes.gold; // Light Mode (Day default)
       await _persistTheme(false);
     } else {
-      state = GLuxuryPalettes.gold; // Dark Mode (Night)
+      state = GLuxuryPalettes.goldDark; // Dark Mode (Night luxury)
       await _persistTheme(true);
     }
   }
 
   Future<void> setPalette(LuxuryPalette palette) async {
     state = palette;
-    final isDark = palette is GoldPalette || palette is ObsidianPalette || palette is MidnightPalette;
+    final isDark = palette is GoldDarkPalette || palette is ObsidianPalette || palette is MidnightPalette;
     await _persistTheme(isDark);
   }
 

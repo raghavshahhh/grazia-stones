@@ -6,6 +6,7 @@ import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/typography.dart';
 import 'package:grazia_stones/shared/theme/spacing.dart';
+import 'package:grazia_stones/shared/theme/theme_provider.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
@@ -108,7 +109,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
 
   @override
   Widget build(BuildContext context) {
-    final palette = GLuxuryPalettes.gold;
+    final palette = ref.watch(themePaletteProvider);
 
     return Scaffold(
       backgroundColor: palette.background,
@@ -338,16 +339,16 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                 Text(
                   isLastPage ? 'Get Started' : 'Next',
                   style: GLuxuryTypography.labelLarge.copyWith(
-                    color: palette.background,
-                    fontSize: 17,
+                    color: Colors.white,
+                    fontSize: 16,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.5,
                   ),
                 ),
                 const SizedBox(width: 8),
-                Icon(
+                const Icon(
                   Icons.arrow_forward_rounded,
-                  color: palette.background,
+                  color: Colors.white,
                   size: 20,
                 ),
               ],

@@ -13,17 +13,20 @@ class GraziaApp extends ConsumerWidget {
     final router = ref.watch(appRouterProvider);
     final palette = ref.watch(themePaletteProvider);
 
+    final isDark = ref.watch(themePaletteProvider.notifier).isDarkMode;
+
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
+      statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+      statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
       systemNavigationBarColor: palette.surface,
-      systemNavigationBarIconBrightness: Brightness.light,
+      systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
     ));
 
     return MaterialApp.router(
-      title: 'StoneVerse',
+      title: 'Grazia Stones',
       debugShowCheckedModeBanner: false,
-      theme: GraziaTheme.dark(palette),
+      theme: isDark ? GraziaTheme.dark(palette) : GraziaTheme.light(palette),
       routerConfig: router,
     );
   }

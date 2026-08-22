@@ -91,16 +91,22 @@ class _GLuxuryCardState extends State<GLuxuryCard>
           margin: widget.margin,
           decoration: BoxDecoration(
             color: widget.isGlass
-                ? palette.surface.withValues(alpha: _isPressed ? 0.7 : 0.5)
+                ? palette.surface.withValues(alpha: _isPressed ? 0.95 : 0.9)
                 : palette.surface,
             borderRadius: GLuxuryBorders.cardRadius,
             border: Border.all(
               color: widget.showGoldBorder
-                  ? palette.primary.withValues(alpha: _isPressed ? 0.6 : 0.3)
+                  ? palette.primary.withValues(alpha: _isPressed ? 0.8 : 0.4)
                   : palette.border,
-              width: widget.showGoldBorder ? 1.5 : 0.5,
+              width: widget.showGoldBorder ? 1.5 : 1.0,
             ),
-            boxShadow: _isPressed ? null : GLuxuryShadows.level2,
+            boxShadow: _isPressed ? null : [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: ClipRRect(
             borderRadius: GLuxuryBorders.cardRadius,

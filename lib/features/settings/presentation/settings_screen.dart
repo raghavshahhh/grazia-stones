@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
-import 'package:grazia_stones/shared/theme/typography.dart';
-import 'package:grazia_stones/shared/theme/spacing.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 
@@ -20,7 +18,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _notifications = true;
   bool _emailUpdates = false;
   bool _smsUpdates = true;
-  String _appVersion = '1.0.0';
+  String _appVersion = '2.0.0';
 
   @override
   void initState() {
@@ -47,26 +45,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       appBar: AppBar(
         backgroundColor: palette.background,
         elevation: 0,
+        scrolledUnderElevation: 0,
         leading: IconButton(
           onPressed: () => context.pop(),
-          icon: Icon(Icons.arrow_back_ios_new, color: palette.textPrimary),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
         ),
         title: Text(
           'Settings',
-          style: GLuxuryTypography.h2.copyWith(color: palette.textPrimary),
+          style: GoogleFonts.playfairDisplay(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            color: palette.textPrimary,
+          ),
         ),
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
         children: [
           // Notifications Section
-          Text('Notifications', style: GLuxuryTypography.h3.copyWith(color: palette.textPrimary)),
-          GLuxurySpacing.gapSm,
+          _buildSectionHeader('NOTIFICATIONS & ALERTS', palette),
+          const SizedBox(height: 8),
           
           _buildSwitchTile(
             palette,
             'Push Notifications',
-            'Receive notifications about orders and offers',
+            'Order tracking and status updates',
             _notifications,
             (v) {
               setState(() => _notifications = v);
@@ -76,8 +80,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           
           _buildSwitchTile(
             palette,
-            'Email Updates',
-            'Get updates via email',
+            'Architectural Quotation Alerts',
+            'Email updates for customized pricing quotes',
             _emailUpdates,
             (v) {
               setState(() => _emailUpdates = v);
@@ -87,8 +91,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           
           _buildSwitchTile(
             palette,
-            'SMS Updates',
-            'Receive SMS for order updates',
+            'SMS Dispatch Notices',
+            'Transit and site delivery text alerts',
             _smsUpdates,
             (v) {
               setState(() => _smsUpdates = v);
@@ -96,94 +100,116 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             },
           ),
           
-          GLuxurySpacing.gapXl,
+          const SizedBox(height: 24),
           
           // Preferences
-          Text('Preferences', style: GLuxuryTypography.h3.copyWith(color: palette.textPrimary)),
-          GLuxurySpacing.gapSm,
+          _buildSectionHeader('APP PREFERENCES', palette),
+          const SizedBox(height: 8),
           
-          _buildTile(palette, Icons.language, 'Language', 'English', () {}),
+          _buildTile(palette, Icons.language_outlined, 'Language', 'English (IN)', () {}),
           _buildTile(
             palette,
             Icons.dark_mode_outlined,
             'Theme Mode',
-            isDark ? 'Gold Dark (Night)' : 'Pearl Light (Day)',
+            isDark ? 'Dark Studio' : 'Light Showroom',
             () {
               HapticFeedback.lightImpact();
               ref.read(themePaletteProvider.notifier).toggleTheme();
             },
           ),
-          _buildTile(palette, Icons.currency_rupee, 'Currency', 'INR (₹)', () {}),
+          _buildTile(palette, Icons.currency_rupee, 'Currency & Pricing Unit', 'INR (₹ / sq ft)', () {}),
           
-          GLuxurySpacing.gapXl,
+          const SizedBox(height: 24),
           
           // Support
-          Text('Support', style: GLuxuryTypography.h3.copyWith(color: palette.textPrimary)),
-          GLuxurySpacing.gapSm,
+          _buildSectionHeader('LEGAL & POLICIES', palette),
+          const SizedBox(height: 8),
           
           _buildTile(palette, Icons.privacy_tip_outlined, 'Privacy Policy', '', () {}),
-          _buildTile(palette, Icons.description_outlined, 'Terms & Conditions', '', () {}),
-          _buildTile(palette, Icons.help_outline, 'FAQs', '', () {}),
-          _buildTile(palette, Icons.contact_support_outlined, 'Contact Us', '', () {}),
+          _buildTile(palette, Icons.description_outlined, 'Terms of Service', '', () {}),
+          _buildTile(palette, Icons.help_outline_rounded, 'Architect FAQ & Guides', '', () {}),
           
-          GLuxurySpacing.gapXl,
+          const SizedBox(height: 24),
           
           // App Info
-          Text('About', style: GLuxuryTypography.h3.copyWith(color: palette.textPrimary)),
-          GLuxurySpacing.gapSm,
+          _buildSectionHeader('ABOUT GRAZIA', palette),
+          const SizedBox(height: 8),
           
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              gradient: palette.primaryGradient,
-              borderRadius: BorderRadius.circular(16),
+              color: palette.surface,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: palette.border),
             ),
             child: Column(
               children: [
                 Text(
                   'GRAZIA STONES',
-                  style: GLuxuryTypography.h2.copyWith(
-                    color: palette.background,
+                  style: GoogleFonts.playfairDisplay(
+                    fontSize: 18,
                     fontWeight: FontWeight.w700,
+                    letterSpacing: 2,
+                    color: palette.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
                 Text(
-                  'Luxury Redefined',
-                  style: GLuxuryTypography.bodySmall.copyWith(
-                    color: palette.background.withValues(alpha: 0.9),
+                  'Architectural Natural Stone Studio',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: palette.textSecondary,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 Text(
                   'Version $_appVersion',
-                  style: GLuxuryTypography.bodySmall.copyWith(
-                    color: palette.background.withValues(alpha: 0.8),
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: palette.textTertiary,
                   ),
                 ),
               ],
             ),
           ),
           
-          GLuxurySpacing.gapXl,
+          const SizedBox(height: 24),
           
           // Clear cache button
           OutlinedButton.icon(
             onPressed: () {
               HapticFeedback.mediumImpact();
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Cache cleared'), backgroundColor: Colors.green),
+                SnackBar(
+                  content: Text('Temporary cache cleared', style: GoogleFonts.inter()),
+                  behavior: SnackBarBehavior.floating,
+                ),
               );
             },
-            icon: const Icon(Icons.cleaning_services_outlined),
-            label: const Text('Clear Cache'),
+            icon: const Icon(Icons.cleaning_services_outlined, size: 16),
+            label: Text('Clear Offline Image Cache', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
             style: OutlinedButton.styleFrom(
               foregroundColor: palette.primary,
               side: BorderSide(color: palette.border),
-              padding: const EdgeInsets.symmetric(vertical: 16),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           ),
+
+          const SizedBox(height: 48),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title, LuxuryPalette palette) {
+    return Text(
+      title,
+      style: GoogleFonts.inter(
+        fontSize: 11,
+        color: palette.textTertiary,
+        letterSpacing: 1.6,
+        fontWeight: FontWeight.w700,
       ),
     );
   }
@@ -191,10 +217,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget _buildSwitchTile(LuxuryPalette palette, String title, String subtitle, bool value, ValueChanged<bool> onChanged) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: palette.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: palette.border),
       ),
       child: Row(
@@ -203,10 +229,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: GLuxuryTypography.bodyLarge.copyWith(color: palette.textPrimary)),
+                Text(
+                  title,
+                  style: GoogleFonts.inter(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
                 if (subtitle.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(subtitle, style: GLuxuryTypography.bodySmall.copyWith(color: palette.textSecondary)),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 12),
+                  ),
                 ],
               ],
             ),
@@ -214,7 +250,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeTrackColor: palette.primary,
+            activeThumbColor: palette.primary,
           ),
         ],
       ),
@@ -228,25 +264,42 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           child: Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: palette.surface,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(color: palette.border),
             ),
             child: Row(
               children: [
-                Icon(icon, color: palette.primary),
-                const SizedBox(width: 16),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: palette.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: palette.primary, size: 18),
+                ),
+                const SizedBox(width: 14),
                 Expanded(
-                  child: Text(title, style: GLuxuryTypography.bodyLarge.copyWith(color: palette.textPrimary)),
+                  child: Text(
+                    title,
+                    style: GoogleFonts.inter(
+                      color: palette.textPrimary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
                 ),
                 if (trailing.isNotEmpty)
-                  Text(trailing, style: GLuxuryTypography.bodySmall.copyWith(color: palette.textSecondary)),
+                  Text(
+                    trailing,
+                    style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 12),
+                  ),
                 const SizedBox(width: 8),
-                Icon(Icons.arrow_forward_ios, size: 16, color: palette.textTertiary),
+                Icon(Icons.arrow_forward_ios_rounded, size: 12, color: palette.textTertiary),
               ],
             ),
           ),

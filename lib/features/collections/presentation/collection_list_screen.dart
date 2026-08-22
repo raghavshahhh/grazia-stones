@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
-import 'package:grazia_stones/shared/theme/typography.dart';
 import 'package:grazia_stones/shared/theme/tokens.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/core/di.dart';
@@ -31,24 +31,40 @@ class CollectionListScreen extends ConsumerWidget {
         slivers: [
           SliverAppBar(
             backgroundColor: palette.background,
-            expandedHeight: 160,
+            expandedHeight: 140,
             pinned: true,
             elevation: 0,
             automaticallyImplyLeading: false,
             flexibleSpace: FlexibleSpaceBar(
               background: Container(
-                decoration: BoxDecoration(gradient: palette.heroGradient),
+                color: palette.background,
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 80, 20, 20),
+                  padding: const EdgeInsets.fromLTRB(20, 60, 20, 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      Text('Collections', style: GLuxuryTypography.displaySmall.copyWith(color: palette.textPrimary, fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 4),
                       Text(
-                        collectionsAsync.when(data: (c) => '${c.length} Premium Series', loading: () => 'Loading...', error: (_, __) => ''),
-                        style: GLuxuryTypography.bodySmall.copyWith(color: palette.primary, fontWeight: FontWeight.w600, letterSpacing: 1.2),
+                        'Collections',
+                        style: GoogleFonts.playfairDisplay(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w700,
+                          color: palette.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        collectionsAsync.when(
+                          data: (c) => '${c.length} Curated Series',
+                          loading: () => 'Loading...',
+                          error: (_, __) => '',
+                        ),
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: palette.primary,
+                          letterSpacing: 1.0,
+                        ),
                       ),
                     ],
                   ),
@@ -129,14 +145,40 @@ class _CollectionCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(collection.name, style: GLuxuryTypography.h3.copyWith(color: palette.textPrimary, fontSize: 16)),
-                        const SizedBox(height: 6),
-                        Text(collection.description, style: GLuxuryTypography.bodySmall.copyWith(color: palette.textSecondary), maxLines: 2, overflow: TextOverflow.ellipsis),
+                        Text(
+                          collection.name,
+                          style: GoogleFonts.playfairDisplay(
+                            color: palette.textPrimary,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          collection.description,
+                          style: GoogleFonts.inter(
+                            color: palette.textSecondary,
+                            fontSize: 12,
+                            height: 1.4,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                         const SizedBox(height: 10),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(color: palette.primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)),
-                          child: Text('${collection.stoneCount} Products', style: GLuxuryTypography.labelSmall.copyWith(color: palette.primary, fontWeight: FontWeight.w600)),
+                          decoration: BoxDecoration(
+                            color: palette.primary.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            '${collection.stoneCount} Surfaces',
+                            style: GoogleFonts.inter(
+                              color: palette.primary,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
                       ],
                     ),

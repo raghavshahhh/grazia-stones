@@ -166,7 +166,7 @@ class _GLuxuryButtonState extends State<GLuxuryButton>
 
   Widget _buildContent(LuxuryPalette palette, bool enabled) {
     final color = enabled
-        ? (widget.style == GLuxuryButtonStyle.filled ? palette.background : palette.primary)
+        ? (widget.style == GLuxuryButtonStyle.filled ? Colors.white : palette.textPrimary)
         : palette.textTertiary;
 
     return Padding(

@@ -6,9 +6,10 @@ class GLuxuryPalettes {
   GLuxuryPalettes._();
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  //  1. GOLD — Warm luxury (Grazia default)
+  //  1. GOLD — Warm light luxury (Grazia default)
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   static const GoldPalette gold = GoldPalette();
+  static const GoldDarkPalette goldDark = GoldDarkPalette();
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   //  2. MARBLE — Cool white & silver
@@ -64,15 +65,64 @@ abstract class LuxuryPalette {
   LinearGradient get shimmerGradient;
 }
 
-// ─── 1. GOLD ───
+// ─── 1. GOLD (Light Luxury — Grazia Default) ───
 class GoldPalette extends LuxuryPalette {
   const GoldPalette();
 
-  @override Color get primary => const Color(0xFFC9A96E);
+  @override Color get primary => const Color(0xFFB99A5B);
+  @override Color get primaryLight => const Color(0xFFC8A96E);
+  @override Color get primaryDark => const Color(0xFFA68542);
+  @override Color get secondary => const Color(0xFF6B6B67);
+  @override Color get accent => const Color(0xFFB99A5B);
+  @override Color get surface => const Color(0xFFFFFFFF);
+  @override Color get surfaceLight => const Color(0xFFFFFFFF);
+  @override Color get surfaceDark => const Color(0xFFF4F3EF);
+  @override Color get background => const Color(0xFFFAFAF8);
+  @override Color get textPrimary => const Color(0xFF171717);
+  @override Color get textSecondary => const Color(0xFF6B6B67);
+  @override Color get textTertiary => const Color(0xFF9A9A94);
+  @override Color get border => const Color(0xFFE8E6E1);
+  @override Color get borderLight => const Color(0xFFF0EFEB);
+  @override Color get error => const Color(0xFFDC2626);
+  @override Color get success => const Color(0xFF16A34A);
+  @override Color get warning => const Color(0xFFD97706);
+
+  @override LinearGradient get primaryGradient => const LinearGradient(
+    colors: [Color(0xFFC8A96E), Color(0xFFB99A5B)],
+    begin: Alignment.centerLeft,
+    end: Alignment.centerRight,
+  );
+  @override LinearGradient get surfaceGradient => const LinearGradient(
+    colors: [Color(0xFFFFFFFF), Color(0xFFFAFAF8)],
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+  );
+  @override LinearGradient get heroGradient => LinearGradient(
+    colors: [Colors.transparent, const Color(0xFFFAFAF8).withValues(alpha: 0.9)],
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    stops: const [0.4, 1.0],
+  );
+  @override LinearGradient get shimmerGradient => LinearGradient(
+    colors: [
+      const Color(0xFFF4F3EF),
+      const Color(0xFFE8E6E1),
+      const Color(0xFFF4F3EF),
+    ],
+    begin: const Alignment(-1.0, -0.3),
+    end: const Alignment(1.0, 0.3),
+  );
+}
+
+// ─── 1B. GOLD DARK (Night Luxury) ───
+class GoldDarkPalette extends LuxuryPalette {
+  const GoldDarkPalette();
+
+  @override Color get primary => const Color(0xFFC8A96E);
   @override Color get primaryLight => const Color(0xFFD4B97A);
   @override Color get primaryDark => const Color(0xFFB8944F);
   @override Color get secondary => const Color(0xFF8A8A8A);
-  @override Color get accent => const Color(0xFFD4B97A);
+  @override Color get accent => const Color(0xFFC8A96E);
   @override Color get surface => const Color(0xFF1A1A1A);
   @override Color get surfaceLight => const Color(0xFF222222);
   @override Color get surfaceDark => const Color(0xFF141414);
@@ -87,7 +137,7 @@ class GoldPalette extends LuxuryPalette {
   @override Color get warning => const Color(0xFFFFA726);
 
   @override LinearGradient get primaryGradient => const LinearGradient(
-    colors: [Color(0xFFB8944F), Color(0xFFC9A96E), Color(0xFFD4B97A)],
+    colors: [Color(0xFFB8944F), Color(0xFFC8A96E), Color(0xFFD4B97A)],
     begin: Alignment.centerLeft,
     end: Alignment.centerRight,
   );

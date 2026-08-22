@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/providers/stone_providers.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
-import 'package:grazia_stones/shared/theme/typography.dart';
-import 'package:grazia_stones/shared/theme/spacing.dart';
-
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 
@@ -23,6 +21,10 @@ class StoneDetailScreen extends ConsumerStatefulWidget {
 class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
   int _currentImageIndex = 0;
   bool _isWishlisted = false;
+  
+  // Area Estimator State
+  double _areaSqFt = 150.0;
+  double _wastagePercent = 0.10; // 10% recommended
 
   @override
   Widget build(BuildContext context) {
@@ -36,13 +38,23 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
       ),
       error: (e, _) => Scaffold(
         backgroundColor: palette.background,
-        body: Center(child: Text('Failed to load stone', style: GLuxuryTypography.bodyLarge)),
+        body: Center(
+          child: Text(
+            'Failed to load stone details',
+            style: GoogleFonts.inter(fontSize: 16, color: palette.textSecondary),
+          ),
+        ),
       ),
       data: (stone) {
         if (stone == null) {
           return Scaffold(
             backgroundColor: palette.background,
-            body: Center(child: Text('Stone not found', style: GLuxuryTypography.bodyLarge)),
+            body: Center(
+              child: Text(
+                'Stone not found',
+                style: GoogleFonts.inter(fontSize: 16, color: palette.textSecondary),
+              ),
+            ),
           );
         }
         return _buildStoneDetail(palette, stone);
@@ -51,8 +63,13 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
   }
 
   Widget _buildStoneDetail(LuxuryPalette palette, Stone stone) {
-
     final images = stone.images.isNotEmpty ? stone.images : [stone.imageUrl ?? ''];
+
+    // Calculation values
+    final totalAreaWithWastage = _areaSqFt * (1 + _wastagePercent);
+    final slabSizeSqFt = (stone.sqftPerBox > 0) ? stone.sqftPerBox : 45.0;
+    final slabsNeeded = (totalAreaWithWastage / slabSizeSqFt).ceil();
+    final totalEstimatedCost = totalAreaWithWastage * stone.pricePerSqFt;
 
     return Scaffold(
       backgroundColor: palette.background,
@@ -61,20 +78,28 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
           CustomScrollView(
             physics: const BouncingScrollPhysics(),
             slivers: [
-              // Image Gallery
+              // 1. Top Image Viewer
               SliverAppBar(
-                expandedHeight: 400,
+                expandedHeight: 380,
                 pinned: true,
                 backgroundColor: palette.background,
+                elevation: 0,
                 leading: IconButton(
                   onPressed: () => context.pop(),
                   icon: Container(
-                    padding: const EdgeInsets.all(8),
+                    width: 36,
+                    height: 36,
                     decoration: BoxDecoration(
-                      color: palette.background.withValues(alpha: 0.8),
+                      color: palette.surface.withValues(alpha: 0.85),
                       shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.08),
+                          blurRadius: 8,
+                        ),
+                      ],
                     ),
-                    child: Icon(Icons.arrow_back_ios_new, size: 18, color: palette.textPrimary),
+                    child: Icon(Icons.arrow_back_ios_new_rounded, size: 16, color: palette.textPrimary),
                   ),
                 ),
                 actions: [
@@ -84,15 +109,22 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
                       setState(() => _isWishlisted = !_isWishlisted);
                     },
                     icon: Container(
-                      padding: const EdgeInsets.all(8),
+                      width: 36,
+                      height: 36,
                       decoration: BoxDecoration(
-                        color: palette.background.withValues(alpha: 0.8),
+                        color: palette.surface.withValues(alpha: 0.85),
                         shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.08),
+                            blurRadius: 8,
+                          ),
+                        ],
                       ),
                       child: Icon(
-                        _isWishlisted ? Icons.favorite : Icons.favorite_border,
-                        size: 20,
-                        color: _isWishlisted ? Colors.red : palette.textPrimary,
+                        _isWishlisted ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                        size: 18,
+                        color: _isWishlisted ? palette.primary : palette.textPrimary,
                       ),
                     ),
                   ),
@@ -108,6 +140,7 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
                         itemBuilder: (context, i) {
                           return SmartStoneImage(
                             imageUrl: images[i],
+                            fit: BoxFit.cover,
                             palette: palette,
                           );
                         },
@@ -118,21 +151,20 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
                         left: 0,
                         right: 0,
                         child: Container(
-                          height: 120,
+                          height: 100,
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
                               colors: [
                                 Colors.transparent,
-                                palette.background.withValues(alpha: 0.8),
                                 palette.background,
                               ],
                             ),
                           ),
                         ),
                       ),
-                      // Page indicators
+                      // Page indicator dots
                       if (images.length > 1)
                         Positioned(
                           bottom: 20,
@@ -144,13 +176,14 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
                               images.length,
                               (i) => Container(
                                 margin: const EdgeInsets.symmetric(horizontal: 3),
-                                width: i == _currentImageIndex ? 24 : 6,
-                                height: 6,
+                                width: i == _currentImageIndex ? 20 : 6,
+                                height: 5,
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(3),
+                                  gradient: i == _currentImageIndex ? palette.primaryGradient : null,
                                   color: i == _currentImageIndex
-                                      ? palette.primary
-                                      : palette.textTertiary.withValues(alpha: 0.3),
+                                      ? null
+                                      : palette.textTertiary.withValues(alpha: 0.4),
                                 ),
                               ),
                             ),
@@ -161,298 +194,396 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
                 ),
               ),
 
-              // Content
+              // 2. Main Content
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: GLuxurySpacing.horizontalBase,
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      GLuxurySpacing.gapBase,
-                      
-                      // Stock badge
-                      if (stone.inStock)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.green.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.check_circle, size: 14, color: Colors.green),
-                              const SizedBox(width: 6),
-                              Text(
-                                'In Stock',
-                                style: GLuxuryTypography.labelSmall.copyWith(
-                                  color: Colors.green,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      
-                      GLuxurySpacing.gapSm,
-                      
-                      // Name
-                      Text(
-                        stone.name,
-                        style: GLuxuryTypography.h1.copyWith(
-                          color: palette.textPrimary,
-                          fontSize: 28,
-                        ),
-                      ),
-                      
-                      GLuxurySpacing.gapXs,
-                      
-                      // Product code & Collection
+                      // Collection Badge & In Stock
                       Row(
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
-                              color: palette.primary.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(6),
+                              color: palette.primary.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
-                              stone.productCode,
-                              style: GLuxuryTypography.labelSmall.copyWith(
+                              stone.collection.toUpperCase(),
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.2,
                                 color: palette.primary,
-                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            stone.collection,
-                            style: GLuxuryTypography.bodyMedium.copyWith(
-                              color: palette.textSecondary,
+                          const Spacer(),
+                          if (stone.inStock)
+                            Row(
+                              children: [
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF2E7D32),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'In Stock (Certified Quarry)',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: const Color(0xFF2E7D32),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
                         ],
                       ),
-                      
-                      GLuxurySpacing.gapBase,
-                      
-                      // Rating
-                      Row(
-                        children: [
-                          Icon(Icons.star_rounded, color: palette.primary, size: 20),
-                          const SizedBox(width: 4),
-                          Text(
-                            stone.rating.toString(),
-                            style: GLuxuryTypography.h3.copyWith(color: palette.textPrimary),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '(${stone.reviewCount} reviews)',
-                            style: GLuxuryTypography.bodySmall.copyWith(color: palette.textTertiary),
-                          ),
-                        ],
+
+                      const SizedBox(height: 12),
+
+                      // Stone Name
+                      Text(
+                        stone.name,
+                        style: GoogleFonts.playfairDisplay(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w700,
+                          color: palette.textPrimary,
+                        ),
                       ),
-                      
-                      GLuxurySpacing.gapXl,
-                      
+
+                      const SizedBox(height: 6),
+
                       // Price
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
                         children: [
                           Text(
                             '₹${stone.pricePerSqFt.toInt()}',
-                            style: GLuxuryTypography.displayMedium.copyWith(
-                              color: palette.primary,
-                              fontSize: 36,
+                            style: GoogleFonts.inter(
+                              fontSize: 28,
                               fontWeight: FontWeight.w700,
+                              color: palette.textPrimary,
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 6),
                           Text(
                             '/ sq ft',
-                            style: GLuxuryTypography.bodyMedium.copyWith(
-                              color: palette.textTertiary,
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: palette.textSecondary,
                             ),
                           ),
+                          const Spacer(),
+                          if (stone.rating > 0)
+                            Row(
+                              children: [
+                                Icon(Icons.star_rounded, color: palette.primary, size: 18),
+                                const SizedBox(width: 4),
+                                Text(
+                                  stone.rating.toStringAsFixed(1),
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: palette.textPrimary,
+                                  ),
+                                ),
+                              ],
+                            ),
                         ],
                       ),
-                      
-                      GLuxurySpacing.gapXl,
-                      
-                      // Quick Actions
+
+                      const SizedBox(height: 20),
+
+                      // 3. Dual Visualizer CTA Bar
                       Row(
                         children: [
                           Expanded(
-                            child: _buildQuickAction(
-                              palette,
-                              Icons.auto_awesome_outlined,
-                              'AI Viz',
-                              () => context.push('/ai-viz'),
+                            child: ElevatedButton.icon(
+                              onPressed: () => context.push('/live-ai'),
+                              icon: const Icon(Icons.view_in_ar_outlined, size: 18),
+                              label: const Text('Live AR View'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: palette.primary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                elevation: 0,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: _buildQuickAction(
-                              palette,
-                              Icons.view_in_ar_outlined,
-                              'AR View',
-                              () => context.push('/ar-view'),
+                            child: OutlinedButton.icon(
+                              onPressed: () => context.push('/ai-viz'),
+                              icon: Icon(Icons.auto_awesome_outlined, color: palette.primary, size: 18),
+                              label: Text(
+                                'AI Room Studio',
+                                style: GoogleFonts.inter(color: palette.textPrimary, fontWeight: FontWeight.w600),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                side: BorderSide(color: palette.border, width: 1.2),
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
                             ),
                           ),
                         ],
                       ),
-                      
-                      GLuxurySpacing.gapXl,
-                      
-                      // Specifications
+
+                      const SizedBox(height: 28),
+
+                      // 4. Architectural Specifications Grid
                       Text(
-                        'Specifications',
-                        style: GLuxuryTypography.h2.copyWith(color: palette.textPrimary),
+                        'ARCHITECTURAL SPECIFICATIONS',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.8,
+                          color: palette.textTertiary,
+                        ),
                       ),
-                      GLuxurySpacing.gapBase,
-                      
-                      Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
+                      const SizedBox(height: 14),
+                      GridView.count(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        childAspectRatio: 2.2,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
                         children: [
-                          _buildSpecCard(palette, 'Size', stone.size),
-                          _buildSpecCard(palette, 'Thickness', stone.thickness),
-                          _buildSpecCard(palette, 'Finish', stone.finish),
-                          _buildSpecCard(palette, 'Texture', stone.texture),
-                          _buildSpecCard(palette, 'Sqft/Box', '${stone.sqftPerBox}'),
-                          _buildSpecCard(palette, 'Pieces/Box', '${stone.piecesPerBox}'),
+                          _buildSpecTile(palette, 'Finish', stone.finish.isEmpty ? 'Polished' : stone.finish),
+                          _buildSpecTile(palette, 'Thickness', stone.thickness.isEmpty ? '20 mm' : stone.thickness),
+                          _buildSpecTile(palette, 'Slab Size', stone.size.isEmpty ? '120" x 75" (Jumbo)' : stone.size),
+                          _buildSpecTile(palette, 'Origin', (stone.origin != null && stone.origin!.isNotEmpty) ? stone.origin! : 'Italy / Carrara'),
+                          _buildSpecTile(palette, 'Texture', stone.texture.isEmpty ? 'Fine Veined' : stone.texture),
+                          _buildSpecTile(palette, 'Absorption', '< 0.15% (Waterproof)'),
                         ],
                       ),
-                      
-                      GLuxurySpacing.gapXl,
-                      
+
+                      const SizedBox(height: 28),
+
+                      // 5. Area & Cost Estimator Card
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: palette.surface,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: palette.border),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.02),
+                              blurRadius: 10,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.calculate_outlined, color: palette.primary, size: 20),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Area & Material Estimator',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: palette.textPrimary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Surface Area Required (sq ft)',
+                              style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary),
+                            ),
+                            const SizedBox(height: 8),
+                            SliderTheme(
+                              data: SliderTheme.of(context).copyWith(
+                                activeTrackColor: palette.primary,
+                                inactiveTrackColor: palette.border,
+                                thumbColor: palette.primary,
+                                overlayColor: palette.primary.withValues(alpha: 0.1),
+                              ),
+                              child: Slider(
+                                value: _areaSqFt,
+                                min: 20,
+                                max: 1000,
+                                divisions: 98,
+                                label: '${_areaSqFt.toInt()} sq ft',
+                                onChanged: (v) => setState(() => _areaSqFt = v),
+                              ),
+                            ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('${_areaSqFt.toInt()} sq ft', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: palette.textPrimary)),
+                                Text('Wastage buffer:', style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary)),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [5, 10, 15].map((percent) {
+                                final isSelected = (_wastagePercent * 100).toInt() == percent;
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: ChoiceChip(
+                                    label: Text('$percent% ${percent == 10 ? '(Rec.)' : ''}'),
+                                    selected: isSelected,
+                                    onSelected: (_) => setState(() => _wastagePercent = percent / 100.0),
+                                    selectedColor: palette.primary.withValues(alpha: 0.15),
+                                    labelStyle: GoogleFonts.inter(
+                                      fontSize: 11,
+                                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                      color: isSelected ? palette.primary : palette.textSecondary,
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                            const Divider(height: 28),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('Total Area (incl. buffer):', style: GoogleFonts.inter(fontSize: 13, color: palette.textSecondary)),
+                                Text('${totalAreaWithWastage.toInt()} sq ft', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: palette.textPrimary)),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('Estimated Slabs Needed:', style: GoogleFonts.inter(fontSize: 13, color: palette.textSecondary)),
+                                Text('$slabsNeeded slabs', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: palette.textPrimary)),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('Est. Material Cost:', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: palette.textPrimary)),
+                                Text(
+                                  '₹${totalEstimatedCost.toInt()}',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: palette.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 28),
+
                       // Description
                       Text(
-                        'Description',
-                        style: GLuxuryTypography.h2.copyWith(color: palette.textPrimary),
+                        'ABOUT THIS SURFACE',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.8,
+                          color: palette.textTertiary,
+                        ),
                       ),
-                      GLuxurySpacing.gapSm,
+                      const SizedBox(height: 10),
                       Text(
-                        stone.description,
-                        style: GLuxuryTypography.bodyLarge.copyWith(
+                        stone.description.isEmpty
+                            ? 'A masterclass in natural stone aesthetics. Sourced from premier quarries with bookmatched slab availability for dramatic architectural statements.'
+                            : stone.description,
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
                           color: palette.textSecondary,
-                          height: 1.6,
+                          height: 1.5,
                         ),
                       ),
-                      
-                      GLuxurySpacing.gapXl,
-                      
-                      // Ideal For
-                      if (stone.idealFor.isNotEmpty) ...[
-                        Text(
-                          'Ideal For',
-                          style: GLuxuryTypography.h2.copyWith(color: palette.textPrimary),
-                        ),
-                        GLuxurySpacing.gapSm,
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: stone.idealFor.map((app) {
-                            return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: palette.surface,
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: palette.border),
-                              ),
-                              child: Text(
-                                app,
-                                style: GLuxuryTypography.bodySmall.copyWith(
-                                  color: palette.textSecondary,
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                        GLuxurySpacing.gapXl,
-                      ],
-                      
-                      // Available Colors
-                      if (stone.availableColors.isNotEmpty) ...[
-                        Text(
-                          'Available Colors',
-                          style: GLuxuryTypography.h2.copyWith(color: palette.textPrimary),
-                        ),
-                        GLuxurySpacing.gapSm,
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: stone.availableColors.map((color) {
-                            return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                              decoration: BoxDecoration(
-                                gradient: palette.primaryGradient,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                color,
-                                style: GLuxuryTypography.bodySmall.copyWith(
-                                  color: palette.background,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ],
-                      
-                      SizedBox(height: 120),
+
+                      const SizedBox(height: 120),
                     ],
                   ),
                 ),
               ),
             ],
           ),
-          
-          // Bottom Action Bar
+
+          // 6. Sticky Bottom Action Bar
           Positioned(
             bottom: 0,
             left: 0,
             right: 0,
             child: Container(
               padding: EdgeInsets.only(
-                left: 16,
-                right: 16,
-                top: 16,
-                bottom: MediaQuery.of(context).padding.bottom + 16,
+                left: 18,
+                right: 18,
+                top: 14,
+                bottom: MediaQuery.of(context).padding.bottom + 14,
               ),
               decoration: BoxDecoration(
-                color: palette.background,
-                border: Border(top: BorderSide(color: palette.border, width: 0.5)),
+                color: palette.surface,
+                border: Border(top: BorderSide(color: palette.border, width: 1.0)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 16,
+                    offset: const Offset(0, -4),
+                  ),
+                ],
               ),
               child: Row(
                 children: [
                   Expanded(
-                    child: _buildActionButton(
-                      palette,
-                      'Add to Cart',
-                      Icons.shopping_cart_outlined,
-                      () {
-                        HapticFeedback.mediumImpact();
-                        // Add to cart logic
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Added to cart'),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                      },
-                      isPrimary: true,
+                    flex: 1,
+                    child: OutlinedButton(
+                      onPressed: () => context.push('/sample-order'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: palette.textPrimary,
+                        side: BorderSide(color: palette.border, width: 1.2),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: Text(
+                        'Order Sample',
+                        style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: _buildActionButton(
-                      palette,
-                      'Sample Order',
-                      Icons.inventory_2_outlined,
-                      () => context.push('/sample-order'),
-                      isPrimary: false,
+                    flex: 2,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        HapticFeedback.mediumImpact();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('${stone.name} added to project'),
+                            backgroundColor: palette.primary,
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: palette.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 0,
+                      ),
+                      child: Text(
+                        'Add to Project / Quote',
+                        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700),
+                      ),
                     ),
                   ),
                 ],
@@ -464,41 +595,9 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
     );
   }
 
-  Widget _buildQuickAction(LuxuryPalette palette, IconData icon, String label, VoidCallback onTap) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: palette.surface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: palette.border),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: palette.primary, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: GLuxuryTypography.labelMedium.copyWith(
-                  color: palette.textPrimary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSpecCard(LuxuryPalette palette, String label, String value) {
+  Widget _buildSpecTile(LuxuryPalette palette, String label, String value) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: palette.surface,
         borderRadius: BorderRadius.circular(12),
@@ -506,60 +605,20 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
             label,
-            style: GLuxuryTypography.labelSmall.copyWith(
-              color: palette.textTertiary,
-              fontSize: 11,
-            ),
+            style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w500, color: palette.textTertiary),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(
             value,
-            style: GLuxuryTypography.bodyMedium.copyWith(
-              color: palette.textPrimary,
-              fontWeight: FontWeight.w600,
-            ),
+            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: palette.textPrimary),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildActionButton(LuxuryPalette palette, String label, IconData icon, VoidCallback onTap, {required bool isPrimary}) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(28),
-        child: Container(
-          height: 56,
-          decoration: BoxDecoration(
-            gradient: isPrimary ? palette.primaryGradient : null,
-            color: isPrimary ? null : palette.surface,
-            borderRadius: BorderRadius.circular(28),
-            border: isPrimary ? null : Border.all(color: palette.border),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                color: isPrimary ? palette.background : palette.primary,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: GLuxuryTypography.labelLarge.copyWith(
-                  color: isPrimary ? palette.background : palette.textPrimary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

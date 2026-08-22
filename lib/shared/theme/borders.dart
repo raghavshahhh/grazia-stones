@@ -45,21 +45,21 @@ class GLuxuryBorders {
   );
 
   // ── Pre-built Borders ──
-  static BorderSide hairline({Color color = const Color(0xFF2A2A2A)}) =>
+  static BorderSide hairline({Color color = const Color(0xFFE8E6E1)}) =>
       BorderSide(color: color, width: 0.5);
 
-  static BorderSide thin({Color color = const Color(0xFF3A3A3A)}) =>
+  static BorderSide thin({Color color = const Color(0xFFE8E6E1)}) =>
       BorderSide(color: color, width: 1);
 
-  static BorderSide medium({Color color = const Color(0xFF4A4A4A)}) =>
+  static BorderSide medium({Color color = const Color(0xFFD4D2CD)}) =>
       BorderSide(color: color, width: 1.5);
 
-  static BorderSide thick({Color color = const Color(0xFF5A5A5A)}) =>
+  static BorderSide thick({Color color = const Color(0xFFB99A5B)}) =>
       BorderSide(color: color, width: 2);
 
   // ── Gold Accent Border ──
   static BorderSide goldAccent = const BorderSide(
-    color: Color(0xFFC9A96E),
+    color: Color(0xFFB99A5B),
     width: 1.5,
   );
 
@@ -69,7 +69,7 @@ class GLuxuryBorders {
     top: Radius.circular(xxl),
   );
   static BorderRadius get chipRadius => radiusFull;
-  static BorderRadius get buttonRadius => radiusFull;
+  static BorderRadius get buttonRadius => radiusMd;
   static BorderRadius get inputRadius => radiusMd;
   static BorderRadius get avatarRadius => radiusFull;
 }

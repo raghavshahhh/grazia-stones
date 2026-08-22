@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/providers/stone_providers.dart';
 import 'package:grazia_stones/core/utils/validators.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
-import 'package:grazia_stones/shared/theme/typography.dart';
-import 'package:grazia_stones/shared/theme/spacing.dart';
+import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 
 class QuoteRequestScreen extends ConsumerStatefulWidget {
@@ -44,7 +44,10 @@ class _QuoteRequestScreenState extends ConsumerState<QuoteRequestScreen> {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedStones.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select at least one stone')),
+        SnackBar(
+          content: Text('Please select at least one stone', style: GoogleFonts.inter()),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
       return;
     }
@@ -56,7 +59,11 @@ class _QuoteRequestScreenState extends ConsumerState<QuoteRequestScreen> {
       if (mounted) {
         setState(() => _isSubmitting = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Quote request submitted! We\'ll contact you soon.'), backgroundColor: Colors.green),
+          SnackBar(
+            content: Text('Quote request submitted! We will contact you soon.', style: GoogleFonts.inter()),
+            backgroundColor: Colors.green.shade700,
+            behavior: SnackBarBehavior.floating,
+          ),
         );
         context.pop();
       }
@@ -65,7 +72,7 @@ class _QuoteRequestScreenState extends ConsumerState<QuoteRequestScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final palette = GLuxuryPalettes.gold;
+    final palette = ref.watch(themePaletteProvider);
     final stonesAsync = ref.watch(allStonesProvider);
     final stones = stonesAsync.valueOrNull ?? [];
 
@@ -74,68 +81,102 @@ class _QuoteRequestScreenState extends ConsumerState<QuoteRequestScreen> {
       appBar: AppBar(
         backgroundColor: palette.background,
         elevation: 0,
+        scrolledUnderElevation: 0,
         leading: IconButton(
           onPressed: () => context.pop(),
-          icon: Icon(Icons.arrow_back_ios_new, color: palette.textPrimary),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
         ),
         title: Text(
-          'Request Quote',
-          style: GLuxuryTypography.h2.copyWith(color: palette.textPrimary),
+          'Project Quote Request',
+          style: GoogleFonts.playfairDisplay(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            color: palette.textPrimary,
+          ),
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Info
+              // Info Card
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  gradient: palette.primaryGradient,
-                  borderRadius: BorderRadius.circular(12),
+                  color: palette.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: palette.border),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.description_outlined, color: palette.background, size: 24),
-                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: palette.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(Icons.architecture_outlined, color: palette.primary, size: 22),
+                    ),
+                    const SizedBox(width: 14),
                     Expanded(
-                      child: Text(
-                        'Get customized pricing for your project',
-                        style: GLuxuryTypography.bodyMedium.copyWith(color: palette.background),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Architectural Procurement',
+                            style: GoogleFonts.playfairDisplay(
+                              color: palette.textPrimary,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Detailed project takeoff & volume commercial quotation.',
+                            style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
               
-              GLuxurySpacing.gapXl,
+              const SizedBox(height: 24),
               
               // Contact Details
-              Text('Contact Details', style: GLuxuryTypography.h3.copyWith(color: palette.textPrimary)),
-              GLuxurySpacing.gapBase,
+              Text(
+                'CONTACT INFORMATION',
+                style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.6, color: palette.textTertiary),
+              ),
+              const SizedBox(height: 12),
               
               _buildTextField(palette, 'Full Name', _nameController, Validators.validateName, Icons.person_outline),
-              GLuxurySpacing.gapBase,
+              const SizedBox(height: 14),
               
-              _buildTextField(palette, 'Phone', _phoneController, Validators.validatePhone, Icons.phone_outlined, keyboardType: TextInputType.phone),
-              GLuxurySpacing.gapBase,
+              _buildTextField(palette, 'Phone Number', _phoneController, Validators.validatePhone, Icons.phone_outlined, keyboardType: TextInputType.phone),
+              const SizedBox(height: 14),
               
-              _buildTextField(palette, 'Email', _emailController, Validators.validateEmail, Icons.email_outlined, keyboardType: TextInputType.emailAddress),
+              _buildTextField(palette, 'Email Address', _emailController, Validators.validateEmail, Icons.email_outlined, keyboardType: TextInputType.emailAddress),
               
-              GLuxurySpacing.gapXl,
+              const SizedBox(height: 24),
               
               // Project Details
-              Text('Project Details', style: GLuxuryTypography.h3.copyWith(color: palette.textPrimary)),
-              GLuxurySpacing.gapBase,
+              Text(
+                'PROJECT SPECIFICATIONS',
+                style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.6, color: palette.textTertiary),
+              ),
+              const SizedBox(height: 12),
               
               _buildTextField(palette, 'Project Name', _projectNameController, (v) => v?.isEmpty ?? true ? 'Project name is required' : null, Icons.business_outlined),
-              GLuxurySpacing.gapBase,
+              const SizedBox(height: 14),
               
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
                 decoration: BoxDecoration(
                   color: palette.surface,
                   borderRadius: BorderRadius.circular(12),
@@ -145,33 +186,40 @@ class _QuoteRequestScreenState extends ConsumerState<QuoteRequestScreen> {
                   initialValue: _projectType,
                   decoration: InputDecoration(
                     labelText: 'Project Type',
-                    prefixIcon: Icon(Icons.category_outlined, color: palette.textTertiary),
+                    labelStyle: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary),
+                    prefixIcon: Icon(Icons.category_outlined, color: palette.primary, size: 20),
                     border: InputBorder.none,
                   ),
                   items: ['Residential', 'Commercial', 'Hotel', 'Restaurant', 'Office', 'Other']
-                      .map((type) => DropdownMenuItem(value: type, child: Text(type)))
+                      .map((type) => DropdownMenuItem(value: type, child: Text(type, style: GoogleFonts.inter(color: palette.textPrimary))))
                       .toList(),
                   onChanged: (v) => setState(() => _projectType = v!),
                 ),
               ),
-              GLuxurySpacing.gapBase,
+              const SizedBox(height: 14),
               
               _buildTextField(palette, 'Approx. Area (sq ft)', _sqftController, (v) => v?.isEmpty ?? true ? 'Area is required' : null, Icons.square_foot_outlined, keyboardType: TextInputType.number),
-              GLuxurySpacing.gapBase,
+              const SizedBox(height: 14),
               
-              _buildTextField(palette, 'Additional Notes (Optional)', _notesController, null, Icons.notes_outlined, maxLines: 4),
+              _buildTextField(palette, 'Additional Notes & Edge Details', _notesController, null, Icons.notes_outlined, maxLines: 3),
               
-              GLuxurySpacing.gapXl,
+              const SizedBox(height: 24),
               
               // Stone selection
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Select Stones', style: GLuxuryTypography.h3.copyWith(color: palette.textPrimary)),
-                  Text('${_selectedStones.length} selected', style: GLuxuryTypography.bodySmall.copyWith(color: palette.textTertiary)),
+                  Text(
+                    'SELECT STONE SLABS',
+                    style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.6, color: palette.textTertiary),
+                  ),
+                  Text(
+                    '${_selectedStones.length} selected',
+                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: palette.primary),
+                  ),
                 ],
               ),
-              GLuxurySpacing.gapSm,
+              const SizedBox(height: 12),
               
               ListView.builder(
                 shrinkWrap: true,
@@ -180,43 +228,47 @@ class _QuoteRequestScreenState extends ConsumerState<QuoteRequestScreen> {
                 itemBuilder: (context, i) {
                   final stone = stones[i];
                   final isSelected = _selectedStones.contains(stone.id);
-                  return CheckboxListTile(
-                    value: isSelected,
-                    onChanged: (v) {
-                      setState(() {
-                        if (v == true) {
-                          _selectedStones.add(stone.id);
-                        } else {
-                          _selectedStones.remove(stone.id);
-                        }
-                      });
-                      HapticFeedback.selectionClick();
-                    },
-                    title: Text(stone.name, style: GLuxuryTypography.bodyMedium.copyWith(color: palette.textPrimary)),
-                    subtitle: Text(stone.collection, style: GLuxuryTypography.bodySmall.copyWith(color: palette.textSecondary)),
-                    secondary: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: SizedBox(
-                        width: 50,
-                        height: 50,
-                        child: SmartStoneImage(
-                          imageUrl: stone.imageUrl,
-                          width: 50,
-                          height: 50,
-                          palette: palette,
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    decoration: BoxDecoration(
+                      color: palette.surface,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: isSelected ? palette.primary : palette.border, width: isSelected ? 1.5 : 1),
+                    ),
+                    child: CheckboxListTile(
+                      value: isSelected,
+                      onChanged: (v) {
+                        setState(() {
+                          if (v == true) {
+                            _selectedStones.add(stone.id);
+                          } else {
+                            _selectedStones.remove(stone.id);
+                          }
+                        });
+                        HapticFeedback.selectionClick();
+                      },
+                      title: Text(stone.name, style: GoogleFonts.playfairDisplay(color: palette.textPrimary, fontWeight: FontWeight.w700, fontSize: 15)),
+                      subtitle: Text(stone.collection, style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 12)),
+                      secondary: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: SizedBox(
+                          width: 48,
+                          height: 48,
+                          child: SmartStoneImage(
+                            imageUrl: stone.imageUrl,
+                            width: 48,
+                            height: 48,
+                            palette: palette,
+                          ),
                         ),
                       ),
+                      activeColor: palette.primary,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
                     ),
-                    activeColor: palette.primary,
-                    tileColor: palette.surface,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: isSelected ? palette.primary : palette.border),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   );
                 },
-              ).separated(const SizedBox(height: 12)),
+              ),
               
               const SizedBox(height: 100),
             ],
@@ -225,27 +277,27 @@ class _QuoteRequestScreenState extends ConsumerState<QuoteRequestScreen> {
       ),
       bottomNavigationBar: Container(
         padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          top: 16,
-          bottom: MediaQuery.of(context).padding.bottom + 16,
+          left: 18,
+          right: 18,
+          top: 14,
+          bottom: MediaQuery.of(context).padding.bottom + 14,
         ),
         decoration: BoxDecoration(
-          color: palette.background,
+          color: palette.surface,
           border: Border(top: BorderSide(color: palette.border)),
         ),
         child: ElevatedButton.icon(
           onPressed: _isSubmitting ? null : _submitQuote,
           icon: _isSubmitting
-              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : const Icon(Icons.send_outlined),
-          label: Text(_isSubmitting ? 'Submitting...' : 'Submit Request'),
+              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.send_rounded, size: 16),
+          label: Text(_isSubmitting ? 'Submitting Quote...' : 'Submit Quote Request', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
           style: ElevatedButton.styleFrom(
             backgroundColor: palette.primary,
-            foregroundColor: palette.background,
-            padding: const EdgeInsets.symmetric(vertical: 18),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-            disabledBackgroundColor: palette.surfaceDark,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            elevation: 0,
           ),
         ),
       ),
@@ -266,22 +318,18 @@ class _QuoteRequestScreenState extends ConsumerState<QuoteRequestScreen> {
       validator: validator,
       keyboardType: keyboardType,
       maxLines: maxLines,
-      style: GLuxuryTypography.bodyMedium.copyWith(color: palette.textPrimary),
+      style: GoogleFonts.inter(color: palette.textPrimary, fontSize: 14, fontWeight: FontWeight.w500),
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon, color: palette.textTertiary),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: palette.border)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: palette.border)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: palette.primary, width: 2)),
+        labelStyle: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary),
+        prefixIcon: Icon(icon, color: palette.primary, size: 20),
         filled: true,
         fillColor: palette.surface,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: palette.border)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: palette.border)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: palette.primary, width: 1.5)),
       ),
     );
-  }
-}
-
-extension _ListSeparated<T extends Widget> on ListView {
-  ListView separated(Widget separator) {
-    return this;
   }
 }

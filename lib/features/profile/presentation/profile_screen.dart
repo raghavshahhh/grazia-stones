@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
-import 'package:grazia_stones/shared/theme/typography.dart';
-import 'package:grazia_stones/shared/theme/spacing.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/features/cart/presentation/cart_screen.dart';
 import 'package:grazia_stones/features/profile/presentation/edit_profile_screen.dart';
@@ -27,20 +26,24 @@ class ProfileScreen extends ConsumerWidget {
           // Header
           SliverToBoxAdapter(
             child: Container(
-              decoration: BoxDecoration(gradient: palette.heroGradient),
+              color: palette.surface,
               child: Column(
                 children: [
-                  SizedBox(height: MediaQuery.of(context).padding.top + 12),
+                  SizedBox(height: MediaQuery.of(context).padding.top + 16),
 
                   // Top row
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'Profile',
-                          style: GLuxuryTypography.h2.copyWith(color: palette.textPrimary),
+                          'Architect Account',
+                          style: GoogleFonts.playfairDisplay(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                            color: palette.textPrimary,
+                          ),
                         ),
                         // Theme toggle
                         GestureDetector(
@@ -49,9 +52,9 @@ class ProfileScreen extends ConsumerWidget {
                             ref.read(themePaletteProvider.notifier).toggleTheme();
                           },
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
-                              color: palette.surface,
+                              color: palette.surfaceDark,
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(color: palette.border),
                             ),
@@ -59,15 +62,16 @@ class ProfileScreen extends ConsumerWidget {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
-                                  isDark ? Icons.wb_sunny_outlined : Icons.nightlight_round_outlined,
-                                  size: 16,
+                                  isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+                                  size: 15,
                                   color: palette.primary,
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  isDark ? 'Light Mode' : 'Dark Mode',
-                                  style: GLuxuryTypography.labelSmall.copyWith(
+                                  isDark ? 'Light' : 'Dark',
+                                  style: GoogleFonts.inter(
                                     color: palette.textPrimary,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
@@ -79,35 +83,38 @@ class ProfileScreen extends ConsumerWidget {
                     ),
                   ),
 
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
 
-                  // Profile card
+                  // Profile Card
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
                     child: Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        gradient: palette.primaryGradient,
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: palette.primary.withValues(alpha: 0.3),
-                            blurRadius: 24,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
+                        color: palette.background,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: palette.border),
                       ),
                       child: Row(
                         children: [
                           Container(
-                            width: 72,
-                            height: 72,
+                            width: 64,
+                            height: 64,
                             decoration: BoxDecoration(
-                              color: palette.background.withValues(alpha: 0.2),
+                              color: palette.primary.withValues(alpha: 0.12),
                               shape: BoxShape.circle,
-                              border: Border.all(color: palette.background.withValues(alpha: 0.4), width: 2),
+                              border: Border.all(color: palette.primary.withValues(alpha: 0.3), width: 1.5),
                             ),
-                            child: Icon(Icons.person, size: 38, color: palette.background),
+                            child: Center(
+                              child: Text(
+                                'RS',
+                                style: GoogleFonts.playfairDisplay(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w800,
+                                  color: palette.primary,
+                                ),
+                              ),
+                            ),
                           ),
                           const SizedBox(width: 16),
                           Expanded(
@@ -116,23 +123,26 @@ class ProfileScreen extends ConsumerWidget {
                               children: [
                                 Text(
                                   'Raghav Shah',
-                                  style: GLuxuryTypography.h2.copyWith(
-                                    color: palette.background,
+                                  style: GoogleFonts.playfairDisplay(
+                                    color: palette.textPrimary,
                                     fontWeight: FontWeight.w700,
+                                    fontSize: 18,
                                   ),
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 2),
                                 Text(
                                   'raghav@grazia.com',
-                                  style: GLuxuryTypography.bodySmall.copyWith(
-                                    color: palette.background.withValues(alpha: 0.85),
+                                  style: GoogleFonts.inter(
+                                    color: palette.textSecondary,
+                                    fontSize: 12,
                                   ),
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 2),
                                 Text(
                                   '+91 98765 43210',
-                                  style: GLuxuryTypography.bodySmall.copyWith(
-                                    color: palette.background.withValues(alpha: 0.75),
+                                  style: GoogleFonts.inter(
+                                    color: palette.textTertiary,
+                                    fontSize: 11,
                                   ),
                                 ),
                               ],
@@ -148,12 +158,13 @@ class ProfileScreen extends ConsumerWidget {
                               );
                             },
                             child: Container(
-                              padding: const EdgeInsets.all(10),
+                              padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: palette.background.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(12),
+                                color: palette.surface,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: palette.border),
                               ),
-                              child: Icon(Icons.edit_outlined, color: palette.background, size: 18),
+                              child: Icon(Icons.edit_outlined, color: palette.primary, size: 16),
                             ),
                           ),
                         ],
@@ -161,18 +172,18 @@ class ProfileScreen extends ConsumerWidget {
                     ),
                   ),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 18),
 
-                  // Stats bar
+                  // Stats Bar
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
                     child: Row(
                       children: [
                         _StatTile(
                           palette: palette,
                           label: 'Orders',
                           value: '3',
-                          icon: Icons.shopping_bag_outlined,
+                          icon: Icons.inventory_2_outlined,
                           onTap: () => context.push('/orders'),
                         ),
                         const SizedBox(width: 10),
@@ -186,10 +197,10 @@ class ProfileScreen extends ConsumerWidget {
                         const SizedBox(width: 10),
                         _StatTile(
                           palette: palette,
-                          label: 'Cart',
+                          label: 'In Project',
                           value: '$cartCount',
-                          icon: Icons.shopping_cart_outlined,
-                          onTap: () {},
+                          icon: Icons.shopping_bag_outlined,
+                          onTap: () => context.push('/cart'),
                         ),
                       ],
                     ),
@@ -203,66 +214,51 @@ class ProfileScreen extends ConsumerWidget {
 
           // Menu items
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
             sliver: SliverToBoxAdapter(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _SectionLabel(label: 'My Activity', palette: palette),
-                  GLuxurySpacing.gapSm,
+                  _SectionLabel(label: 'PROJECT & PROCUREMENT', palette: palette),
+                  const SizedBox(height: 8),
                   _MenuItem(
                     palette: palette,
-                    icon: Icons.shopping_bag_outlined,
+                    icon: Icons.inventory_2_outlined,
                     title: 'My Orders',
-                    subtitle: '3 recent orders',
+                    subtitle: '3 orders in delivery / production',
                     onTap: () => context.push('/orders'),
                   ),
                   _MenuItem(
                     palette: palette,
                     icon: Icons.favorite_border_rounded,
-                    title: 'Wishlist',
-                    subtitle: '5 saved stones',
+                    title: 'Saved Specifications',
+                    subtitle: '5 bookmarked stone slabs',
                     onTap: () => context.push('/wishlist'),
                   ),
                   _MenuItem(
                     palette: palette,
                     icon: Icons.request_quote_outlined,
-                    title: 'My Quotes',
-                    subtitle: 'View quote requests',
+                    title: 'Project Quotes',
+                    subtitle: 'Architectural pricing requests',
                     onTap: () => context.push('/quotes'),
                   ),
                   _MenuItem(
                     palette: palette,
-                    icon: Icons.inventory_2_outlined,
+                    icon: Icons.texture_outlined,
                     title: 'Sample Orders',
-                    subtitle: 'Track samples',
+                    subtitle: 'Track physical 4x4 swatches',
                     onTap: () => context.push('/sample-order'),
                   ),
 
-                  GLuxurySpacing.gapBase,
-                  _SectionLabel(label: 'Preferences', palette: palette),
-                  GLuxurySpacing.gapSm,
+                  const SizedBox(height: 20),
+                  _SectionLabel(label: 'PREFERENCES & ADDRESSES', palette: palette),
+                  const SizedBox(height: 8),
 
                   _MenuItem(
                     palette: palette,
-                    icon: isDark ? Icons.wb_sunny_outlined : Icons.nightlight_round_outlined,
-                    title: isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode',
-                    subtitle: isDark ? 'Pearl luxury theme' : 'Gold luxury theme',
-                    trailing: Switch(
-                      value: isDark,
-                      onChanged: (_) {
-                        HapticFeedback.lightImpact();
-                        ref.read(themePaletteProvider.notifier).toggleTheme();
-                      },
-                      activeThumbColor: palette.primary,
-                    ),
-                    onTap: () => ref.read(themePaletteProvider.notifier).toggleTheme(),
-                  ),
-                  _MenuItem(
-                    palette: palette,
                     icon: Icons.location_on_outlined,
-                    title: 'Saved Addresses',
-                    subtitle: 'Manage delivery addresses',
+                    title: 'Delivery Addresses',
+                    subtitle: 'Site locations and billing destinations',
                     onTap: () {
                       Navigator.push(
                         context,
@@ -275,43 +271,43 @@ class ProfileScreen extends ConsumerWidget {
                   _MenuItem(
                     palette: palette,
                     icon: Icons.store_outlined,
-                    title: 'Find Dealers',
-                    subtitle: 'Locate nearby showrooms',
+                    title: 'Dealer & Experience Centers',
+                    subtitle: 'Locate authorized Grazia showrooms',
                     onTap: () => context.push('/dealers'),
                   ),
 
-                  GLuxurySpacing.gapBase,
-                  _SectionLabel(label: 'Support', palette: palette),
-                  GLuxurySpacing.gapSm,
+                  const SizedBox(height: 20),
+                  _SectionLabel(label: 'SUPPORT & BRAND', palette: palette),
+                  const SizedBox(height: 8),
 
                   _MenuItem(
                     palette: palette,
                     icon: Icons.settings_outlined,
                     title: 'Settings',
-                    subtitle: 'App preferences',
+                    subtitle: 'Notifications and app configurations',
                     onTap: () => context.push('/settings'),
                   ),
                   _MenuItem(
                     palette: palette,
-                    icon: Icons.help_outline_rounded,
-                    title: 'Help & Support',
-                    subtitle: 'FAQs and contact',
+                    icon: Icons.support_agent_outlined,
+                    title: 'Architect Concierge',
+                    subtitle: 'Direct WhatsApp and specialist helpline',
                     onTap: () => _showHelp(context, palette),
                   ),
                   _MenuItem(
                     palette: palette,
                     icon: Icons.info_outline_rounded,
-                    title: 'About Grazia',
-                    subtitle: 'Version 2.0.0',
+                    title: 'About Grazia Stones',
+                    subtitle: 'Architectural Stone Catalogue v2.0',
                     onTap: () => _showAbout(context, palette),
                   ),
 
-                  GLuxurySpacing.gapBase,
+                  const SizedBox(height: 16),
                   _MenuItem(
                     palette: palette,
                     icon: Icons.logout_rounded,
-                    title: 'Logout',
-                    subtitle: 'Sign out of your account',
+                    title: 'Sign Out',
+                    subtitle: 'Sign out of this session',
                     isDestructive: true,
                     onTap: () => _confirmLogout(context),
                   ),
@@ -326,30 +322,50 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-
-
   void _showHelp(BuildContext context, LuxuryPalette palette) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (_) => Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: palette.background,
+          color: palette.surface,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: palette.border, borderRadius: BorderRadius.circular(2)))),
-            const SizedBox(height: 16),
-            Text('Help & Support', style: GLuxuryTypography.h2.copyWith(color: palette.textPrimary)),
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: palette.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
             const SizedBox(height: 20),
-            _helpItem(palette, Icons.phone_outlined, 'Call Us', '+91 98765 43210'),
+            Text(
+              'Architect Concierge',
+              style: GoogleFonts.playfairDisplay(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: palette.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Connect with our stone specialist for project consultation.',
+              style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary),
+            ),
+            const SizedBox(height: 20),
+            _helpItem(palette, Icons.phone_outlined, 'Direct Helpline', '+91 98765 43210'),
             const SizedBox(height: 10),
-            _helpItem(palette, Icons.email_outlined, 'Email Us', 'support@grazia.com'),
+            _helpItem(palette, Icons.email_outlined, 'Architect Desk', 'concierge@graziastones.com'),
             const SizedBox(height: 10),
-            _helpItem(palette, Icons.chat_bubble_outline, 'WhatsApp', 'Chat with us 24/7'),
+            _helpItem(palette, Icons.chat_bubble_outline_rounded, 'WhatsApp Concierge', '24/7 Priority Support'),
             const SizedBox(height: 20),
           ],
         ),
@@ -361,7 +377,7 @@ class ProfileScreen extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: palette.surface,
+        color: palette.background,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: palette.border),
       ),
@@ -375,11 +391,24 @@ class ProfileScreen extends ConsumerWidget {
             ),
             child: Icon(icon, color: palette.primary, size: 20),
           ),
-          const SizedBox(width: 12),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: GLuxuryTypography.bodyMedium.copyWith(color: palette.textPrimary, fontWeight: FontWeight.w600)),
-            Text(subtitle, style: GLuxuryTypography.bodySmall.copyWith(color: palette.textSecondary)),
-          ]),
+          const SizedBox(width: 14),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: GoogleFonts.inter(
+                  color: palette.textPrimary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+              Text(
+                subtitle,
+                style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 12),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -395,35 +424,46 @@ class ProfileScreen extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 64,
-              height: 64,
+              width: 56,
+              height: 56,
               decoration: BoxDecoration(
-                gradient: palette.primaryGradient,
-                borderRadius: BorderRadius.circular(18),
+                color: palette.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(16),
               ),
-              child: Icon(Icons.diamond_outlined, color: palette.background, size: 32),
+              child: Icon(Icons.diamond_outlined, color: palette.primary, size: 28),
             ),
-            const SizedBox(height: 16),
-            Text('GRAZIA', style: GLuxuryTypography.h1.copyWith(color: palette.textPrimary)),
-            const SizedBox(height: 6),
-            Text('Premium Stone Catalogue', style: GLuxuryTypography.bodySmall.copyWith(color: palette.textSecondary)),
-            const SizedBox(height: 4),
-            Text('Version 2.0.0', style: GLuxuryTypography.labelSmall.copyWith(color: palette.textTertiary)),
             const SizedBox(height: 16),
             Text(
-              'Grazia brings India\'s finest natural stone collections to your fingertips. AI-powered visualization, AR preview, and seamless ordering.',
-              textAlign: TextAlign.center,
-              style: GLuxuryTypography.bodySmall.copyWith(color: palette.textSecondary),
+              'GRAZIA STONES',
+              style: GoogleFonts.playfairDisplay(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 2,
+                color: palette.textPrimary,
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 4),
+            Text(
+              'Architectural Natural Stone Studio',
+              style: GoogleFonts.inter(fontSize: 11, color: palette.textTertiary),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'Grazia Stones delivers curated Italian, Turkish, and Brazilian natural stones with AI neural lighting and AR spatial preview.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary, height: 1.4),
+            ),
+            const SizedBox(height: 20),
             ElevatedButton(
               onPressed: () => Navigator.pop(context),
               style: ElevatedButton.styleFrom(
                 backgroundColor: palette.primary,
-                foregroundColor: palette.background,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                elevation: 0,
               ),
-              child: const Text('Got it'),
+              child: const Text('Close'),
             ),
           ],
         ),
@@ -436,17 +476,20 @@ class ProfileScreen extends ConsumerWidget {
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          title: const Text('Logout'),
-          content: const Text('Are you sure you want to logout?'),
+          title: Text('Sign Out', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+          content: Text('Are you sure you want to sign out of your account?', style: GoogleFonts.inter(fontSize: 13)),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey)),
+            ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade600, foregroundColor: Colors.white, elevation: 0),
               onPressed: () {
                 Navigator.pop(ctx);
                 context.go('/login');
               },
-              child: const Text('Logout'),
+              child: const Text('Sign Out'),
             ),
           ],
         );
@@ -478,16 +521,26 @@ class _StatTile extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
-            color: palette.surface,
+            color: palette.background,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: palette.border),
           ),
           child: Column(
             children: [
-              Icon(icon, color: palette.primary, size: 22),
+              Icon(icon, color: palette.primary, size: 20),
               const SizedBox(height: 6),
-              Text(value, style: GLuxuryTypography.h2.copyWith(color: palette.textPrimary, fontSize: 20)),
-              Text(label, style: GLuxuryTypography.labelSmall.copyWith(color: palette.textSecondary)),
+              Text(
+                value,
+                style: GoogleFonts.inter(
+                  color: palette.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              Text(
+                label,
+                style: GoogleFonts.inter(fontSize: 11, color: palette.textSecondary),
+              ),
             ],
           ),
         ),
@@ -504,10 +557,11 @@ class _SectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Text(
-      label.toUpperCase(),
-      style: GLuxuryTypography.labelSmall.copyWith(
+      label,
+      style: GoogleFonts.inter(
+        fontSize: 11,
         color: palette.textTertiary,
-        letterSpacing: 1.4,
+        letterSpacing: 1.6,
         fontWeight: FontWeight.w700,
       ),
     );
@@ -521,7 +575,6 @@ class _MenuItem extends StatelessWidget {
   final String subtitle;
   final VoidCallback onTap;
   final bool isDestructive;
-  final Widget? trailing;
 
   const _MenuItem({
     required this.palette,
@@ -530,12 +583,11 @@ class _MenuItem extends StatelessWidget {
     required this.subtitle,
     required this.onTap,
     this.isDestructive = false,
-    this.trailing,
   });
 
   @override
   Widget build(BuildContext context) {
-    final color = isDestructive ? Colors.red : palette.primary;
+    final color = isDestructive ? Colors.red.shade600 : palette.primary;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       child: Material(
@@ -547,7 +599,7 @@ class _MenuItem extends StatelessWidget {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: isDestructive
-                  ? Colors.red.withValues(alpha: 0.05)
+                  ? Colors.red.withValues(alpha: 0.04)
                   : palette.surface,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
@@ -561,7 +613,7 @@ class _MenuItem extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.12),
+                    color: color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(icon, color: color, size: 18),
@@ -573,19 +625,20 @@ class _MenuItem extends StatelessWidget {
                     children: [
                       Text(
                         title,
-                        style: GLuxuryTypography.bodyMedium.copyWith(
-                          color: isDestructive ? Colors.red : palette.textPrimary,
+                        style: GoogleFonts.inter(
+                          color: isDestructive ? Colors.red.shade600 : palette.textPrimary,
                           fontWeight: FontWeight.w600,
+                          fontSize: 13,
                         ),
                       ),
                       Text(
                         subtitle,
-                        style: GLuxuryTypography.bodySmall.copyWith(color: palette.textSecondary),
+                        style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 11),
                       ),
                     ],
                   ),
                 ),
-                trailing ?? Icon(Icons.arrow_forward_ios, size: 14, color: palette.textTertiary),
+                Icon(Icons.arrow_forward_ios_rounded, size: 12, color: palette.textTertiary),
               ],
             ),
           ),

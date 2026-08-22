@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
-import 'package:grazia_stones/shared/theme/typography.dart';
-import 'package:grazia_stones/shared/theme/spacing.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 
 class MeasureScreen extends ConsumerStatefulWidget {
@@ -36,7 +35,7 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
   @override
   void initState() {
     super.initState();
-    _resultController = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
+    _resultController = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
     _resultAnimation = CurvedAnimation(parent: _resultController, curve: Curves.easeOutCubic);
   }
 
@@ -57,19 +56,16 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
 
     if (l == null || w == null || l <= 0 || w <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter valid dimensions')),
+        const SnackBar(content: Text('Please enter valid room dimensions')),
       );
       return;
     }
 
     double area = l * w;
-
-    // Convert to sq ft if needed
     if (_unit == 'meters') area *= 10.764;
     if (_unit == 'inches') area /= 144;
 
     final withWastage = area * (1 + wastage / 100);
-    // Assuming 10.5 sqft per box (standard)
     final boxCount = (withWastage / 10.5).ceil();
 
     setState(() {
@@ -100,44 +96,72 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
       appBar: AppBar(
         backgroundColor: palette.background,
         elevation: 0,
+        scrolledUnderElevation: 0,
         leading: IconButton(
           onPressed: () => context.pop(),
-          icon: Icon(Icons.arrow_back_ios_new, color: palette.textPrimary, size: 20),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
         ),
-        title: Text('Area Calculator', style: GLuxuryTypography.h2.copyWith(color: palette.textPrimary)),
+        title: Text(
+          'Area Estimator',
+          style: GoogleFonts.playfairDisplay(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            color: palette.textPrimary,
+          ),
+        ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Hero banner
+            // Hero Intro Card
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                gradient: palette.primaryGradient,
-                borderRadius: BorderRadius.circular(20),
+                color: palette.surface,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: palette.border),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.02),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
               ),
               child: Row(
                 children: [
-                  Icon(Icons.calculate_outlined, color: palette.background, size: 36),
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: palette.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(Icons.calculate_outlined, color: palette.primary, size: 24),
+                  ),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Stone Coverage Calculator',
-                          style: GLuxuryTypography.h3.copyWith(
-                            color: palette.background,
+                          'Precision Coverage Calculator',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
                             fontWeight: FontWeight.w700,
+                            color: palette.textPrimary,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 2),
                         Text(
-                          'Calculate how many boxes you need',
-                          style: GLuxuryTypography.bodySmall.copyWith(
-                            color: palette.background.withValues(alpha: 0.85),
+                          'Estimate square footage, box requirements and recommended wastage.',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: palette.textSecondary,
+                            height: 1.35,
                           ),
                         ),
                       ],
@@ -147,11 +171,11 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
               ),
             ),
 
-            GLuxurySpacing.gapXl,
+            const SizedBox(height: 24),
 
-            // Unit selector
-            _SectionLabel('Measurement Unit', palette),
-            GLuxurySpacing.gapSm,
+            // Measurement Unit
+            _buildSectionHeader('MEASUREMENT UNIT', palette),
+            const SizedBox(height: 10),
             Row(
               children: _units.map((u) {
                 final isSelected = _unit == u;
@@ -174,9 +198,10 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
                       child: Text(
                         u.toUpperCase(),
                         textAlign: TextAlign.center,
-                        style: GLuxuryTypography.labelSmall.copyWith(
-                          color: isSelected ? palette.background : palette.textSecondary,
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
                           fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                          color: isSelected ? Colors.white : palette.textSecondary,
                           letterSpacing: 0.8,
                         ),
                       ),
@@ -186,11 +211,11 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
               }).toList(),
             ),
 
-            GLuxurySpacing.gapBase,
+            const SizedBox(height: 20),
 
-            // Shape selector
-            _SectionLabel('Room Shape', palette),
-            GLuxurySpacing.gapSm,
+            // Shape Selector
+            _buildSectionHeader('ROOM GEOMETRY', palette),
+            const SizedBox(height: 10),
             Row(
               children: _shapes.map((s) {
                 final isSelected = _shape == s;
@@ -202,32 +227,33 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
                     },
                     child: Container(
                       margin: EdgeInsets.only(right: s != _shapes.last ? 8 : 0),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                       decoration: BoxDecoration(
-                        color: isSelected ? palette.primary.withValues(alpha: 0.15) : palette.surface,
+                        color: isSelected ? palette.primary.withValues(alpha: 0.12) : palette.surface,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: isSelected ? palette.primary : palette.border,
-                          width: isSelected ? 1.5 : 0.8,
+                          width: isSelected ? 1.5 : 1.0,
                         ),
                       ),
                       child: Column(
                         children: [
                           Icon(
-                            s == 'Rectangle' ? Icons.rectangle_outlined
-                              : s == 'L-Shape' ? Icons.turn_right_outlined
-                              : Icons.circle_outlined,
+                            s == 'Rectangle'
+                                ? Icons.rectangle_outlined
+                                : s == 'L-Shape'
+                                    ? Icons.turn_right_outlined
+                                    : Icons.circle_outlined,
                             color: isSelected ? palette.primary : palette.textTertiary,
                             size: 20,
                           ),
                           const SizedBox(height: 4),
                           Text(
                             s,
-                            textAlign: TextAlign.center,
-                            style: GLuxuryTypography.labelSmall.copyWith(
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                               color: isSelected ? palette.primary : palette.textSecondary,
-                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                              fontSize: 10,
                             ),
                           ),
                         ],
@@ -238,15 +264,15 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
               }).toList(),
             ),
 
-            GLuxurySpacing.gapBase,
+            const SizedBox(height: 20),
 
-            // Dimension inputs
-            _SectionLabel('Dimensions', palette),
-            GLuxurySpacing.gapSm,
+            // Dimensions Input
+            _buildSectionHeader('DIMENSIONS', palette),
+            const SizedBox(height: 10),
             Row(
               children: [
                 Expanded(
-                  child: _DimInput(
+                  child: _buildDimInput(
                     controller: _lengthController,
                     label: 'Length',
                     unit: _unit,
@@ -255,7 +281,7 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _DimInput(
+                  child: _buildDimInput(
                     controller: _widthController,
                     label: _shape == 'Circle' ? 'Radius' : 'Width',
                     unit: _unit,
@@ -267,47 +293,43 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
 
             if (_shape == 'L-Shape') ...[
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _DimInput(
-                      controller: _heightController,
-                      label: 'Cut Length',
-                      unit: _unit,
-                      palette: palette,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(child: SizedBox()),
-                ],
+              _buildDimInput(
+                controller: _heightController,
+                label: 'Cutout Length',
+                unit: _unit,
+                palette: palette,
               ),
             ],
 
-            GLuxurySpacing.gapBase,
+            const SizedBox(height: 20),
 
-            // Wastage
-            _SectionLabel('Wastage %', palette),
-            GLuxurySpacing.gapSm,
+            // Wastage Buffer
+            _buildSectionHeader('WASTAGE BUFFER', palette),
+            const SizedBox(height: 10),
             Row(
-              children: [10, 15, 20].map((pct) {
+              children: [5, 10, 15, 20].map((pct) {
                 final isSelected = _wastageController.text == '$pct';
                 return Expanded(
                   child: GestureDetector(
-                    onTap: () => setState(() => _wastageController.text = '$pct'),
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      setState(() => _wastageController.text = '$pct');
+                    },
                     child: Container(
-                      margin: const EdgeInsets.only(right: 8),
+                      margin: EdgeInsets.only(right: pct != 20 ? 8 : 0),
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
-                        color: isSelected ? palette.primary.withValues(alpha: 0.15) : palette.surface,
+                        color: isSelected ? palette.primary.withValues(alpha: 0.12) : palette.surface,
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(color: isSelected ? palette.primary : palette.border),
                       ),
                       child: Text(
-                        '$pct%',
+                        '$pct% ${pct == 10 ? '(Rec.)' : ''}',
                         textAlign: TextAlign.center,
-                        style: GLuxuryTypography.bodySmall.copyWith(
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                           color: isSelected ? palette.primary : palette.textSecondary,
-                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
                         ),
                       ),
                     ),
@@ -316,147 +338,113 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
               }).toList(),
             ),
 
-            GLuxurySpacing.gapXl,
+            const SizedBox(height: 28),
 
-            // Calculate button
+            // Calculate Button
             Row(
               children: [
                 if (_hasResult)
                   Expanded(
                     flex: 1,
-                    child: OutlinedButton.icon(
+                    child: OutlinedButton(
                       onPressed: _reset,
-                      icon: const Icon(Icons.refresh, size: 18),
-                      label: const Text('Reset'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: palette.textSecondary,
                         side: BorderSide(color: palette.border),
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       ),
+                      child: Text('Reset', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600)),
                     ),
                   ),
                 if (_hasResult) const SizedBox(width: 12),
                 Expanded(
                   flex: 2,
-                  child: ElevatedButton.icon(
+                  child: ElevatedButton(
                     onPressed: _calculate,
-                    icon: const Icon(Icons.calculate, size: 18),
-                    label: const Text('Calculate'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: palette.primary,
-                      foregroundColor: palette.background,
-                      padding: const EdgeInsets.symmetric(vertical: 18),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       elevation: 0,
                     ),
+                    child: Text('Calculate Materials', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700)),
                   ),
                 ),
               ],
             ),
 
-            // Results
+            // Results Card
             if (_hasResult) ...[
-              GLuxurySpacing.gapXl,
+              const SizedBox(height: 24),
               AnimatedBuilder(
                 animation: _resultAnimation,
                 builder: (_, child) => Opacity(
                   opacity: _resultAnimation.value,
                   child: Transform.translate(
-                    offset: Offset(0, 20 * (1 - _resultAnimation.value)),
+                    offset: Offset(0, 16 * (1 - _resultAnimation.value)),
                     child: child,
                   ),
                 ),
-                child: _ResultCard(
-                  palette: palette,
-                  area: _totalArea!,
-                  areaWithWastage: _totalWithWastage!,
-                  boxes: _boxes!,
-                  unit: _unit,
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: palette.surface,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: palette.border),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 14,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.verified_outlined, color: palette.primary, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Estimated Material Breakdown',
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: palette.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          _buildResultCell('Net Area', '${_totalArea!.toStringAsFixed(1)} sq ft', palette),
+                          _buildResultCell('With Buffer', '${_totalWithWastage!.toStringAsFixed(1)} sq ft', palette),
+                          _buildResultCell('Boxes Needed', '${_boxes!.toInt()}', palette, isHighlight: true),
+                        ],
+                      ),
+                      const Divider(height: 24),
+                      Text(
+                        '* Standard slab box coverage: ~10.5 sq ft per box.',
+                        style: GoogleFonts.inter(fontSize: 11, color: palette.textTertiary),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
 
-            const SizedBox(height: 40),
+            const SizedBox(height: 28),
 
-            // Camera Scan Section
+            // AR Camera Bridge
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                color: palette.primary.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: palette.primary.withValues(alpha: 0.3),
-                  width: 1,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.camera_alt_outlined, color: palette.primary, size: 22),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Scan Room with Camera',
-                          style: GLuxuryTypography.h3.copyWith(color: palette.textPrimary),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Use AI-powered camera to automatically detect walls and measure your room',
-                    style: GLuxuryTypography.bodySmall.copyWith(color: palette.textSecondary),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () => context.push('/live-ai'),
-                          icon: const Icon(Icons.camera_roll_outlined, size: 18),
-                          label: const Text('Live AI Detection'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: palette.primary,
-                            foregroundColor: palette.background,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                            elevation: 0,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => context.push('/ar-view'),
-                          icon: Icon(Icons.view_in_ar_outlined, size: 18, color: palette.primary),
-                          label: Text(
-                            'AR Visualizer',
-                            style: TextStyle(color: palette.primary),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: palette.primary.withValues(alpha: 0.5)),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 40),
-
-            // Tips
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: palette.surface,
-                borderRadius: BorderRadius.circular(16),
+                color: palette.surfaceDark,
+                borderRadius: BorderRadius.circular(18),
                 border: Border.all(color: palette.border),
               ),
               child: Column(
@@ -464,66 +452,77 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.tips_and_updates_outlined, color: palette.primary, size: 20),
-                      const SizedBox(width: 8),
+                      Icon(Icons.view_in_ar_outlined, color: palette.primary, size: 22),
+                      const SizedBox(width: 10),
                       Text(
-                        'Pro Tips',
-                        style: GLuxuryTypography.h3.copyWith(color: palette.textPrimary),
+                        'Live Camera Measurement',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: palette.textPrimary,
+                        ),
                       ),
                     ],
                   ),
-                  GLuxurySpacing.gapSm,
-                  _Tip('Always add 10-15% wastage for cuts and breakage', palette),
-                  _Tip('For complex patterns, add 20% wastage', palette),
-                  _Tip('1 box covers approx 10.5 sq ft', palette),
-                  _Tip('Measure twice, order once!', palette),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Point your device at your wall to automatically calculate perspective dimensions in real time.',
+                    style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary),
+                  ),
+                  const SizedBox(height: 14),
+                  ElevatedButton.icon(
+                    onPressed: () => context.push('/live-ai'),
+                    icon: const Icon(Icons.videocam_outlined, size: 18),
+                    label: const Text('Open Live AR Camera →'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: palette.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                  ),
                 ],
               ),
             ),
 
-            const SizedBox(height: 40),
+            const SizedBox(height: 80),
           ],
         ),
       ),
     );
   }
-}
 
-class _SectionLabel extends StatelessWidget {
-  final String text;
-  final LuxuryPalette palette;
-  const _SectionLabel(this.text, this.palette);
+  Widget _buildSectionHeader(String title, LuxuryPalette palette) {
+    return Text(
+      title,
+      style: GoogleFonts.inter(
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 1.8,
+        color: palette.textTertiary,
+      ),
+    );
+  }
 
-  @override
-  Widget build(BuildContext context) => Text(
-    text,
-    style: GLuxuryTypography.bodySmall.copyWith(
-      color: palette.textSecondary,
-      fontWeight: FontWeight.w600,
-    ),
-  );
-}
-
-class _DimInput extends StatelessWidget {
-  final TextEditingController controller;
-  final String label;
-  final String unit;
-  final LuxuryPalette palette;
-  const _DimInput({required this.controller, required this.label, required this.unit, required this.palette});
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildDimInput({
+    required TextEditingController controller,
+    required String label,
+    required String unit,
+    required LuxuryPalette palette,
+  }) {
     return TextField(
       controller: controller,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      style: GLuxuryTypography.bodyMedium.copyWith(color: palette.textPrimary),
+      style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: palette.textPrimary),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: GLuxuryTypography.bodySmall.copyWith(color: palette.textSecondary),
+        labelStyle: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary),
         suffixText: unit == 'feet' ? 'ft' : unit == 'meters' ? 'm' : 'in',
-        suffixStyle: GLuxuryTypography.bodySmall.copyWith(color: palette.textTertiary),
+        suffixStyle: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: palette.textTertiary),
         filled: true,
         fillColor: palette.surface,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: palette.border),
@@ -539,107 +538,21 @@ class _DimInput extends StatelessWidget {
       ),
     );
   }
-}
 
-class _ResultCard extends StatelessWidget {
-  final LuxuryPalette palette;
-  final double area;
-  final double areaWithWastage;
-  final double boxes;
-  final String unit;
-  const _ResultCard({required this.palette, required this.area, required this.areaWithWastage, required this.boxes, required this.unit});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: palette.primaryGradient,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: palette.primary.withValues(alpha: 0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.check_circle_outline, color: palette.background, size: 22),
-              const SizedBox(width: 8),
-              Text(
-                'Calculation Result',
-                style: GLuxuryTypography.h3.copyWith(color: palette.background, fontWeight: FontWeight.w700),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              _ResultItem(label: 'Net Area', value: '${area.toStringAsFixed(1)} sq ft', palette: palette),
-              _ResultItem(label: 'With Wastage', value: '${areaWithWastage.toStringAsFixed(1)} sq ft', palette: palette),
-              _ResultItem(label: 'Boxes Needed', value: '${boxes.toInt()}', palette: palette, isBig: true),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            '* Based on 10.5 sq ft per box (standard)',
-            style: GLuxuryTypography.labelSmall.copyWith(color: palette.background.withValues(alpha: 0.7)),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ResultItem extends StatelessWidget {
-  final String label;
-  final String value;
-  final LuxuryPalette palette;
-  final bool isBig;
-  const _ResultItem({required this.label, required this.value, required this.palette, this.isBig = false});
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildResultCell(String label, String value, LuxuryPalette palette, {bool isHighlight = false}) {
     return Expanded(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: GLuxuryTypography.labelSmall.copyWith(color: palette.background.withValues(alpha: 0.7))),
+          Text(label, style: GoogleFonts.inter(fontSize: 11, color: palette.textTertiary)),
           const SizedBox(height: 4),
           Text(
             value,
-            style: (isBig ? GLuxuryTypography.h1 : GLuxuryTypography.h3).copyWith(
-              color: palette.background,
+            style: GoogleFonts.inter(
+              fontSize: isHighlight ? 20 : 15,
               fontWeight: FontWeight.w800,
+              color: isHighlight ? palette.primary : palette.textPrimary,
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Tip extends StatelessWidget {
-  final String text;
-  final LuxuryPalette palette;
-  const _Tip(this.text, this.palette);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.arrow_right, color: palette.primary, size: 18),
-          const SizedBox(width: 4),
-          Expanded(
-            child: Text(text, style: GLuxuryTypography.bodySmall.copyWith(color: palette.textSecondary)),
           ),
         ],
       ),

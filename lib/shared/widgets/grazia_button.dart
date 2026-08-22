@@ -93,7 +93,7 @@ class _GraziaButtonState extends State<GraziaButton>
           borderRadius: BorderRadius.circular(AppDimensions.buttonBorderRadius),
         ),
         padding: const EdgeInsets.symmetric(horizontal: AppDimensions.lg),
-        child: _buildChild(p.background),
+        child: _buildChild(Colors.white),
       ),
     );
   }

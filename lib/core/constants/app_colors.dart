@@ -3,7 +3,17 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
 
-  // ── Primary Palette ──
+  // ── Primary Palette (Light Luxury) ──
+  static const Color warmWhite = Color(0xFFFAFAF8);
+  static const Color pureWhite = Color(0xFFFFFFFF);
+  static const Color surfaceVariant = Color(0xFFF4F3EF);
+  static const Color primaryText = Color(0xFF171717);
+  static const Color secondaryText = Color(0xFF6B6B67);
+  static const Color mutedText = Color(0xFF9A9A94);
+  static const Color borderSubtleLight = Color(0xFFE8E6E1);
+  static const Color borderLightVar = Color(0xFFF0EFEB);
+
+  // ── Legacy Dark / Neutral ──
   static const Color black = Color(0xFF0D0D0D);
   static const Color charcoal = Color(0xFF1A1A1A);
   static const Color graphite = Color(0xFF2D2D2D);
@@ -17,9 +27,9 @@ class AppColors {
   static const Color white = Color(0xFFFFFFFF);
 
   // ── Gold Accent ──
-  static const Color goldWarm = Color(0xFFC9A96E);
-  static const Color goldLight = Color(0xFFD4B97A);
-  static const Color goldDark = Color(0xFFB8944F);
+  static const Color goldWarm = Color(0xFFB99A5B);
+  static const Color goldLight = Color(0xFFC8A96E);
+  static const Color goldDark = Color(0xFFA68542);
 
   // ── Walnut ──
   static const Color walnut = Color(0xFF5C4033);
@@ -28,21 +38,21 @@ class AppColors {
   // ── Aliases (used across screens) ──
   static const Color gold = goldWarm;
   static const Color silver = silverMedium;
-  static const Color surfaceElevated = surfaceLight;
+  static const Color surfaceElevated = pureWhite;
 
   // ── Surface / Background ──
-  static const Color surfaceLight = Color(0xFF222222);
-  static const Color surfaceMedium = Color(0xFF1E1E1E);
-  static const Color surfaceDark = Color(0xFF141414);
+  static const Color surfaceLight = Color(0xFFFFFFFF);
+  static const Color surfaceMedium = Color(0xFFF4F3EF);
+  static const Color surfaceDark = Color(0xFFE8E6E1);
 
   // ── Text ──
-  static const Color textPrimary = Color(0xFFFFFFFF);
-  static const Color textSecondary = Color(0xFFB0B0B0);
-  static const Color textTertiary = Color(0xFF6B6B6B);
+  static const Color textPrimary = Color(0xFF171717);
+  static const Color textSecondary = Color(0xFF6B6B67);
+  static const Color textTertiary = Color(0xFF9A9A94);
 
   // ── Border ──
-  static const Color borderSubtle = Color(0xFF2A2A2A);
-  static const Color borderLight = Color(0xFF3A3A3A);
+  static const Color borderSubtle = Color(0xFFE8E6E1);
+  static const Color borderLight = Color(0xFFF0EFEB);
 
   // ── Semantic ──
   static const Color success = Color(0xFF4CAF50);
