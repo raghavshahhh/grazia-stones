@@ -34,31 +34,118 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
     return stoneAsync.when(
       loading: () => Scaffold(
         backgroundColor: palette.background,
-        body: Center(child: CircularProgressIndicator(color: palette.primary)),
-      ),
-      error: (e, _) => Scaffold(
-        backgroundColor: palette.background,
-        body: Center(
-          child: Text(
-            'Failed to load stone details',
-            style: GoogleFonts.inter(fontSize: 16, color: palette.textSecondary),
+        appBar: AppBar(
+          backgroundColor: palette.background,
+          elevation: 0,
+          leading: IconButton(
+            onPressed: () => context.pop(),
+            icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
           ),
         ),
+        body: Center(child: CircularProgressIndicator(color: palette.primary)),
       ),
+      error: (e, _) => _buildNotFound(palette),
       data: (stone) {
         if (stone == null) {
-          return Scaffold(
-            backgroundColor: palette.background,
-            body: Center(
-              child: Text(
-                'Stone not found',
-                style: GoogleFonts.inter(fontSize: 16, color: palette.textSecondary),
-              ),
-            ),
-          );
+          return _buildNotFound(palette);
         }
         return _buildStoneDetail(palette, stone);
       },
+    );
+  }
+
+  Widget _buildNotFound(LuxuryPalette palette) {
+    return Scaffold(
+      backgroundColor: palette.background,
+      appBar: AppBar(
+        backgroundColor: palette.background,
+        elevation: 0,
+        leading: IconButton(
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/collections');
+            }
+          },
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
+        ),
+        title: Text(
+          'Stone Details',
+          style: GoogleFonts.playfairDisplay(fontSize: 18, fontWeight: FontWeight.w700, color: palette.textPrimary),
+        ),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: palette.surface,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: palette.border),
+                  ),
+                  child: Icon(Icons.search_off_rounded, color: palette.textTertiary, size: 32),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Stone Not Found',
+                  style: GoogleFonts.playfairDisplay(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    color: palette.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'The specific stone surface requested is unavailable or has been re-indexed in our active quarry catalogue.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: palette.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 28),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => context.go('/collections'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: palette.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                    child: Text('Browse Collection', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () => context.go('/home'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: palette.textPrimary,
+                      side: BorderSide(color: palette.border),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text('Back to Home', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 

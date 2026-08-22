@@ -10,6 +10,7 @@ import 'package:grazia_stones/shared/widgets/grazia_text_field.dart';
 import 'package:grazia_stones/shared/widgets/grazia_button.dart';
 import 'package:grazia_stones/core/utils/validators.dart';
 import 'package:grazia_stones/core/di.dart';
+import 'package:grazia_stones/core/utils/user_friendly_error.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -113,10 +114,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
         );
       } else {
         final error = ref.read(authRiverpodProvider).error;
+        final safeMsg = UserFriendlyError.from(
+          error,
+          fallbackMessage: 'Unable to send OTP right now. Please verify your phone number.',
+        ).message;
         setState(() {
           _isLoading = false;
-          _errorMessage = error ?? 'Failed to send OTP';
+          _errorMessage = safeMsg;
         });
+        _triggerShake();
       }
     }
   }
@@ -151,7 +157,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
         context.go('/home');
       } else {
         final error = ref.read(authRiverpodProvider).error;
-        setState(() => _errorMessage = error ?? 'Registration failed');
+        final safeMsg = UserFriendlyError.from(
+          error,
+          fallbackMessage: 'Registration could not be completed. Please check your details and try again.',
+        ).message;
+        setState(() => _errorMessage = safeMsg);
         _triggerShake();
       }
     }

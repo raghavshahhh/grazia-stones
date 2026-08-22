@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+@page {
+  size: A4;
+  margin: 2.2cm 1.8cm 2.4cm 1.8cm;
+  @top-center {
+    content: "RAGSPRO  •  Grazia Stones — Service Agreement";
+    font-size: 8pt; color: #9a8a6a; font-family: Helvetica, Arial, sans-serif;
+    border-bottom: 0.5pt solid #e8e0d0; padding-bottom: 6pt;
+  }
+  @bottom-center {
+    content: "RAGSPRO  |  ragspro.com  |  raghav@ragspro.com    —    Page " counter(page) " of " counter(pages);
+    font-size: 8pt; color: #9a8a6a; font-family: Helvetica, Arial, sans-serif;
+    border-top: 0.5pt solid #e8e0d0; padding-top: 6pt;
+  }
+}
+@page cover {
+  margin: 0;
+  @top-center { content: none; }
+  @bottom-center { content: none; }
+}
+* { box-sizing: border-box; }
+body { font-family: Helvetica, Arial, sans-serif; color: #2a2420; font-size: 10.3pt; line-height: 1.55; margin:0; }
+
+/* ---- COVER ---- */
+.cover { page: cover; page-break-after: always; height: 29.7cm; width: 21cm;
+  background: linear-gradient(160deg, #1c1712 0%, #2b2118 55%, #3d2e1c 100%);
+  color: #f3ead9; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+.cover img.logo { width: 100px; height: 100px; margin-bottom: 28pt; border-radius: 20px; }
+.cover .brand { letter-spacing: 4pt; font-size: 10pt; color: #c9a35a; margin-bottom: 40pt; }
+.cover h1 { font-size: 30pt; margin: 0 0 8pt; font-weight: 700; letter-spacing: 0.5pt; }
+.cover h2 { font-size: 14pt; font-weight: 400; color: #d8c7a3; margin: 0 0 60pt; }
+.cover .meta { font-size: 10pt; color: #cbb98f; line-height: 2; }
+.cover .divider { width: 60pt; height: 2pt; background: #c9a35a; margin: 30pt 0; }
+
+/* ---- SECTIONS ---- */
+.section { margin-bottom: 20pt; }
+.section.keep { page-break-inside: avoid; }
+h3.sec-title { font-size: 13pt; color: #1c1712; border-left: 4pt solid #c9a35a; padding-left: 10pt; margin: 0 0 12pt; page-break-after: avoid; }
+p.lead { color: #4a4038; margin: 0 0 14pt; }
+
+.feature-grid { display: block; }
+.feature-row { display: flex; page-break-inside: avoid; padding: 6pt 0; border-bottom: 0.5pt solid #eee2ca; align-items: flex-start; }
+.feature-row .check { color: #c9a35a; font-weight: 700; width: 20pt; flex-shrink: 0; }
+.feature-row .txt b { display: block; font-size: 10pt; color: #201a14; }
+.feature-row .txt span { font-size: 8.8pt; color: #7a6d5c; }
+
+.callout { page-break-inside: avoid; background: #faf6ec; border: 0.75pt solid #e6d9b8; border-radius: 6pt; padding: 12pt 16pt; margin: 14pt 0; font-size: 9.6pt; color: #4a3f2c; }
+.callout.trust { background: #f2f8f2; border-color: #cfe6cf; color: #2c4a2f; }
+
+.invest-box { page-break-inside: avoid; text-align: center; background: #1c1712; color: #f3ead9; border-radius: 8pt; padding: 22pt 20pt; margin: 10pt 0 4pt; }
+.invest-box .strike { font-size: 11pt; color: #a99a7a; text-decoration: line-through; margin-bottom: 4pt; }
+.invest-box .label { font-size: 9.5pt; letter-spacing: 2pt; color: #c9a35a; margin: 6pt 0 8pt; }
+.invest-box .amount { font-size: 27pt; font-weight: 700; }
+.invest-box .sub { font-size: 8.8pt; color: #cbb98f; margin-top: 6pt; }
+.discount-badge { text-align: center; margin: -2pt 0 14pt; }
+.discount-badge span { display: inline-block; background: #faf6ec; border: 1pt solid #c9a35a; color: #8a6d2f; font-size: 9pt; font-weight: 700; padding: 4pt 14pt; border-radius: 20pt; }
+
+table.pay { width: 100%; border-collapse: collapse; page-break-inside: avoid; margin: 10pt 0 18pt; }
+table.pay th { background: #1c1712; color: #f3ead9; text-align: left; padding: 8pt 10pt; font-size: 9pt; }
+table.pay td { padding: 8pt 10pt; border-bottom: 0.5pt solid #eee2ca; font-size: 9.5pt; }
+table.pay tr:last-child td { font-weight: 700; }
+
+table.timeline { width: 100%; border-collapse: collapse; page-break-inside: avoid; margin: 10pt 0; }
+table.timeline th { background: #1c1712; color: #f3ead9; text-align: left; padding: 8pt 10pt; font-size: 9pt; }
+table.timeline td { padding: 8pt 10pt; border-bottom: 0.5pt solid #eee2ca; font-size: 9.5pt; vertical-align: top; }
+table.timeline td.wk { font-weight: 700; color: #8a6d2f; white-space: nowrap; width: 90pt; }
+table.timeline tr.total td { font-weight: 700; background: #faf6ec; border-top: 1pt solid #c9a35a; }
+
+table.costs { width: 100%; border-collapse: collapse; page-break-inside: avoid; margin: 10pt 0 6pt; }
+table.costs th { background: #2b2118; color: #f3ead9; text-align: left; padding: 8pt 10pt; font-size: 9pt; }
+table.costs td { padding: 8pt 10pt; border-bottom: 0.5pt solid #eee2ca; font-size: 9.3pt; vertical-align: top; }
+table.costs td.amt { font-weight: 700; color: #8a6d2f; white-space: nowrap; }
+table.costs td.who { font-size: 8.6pt; color: #7a6d5c; }
+
+ol.terms, ul.terms { margin: 0 0 10pt; padding-left: 18pt; }
+ol.terms li, ul.terms li { margin-bottom: 5pt; font-size: 9.8pt; color: #3a322a; }
+
+.sign-grid { display: flex; gap: 24pt; margin-top: 20pt; page-break-inside: avoid; }
+.sign-box { flex: 1; border: 0.75pt solid #d8cba8; border-radius: 6pt; padding: 16pt; }
+.sign-box .role { font-size: 9pt; letter-spacing: 1.5pt; color: #8a6d2f; margin-bottom: 14pt; }
+.sign-line { border-bottom: 0.75pt solid #b8a878; margin: 22pt 0 4pt; }
+.sign-label { font-size: 8.4pt; color: #7a6d5c; }
+
+.offer-note { text-align: center; font-size: 9pt; color: #8a6d2f; font-style: italic; margin-top: 16pt; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <img class="logo" src="file:///Users/raghavshah/02_BUSINESS/03_CLIENTS/11_DMS_SECURITY/ragspro-logo.png">
+  <div class="brand">RAGSPRO</div>
+  <h1>Grazia Stones</h1>
+  <h2>AI Smart Estimator — Final Service Agreement</h2>
+  <div class="divider"></div>
+  <div class="meta">
+    Prepared for: Grazia Stones<br>
+    Prepared by: RAGSPRO Digital Solutions — raghav@ragspro.com<br>
+    Agreement Date: August 2026 &nbsp;|&nbsp; Project Ref: GRAZIA-AI-AR-2026-08
+  </div>
+</div>
+
+<div class="section">
+  <h3 class="sec-title">Parties</h3>
+  <p class="lead" style="margin-bottom:6pt;"><strong>Service Provider:</strong> RAGSPRO Digital Solutions, Raghav Shah (Founder) — raghav@ragspro.com, +91 87000 48490<br>
+  <strong>Client:</strong> Grazia Stones</p>
+  <p class="lead">This Agreement finalizes the scope, commercials, and terms for the <strong>Grazia Stones AI Smart Estimator</strong> — as demonstrated live on web during the review meeting — with the refinements requested by the Client now completed and included below.</p>
+</div>
+
+<div class="section">
+  <h3 class="sec-title">1. Scope of Work — What's Included</h3>
+  <div class="feature-grid">
+    <div class="feature-row"><div class="check">✓</div><div class="txt"><b>Real AI Wall Visualization</b><span>AI-generated realistic preview of tiles/stones on a customer's actual wall</span></div></div>
+    <div class="feature-row"><div class="check">✓</div><div class="txt"><b>Real AR — Android + iPhone</b><span>Live camera-based augmented reality placement, no markers needed</span></div></div>
+    <div class="feature-row"><div class="check">✓</div><div class="txt"><b>Automatic Wall Detection</b><span>Detects wall surfaces automatically for accurate AR placement</span></div></div>
+    <div class="feature-row"><div class="check">✓</div><div class="txt"><b>Automatic Tile Fit</b><span>Tiles auto-align and scale to the detected wall dimensions</span></div></div>
+    <div class="feature-row"><div class="check">✓</div><div class="txt"><b>Live Swipe Design Change</b><span>Instantly switch between stone/tile designs while viewing the wall</span></div></div>
+    <div class="feature-row"><div class="check">✓</div><div class="txt"><b>AI Room Photo Mode</b><span>Upload a room photo and visualize tile designs without live AR</span></div></div>
+    <div class="feature-row"><div class="check">✓</div><div class="txt"><b>Wall Measurement</b><span>Height × width measurement directly from the camera</span></div></div>
+    <div class="feature-row"><div class="check">✓</div><div class="txt"><b>Tile Quantity Calculator</b><span>Auto-calculates tile/box quantity needed from wall area</span></div></div>
+    <div class="feature-row"><div class="check">✓</div><div class="txt"><b>Cost Estimator</b><span>Instant price estimate based on selected design and quantity</span></div></div>
+    <div class="feature-row"><div class="check">✓</div><div class="txt"><b>PDF BOQ / Quotation</b><span>Auto-generated, shareable PDF quote for the customer</span></div></div>
+    <div class="feature-row"><div class="check">✓</div><div class="txt"><b>Admin Panel</b><span>Manage products, pricing, designs, and catalogue centrally</span></div></div>
+    <div class="feature-row"><div class="check">✓</div><div class="txt"><b>Dealer Panel & Lead Management</b><span>Dealers get their own login; leads are tracked and assigned</span></div></div>
+    <div class="feature-row"><div class="check">✓</div><div class="txt"><b>Payment Gateway & Online Ordering</b><span>Accept payments and orders directly in-app</span></div></div>
+    <div class="feature-row"><div class="check">✓</div><div class="txt"><b>Play Store + App Store Submission</b><span>Full listing and submission on both platforms (developer account costs listed separately in Section 3)</span></div></div>
+    <div class="feature-row"><div class="check">✓</div><div class="txt"><b>30 Days Post-Launch Support</b><span>Bug fixes and minor adjustments after go-live</span></div></div>
+  </div>
+</div>
+
+<div class="section keep">
+  <h3 class="sec-title">2. Investment — Development Cost</h3>
+  <div class="invest-box">
+    <div class="strike">₹1,49,000</div>
+    <div class="label">SPECIAL DISCOUNTED PRICE</div>
+    <div class="amount">₹1,45,000</div>
+    <div class="sub">One-time development cost — all features in Section 1 included</div>
+  </div>
+  <div class="discount-badge"><span>You save ₹4,000 — loyalty discount for confirming this month</span></div>
+
+  <table class="pay">
+    <tr><th>Milestone</th><th>Payment</th><th>Amount</th></tr>
+    <tr><td>Advance — on agreement sign-off</td><td>40%</td><td>₹58,000</td></tr>
+    <tr><td>Midway — on AI/AR module demo</td><td>30%</td><td>₹43,500</td></tr>
+    <tr><td>On delivery — before store publish</td><td>30%</td><td>₹43,500</td></tr>
+    <tr><td>Total</td><td>100%</td><td>₹1,45,000</td></tr>
+  </table>
+  <p class="lead" style="font-size:9pt; color:#7a6d5c; margin:0;"><strong>GST:</strong> Charged extra @ 18% on invoice, if applicable. <strong>Payment modes:</strong> UPI (raghav@ragspro) / NEFT / RTGS. <strong>Late payment fee:</strong> 2% per week post due date.</p>
+</div>
+
+<div class="section keep">
+  <h3 class="sec-title">3. Third-Party & Operational Costs — Billed Separately at Actual</h3>
+  <p class="lead">These are <strong>not RAGSPRO's fees</strong> — they are pass-through platform/infrastructure costs required to run and publish the app, charged at actual price with <strong>zero markup</strong>. Kept separate so the ₹1,45,000 above stays purely for development.</p>
+  <table class="costs">
+    <tr><th>Item</th><th>Cost</th><th>Billed To / When</th></tr>
+    <tr>
+      <td><strong>Google Play Console — Developer Account</strong><br><span class="who">One-time registration fee, required to publish on Play Store</span></td>
+      <td class="amt">₹2,100<br><span class="who">(one-time)</span></td>
+      <td class="who">Paid once at submission stage. Client's own account (Client retains ownership) or via RAGSPRO at cost.</td>
+    </tr>
+    <tr>
+      <td><strong>Apple Developer Program</strong><br><span class="who">Mandatory annual fee, required to publish on App Store</span></td>
+      <td class="amt">₹8,500<br><span class="who">(per year)</span></td>
+      <td class="who">Paid annually, direct to Apple. Renews every year the app stays live on App Store.</td>
+    </tr>
+    <tr>
+      <td><strong>Backend Server & Database Hosting</strong><br><span class="who">API server, database, image/media storage</span></td>
+      <td class="amt">₹2,500 – ₹4,000<br><span class="who">/ month</span></td>
+      <td class="who">Billed monthly at actual usage. Scales with traffic/orders — starts at the lower end.</td>
+    </tr>
+    <tr>
+      <td><strong>AI Visualization API Usage</strong><br><span class="who">AI wall visualization + AR image processing calls</span></td>
+      <td class="amt">₹3,000 – ₹7,000<br><span class="who">/ month</span></td>
+      <td class="who">Billed monthly at actual consumption only — you pay for what customers actually use, nothing idle.</td>
+    </tr>
+  </table>
+  <div class="callout trust">
+    <strong>Transparency note:</strong> All four items above are shown at real market cost with full visibility — RAGSPRO adds no margin on them. Monthly running cost (server + AI API) is estimated at <strong>₹5,500 – ₹11,000/month</strong> for normal business usage, only once the app is live and being used by customers. Development cost (Section 2) is charged once, regardless of usage.
+  </div>
+</div>
+
+<div class="section">
+  <h3 class="sec-title">4. Timeline</h3>
+  <table class="timeline">
+    <tr><th>Phase</th><th>Deliverable</th></tr>
+    <tr><td class="wk">Week 1–2</td><td>Backend setup, Admin Panel, product & catalogue management</td></tr>
+    <tr><td class="wk">Week 3–4</td><td>Real AI Visualization + Real AR (wall detection, auto tile fit)</td></tr>
+    <tr><td class="wk">Week 5</td><td>Wall measurement, tile calculator, cost estimator, PDF BOQ</td></tr>
+    <tr><td class="wk">Week 6</td><td>Testing, Play Store + App Store submission</td></tr>
+    <tr class="total"><td>Total</td><td>6 weeks from advance payment + go-ahead</td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3 class="sec-title">5. Service Provider Obligations</h3>
+  <ul class="terms">
+    <li>Deliver all items in Section 1 as per agreed scope and timeline.</li>
+    <li>Provide regular progress updates via WhatsApp / email through each phase.</li>
+    <li>Maintain strict confidentiality of Client's business, catalogue, and pricing data.</li>
+    <li>Free bug fixes within 30 days of go-live (Section 1).</li>
+    <li>Hand over complete source code, credentials, and documentation upon final payment.</li>
+    <li>Pass through third-party costs (Section 3) at actual invoice with no added margin.</li>
+  </ul>
+
+  <h3 class="sec-title">6. Client Obligations</h3>
+  <ul class="terms">
+    <li>Provide product catalogue, tile/stone images, pricing sheet, and branding assets within 3 working days of kickoff.</li>
+    <li>Respond to approval/feedback requests within 48 hours to keep the timeline on track.</li>
+    <li>Make milestone payments on time as per Section 2.</li>
+    <li>Provide own Google Play Console and Apple Developer accounts (Section 3), or authorize RAGSPRO to create them on Client's behalf at the listed actual cost.</li>
+    <li>Bear the ongoing operational costs listed in Section 3 once the app goes live.</li>
+  </ul>
+
+  <h3 class="sec-title">7. Intellectual Property</h3>
+  <ul class="terms">
+    <li>All custom code, designs, and assets become the Client's sole property upon final payment (Section 2).</li>
+    <li>Service Provider may showcase anonymised screenshots in its portfolio with prior written consent only.</li>
+  </ul>
+
+  <h3 class="sec-title">8. Confidentiality</h3>
+  <ul class="terms">
+    <li>Both Parties agree to maintain strict confidentiality of all business, technical, and financial information exchanged during the project. NDA available on request.</li>
+  </ul>
+
+  <h3 class="sec-title">9. Limitation of Liability</h3>
+  <ul class="terms">
+    <li>Service Provider's liability is limited to the total development value (₹1,45,000) for direct damages.</li>
+    <li>Not liable for loss of profits, data loss, or third-party claims beyond direct damages.</li>
+    <li>Not liable for costs, delays, or rejections caused by Apple/Google policy changes outside RAGSPRO's control.</li>
+  </ul>
+
+  <h3 class="sec-title">10. Termination</h3>
+  <ul class="terms">
+    <li>Either Party may terminate with 7 days' written notice.</li>
+    <li>If Client terminates after kickoff: work completed till date is billed pro-rata; 50% of the remaining milestone is non-refundable.</li>
+    <li>If Service Provider terminates without cause: full refund of unearned fees.</li>
+  </ul>
+</div>
+
+<div class="section keep">
+  <h3 class="sec-title">11. Service Level Guarantees</h3>
+  <table class="pay">
+    <tr><th>Guarantee</th><th>Detail</th></tr>
+    <tr><td><strong>On-Time Delivery</strong></td><td>Delivered within 6 weeks of go-ahead, else 10% credit on final milestone</td></tr>
+    <tr><td><strong>Bug-Free Guarantee</strong></td><td>Any bugs fixed free within 30 days of go-live</td></tr>
+    <tr><td><strong>App Store Approval</strong></td><td>Rejected due to our technical fault = free resubmission + fixes</td></tr>
+    <tr><td><strong>Cost Transparency</strong></td><td>Section 3 costs always shown at actual invoice — no hidden margin, ever</td></tr>
+  </table>
+</div>
+
+<div class="section keep">
+  <h3 class="sec-title">12. Acceptance & Signatures</h3>
+  <p class="lead">By signing below, both Parties agree to all terms and conditions outlined in this Service Agreement.</p>
+  <div class="sign-grid">
+    <div class="sign-box">
+      <div class="role">FOR RAGSPRO DIGITAL SOLUTIONS</div>
+      <div class="sign-line"></div><div class="sign-label">Name — Raghav Shah, Founder</div>
+      <div class="sign-line"></div><div class="sign-label">Signature</div>
+      <div class="sign-line"></div><div class="sign-label">Date</div>
+    </div>
+    <div class="sign-box">
+      <div class="role">FOR GRAZIA STONES (CLIENT)</div>
+      <div class="sign-line"></div><div class="sign-label">Name & Designation</div>
+      <div class="sign-line"></div><div class="sign-label">Signature</div>
+      <div class="sign-line"></div><div class="sign-label">Date</div>
+    </div>
+  </div>
+  <p class="offer-note">Discounted price of ₹1,45,000 valid for 7 days from date of issue.</p>
+</div>
+
+</body>
+</html>

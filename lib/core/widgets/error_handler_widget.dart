@@ -1,230 +1,176 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../shared/theme/colors.dart';
-import '../../shared/theme/typography.dart';
-import '../../shared/theme/spacing.dart';
-import '../network/exceptions.dart';
+import '../utils/user_friendly_error.dart';
 
-/// Widget to display errors with retry option
+/// Widget to display errors with retry option and luxury aesthetic
 class ErrorHandlerWidget extends StatelessWidget {
   final dynamic error;
   final VoidCallback? onRetry;
+  final String? customTitle;
   final String? customMessage;
+  final LuxuryPalette? palette;
 
   const ErrorHandlerWidget({
     super.key,
     required this.error,
     this.onRetry,
+    this.customTitle,
     this.customMessage,
+    this.palette,
   });
 
   @override
   Widget build(BuildContext context) {
-    final palette = GLuxuryPalettes.gold;
-    final errorInfo = _getErrorInfo(error);
+    final activePalette = palette ?? GLuxuryPalettes.gold;
+    final friendly = UserFriendlyError.from(error, fallbackMessage: customMessage);
 
     return Center(
       child: Padding(
-        padding: GLuxurySpacing.paddingXl,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Error Icon
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: errorInfo.color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(40),
-              ),
-              child: Icon(
-                errorInfo.icon,
-                size: 40,
-                color: errorInfo.color,
-              ),
-            ),
-            
-            GLuxurySpacing.gapXl,
-            
-            // Error Title
-            Text(
-              errorInfo.title,
-              style: GLuxuryTypography.h2.copyWith(
-                color: palette.textPrimary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            
-            GLuxurySpacing.gapSm,
-            
-            // Error Message
-            Text(
-              customMessage ?? errorInfo.message,
-              style: GLuxuryTypography.bodyMedium.copyWith(
-                color: palette.textSecondary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            
-            if (onRetry != null) ...[
-              GLuxurySpacing.gapXl,
-              
-              // Retry Button
-              ElevatedButton.icon(
-                onPressed: onRetry,
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Retry'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: palette.primary,
-                  foregroundColor: palette.background,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 32,
-                    vertical: 16,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24),
-                  ),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Error Icon
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: activePalette.primary.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: activePalette.border),
+                ),
+                child: Icon(
+                  Icons.info_outline_rounded,
+                  size: 32,
+                  color: activePalette.primary,
                 ),
               ),
+              
+              const SizedBox(height: 24),
+              
+              // Error Title
+              Text(
+                customTitle ?? friendly.title,
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: activePalette.textPrimary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              
+              const SizedBox(height: 8),
+              
+              // Error Message
+              Text(
+                customMessage ?? friendly.message,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: activePalette.textSecondary,
+                  height: 1.4,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              
+              if (onRetry != null) ...[
+                const SizedBox(height: 24),
+                
+                // Retry Button
+                ElevatedButton.icon(
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    onRetry!();
+                  },
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                  label: Text(
+                    friendly.actionLabel ?? 'Try Again',
+                    style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: activePalette.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 28,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    elevation: 0,
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
   }
-
-  _ErrorInfo _getErrorInfo(dynamic error) {
-    if (error is AppException) {
-      switch (error.type) {
-        case ExceptionType.network:
-        case ExceptionType.connectionError:
-          return _ErrorInfo(
-            icon: Icons.wifi_off_rounded,
-            title: 'No Internet Connection',
-            message: error.userFriendlyMessage,
-            color: Colors.orange,
-          );
-        case ExceptionType.unauthorized:
-          return _ErrorInfo(
-            icon: Icons.lock_outline_rounded,
-            title: 'Unauthorized',
-            message: 'Please login again to continue',
-            color: Colors.red,
-          );
-        case ExceptionType.forbidden:
-          return _ErrorInfo(
-            icon: Icons.block_rounded,
-            title: 'Access Denied',
-            message: error.message,
-            color: Colors.red,
-          );
-        case ExceptionType.notFound:
-          return _ErrorInfo(
-            icon: Icons.search_off_rounded,
-            title: 'Not Found',
-            message: error.message,
-            color: Colors.grey,
-          );
-        case ExceptionType.badRequest:
-          return _ErrorInfo(
-            icon: Icons.error_outline_rounded,
-            title: 'Validation Error',
-            message: error.message,
-            color: Colors.orange,
-          );
-        case ExceptionType.server:
-          return _ErrorInfo(
-            icon: Icons.cloud_off_rounded,
-            title: 'Server Error',
-            message: error.message,
-            color: Colors.red,
-          );
-        default:
-          return _ErrorInfo(
-            icon: Icons.error_outline_rounded,
-            title: 'Something Went Wrong',
-            message: error.message,
-            color: Colors.red,
-          );
-      }
-    } else if (error is ApiException) {
-      return _ErrorInfo(
-        icon: Icons.error_outline_rounded,
-        title: 'API Error',
-        message: error.message,
-        color: Colors.red,
-      );
-    } else {
-      return _ErrorInfo(
-        icon: Icons.error_outline_rounded,
-        title: 'Something Went Wrong',
-        message: error.toString().replaceFirst('Exception: ', ''),
-        color: Colors.red,
-      );
-    }
-  }
-}
-
-class _ErrorInfo {
-  final IconData icon;
-  final String title;
-  final String message;
-  final Color color;
-
-  _ErrorInfo({
-    required this.icon,
-    required this.title,
-    required this.message,
-    required this.color,
-  });
 }
 
 /// Small inline error widget
 class InlineErrorWidget extends StatelessWidget {
-  final String message;
+  final dynamic error;
+  final String? message;
   final VoidCallback? onRetry;
+  final LuxuryPalette? palette;
 
   const InlineErrorWidget({
     super.key,
-    required this.message,
+    this.error,
+    this.message,
     this.onRetry,
+    this.palette,
   });
 
   @override
   Widget build(BuildContext context) {
-    final palette = GLuxuryPalettes.gold;
+    final activePalette = palette ?? GLuxuryPalettes.gold;
+    final friendly = UserFriendlyError.from(error, fallbackMessage: message);
 
     return Container(
-      padding: GLuxurySpacing.paddingBase,
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: palette.error.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: palette.error.withValues(alpha: 0.3),
-        ),
+        color: activePalette.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: activePalette.border),
       ),
       child: Row(
         children: [
           Icon(
-            Icons.error_outline_rounded,
-            color: palette.error,
+            Icons.info_outline_rounded,
+            color: activePalette.primary,
             size: 20,
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              message,
-              style: GLuxuryTypography.bodySmall.copyWith(
-                color: palette.error,
+              message ?? friendly.message,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: activePalette.textSecondary,
+                height: 1.35,
               ),
             ),
           ),
           if (onRetry != null) ...[
             const SizedBox(width: 8),
             TextButton(
-              onPressed: onRetry,
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                onRetry!();
+              },
               child: Text(
                 'Retry',
-                style: TextStyle(color: palette.error),
+                style: GoogleFonts.inter(
+                  color: activePalette.primary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
               ),
             ),
           ],
@@ -234,38 +180,32 @@ class InlineErrorWidget extends StatelessWidget {
   }
 }
 
-/// Snackbar for errors
-void showErrorSnackbar(BuildContext context, dynamic error, {VoidCallback? onRetry}) {
-  final palette = GLuxuryPalettes.gold;
-  
-  String message;
-  if (error is ApiException) {
-    message = error.message;
-  } else {
-    message = error.toString().replaceFirst('Exception: ', '');
-  }
+/// Global client-safe error snackbar
+void showErrorSnackbar(BuildContext context, dynamic error, {VoidCallback? onRetry, String? customMessage}) {
+  final friendly = UserFriendlyError.from(error, fallbackMessage: customMessage);
 
+  ScaffoldMessenger.of(context).hideCurrentSnackBar();
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       content: Row(
         children: [
-          const Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
+          const Icon(Icons.info_outline_rounded, color: Colors.white, size: 20),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              message,
-              style: const TextStyle(color: Colors.white),
+              customMessage ?? friendly.message,
+              style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
             ),
           ),
         ],
       ),
-      backgroundColor: palette.error,
+      backgroundColor: const Color(0xFF2C2C2A),
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       action: onRetry != null
           ? SnackBarAction(
               label: 'Retry',
-              textColor: Colors.white,
+              textColor: const Color(0xFFD4AF37),
               onPressed: onRetry,
             )
           : null,
@@ -275,23 +215,22 @@ void showErrorSnackbar(BuildContext context, dynamic error, {VoidCallback? onRet
 
 /// Success snackbar
 void showSuccessSnackbar(BuildContext context, String message) {
-  final palette = GLuxuryPalettes.gold;
-
+  ScaffoldMessenger.of(context).hideCurrentSnackBar();
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       content: Row(
         children: [
-          const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+          const Icon(Icons.check_circle_outline_rounded, color: Colors.white, size: 20),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               message,
-              style: const TextStyle(color: Colors.white),
+              style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
             ),
           ),
         ],
       ),
-      backgroundColor: palette.success,
+      backgroundColor: const Color(0xFF2E7D32),
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
@@ -300,23 +239,22 @@ void showSuccessSnackbar(BuildContext context, String message) {
 
 /// Info snackbar
 void showInfoSnackbar(BuildContext context, String message) {
-  final palette = GLuxuryPalettes.gold;
-
+  ScaffoldMessenger.of(context).hideCurrentSnackBar();
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       content: Row(
         children: [
-          const Icon(Icons.info_outline_rounded, color: Colors.white, size: 20),
+          const Icon(Icons.diamond_outlined, color: Colors.white, size: 20),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               message,
-              style: const TextStyle(color: Colors.white),
+              style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
             ),
           ),
         ],
       ),
-      backgroundColor: palette.primary,
+      backgroundColor: const Color(0xFF171717),
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),

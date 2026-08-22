@@ -24,6 +24,7 @@ import '../features/wishlist/presentation/wishlist_screen.dart';
 import '../features/sample_order/presentation/sample_order_screen.dart';
 import '../features/measure/presentation/measure_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
+import '../features/not_found/presentation/not_found_screen.dart';
 import '../shared/widgets/grazia_bottom_nav.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -167,6 +168,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/',
+    errorPageBuilder: (context, state) =>
+        _fadePage(NotFoundScreen(uri: state.uri.toString()), state),
     routes: [
       // --- Splash / Onboarding / Auth ---
       GoRoute(

@@ -66,6 +66,19 @@
   var _lostFrames = 0;        // Consecutive frames without real edges
   var _lastAiCorners = null;  // Last AI-detected corners for each wall
 
+  // Ghost tile prevention: clear texture immediately on LOST/INVALID
+  var _lastValidTextureWallId = null;
+  var _textureCleared = false;
+
+  // Reacquisition confidence/debounce - prevent flicker from random edges
+  var _reacquisitionFrames = 0;
+  var REACQUISITION_MIN_FRAMES = 5;  // Require 5 consecutive valid frames before re-locking
+  var REACQUISITION_MIN_CONFIDENCE = 0.75; // Higher threshold for reacquisition
+
+  // Temporal smoothing for stable corners (EMA)
+  var _smoothedCorners = null; // EMA-smoothed corners
+  var SMOOTHING_ALPHA = 0.15;  // Lower = more stable, higher = more responsive
+
   // AI-assisted wall detection (NVIDIA NIM, via server proxy) — periodic
   // correction on top of the local edge heuristic, not a per-frame replacement.
   // Uses VLM (Llama 3.2 Vision) for semantic understanding + geometry.
@@ -103,6 +116,10 @@
 
   // Wall masks for polygon-based rendering (VLM provides polygons, not true pixel masks)
   var _wallMasks = {}; // wallId -> {polygon, maskCanvas}
+
+  // Texture preloading cache for instant product switching
+  var _texturePreloadCache = {}; // assetPath -> Image object
+  var _preloadQueue = []; // Queue of textures to preload
 
   // Confidence thresholds
   var WALL_CONFIDENCE_THRESHOLD = 0.65;
@@ -520,7 +537,15 @@
       if (matchIdx >= 0) {
         // Smooth blend with existing wall
         var existing = _walls[matchIdx];
-        wallObj.corners = _lerpCorners(existing.corners, corners, existing.lockFrames > 10 ? 0.1 : 0.3);
+        var blended = _lerpCorners(existing.corners, corners, existing.lockFrames > 10 ? 0.1 : 0.3);
+        
+        // Apply temporal smoothing (EMA)
+        if (_smoothedCorners) {
+          wallObj.corners = _lerpCorners(_smoothedCorners, blended, SMOOTHING_ALPHA);
+        } else {
+          wallObj.corners = blended;
+        }
+        _smoothedCorners = wallObj.corners;
         wallObj.lockFrames = existing.lockFrames + 1;
         seenIds.add(wallObj.id);
         newWalls[matchIdx] = wallObj;
@@ -655,59 +680,65 @@
   var _currentTileUnit = 'mm';
 
   function _createTilePattern(texture, wallWidthPx, wallHeightPx, tileWidthMm, tileHeightMm, tileUnit) {
-    // Convert tile dimensions to pixels based on wall size
-    // We need to calculate the pixel size of one tile based on wall dimensions
-    var tileWidthPx, tileHeightPx;
+    // Calculate tile aspect ratio from real dimensions
+    var tileAspectRatio = tileWidthMm / tileHeightMm;
     
-    if (tileUnit === 'mm') {
-      tileWidthPx = (tileWidthMm / 1000) * wallWidthPx * 100; // approximate conversion
-      tileHeightPx = (tileHeightMm / 1000) * wallHeightPx * 100;
-    } else if (tileUnit === 'in') {
-      tileWidthPx = (tileWidthMm / 12) * wallWidthPx * 12;
-      tileHeightPx = (tileHeightMm / 12) * wallHeightPx * 12;
-    } else {
-      // Default to 200px
-      tileWidthPx = 200;
-      tileHeightPx = 200;
-    }
-
-    var tilesAcross = Math.min(30, Math.max(1, Math.round(wallWidthPx / tileWidthPx)));
-    var tilesDown = Math.min(30, Math.max(1, Math.round(wallHeightPx / tileHeightPx)));
+    // Calculate base tile size in pixels based on wall dimensions
+    // We want ~8-12 tiles across for typical wall, so tile width = wallWidth / 10
+    var targetTilesAcross = 10;
+    var tileWidthPx = wallWidthPx / targetTilesAcross;
+    
+    // Height derived from aspect ratio
+    var tileHeightPx = tileWidthPx / tileAspectRatio;
+    
+    // Calculate how many tiles fit
+    var tilesAcross = Math.min(20, Math.max(3, Math.round(wallWidthPx / tileWidthPx)));
+    var tilesDown = Math.min(20, Math.max(3, Math.round(wallHeightPx / tileHeightPx)));
+    
+    // Recalculate exact tile size to fit wall exactly
+    tileWidthPx = wallWidthPx / tilesAcross;
+    tileHeightPx = wallHeightPx / tilesDown;
 
     var patternCanvas = document.createElement('canvas');
     patternCanvas.width = tileWidthPx * tilesAcross;
     patternCanvas.height = tileHeightPx * tilesDown;
     var patternCtx = patternCanvas.getContext('2d');
 
+    // Use full texture for each tile (centered square crop)
     var srcSize = Math.min(texture.naturalWidth || texture.width, texture.naturalHeight || texture.height);
     var srcX = ((texture.naturalWidth || texture.width) - srcSize) / 2;
-    var srcY0 = ((texture.naturalHeight || texture.height) - srcSize) / 2;
+    var srcY = ((texture.naturalHeight || texture.height) - srcSize) / 2;
 
-    // Calculate tile aspect ratio from real dimensions
-    var tileAspectRatio = tileWidthMm / tileHeightMm;
-
+    // Draw tiles with subtle variation for realism
     for (var ty = 0; ty < tilesDown; ty++) {
       for (var tx = 0; tx < tilesAcross; tx++) {
-        // Use centered crop of texture for each tile
-        patternCtx.drawImage(texture, srcX, srcY0, srcSize, srcSize, tx * tileWidthPx, ty * tileHeightPx, tileWidthPx, tileHeightPx);
+        // Use full texture, centered
+        patternCtx.drawImage(texture, srcX, srcY, srcSize, srcSize, 
+                           tx * tileWidthPx, ty * tileHeightPx, tileWidthPx, tileHeightPx);
       }
     }
 
-    // Grout lines - realistic 2-3mm grout scaled to pixels
-    var groutWidthPx = Math.max(1, Math.round(tileWidthPx * 0.015)); // ~1.5% of tile width
-    patternCtx.strokeStyle = 'rgba(80,70,60,0.4)'; // Warm gray grout color
+    // Grout lines - realistic 2-3mm grout scaled to tile size
+    // Grout should be ~1.5-2% of tile width
+    var groutWidthPx = Math.max(1, Math.round(tileWidthPx * 0.018));
+    patternCtx.strokeStyle = 'rgba(90,80,70,0.35)'; // Warm gray grout color
     patternCtx.lineWidth = groutWidthPx;
+    patternCtx.lineCap = 'butt';
     
+    // Vertical grout lines
     for (var gx = 1; gx < tilesAcross; gx++) {
+      var x = gx * tileWidthPx;
       patternCtx.beginPath();
-      patternCtx.moveTo(gx * tileWidthPx, 0);
-      patternCtx.lineTo(gx * tileWidthPx, patternCanvas.height);
+      patternCtx.moveTo(x, 0);
+      patternCtx.lineTo(x, patternCanvas.height);
       patternCtx.stroke();
     }
+    // Horizontal grout lines
     for (var gy = 1; gy < tilesDown; gy++) {
+      var y = gy * tileHeightPx;
       patternCtx.beginPath();
-      patternCtx.moveTo(0, gy * tileHeightPx);
-      patternCtx.lineTo(patternCanvas.width, gy * tileHeightPx);
+      patternCtx.moveTo(0, y);
+      patternCtx.lineTo(patternCanvas.width, y);
       patternCtx.stroke();
     }
 
@@ -729,30 +760,39 @@
     ctx.globalAlpha = _opacity;
     ctx.globalCompositeOperation = 'source-over';
 
-    // Use polygon-based wall mask if available for exact clipping
+    // Build clipping path from wall corners (and polygon mask if available)
     var selectedWall = _walls.find(function(w) { return w.id === _selectedWallId; });
-    
-    // Ensure mask canvas exists for the selected wall
+    var usePolygonMask = false;
     var maskCanvas = null;
-    if (selectedWall) {
-      maskCanvas = _ensureWallMaskCanvas(selectedWall, canvasWidth, canvasHeight);
-    }
     
-    var usePolygonMask = maskCanvas !== null;
+    if (selectedWall && selectedWall.pixelLevel && _wallMasks[selectedWall.id]) {
+      maskCanvas = _ensureWallMaskCanvas(selectedWall, canvasWidth, canvasHeight);
+      usePolygonMask = maskCanvas !== null;
+    }
 
-    // If we have a polygon-based mask canvas, use it for clipping
+    // Create clipping path - always clip to wall boundary
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(corners.tl.x, corners.tl.y);
+    ctx.lineTo(corners.tr.x, corners.tr.y);
+    ctx.lineTo(corners.br.x, corners.br.y);
+    ctx.lineTo(corners.bl.x, corners.bl.y);
+    ctx.closePath();
+    ctx.clip();
+    
+    // If we have a precise polygon mask, intersect with it
     if (usePolygonMask) {
-      var maskCanvas = _wallMaskCanvases[selectedWall.id].canvas;
-      // Use the mask canvas as a clipping path via destination-in compositing
-      ctx.save();
       ctx.globalCompositeOperation = 'destination-in';
       ctx.drawImage(maskCanvas, 0, 0, canvasWidth, canvasHeight);
-      ctx.restore();
+      ctx.globalCompositeOperation = 'source-over';
       
-      // Now clip to the mask
-      ctx.save();
+      // Re-apply wall boundary clip after mask intersection
       ctx.beginPath();
-      ctx.rect(0, 0, canvasWidth, canvasHeight);
+      ctx.moveTo(corners.tl.x, corners.tl.y);
+      ctx.lineTo(corners.tr.x, corners.tr.y);
+      ctx.lineTo(corners.br.x, corners.br.y);
+      ctx.lineTo(corners.bl.x, corners.bl.y);
+      ctx.closePath();
       ctx.clip();
     }
 
@@ -781,17 +821,6 @@
       var topWidth = topRight.x - topLeft.x;
       var bottomWidth = bottomRight.x - bottomLeft.x;
 
-      ctx.beginPath();
-      ctx.moveTo(topLeft.x, topLeft.y);
-      ctx.lineTo(topRight.x, topRight.y);
-      ctx.lineTo(bottomRight.x, bottomRight.y);
-      ctx.lineTo(bottomLeft.x, bottomLeft.y);
-      ctx.closePath();
-      
-      if (!usePolygonMask) {
-        ctx.clip();
-      }
-
       var srcY = patternCanvas.height * t1;
       var srcHeight = patternCanvas.height / strips;
 
@@ -800,16 +829,11 @@
         0, srcY, patternCanvas.width, srcHeight,
         topLeft.x, topLeft.y, topWidth, stripHeight
       );
-
-      ctx.restore();
-      ctx.save();
-      ctx.globalAlpha = _opacity;
-      ctx.globalCompositeOperation = 'source-over';
     }
 
     ctx.restore();
 
-    // Draw occlusions on top
+    // Draw occlusions on top (they punch holes in the texture)
     _drawOcclusions(corners, ctx);
     
     // Edge feathering - soft transition at wall boundaries
@@ -1071,7 +1095,15 @@
             var existing = _walls[wallIdx];
             // Blend local with existing (AI-corrected)
             var blendFactor = existing.lockFrames > 10 ? 0.1 : 0.3;
-            existing.corners = _lerpCorners(existing.corners, scaledCorners, blendFactor);
+            var blendedCorners = _lerpCorners(existing.corners, scaledCorners, blendFactor);
+            
+            // Apply temporal smoothing (EMA) for stable corners
+            if (_smoothedCorners) {
+              existing.corners = _lerpCorners(_smoothedCorners, blendedCorners, SMOOTHING_ALPHA);
+            } else {
+              existing.corners = blendedCorners;
+            }
+            _smoothedCorners = existing.corners;
             existing.lastSeen = Date.now();
           }
         } else if (!_hasRealLock) {
@@ -1247,6 +1279,19 @@
     var hasTrackingConfidence = selectedWall && selectedWall.confidence >= TRACKING_CONFIDENCE_THRESHOLD;
     var isStale = selectedWall && (now - selectedWall.lastSeen > STALE_TIMEOUT_MS);
 
+    // GHOST TILE FIX: Clear texture immediately when wall becomes LOST/INVALID
+    // This prevents stale texture from persisting on screen
+    if (_wallState === WALL_STATE.LOST || _wallState === WALL_STATE.INVALID) {
+      if (!_textureCleared) {
+        _textureCleared = true;
+        _lastValidTextureWallId = null;
+        // Clear temporal smoothing to prevent stale corners affecting new walls
+        _smoothedCorners = null;
+      }
+    } else {
+      _textureCleared = false;
+    }
+
     // Check for stale detection
     if (isStale) {
       _transitionToState(WALL_STATE.INVALID);
@@ -1257,16 +1302,20 @@
       case WALL_STATE.SEARCHING:
         if (hasValidDetection && hasHighConfidence && selectedWall.lockFrames >= 3) {
           _transitionToState(WALL_STATE.LOCKED);
+          _reacquisitionFrames = 0;
         } else if (hasValidDetection) {
           _transitionToState(WALL_STATE.DETECTING);
+          _reacquisitionFrames = 0;
         }
         break;
 
       case WALL_STATE.DETECTING:
         if (hasHighConfidence && selectedWall.lockFrames >= 3) {
           _transitionToState(WALL_STATE.LOCKED);
+          _reacquisitionFrames = 0;
         } else if (!hasValidDetection) {
           _transitionToState(WALL_STATE.SEARCHING);
+          _reacquisitionFrames = 0;
         }
         break;
 
@@ -1287,22 +1336,38 @@
         break;
 
       case WALL_STATE.LOST:
-        if (hasValidDetection && hasHighConfidence) {
-          _transitionToState(WALL_STATE.LOCKED);
-        } else if (hasValidDetection) {
-          _transitionToState(WALL_STATE.DETECTING);
-        } else if (timeSinceStateChange > 3000) {
-          _transitionToState(WALL_STATE.SEARCHING);
+        // REACQUISITION DEBOUNCE: Require multiple consecutive valid frames
+        // with higher confidence before re-locking to prevent flicker
+        if (hasValidDetection) {
+          _reacquisitionFrames++;
+          if (hasHighConfidence && selectedWall.confidence >= REACQUISITION_MIN_CONFIDENCE && _reacquisitionFrames >= REACQUISITION_MIN_FRAMES) {
+            _transitionToState(WALL_STATE.LOCKED);
+            _reacquisitionFrames = 0;
+          } else if (_reacquisitionFrames >= 3) {
+            _transitionToState(WALL_STATE.DETECTING);
+          }
+        } else {
+          _reacquisitionFrames = 0;
+          if (timeSinceStateChange > 3000) {
+            _transitionToState(WALL_STATE.SEARCHING);
+          }
         }
         break;
 
       case WALL_STATE.INVALID:
-        if (hasValidDetection && hasHighConfidence) {
-          _transitionToState(WALL_STATE.LOCKED);
-        } else if (hasValidDetection) {
-          _transitionToState(WALL_STATE.DETECTING);
-        } else if (timeSinceStateChange > 5000) {
-          _transitionToState(WALL_STATE.SEARCHING);
+        if (hasValidDetection) {
+          _reacquisitionFrames++;
+          if (hasHighConfidence && selectedWall.confidence >= REACQUISITION_MIN_CONFIDENCE && _reacquisitionFrames >= REACQUISITION_MIN_FRAMES) {
+            _transitionToState(WALL_STATE.LOCKED);
+            _reacquisitionFrames = 0;
+          } else if (_reacquisitionFrames >= 3) {
+            _transitionToState(WALL_STATE.DETECTING);
+          }
+        } else {
+          _reacquisitionFrames = 0;
+          if (timeSinceStateChange > 5000) {
+            _transitionToState(WALL_STATE.SEARCHING);
+          }
         }
         break;
     }
@@ -1439,13 +1504,56 @@
       window._graziaARReady = false;
       _walls = []; _selectedWallId = null; _hasRealLock = false; _lostFrames = 0; _frameCount = 0;
       _objects = []; _manualCorners = null; _lastAiCorners = null;
+      _smoothedCorners = null;
+      _reacquisitionFrames = 0;
+      _textureCleared = false;
+    },
+
+    // Preload texture for instant switching
+    preloadTexture: function (textureUrl) {
+      if (!textureUrl || _texturePreloadCache[textureUrl]) return Promise.resolve();
+      
+      return new Promise(function(resolve, reject) {
+        var img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = function () { 
+          _texturePreloadCache[textureUrl] = img;
+          resolve();
+        };
+        img.onerror = function () { 
+          console.warn('[GraziaAR] Failed to preload texture:', textureUrl);
+          reject(); 
+        };
+        img.src = textureUrl;
+      });
+    },
+
+    // Preload adjacent textures from carousel
+    preloadTextures: function (textureUrls) {
+      if (!Array.isArray(textureUrls)) return;
+      textureUrls.forEach(function(url) {
+        if (url && !_texturePreloadCache[url]) {
+          window.GraziaAR.preloadTexture(url);
+        }
+      });
     },
 
     setTexture: function (textureUrl) {
       if (!textureUrl) { _textureImage = null; return; }
+      
+      // Use preloaded texture if available
+      if (_texturePreloadCache[textureUrl]) {
+        _textureImage = _texturePreloadCache[textureUrl];
+        return;
+      }
+      
+      // Fallback: load normally
       var img = new Image();
       img.crossOrigin = 'anonymous';
-      img.onload = function () { _textureImage = img; };
+      img.onload = function () { 
+        _textureImage = img;
+        _texturePreloadCache[textureUrl] = img; // Cache for next time
+      };
       img.onerror = function () { console.warn('[GraziaAR] Failed to load texture:', textureUrl); };
       img.src = textureUrl;
     },

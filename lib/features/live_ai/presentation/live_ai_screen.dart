@@ -123,6 +123,18 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     final path = stone.arTextureUrl;
     if (path != null && _cameraReady) {
       ARCameraView.updateStone(path, _textureOpacity);
+      
+      // Preload adjacent carousel textures for instant switching
+      final int currentIndex = _selectedStoneIndex;
+      final int prevIndex = (currentIndex - 1 + _filteredStones.length) % _filteredStones.length;
+      final int nextIndex = (currentIndex + 1) % _filteredStones.length;
+      final List<String> preloadUrls = [];
+      if (_filteredStones[prevIndex].arTextureUrl != null) preloadUrls.add(_filteredStones[prevIndex].arTextureUrl!);
+      if (_filteredStones[nextIndex].arTextureUrl != null) preloadUrls.add(_filteredStones[nextIndex].arTextureUrl!);
+      if (preloadUrls.isNotEmpty) {
+        ARCameraView.preloadTextures(preloadUrls);
+      }
+      
       // Parse tile dimensions from stone size (e.g., "600×150×18-20mm")
       final sizeParts = stone.size.split('×');
       if (sizeParts.length >= 2) {
@@ -320,69 +332,81 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     );
   }
 
-  // ── Wall State Debug Overlay ───────────────────────────────────────────────
+  // ── Wall State Overlay ───────────────────────────────────────────────
 
   Widget _buildWallStateOverlay() {
-    // Only show if wall state is detecting or searching
-    if (_wallState == 'TRACKING') return const SizedBox.shrink();
-
+    String label;
+    IconData icon;
     Color stateColor;
-    IconData stateIcon;
+
     switch (_wallState) {
       case 'SEARCHING':
-        stateColor = Colors.blue;
-        stateIcon = Icons.radar;
+        label = 'Point your camera at a wall';
+        icon = Icons.crop_free_rounded;
+        stateColor = const Color(0xFFD4AF37);
         break;
       case 'DETECTING':
-        stateColor = Colors.orange;
-        stateIcon = Icons.remove_red_eye;
+        label = 'Detecting wall...';
+        icon = Icons.auto_awesome_rounded;
+        stateColor = const Color(0xFFD4AF37);
         break;
       case 'LOCKED':
-        stateColor = Colors.green;
-        stateIcon = Icons.lock;
-        break;
       case 'TRACKING':
-        stateColor = Colors.greenAccent;
-        stateIcon = Icons.gps_fixed;
+        label = 'Wall detected';
+        icon = Icons.check_circle_rounded;
+        stateColor = const Color(0xFF4CAF50);
         break;
       case 'LOST':
-        stateColor = Colors.red;
-        stateIcon = Icons.gps_off;
+        label = 'Wall lost — point back at the wall';
+        icon = Icons.error_outline_rounded;
+        stateColor = const Color(0xFFE57373);
         break;
       case 'INVALID':
-        stateColor = Colors.redAccent;
-        stateIcon = Icons.error;
+        label = 'Move closer to a clear wall';
+        icon = Icons.zoom_in_rounded;
+        stateColor = const Color(0xFFFFB74D);
         break;
       default:
-        stateColor = Colors.grey;
-        stateIcon = Icons.help;
+        label = 'Point your camera at a wall';
+        icon = Icons.crop_free_rounded;
+        stateColor = const Color(0xFFD4AF37);
     }
 
     return Positioned(
-      top: MediaQuery.of(context).padding.top + 80,
-      left: 16,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.8),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: stateColor.withValues(alpha: 0.5)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(stateIcon, color: stateColor, size: 16),
-            const SizedBox(width: 8),
-            Text(
-              'Wall: $_wallState',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: stateColor,
+      top: MediaQuery.of(context).padding.top + 72,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.65),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: stateColor.withValues(alpha: 0.6), width: 1.0),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, color: stateColor, size: 15),
+                  const SizedBox(width: 8),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: stateColor == const Color(0xFF4CAF50) ? Colors.white : stateColor,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
         ),
       ),
     );

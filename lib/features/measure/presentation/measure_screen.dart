@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 
@@ -55,9 +56,7 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
     final wastage = double.tryParse(_wastageController.text) ?? 10;
 
     if (l == null || w == null || l <= 0 || w <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter valid room dimensions')),
-      );
+      showErrorSnackbar(context, null, customMessage: 'Please enter valid room dimensions');
       return;
     }
 

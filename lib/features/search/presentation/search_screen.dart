@@ -332,41 +332,83 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   Widget _buildEmptyState(LuxuryPalette palette) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: palette.surface,
-              border: Border.all(color: palette.border),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: palette.surface,
+                border: Border.all(color: palette.border),
+              ),
+              child: Icon(
+                Icons.search_off_rounded,
+                size: 32,
+                color: palette.textTertiary,
+              ),
             ),
-            child: Icon(
-              Icons.search_off_rounded,
-              size: 32,
-              color: palette.textTertiary,
+            const SizedBox(height: 16),
+            Text(
+              'No surfaces match your search',
+              style: GoogleFonts.playfairDisplay(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: palette.textPrimary,
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No surfaces match your search',
-            style: GoogleFonts.playfairDisplay(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: palette.textPrimary,
+            const SizedBox(height: 6),
+            Text(
+              'Try adjusting your search keywords or explore all collections',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: palette.textSecondary,
+              ),
             ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Try adjusting your search keywords or clear filters',
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              color: palette.textSecondary,
+            const SizedBox(height: 20),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_searchController.text.isNotEmpty || !_selectedFilters.contains('All'))
+                  Padding(
+                    padding: const EdgeInsets.only(right: 10),
+                    child: OutlinedButton(
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        _searchController.clear();
+                        setState(() {
+                          _selectedFilters = ['All'];
+                          _filterStones();
+                        });
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: palette.textPrimary,
+                        side: BorderSide(color: palette.border),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      ),
+                      child: Text('Clear Filters', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                ElevatedButton(
+                  onPressed: () => context.go('/collections'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: palette.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                    elevation: 0,
+                  ),
+                  child: Text('Explore Collections', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700)),
+                ),
+              ],
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

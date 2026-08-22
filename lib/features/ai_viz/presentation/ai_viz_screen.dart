@@ -14,6 +14,8 @@ import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 
+import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
+
 class AIVizScreen extends ConsumerStatefulWidget {
   const AIVizScreen({super.key});
 
@@ -27,6 +29,7 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
   bool _wallNotDetected = false;
   String? _selectedStoneId;
   bool _isProcessing = false;
+  String _processingStage = 'Analyzing room architecture...';
   bool _textureApplied = false;
   bool _showOriginal = false;
   final _picker = ImagePicker();
@@ -60,8 +63,10 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error selecting image: $e')),
+      showErrorSnackbar(
+        context,
+        e,
+        customMessage: 'Unable to load the selected photo. Please try again.',
       );
     }
   }
@@ -69,7 +74,11 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
   Future<void> _applyStoneTexture() async {
     if (_selectedImage == null || _selectedStoneId == null) return;
 
-    setState(() => _isProcessing = true);
+    setState(() {
+      _isProcessing = true;
+      _processingStage = 'Uploading room photo...';
+      _wallNotDetected = false;
+    });
     HapticFeedback.mediumImpact();
 
     try {
@@ -86,7 +95,20 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
       final result = await _aiVizService.generateVisualization(
         roomImage: imageFile,
         stone: stone,
-        onProgress: (progress) {},
+        onProgress: (progress) {
+          if (!mounted) return;
+          if (progress < 0.25) {
+            setState(() => _processingStage = 'Uploading room photo...');
+          } else if (progress < 0.50) {
+            setState(() => _processingStage = 'Analyzing room architecture...');
+          } else if (progress < 0.75) {
+            setState(() => _processingStage = 'Detecting surface boundaries...');
+          } else if (progress < 0.90) {
+            setState(() => _processingStage = 'Applying selected stone texture...');
+          } else {
+            setState(() => _processingStage = 'Rendering visualization...');
+          }
+        },
       );
 
       if (!mounted) return;
@@ -241,23 +263,72 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
               _buildImagePreviewCard(palette),
 
             if (_wallNotDetected) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               Container(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                  color: palette.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: palette.primary.withValues(alpha: 0.35)),
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.info_outline_rounded, color: Colors.orange, size: 18),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Ensure the target wall is unobstructed and well lit for optimal AI surface placement.',
-                        style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary),
-                      ),
+                    Row(
+                      children: [
+                        Icon(Icons.info_outline_rounded, color: palette.primary, size: 20),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Visualization couldn\'t be completed',
+                          style: GoogleFonts.playfairDisplay(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: palette.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Please ensure the target architectural surface is well-lit and clearly visible, then try again.',
+                      style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary, height: 1.4),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _applyStoneTexture,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: palette.primary,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              elevation: 0,
+                            ),
+                            child: Text(
+                              'Try Again',
+                              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => _pickImage(ImageSource.gallery),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: palette.textPrimary,
+                              side: BorderSide(color: palette.border),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            child: Text(
+                              'Choose Photo',
+                              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -311,7 +382,7 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
               : const Icon(Icons.auto_awesome_rounded, size: 18),
           label: Text(
             _isProcessing
-                ? 'Rendering Space...'
+                ? _processingStage
                 : _textureApplied
                     ? 'Re-Render Surface'
                     : 'Generate AI Visualization',

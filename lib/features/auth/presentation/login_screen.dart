@@ -10,6 +10,7 @@ import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/shared/widgets/grazia_text_field.dart';
 import 'package:grazia_stones/shared/widgets/grazia_button.dart';
 import 'package:grazia_stones/core/utils/validators.dart';
+import 'package:grazia_stones/core/utils/user_friendly_error.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -92,19 +93,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           ),
         );
       } else {
-        // Error handled by provider, show it
+        // Error handled by provider, show it safely
         final error = ref.read(authRiverpodProvider).error;
+        final safeMsg = UserFriendlyError.from(
+          error,
+          fallbackMessage: 'Unable to send OTP right now. Please verify your phone number.',
+        ).message;
         setState(() {
           _isLoading = false;
-          _errorMessage = error ?? 'Failed to send OTP';
+          _errorMessage = safeMsg;
         });
+        _triggerShake();
       }
     }
   }
 
   Future<void> _verifyOTP() async {
     if (_otpController.text.length != 6) {
-      setState(() => _errorMessage = 'Please enter a valid 6-digit OTP');
+      setState(() => _errorMessage = 'Please enter 6-digit OTP');
       _triggerShake();
       return;
     }
@@ -129,9 +135,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         // Navigate to home
         context.go('/home');
       } else {
-        // Show error
+        // Show error safely
         final error = ref.read(authRiverpodProvider).error;
-        setState(() => _errorMessage = error ?? 'Invalid OTP');
+        final safeMsg = UserFriendlyError.from(
+          error,
+          fallbackMessage: 'Invalid verification code. Please check the 6-digit OTP and try again.',
+        ).message;
+        setState(() => _errorMessage = safeMsg);
         _triggerShake();
       }
     }

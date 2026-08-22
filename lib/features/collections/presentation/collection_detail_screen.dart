@@ -22,45 +22,150 @@ class CollectionDetailScreen extends ConsumerWidget {
     return collectionsAsync.when(
       loading: () => Scaffold(
         backgroundColor: palette.background,
-        body: Center(child: CircularProgressIndicator(color: palette.primary)),
-      ),
-      error: (e, _) => Scaffold(
-        backgroundColor: palette.background,
-        body: Center(
-          child: Text(
-            'Failed to load collection',
-            style: GoogleFonts.inter(color: palette.textSecondary),
+        appBar: AppBar(
+          backgroundColor: palette.background,
+          elevation: 0,
+          leading: IconButton(
+            onPressed: () => context.pop(),
+            icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
           ),
         ),
+        body: Center(child: CircularProgressIndicator(color: palette.primary)),
       ),
+      error: (e, _) => _buildNotFound(context, palette),
       data: (collections) {
-        final collection = collections.firstWhere(
-          (c) => c.id == collectionId,
-          orElse: () => collections.first,
-        );
+        if (collections.isEmpty) {
+          return _buildNotFound(context, palette);
+        }
+
+        final collection = collections.where((c) =>
+          c.id == collectionId ||
+          c.name.toLowerCase().replaceAll(' ', '-') == collectionId.toLowerCase()
+        ).firstOrNull ?? collections.firstOrNull;
+
+        if (collection == null) {
+          return _buildNotFound(context, palette);
+        }
+
         return stonesAsync.when(
           loading: () => Scaffold(
             backgroundColor: palette.background,
-            body: Center(child: CircularProgressIndicator(color: palette.primary)),
-          ),
-          error: (e, _) => Scaffold(
-            backgroundColor: palette.background,
-            body: Center(
-              child: Text(
-                'Failed to load surfaces',
-                style: GoogleFonts.inter(color: palette.textSecondary),
+            appBar: AppBar(
+              backgroundColor: palette.background,
+              elevation: 0,
+              leading: IconButton(
+                onPressed: () => context.pop(),
+                icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
               ),
             ),
+            body: Center(child: CircularProgressIndicator(color: palette.primary)),
           ),
+          error: (e, _) => _buildScreen(context, palette, collection, []),
           data: (allStones) {
             final stones = allStones.where((s) =>
-              s.collection.toLowerCase().replaceAll(' ', '-') == collectionId ||
-              s.collection.toLowerCase() == collection.name.toLowerCase()
+              s.collection.toLowerCase().replaceAll(' ', '-') == collectionId.toLowerCase() ||
+              s.collection.toLowerCase() == collection.name.toLowerCase() ||
+              s.collection.toLowerCase().contains(collection.name.toLowerCase())
             ).toList();
             return _buildScreen(context, palette, collection, stones);
           },
         );
       },
+    );
+  }
+
+  Widget _buildNotFound(BuildContext context, LuxuryPalette palette) {
+    return Scaffold(
+      backgroundColor: palette.background,
+      appBar: AppBar(
+        backgroundColor: palette.background,
+        elevation: 0,
+        leading: IconButton(
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/collections');
+            }
+          },
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
+        ),
+        title: Text(
+          'Collection',
+          style: GoogleFonts.playfairDisplay(fontSize: 18, fontWeight: FontWeight.w700, color: palette.textPrimary),
+        ),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: palette.surface,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: palette.border),
+                  ),
+                  child: Icon(Icons.grid_off_rounded, color: palette.textTertiary, size: 32),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Collection Not Found',
+                  style: GoogleFonts.playfairDisplay(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    color: palette.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'This curated stone collection is currently being updated or has been archived in our seasonal catalogue.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: palette.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 28),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => context.go('/collections'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: palette.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                    child: Text('Browse All Collections', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () => context.go('/home'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: palette.textPrimary,
+                      side: BorderSide(color: palette.border),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text('Back to Home', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
