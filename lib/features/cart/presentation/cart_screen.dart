@@ -206,7 +206,7 @@ class CartScreen extends ConsumerWidget {
               ),
             ),
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 180),
               sliver: SliverToBoxAdapter(
                 child: Container(
                   padding: const EdgeInsets.all(16),
@@ -258,7 +258,7 @@ class CartScreen extends ConsumerWidget {
                 left: 18,
                 right: 18,
                 top: 14,
-                bottom: MediaQuery.of(context).padding.bottom + 14,
+                bottom: MediaQuery.of(context).padding.bottom + 84,
               ),
               decoration: BoxDecoration(
                 color: palette.surface,

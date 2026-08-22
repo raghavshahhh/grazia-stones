@@ -38,13 +38,17 @@ class _GraziaBottomNavState extends ConsumerState<GraziaBottomNav> {
     final palette = ref.watch(themePaletteProvider);
     final isDark = ref.watch(themePaletteProvider.notifier).isDarkMode;
 
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        bottom: bottomPadding + 8,
-      ),
-      child: ClipRRect(
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 540),
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            bottom: bottomPadding + 8,
+          ),
+          child: ClipRRect(
         borderRadius: BorderRadius.circular(28),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
@@ -80,7 +84,9 @@ class _GraziaBottomNavState extends ConsumerState<GraziaBottomNav> {
           ),
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 
   Widget _buildNavItem(
