@@ -89,6 +89,8 @@ class ARCameraView extends StatefulWidget {
   static void requestSegmentation() {}
   
   static void setTileDimensions(double width, double height, String unit) {}
+  
+  static String? getWallState() => null;
 
   static void stopCamera() {
     _controller.add(_ARUpdate(stop: true));

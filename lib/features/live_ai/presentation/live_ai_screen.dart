@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -45,6 +46,10 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
   bool _selectingWall = false;
   List<Map<String, dynamic>> _detectedWalls = [];
 
+  // Wall tracking state (from AR engine)
+  String _wallState = 'SEARCHING';
+  Timer? _wallStateTimer;
+
   // Calibration
   bool _calibrationMode = false;
   String _calibrationUnit = 'ft';
@@ -68,12 +73,22 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
       initialPage: 0,
     );
     _updateFilteredStones();
+    
+    // Start polling wall state from AR engine
+    _wallStateTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+      if (!mounted) return;
+      final state = ARCameraView.getWallState();
+      if (state != null && state != _wallState) {
+        setState(() => _wallState = state);
+      }
+    });
   }
 
   @override
   void dispose() {
     _stonePageController.dispose();
     _calibrationLengthController.dispose();
+    _wallStateTimer?.cancel();
     super.dispose();
   }
 
@@ -297,7 +312,78 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
           // 9. Quantity result display
           if (_quantityResult != null) _buildQuantityDisplay(),
+
+          // 10. Wall state debug overlay
+          _buildWallStateOverlay(),
         ],
+      ),
+    );
+  }
+
+  // ── Wall State Debug Overlay ───────────────────────────────────────────────
+
+  Widget _buildWallStateOverlay() {
+    final isDebugMode = true; // Set to false for production
+    if (!isDebugMode) return const SizedBox.shrink();
+
+    Color stateColor;
+    IconData stateIcon;
+    switch (_wallState) {
+      case 'SEARCHING':
+        stateColor = Colors.blue;
+        stateIcon = Icons.radar;
+        break;
+      case 'DETECTING':
+        stateColor = Colors.orange;
+        stateIcon = Icons.remove_red_eye;
+        break;
+      case 'LOCKED':
+        stateColor = Colors.green;
+        stateIcon = Icons.lock;
+        break;
+      case 'TRACKING':
+        stateColor = Colors.greenAccent;
+        stateIcon = Icons.gps_fixed;
+        break;
+      case 'LOST':
+        stateColor = Colors.red;
+        stateIcon = Icons.gps_off;
+        break;
+      case 'INVALID':
+        stateColor = Colors.redAccent;
+        stateIcon = Icons.error;
+        break;
+      default:
+        stateColor = Colors.grey;
+        stateIcon = Icons.help;
+    }
+
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 80,
+      left: 16,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.8),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: stateColor.withValues(alpha: 0.5)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(stateIcon, color: stateColor, size: 16),
+            const SizedBox(width: 8),
+            Text(
+              'Wall: $_wallState',
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: stateColor,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

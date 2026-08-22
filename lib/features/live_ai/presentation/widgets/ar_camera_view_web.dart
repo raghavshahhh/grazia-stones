@@ -199,7 +199,14 @@ class ARCameraView extends StatefulWidget {
 
   // ── New Enhanced API ─────────────────────────────────────────────────────
 
-/// Get all detected walls with their corners, confidence, and area
+/// Get current wall tracking state
+  static String? getWallState() {
+    final raw = _jsEval('GraziaAR.getWallState ? GraziaAR.getWallState() : null');
+    if (raw == null) return null;
+    return raw.toString();
+  }
+
+  /// Get all detected walls with their corners, confidence, and area
   static List<Map<String, dynamic>>? getWalls() {
     final raw = _jsEval('GraziaAR.getWalls()');
     if (raw == null) return null;

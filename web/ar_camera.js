@@ -40,6 +40,19 @@
   var _mediaRecorder = null;
   var _recordedChunks = [];
 
+  // Wall tracking state machine
+  var WALL_STATE = {
+    SEARCHING: 'SEARCHING',
+    DETECTING: 'DETECTING',
+    LOCKED: 'LOCKED',
+    TRACKING: 'TRACKING',
+    LOST: 'LOST',
+    INVALID: 'INVALID'
+  };
+
+  var _wallState = WALL_STATE.SEARCHING;
+  var _wallStateChangedAt = Date.now();
+
   // Wall detection state
   var _walls = [];           // Array of wall objects from AI + local refinement
   var _selectedWallId = null; // Currently selected wall for texturing
@@ -84,6 +97,13 @@
 
   // Wall masks for pixel-level rendering
   var _wallMasks = {}; // wallId -> {polygon, maskCanvas, maskData}
+
+  // Confidence thresholds
+  var WALL_CONFIDENCE_THRESHOLD = 0.65;
+  var LOCK_CONFIDENCE_THRESHOLD = 0.75;
+  var TRACKING_CONFIDENCE_THRESHOLD = 0.60;
+  var LOST_FRAMES_THRESHOLD = 10; // frames before LOST state
+  var STALE_TIMEOUT_MS = 1500; // ms before stale detection invalidates wall
 
   // ── Utility ────────────────────────────────────────────────────────────
 
@@ -640,7 +660,26 @@
 
     // Use pixel-level wall mask if available for exact clipping
     var selectedWall = _walls.find(function(w) { return w.id === _selectedWallId; });
-    var usePixelMask = selectedWall && selectedWall.pixelLevel && _wallMasks[selectedWall.id];
+    var wallMask = selectedWall && selectedWall.pixelLevel && _wallMasks[selectedWall.id];
+    var usePixelMask = wallMask && wallMask.maskData;
+
+    // If we have a pixel-level mask, create a clipping path from the mask
+    if (usePixelMask && wallMask.maskData) {
+      // For now, we'll use the polygon from the mask for clipping
+      // In a full implementation, we'd decode the RLE/base64 mask and use it as an alpha mask
+      var maskCorners = _polygonToCorners(wallMask.polygon);
+      if (maskCorners) {
+        // Scale mask corners to canvas coordinates
+        maskCorners = _scaleCorners(maskCorners, canvasWidth, canvasHeight);
+        ctx.beginPath();
+        ctx.moveTo(maskCorners.tl.x, maskCorners.tl.y);
+        ctx.lineTo(maskCorners.tr.x, maskCorners.tr.y);
+        ctx.lineTo(maskCorners.br.x, maskCorners.br.y);
+        ctx.lineTo(maskCorners.bl.x, maskCorners.bl.y);
+        ctx.closePath();
+        ctx.clip();
+      }
+    }
 
     for (var i = 0; i < strips; i++) {
       var t1 = i / strips;
@@ -675,8 +714,7 @@
       ctx.closePath();
       
       if (usePixelMask) {
-        // Clip to pixel-perfect wall mask
-        ctx.clip();
+        // Already clipped above
       } else {
         ctx.clip();
       }
@@ -750,8 +788,18 @@
 
     _objects.forEach(function(obj) {
       // Use pixel-level mask if available
-      if (obj.maskData && obj.pixelLevel) {
-        _drawPixelMaskOcclusion(obj.maskData, ctx);
+      if (obj.maskData && obj.pixelLevel && obj.polygon) {
+        // Create clipping path from object's polygon (pixel-level)
+        var ocCorners = _polygonToCorners(obj.polygon);
+        if (ocCorners) {
+          ctx.beginPath();
+          ctx.moveTo(ocCorners.tl.x, ocCorners.tl.y);
+          ctx.lineTo(ocCorners.tr.x, ocCorners.tr.y);
+          ctx.lineTo(ocCorners.br.x, ocCorners.br.y);
+          ctx.lineTo(ocCorners.bl.x, ocCorners.bl.y);
+          ctx.closePath();
+          ctx.fill();
+        }
       } else if (obj.corners) {
         // Fallback to polygon
         var oc = obj.corners;
@@ -997,15 +1045,44 @@
     // Request AI detection periodically
     _requestAiWallDetection(width, height);
 
-    // Draw selected wall
+    // STATE MACHINE: Evaluate wall state transitions
+    _updateWallState();
+
+    // Draw selected wall based on current state
     var selectedWall = _walls.find(function(w) { return w.id === _selectedWallId; });
 
-    if (selectedWall && _hasRealLock && _showWallBoundary) {
-      var corners = _manualCorners || selectedWall.corners;
+    var shouldRenderTexture = false;
+    var shouldShowBoundary = false;
+    var corners = null;
 
-      // Draw wall boundary
+    if (selectedWall && _showWallBoundary) {
+      corners = _manualCorners || selectedWall.corners;
+      
+      switch (_wallState) {
+        case WALL_STATE.LOCKED:
+        case WALL_STATE.TRACKING:
+          shouldRenderTexture = true;
+          shouldShowBoundary = true;
+          break;
+        case WALL_STATE.DETECTING:
+          shouldShowBoundary = true; // Show detection feedback
+          break;
+        case WALL_STATE.SEARCHING:
+        case WALL_STATE.LOST:
+        case WALL_STATE.INVALID:
+        default:
+          shouldRenderTexture = false;
+          shouldShowBoundary = false;
+          break;
+      }
+    }
+
+    // Draw wall boundary if needed
+    if (shouldShowBoundary && corners) {
       _ctx.save();
-      _ctx.strokeStyle = 'rgba(200, 165, 60, 0.5)';
+      _ctx.strokeStyle = _wallState === WALL_STATE.LOCKED || _wallState === WALL_STATE.TRACKING 
+        ? 'rgba(200, 165, 60, 0.5)' 
+        : 'rgba(200, 165, 60, 0.3)';
       _ctx.lineWidth = 2;
       _ctx.setLineDash([10, 5]);
       _ctx.beginPath();
@@ -1019,7 +1096,9 @@
 
       // Corner brackets
       var bracketSize = 22;
-      _ctx.strokeStyle = 'rgba(200, 165, 60, 0.9)';
+      _ctx.strokeStyle = _wallState === WALL_STATE.LOCKED || _wallState === WALL_STATE.TRACKING
+        ? 'rgba(200, 165, 60, 0.9)'
+        : 'rgba(200, 165, 60, 0.5)';
       _ctx.lineWidth = 3; _ctx.lineCap = 'round';
       [[corners.tl, +bracketSize, +bracketSize],
        [corners.tr, -bracketSize, +bracketSize],
@@ -1032,31 +1111,50 @@
         _ctx.stroke();
       });
       _ctx.restore();
+    }
 
-      // Draw texture
-      if (_textureImage && _textureImage.complete) {
-        _drawTextureWithPerspective(corners, _textureImage, _ctx, width, height);
-        // Draw occlusions on top
-        _drawOcclusions(corners, _ctx);
-      } else {
-        _ctx.save();
-        _ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-        _ctx.fillRect(width/2 - 140, height/2 - 25, 280, 50);
-        _ctx.fillStyle = '#C8A53C';
-        _ctx.font = 'bold 14px -apple-system, sans-serif';
-        _ctx.textAlign = 'center'; _ctx.textBaseline = 'middle';
-        _ctx.fillText('Select a stone to preview on wall', width/2, height/2);
-        _ctx.restore();
-      }
+    // Draw texture only in LOCKED/TRACKING states
+    if (shouldRenderTexture && _textureImage && _textureImage.complete) {
+      _drawTextureWithPerspective(corners, _textureImage, _ctx, width, height);
+      // Draw occlusions on top
+      _drawOcclusions(corners, _ctx);
+    } else if (shouldRenderTexture) {
+      _ctx.save();
+      _ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+      _ctx.fillRect(width/2 - 140, height/2 - 25, 280, 50);
+      _ctx.fillStyle = '#C8A53C';
+      _ctx.font = 'bold 14px -apple-system, sans-serif';
+      _ctx.textAlign = 'center'; _ctx.textBaseline = 'middle';
+      _ctx.fillText('Select a stone to preview on wall', width/2, height/2);
+      _ctx.restore();
     } else {
-      // Hint message
+      // Hint message based on state
       _ctx.save();
       _ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
       _ctx.fillRect(width/2 - 160, height/2 - 35, 320, 70);
       _ctx.fillStyle = '#C8A53C';
       _ctx.font = 'bold 15px -apple-system, sans-serif';
       _ctx.textAlign = 'center'; _ctx.textBaseline = 'middle';
-      _ctx.fillText('Move camera towards a flat wall', width/2, height/2 - 10);
+      
+      var hintText = '';
+      switch (_wallState) {
+        case WALL_STATE.SEARCHING:
+          hintText = 'Point camera towards a flat wall';
+          break;
+        case WALL_STATE.DETECTING:
+          hintText = 'Detecting wall...';
+          break;
+        case WALL_STATE.LOST:
+          hintText = 'Wall lost — point camera at wall';
+          break;
+        case WALL_STATE.INVALID:
+          hintText = 'No valid wall detected';
+          break;
+        default:
+          hintText = 'Move camera towards a flat wall';
+      }
+      
+      _ctx.fillText(hintText, width/2, height/2 - 10);
       _ctx.font = '13px -apple-system, sans-serif';
       _ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
       _ctx.fillText('Wall detection will activate automatically', width/2, height/2 + 15);
@@ -1065,6 +1163,84 @@
 
     _renderTime = Date.now() - renderStart;
     _animationFrame = requestAnimationFrame(_renderFrame);
+  }
+
+  function _updateWallState() {
+    var selectedWall = _walls.find(function(w) { return w.id === _selectedWallId; });
+    var now = Date.now();
+    var timeSinceStateChange = now - _wallStateChangedAt;
+    var hasValidDetection = selectedWall && selectedWall.confidence >= WALL_CONFIDENCE_THRESHOLD;
+    var hasHighConfidence = selectedWall && selectedWall.confidence >= LOCK_CONFIDENCE_THRESHOLD;
+    var hasTrackingConfidence = selectedWall && selectedWall.confidence >= TRACKING_CONFIDENCE_THRESHOLD;
+    var isStale = selectedWall && (now - selectedWall.lastSeen > STALE_TIMEOUT_MS);
+
+    // Check for stale detection
+    if (isStale) {
+      _transitionToState(WALL_STATE.INVALID);
+      return;
+    }
+
+    switch (_wallState) {
+      case WALL_STATE.SEARCHING:
+        if (hasValidDetection && hasHighConfidence && selectedWall.lockFrames >= 3) {
+          _transitionToState(WALL_STATE.LOCKED);
+        } else if (hasValidDetection) {
+          _transitionToState(WALL_STATE.DETECTING);
+        }
+        break;
+
+      case WALL_STATE.DETECTING:
+        if (hasHighConfidence && selectedWall.lockFrames >= 3) {
+          _transitionToState(WALL_STATE.LOCKED);
+        } else if (!hasValidDetection) {
+          _transitionToState(WALL_STATE.SEARCHING);
+        }
+        break;
+
+      case WALL_STATE.LOCKED:
+        if (!hasValidDetection || _lostFrames > LOST_FRAMES_THRESHOLD) {
+          _transitionToState(WALL_STATE.LOST);
+        } else if (hasTrackingConfidence) {
+          _transitionToState(WALL_STATE.TRACKING);
+        }
+        break;
+
+      case WALL_STATE.TRACKING:
+        if (!hasValidDetection || _lostFrames > LOST_FRAMES_THRESHOLD) {
+          _transitionToState(WALL_STATE.LOST);
+        } else if (!hasTrackingConfidence) {
+          _transitionToState(WALL_STATE.LOCKED);
+        }
+        break;
+
+      case WALL_STATE.LOST:
+        if (hasValidDetection && hasHighConfidence) {
+          _transitionToState(WALL_STATE.LOCKED);
+        } else if (hasValidDetection) {
+          _transitionToState(WALL_STATE.DETECTING);
+        } else if (timeSinceStateChange > 3000) {
+          _transitionToState(WALL_STATE.SEARCHING);
+        }
+        break;
+
+      case WALL_STATE.INVALID:
+        if (hasValidDetection && hasHighConfidence) {
+          _transitionToState(WALL_STATE.LOCKED);
+        } else if (hasValidDetection) {
+          _transitionToState(WALL_STATE.DETECTING);
+        } else if (timeSinceStateChange > 5000) {
+          _transitionToState(WALL_STATE.SEARCHING);
+        }
+        break;
+    }
+  }
+
+  function _transitionToState(newState) {
+    if (_wallState !== newState) {
+      console.log('[GraziaAR] State transition:', _wallState, '->', newState);
+      _wallState = newState;
+      _wallStateChangedAt = Date.now();
+    }
   }
 
   // ── Public API ────────────────────────────────────────────────────────
@@ -1234,6 +1410,8 @@
     },
 
     getWallDetected: function () { return _hasRealLock && _selectedWallId !== null; },
+
+    getWallState: function () { return _wallState; },
 
     getWalls: function () {
       return _walls.map(function(w) {
