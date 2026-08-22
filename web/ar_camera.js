@@ -587,6 +587,67 @@
   var _currentTileHeight = 600; // mm
   var _currentTileUnit = 'mm';
 
+  // Wall mask canvases (polygon-based — VLM returns polygons, not true pixel masks)
+  var _wallMaskCanvases = {}; // wallId -> {canvas}
+
+  // Create mask canvas from polygon
+  function _createMaskCanvasFromPolygon(polygon, width, height) {
+    var canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    var ctx = canvas.getContext('2d');
+    
+    if (polygon && polygon.length >= 4) {
+      ctx.fillStyle = 'white';
+      ctx.beginPath();
+      ctx.moveTo(polygon[0][0] * width, polygon[0][1] * height);
+      for (var i = 1; i < polygon.length; i++) {
+        ctx.lineTo(polygon[i][0] * width, polygon[i][1] * height);
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
+    
+    return canvas;
+  }
+
+  // Ensure wall mask canvas exists (polygon-based — VLM returns polygons, not true pixel masks)
+  function _ensureWallMaskCanvas(wall, canvasWidth, canvasHeight) {
+    if (!wall) return null;
+    
+    var wallId = wall.id;
+    if (_wallMaskCanvases[wallId]) return _wallMaskCanvases[wallId].canvas;
+    
+    // Use the most precise polygon available: mask polygon > AI corners > wall polygon
+    var polygon = _wallMasks[wallId]?.polygon || wall.aiCorners ? _cornersToPolygon(wall.aiCorners) : wall.polygon;
+    
+    var maskCanvas = null;
+    if (polygon && polygon.length >= 4) {
+      maskCanvas = _createMaskCanvasFromPolygon(polygon, canvasWidth, canvasHeight);
+    }
+    
+    if (maskCanvas) {
+      _wallMaskCanvases[wallId] = {canvas: maskCanvas};
+      return maskCanvas;
+    }
+    
+    return null;
+  }
+
+  // Clear wall mask cache
+  function _clearWallMaskCache(wallId) {
+    if (wallId) {
+      delete _wallMaskCanvases[wallId];
+    } else {
+      _wallMaskCanvases = {};
+    }
+  }
+
+  // Store tile dimensions for accurate pattern generation
+  var _currentTileWidth = 600; // mm
+  var _currentTileHeight = 600; // mm
+  var _currentTileUnit = 'mm';
+
   function _createTilePattern(texture, wallWidthPx, wallHeightPx, tileWidthMm, tileHeightMm, tileUnit) {
     // Convert tile dimensions to pixels based on wall size
     // We need to calculate the pixel size of one tile based on wall dimensions
@@ -604,8 +665,8 @@
       tileHeightPx = 200;
     }
 
-    var tilesAcross = Math.min(20, Math.max(1, Math.round(wallWidthPx / tileWidthPx)));
-    var tilesDown = Math.min(20, Math.max(1, Math.round(wallHeightPx / tileHeightPx)));
+    var tilesAcross = Math.min(30, Math.max(1, Math.round(wallWidthPx / tileWidthPx)));
+    var tilesDown = Math.min(30, Math.max(1, Math.round(wallHeightPx / tileHeightPx)));
 
     var patternCanvas = document.createElement('canvas');
     patternCanvas.width = tileWidthPx * tilesAcross;
@@ -616,8 +677,12 @@
     var srcX = ((texture.naturalWidth || texture.width) - srcSize) / 2;
     var srcY0 = ((texture.naturalHeight || texture.height) - srcSize) / 2;
 
+    // Calculate tile aspect ratio from real dimensions
+    var tileAspectRatio = tileWidthMm / tileHeightMm;
+
     for (var ty = 0; ty < tilesDown; ty++) {
       for (var tx = 0; tx < tilesAcross; tx++) {
+        // Use centered crop of texture for each tile
         patternCtx.drawImage(texture, srcX, srcY0, srcSize, srcSize, tx * tileWidthPx, ty * tileHeightPx, tileWidthPx, tileHeightPx);
       }
     }
@@ -658,27 +723,24 @@
     ctx.globalAlpha = _opacity;
     ctx.globalCompositeOperation = 'source-over';
 
-    // Use pixel-level wall mask if available for exact clipping
+    // Use polygon-based wall mask if available for exact clipping
     var selectedWall = _walls.find(function(w) { return w.id === _selectedWallId; });
-    var wallMask = selectedWall && selectedWall.pixelLevel && _wallMasks[selectedWall.id];
-    var usePixelMask = wallMask && wallMask.maskData;
+    var usePolygonMask = selectedWall && _wallMaskCanvases[selectedWall.id];
 
-    // If we have a pixel-level mask, create a clipping path from the mask
-    if (usePixelMask && wallMask.maskData) {
-      // For now, we'll use the polygon from the mask for clipping
-      // In a full implementation, we'd decode the RLE/base64 mask and use it as an alpha mask
-      var maskCorners = _polygonToCorners(wallMask.polygon);
-      if (maskCorners) {
-        // Scale mask corners to canvas coordinates
-        maskCorners = _scaleCorners(maskCorners, canvasWidth, canvasHeight);
-        ctx.beginPath();
-        ctx.moveTo(maskCorners.tl.x, maskCorners.tl.y);
-        ctx.lineTo(maskCorners.tr.x, maskCorners.tr.y);
-        ctx.lineTo(maskCorners.br.x, maskCorners.br.y);
-        ctx.lineTo(maskCorners.bl.x, maskCorners.bl.y);
-        ctx.closePath();
-        ctx.clip();
-      }
+    // If we have a polygon-based mask canvas, use it for clipping
+    if (usePolygonMask) {
+      var maskCanvas = _wallMaskCanvases[selectedWall.id].canvas;
+      // Use the mask canvas as a clipping path via destination-in compositing
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-in';
+      ctx.drawImage(maskCanvas, 0, 0, canvasWidth, canvasHeight);
+      ctx.restore();
+      
+      // Now clip to the mask
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, canvasWidth, canvasHeight);
+      ctx.clip();
     }
 
     for (var i = 0; i < strips; i++) {
@@ -713,9 +775,7 @@
       ctx.lineTo(bottomLeft.x, bottomLeft.y);
       ctx.closePath();
       
-      if (usePixelMask) {
-        // Already clipped above
-      } else {
+      if (!usePolygonMask) {
         ctx.clip();
       }
 
@@ -787,9 +847,9 @@
     ctx.globalCompositeOperation = 'destination-out'; // Punch holes in tile
 
     _objects.forEach(function(obj) {
-      // Use pixel-level mask if available
-      if (obj.maskData && obj.pixelLevel && obj.polygon) {
-        // Create clipping path from object's polygon (pixel-level)
+      // Use pixel-level mask if available (polygon from SAM)
+      if (obj.pixelLevel && obj.polygon) {
+        // Use polygon from SAM for occlusion
         var ocCorners = _polygonToCorners(obj.polygon);
         if (ocCorners) {
           ctx.beginPath();

@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../config/env_config.dart';
 import '../models/stone.dart';
+import '../../features/live_ai/presentation/widgets/ar_camera_view.dart';
 
 /// AI-powered wall visualization service
 /// Uses wall segmentation + client-side compositing for photorealistic results.
@@ -174,7 +175,7 @@ class AIVisualizationService {
   }
 
   /// Compose visualization using platform-specific implementation
-  /// On web: uses GraziaAR JavaScript engine
+  /// On web: uses GraziaAR JavaScript engine via ARCameraView
   /// On mobile: uses native compositing (to be implemented)
   Future<String> _composeVisualization({
     required String roomImageDataUrl,
@@ -183,10 +184,23 @@ class AIVisualizationService {
     required List<DetectedObject> objects,
     required double opacity,
   }) async {
-    // This will be implemented via platform channels
-    // For now, we use the web implementation via JS interop
-    // Mobile implementation will use the same algorithm in Dart
-    throw UnimplementedError('Platform-specific compositing not yet implemented. Use ARCameraView.renderStaticVisualization on web.');
+    // On web, use ARCameraView's renderStaticVisualization
+    // This is a platform-specific implementation that uses the GraziaAR JS engine
+    try {
+      final result = await ARCameraView.renderStaticVisualization(
+        roomImageDataUrl,
+        textureUrl,
+        opacity,
+      );
+      return result ?? '';
+    } catch (e) {
+      debugPrint('❌ Compose visualization error: $e');
+      throw AIVisualizationException(
+        'Failed to compose visualization: $e',
+        type: AIErrorType.compositingFailed,
+        originalError: e,
+      );
+    }
   }
 
   /// Get MIME type from file extension

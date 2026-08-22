@@ -313,8 +313,8 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
           // 9. Quantity result display
           if (_quantityResult != null) _buildQuantityDisplay(),
 
-          // 10. Wall state debug overlay
-          _buildWallStateOverlay(),
+          // 10. Wall state debug overlay (only in debug mode)
+          // _buildWallStateOverlay(),
         ],
       ),
     );
@@ -323,7 +323,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
   // ── Wall State Debug Overlay ───────────────────────────────────────────────
 
   Widget _buildWallStateOverlay() {
-    final isDebugMode = true; // Set to false for production
+    const isDebugMode = false; // Disabled for production
     if (!isDebugMode) return const SizedBox.shrink();
 
     Color stateColor;
