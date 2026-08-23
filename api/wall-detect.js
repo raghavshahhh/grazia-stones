@@ -89,41 +89,65 @@ OUTPUT FORMAT — JSON ONLY:
   "confidence": 0.0-1.0
 }`;
 
+const FALLBACK_VLM_MODELS = [
+  'meta/llama-3.2-11b-vision-instruct',
+  'meta/llama-3.2-90b-vision-instruct',
+  'microsoft/phi-3.5-vision-instruct',
+];
+
 async function _callNIM(model, prompt, imageDataUrl) {
-  const apiKey = process.env.NVIDIA_NIM_API_KEY;
+  const apiKey = (process.env.NVIDIA_NIM_API_KEY || '').trim();
   if (!apiKey) throw new Error('NVIDIA_NIM_API_KEY not configured');
-  
-  const nimRes = await fetch(NIM_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    body: JSON.stringify({
-      model: model,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: imageDataUrl } },
-        ],
-      }],
-      max_tokens: 2000,
-      temperature: 0.0,
-    }),
-  });
-  
-  if (!nimRes.ok) {
-    const errText = await nimRes.text();
-    throw new Error(`NIM ${model} failed: ${nimRes.status} ${errText}`);
+
+  const modelsToTry = [model, ...FALLBACK_VLM_MODELS.filter(m => m !== model)];
+  let lastErr = null;
+
+  for (const m of modelsToTry) {
+    try {
+      const nimRes = await fetch(NIM_URL, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          model: m,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: imageDataUrl } },
+            ],
+          }],
+          max_tokens: 1500,
+          temperature: 0.1,
+          top_p: 0.95,
+        }),
+      });
+
+      if (!nimRes.ok) {
+        const errText = await nimRes.text();
+        console.warn(`[wall-detect] Model ${m} returned ${nimRes.status}: ${errText}`);
+        lastErr = new Error(`NIM ${m} failed: ${nimRes.status} ${errText}`);
+        continue;
+      }
+
+      const data = await nimRes.json();
+      const content = data?.choices?.[0]?.message?.content ?? '';
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        lastErr = new Error(`No JSON in NIM response from ${m}: ${content.slice(0, 100)}`);
+        continue;
+      }
+      return JSON.parse(jsonMatch[0]);
+    } catch (e) {
+      console.warn(`[wall-detect] Error attempting model ${m}:`, e.message);
+      lastErr = e;
+    }
   }
-  
-  const data = await nimRes.json();
-  const content = data?.choices?.[0]?.message?.content ?? '';
-  const jsonMatch = content.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error('No JSON in NIM response');
-  return JSON.parse(jsonMatch[0]);
+
+  throw lastErr || new Error('All NIM models failed');
 }
 
 module.exports = async (req, res) => {
