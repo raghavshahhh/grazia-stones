@@ -12,6 +12,7 @@ import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/models/collection.dart';
 import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
+import 'package:grazia_stones/shared/widgets/grazia_logo.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -74,14 +75,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
-        title: Text(
-          'GRAZIA STONES',
-          style: GoogleFonts.playfairDisplay(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 3.5,
-            color: palette.textPrimary,
-          ),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const GraziaLogo(variant: GraziaLogoVariant.emblem, height: 28),
+            const SizedBox(width: 10),
+            Text(
+              'GRAZIA STONES',
+              style: GoogleFonts.playfairDisplay(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 3.5,
+                color: palette.textPrimary,
+              ),
+            ),
+          ],
         ),
         actions: [
           IconButton(

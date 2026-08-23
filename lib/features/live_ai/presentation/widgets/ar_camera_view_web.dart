@@ -48,15 +48,6 @@ dynamic _jsEval(String expr) {
   }
 }
 
-Future<dynamic> _jsEvalAsync(String expr) async {
-  try {
-    return _jsEvalRaw(expr);
-  } catch (e) {
-    if (kDebugMode) debugPrint('[GraziaAR] JS async error: $e');
-    return null;
-  }
-}
-
 // ── Asset → data:image/png;base64 converter for JS texture loading ──────────
 
 Future<String?> _assetToDataUrl(String assetPath) async {
@@ -279,8 +270,8 @@ class ARCameraView extends StatefulWidget {
   }
 
   /// Preload a single texture for instant switching
-  static Future<void> preloadTexture(String textureUrl) async {
-    await _jsEvalAsync('GraziaAR.preloadTexture("$textureUrl")');
+  static void preloadTexture(String textureUrl) {
+    _jsEval('GraziaAR.preloadTexture("$textureUrl")');
   }
 
   /// Preload multiple textures (e.g., adjacent carousel items)

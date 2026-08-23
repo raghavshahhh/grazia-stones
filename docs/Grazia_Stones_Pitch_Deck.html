@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+@page { size: 33.87cm 19.05cm; margin: 0; }
+* { box-sizing: border-box; }
+body { font-family: Helvetica, Arial, sans-serif; margin: 0; color: #2a2420; }
+
+.slide { width: 33.87cm; height: 19.05cm; page-break-after: always; position: relative;
+  padding: 1.6cm 2.2cm; overflow: hidden; }
+.slide:last-child { page-break-after: auto; }
+
+.dark { background: linear-gradient(160deg, #1c1712 0%, #2b2118 55%, #3d2e1c 100%); color: #f3ead9; }
+.light { background: #fffdf9; }
+
+.brandbar { display:flex; align-items:center; justify-content:space-between; margin-bottom: 0.5cm; }
+.kicker { font-size: 10.5pt; letter-spacing: 3pt; color: #c9a35a; text-transform: uppercase; margin-bottom: 8pt; }
+.light .kicker { color: #8a6d2f; }
+.pagenum { position:absolute; bottom: 0.7cm; right: 1.4cm; font-size: 8.5pt; color:#9a8a6a; }
+
+svg.i { display:block; flex-shrink:0; }
+
+/* ---- COVER ---- */
+.cover { display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
+.cover .logos { display:flex; align-items:center; gap: 34pt; margin-bottom: 26pt; }
+.cover .logos img { height: 60pt; }
+.cover .logos .x { font-size: 20pt; color:#b8a878; font-weight:300; }
+.cover h1 { font-size: 32pt; margin: 0 0 8pt; font-weight:700; letter-spacing:0.5pt; }
+.cover h2 { font-size: 14pt; font-weight:400; color:#d8c7a3; margin:0 0 22pt; }
+.cover .divider { width:70pt; height:2pt; background:#c9a35a; margin: 0 auto 22pt; }
+.cover .meta { font-size:10pt; color:#cbb98f; line-height:1.9; margin-bottom: 20pt; }
+
+/* hero AR/phone graphic */
+.hero-phone { margin: 4pt 0 6pt; }
+
+/* ---- SECTION HEADER SLIDE ---- */
+.section-slide { display:flex; align-items:center; gap: 40pt; }
+.section-slide .txt { flex: 1.1; }
+.section-slide .art { flex: 0.9; display:flex; align-items:center; justify-content:center; }
+.section-slide h1 { font-size:30pt; margin:0 0 14pt; font-weight:700; }
+.section-slide p { font-size:13pt; color:#d8c7a3; line-height:1.7; }
+
+/* ---- CONTENT ---- */
+h1.title { font-size: 22pt; margin: 0 0 4pt; color:#1c1712; font-weight:700; }
+p.sub { font-size: 11.5pt; color:#7a6d5c; margin:0 0 20pt; }
+
+.grid2 { display:flex; gap: 24pt; }
+.col { flex:1; }
+
+.point { display:flex; align-items:flex-start; gap:12pt; margin-bottom:16pt; }
+.point .ic { width:34pt; height:34pt; border-radius:8pt; background:#1c1712; color:#c9a35a; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.point .tx b { display:block; font-size:12.5pt; color:#201a14; margin-bottom:2pt; }
+.point .tx span { font-size:10pt; color:#7a6d5c; line-height:1.5; }
+
+.feature-cols { display:flex; gap:20pt; }
+.feature-cols .fcol { flex:1; }
+.frow { display:flex; align-items:flex-start; gap:10pt; padding:8pt 0; border-bottom:0.5pt solid #eee2ca; }
+.frow .ic-sm { width:22pt; height:22pt; border-radius:6pt; background:#faf6ec; color:#8a6d2f; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.frow b { display:block; font-size:11pt; color:#201a14; }
+.frow span { font-size:8.8pt; color:#7a6d5c; }
+
+.callout-lg { background:#1c1712; color:#f3ead9; border-radius:10pt; padding:20pt 26pt; margin-top:10pt; }
+.callout-lg .lbl { font-size:9.5pt; letter-spacing:2pt; color:#c9a35a; margin-bottom:6pt; }
+.callout-lg .big { font-size:16pt; font-weight:700; line-height:1.4; }
+
+.value-grid { display:grid; grid-template-columns: 1fr 1fr; gap:16pt; margin-top: 8pt; }
+.value-card { background:#faf6ec; border:0.75pt solid #e6d9b8; border-radius:8pt; padding:14pt 16pt; }
+.value-card .ic-md { width:30pt; height:30pt; border-radius:7pt; background:#1c1712; color:#c9a35a; display:flex; align-items:center; justify-content:center; margin-bottom:8pt; }
+.value-card .h { font-size:12pt; font-weight:700; color:#1c1712; margin-bottom:4pt; }
+.value-card .d { font-size:9.6pt; color:#5a4f40; line-height:1.5; }
+
+table.pd { width:100%; border-collapse:collapse; margin-top:10pt; }
+table.pd th { background:#1c1712; color:#f3ead9; text-align:left; padding:8pt 12pt; font-size:9.5pt; }
+table.pd td { padding:8pt 12pt; border-bottom:0.5pt solid #eee2ca; font-size:10pt; }
+table.pd tr:last-child td { font-weight:700; background:#faf6ec; }
+table.pd td.wk { font-weight:700; color:#8a6d2f; white-space:nowrap; }
+
+/* timeline dots */
+.tl-track { display:flex; align-items:center; margin: 18pt 0 4pt; }
+.tl-node { flex:1; text-align:center; position:relative; }
+.tl-node .dot { width:16pt; height:16pt; background:#c9a35a; border-radius:50%; margin:0 auto 8pt; position:relative; z-index:2; }
+.tl-node .line { position:absolute; top:8pt; left:-50%; width:100%; height:2pt; background:#e6d9b8; z-index:1; }
+.tl-node:first-child .line { display:none; }
+.tl-node .wl { font-size:9.5pt; font-weight:700; color:#8a6d2f; }
+.tl-node .ds { font-size:8.6pt; color:#7a6d5c; padding:0 8pt; }
+
+/* investment bar compare */
+.bar-compare { margin: 8pt 0 4pt; }
+.bar-row { display:flex; align-items:center; gap:12pt; margin-bottom:10pt; }
+.bar-row .lbl { width:120pt; font-size:9.5pt; color:#cbb98f; text-align:right; }
+.bar-row .track { flex:1; background:rgba(255,255,255,0.08); border-radius:6pt; height:22pt; position:relative; }
+.bar-row .fill { height:100%; border-radius:6pt; display:flex; align-items:center; padding-left:10pt; font-size:10pt; font-weight:700; color:#1c1712; }
+.bar-row.old .fill { width:100%; background:#6b5c40; color:#e8dcc0; }
+.bar-row.new .fill { width:86%; background:#c9a35a; }
+
+.invest-box { text-align:center; background: rgba(255,255,255,0.04); border:0.75pt solid #4a3f2c; border-radius:10pt; padding:16pt 24pt; margin: 6pt auto 0; width: 55%; }
+.invest-box .label { font-size:9.5pt; letter-spacing:2pt; color:#c9a35a; margin-bottom:4pt; }
+.invest-box .amount { font-size:28pt; font-weight:700; }
+.invest-box .sub { font-size:9pt; color:#cbb98f; margin-top:4pt; }
+.badge-row { text-align:center; margin-top:10pt; }
+.badge-row span { display:inline-block; background:#faf6ec; border:1pt solid #c9a35a; color:#8a6d2f; font-size:10pt; font-weight:700; padding:6pt 18pt; border-radius:20pt; }
+
+/* payment split bar */
+.split-bar { display:flex; width:100%; height:34pt; border-radius:8pt; overflow:hidden; margin: 14pt 0 6pt; }
+.split-bar div { display:flex; align-items:center; justify-content:center; font-size:10pt; font-weight:700; color:#1c1712; }
+.split-bar .s1 { width:40%; background:#c9a35a; }
+.split-bar .s2 { width:30%; background:#dcc48f; }
+.split-bar .s3 { width:30%; background:#eee2ca; }
+
+.trust-list { list-style:none; padding:0; margin:12pt 0 0; }
+.trust-list li { display:flex; align-items:flex-start; gap:12pt; padding:9pt 0; border-bottom:0.5pt solid rgba(255,255,255,0.1); }
+.trust-list .ic { width:28pt; height:28pt; border-radius:7pt; background:#c9a35a; color:#1c1712; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.trust-list .tx { font-size:11pt; color:#3a322a; }
+.trust-list .tx b { color:#f3ead9; display:block; font-size:11.5pt; margin-bottom:1pt; }
+.trust-list .tx span { color:#cbb98f; font-size:9.8pt; }
+
+.cta-slide { display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
+.cta-slide h1 { font-size:26pt; margin:0 0 14pt; }
+.cta-slide .steps { display:flex; gap:20pt; margin: 16pt 0; }
+.cta-slide .step { background:rgba(255,255,255,0.06); border:0.75pt solid #4a3f2c; border-radius:10pt; padding:18pt 20pt; width:220pt; text-align:center; }
+.cta-slide .step .ic { width:36pt; height:36pt; border-radius:9pt; background:#c9a35a; color:#1c1712; display:flex; align-items:center; justify-content:center; margin:0 auto 10pt; }
+.cta-slide .step .t { font-size:10.5pt; color:#d8c7a3; line-height:1.5; }
+
+.closing { display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
+.closing .logos { display:flex; align-items:center; gap:28pt; margin-bottom: 22pt; }
+.closing .logos img { height:46pt; }
+.closing h1 { font-size:26pt; margin:0 0 6pt; }
+.closing p { font-size:11pt; color:#d8c7a3; margin:2pt 0; }
+</style>
+</head>
+<body>
+
+<!-- SLIDE 1 — COVER -->
+<div class="slide dark cover">
+  <div class="logos">
+    <img src="file:///Users/raghavshah/02_BUSINESS/03_CLIENTS/16_GRAZIA_STONES/04_ASSETS/logos/ragspro-logo.png">
+    <div class="x">×</div>
+    <img src="file:///Users/raghavshah/02_BUSINESS/03_CLIENTS/16_GRAZIA_STONES/04_ASSETS/logos/grazia-logo-white.png" style="height:72pt;">
+  </div>
+  <h1>AI Smart Estimator</h1>
+  <h2>From Showroom to Screen — The Complete Digital Sales Platform</h2>
+  <div class="divider"></div>
+
+  <!-- hero graphic: phone with AR wall overlay -->
+  <svg class="hero-phone" width="170" height="120" viewBox="0 0 260 150">
+    <rect x="20" y="8" width="120" height="134" rx="14" fill="none" stroke="#c9a35a" stroke-width="2.5"/>
+    <rect x="30" y="22" width="100" height="106" rx="2" fill="#2b2118" stroke="#8a6d2f" stroke-width="1"/>
+    <rect x="34" y="26" width="30" height="30" fill="#4a3f2c"/>
+    <rect x="66" y="26" width="30" height="30" fill="#c9a35a" opacity="0.85"/>
+    <rect x="98" y="26" width="28" height="30" fill="#4a3f2c"/>
+    <rect x="34" y="58" width="30" height="30" fill="#c9a35a" opacity="0.85"/>
+    <rect x="66" y="58" width="30" height="30" fill="#4a3f2c"/>
+    <rect x="98" y="58" width="28" height="30" fill="#c9a35a" opacity="0.6"/>
+    <rect x="34" y="90" width="92" height="32" fill="#3a3020"/>
+    <path d="M40 32 L40 26 L46 26" fill="none" stroke="#f3ead9" stroke-width="2"/>
+    <path d="M120 32 L120 26 L114 26" fill="none" stroke="#f3ead9" stroke-width="2"/>
+    <path d="M40 116 L40 122 L46 122" fill="none" stroke="#f3ead9" stroke-width="2"/>
+    <path d="M120 116 L120 122 L114 122" fill="none" stroke="#f3ead9" stroke-width="2"/>
+    <circle cx="188" cy="55" r="30" fill="#1c1712" stroke="#c9a35a" stroke-width="2"/>
+    <path d="M176 55 h24 M188 43 v24" stroke="#c9a35a" stroke-width="2"/>
+    <rect x="150" y="112" width="76" height="20" rx="10" fill="none" stroke="#c9a35a" stroke-width="1.5"/>
+    <text x="188" y="126" text-anchor="middle" fill="#c9a35a" font-size="10" font-family="Helvetica">LIVE AR</text>
+  </svg>
+
+  <div class="meta">Presented to Grazia Stones &nbsp;|&nbsp; RAGSPRO Digital Solutions<br>Follow-up Presentation — August 2026</div>
+</div>
+
+<!-- SLIDE 2 — THE PROBLEM -->
+<div class="slide light">
+  <div class="brandbar"><div class="kicker">The Reality Today</div></div>
+  <h1 class="title">Why Walk-In Customers Walk Away</h1>
+  <p class="sub">Every stone/tile business faces the same four leaks — Grazia included.</p>
+  <div class="grid2">
+    <div class="col">
+      <div class="point"><div class="ic"><svg class="i" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/><line x1="3" y1="3" x2="21" y2="21"/></svg></div><div class="tx"><b>Customers can't visualize the result</b><span>They can't picture a design on their actual wall until it's already installed — leading to hesitation, returns, and lost trust.</span></div></div>
+      <div class="point"><div class="ic"><svg class="i" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div class="tx"><b>Estimation is manual and slow</b><span>Every inquiry needs someone to mentally calculate tile quantity and cost — slows down walk-ins, dealers, and phone inquiries alike.</span></div></div>
+    </div>
+    <div class="col">
+      <div class="point"><div class="ic"><svg class="i" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div><div class="tx"><b>Leads get lost</b><span>WhatsApp, phone calls, and walk-ins all live in different places — no single system tracks who's interested in what.</span></div></div>
+      <div class="point"><div class="ic"><svg class="i" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></div><div class="tx"><b>The next generation buys differently</b><span>Buyers now research on their phone before ever visiting a showroom. Brands with zero digital presence lose that moment entirely.</span></div></div>
+    </div>
+  </div>
+  <div class="pagenum">02</div>
+</div>
+
+<!-- SLIDE 3 — THE OPPORTUNITY -->
+<div class="slide dark section-slide">
+  <div class="txt">
+    <div class="kicker" style="color:#c9a35a;">The Opportunity</div>
+    <h1>Every Customer Becomes Their Own Showroom</h1>
+    <p>AI + AR puts Grazia's entire catalogue in a customer's pocket — on their own wall, instantly, before they ever pick up the phone. One platform, three winners: the customer gets certainty, the dealer gets tracked leads, and Grazia HQ gets full control.</p>
+  </div>
+  <div class="art">
+    <svg width="220" height="220" viewBox="0 0 220 220">
+      <circle cx="110" cy="110" r="95" fill="none" stroke="#4a3f2c" stroke-width="1"/>
+      <circle cx="110" cy="60" r="34" fill="#2b2118" stroke="#c9a35a" stroke-width="2"/>
+      <text x="110" y="65" text-anchor="middle" fill="#f3ead9" font-size="10" font-family="Helvetica">Customer</text>
+      <circle cx="55" cy="155" r="34" fill="#2b2118" stroke="#c9a35a" stroke-width="2"/>
+      <text x="55" y="160" text-anchor="middle" fill="#f3ead9" font-size="10" font-family="Helvetica">Dealer</text>
+      <circle cx="165" cy="155" r="34" fill="#2b2118" stroke="#c9a35a" stroke-width="2"/>
+      <text x="165" y="153" text-anchor="middle" fill="#f3ead9" font-size="9" font-family="Helvetica">Grazia</text>
+      <text x="165" y="165" text-anchor="middle" fill="#f3ead9" font-size="9" font-family="Helvetica">HQ</text>
+      <line x1="110" y1="94" x2="70" y2="130" stroke="#c9a35a" stroke-width="1.5"/>
+      <line x1="110" y1="94" x2="150" y2="130" stroke="#c9a35a" stroke-width="1.5"/>
+      <line x1="89" y1="155" x2="131" y2="155" stroke="#c9a35a" stroke-width="1.5"/>
+    </svg>
+  </div>
+  <div class="pagenum">03</div>
+</div>
+
+<!-- SLIDE 4 — WHAT WE DEMOED FRIDAY -->
+<div class="slide light">
+  <div class="brandbar"><div class="kicker">Where We Left Off</div></div>
+  <h1 class="title">Last Friday's Review — Live Web Demo</h1>
+  <p class="sub">We walked through the working web preview together and reviewed the full proposal.</p>
+  <div class="callout-lg" style="background:#faf6ec; color:#3a322a; border:0.75pt solid #e6d9b8;">
+    <div class="lbl" style="color:#8a6d2f;">WHAT WAS SHOWN</div>
+    <div class="big" style="color:#1c1712; font-size:13pt; font-weight:400; line-height:1.7;">
+      AI wall visualization, live AR tile placement, wall measurement, tile quantity + cost estimator, and the full MVP proposal at ₹1,49,000 — with the request to refine the experience further before final sign-off.
+    </div>
+  </div>
+  <div class="pagenum">04</div>
+</div>
+
+<!-- SLIDE 5 — WHAT'S IMPROVED SINCE -->
+<div class="slide light">
+  <div class="brandbar"><div class="kicker">Since Then</div></div>
+  <h1 class="title">What We Improved, As Requested</h1>
+  <p class="sub">Every round of feedback has already been built into the live app — not just promised.</p>
+  <div class="grid2">
+    <div class="col">
+      <div class="point"><div class="ic"><svg class="i" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></div><div class="tx"><b>Complete luxury UI/UX redesign</b><span>Every screen re-styled to match Grazia's premium, architectural brand positioning — not a generic template look.</span></div></div>
+      <div class="point"><div class="ic"><svg class="i" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></div><div class="tx"><b>Production-grade AR wall tracking</b><span>Polygon-based masking with true pixel-level occlusion — tiles now sit realistically on the wall, no more "floating" overlay look.</span></div></div>
+    </div>
+    <div class="col">
+      <div class="point"><div class="ic"><svg class="i" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><div class="tx"><b>Steadier, stable wall lock</b><span>State-machine based tracking handles shaky camera movement and stale detection gracefully.</span></div></div>
+      <div class="point"><div class="ic"><svg class="i" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg></div><div class="tx"><b>Cart, checkout & navigation polish</b><span>Smoother spacing, responsive bottom navigation, and refined interactions across every screen.</span></div></div>
+    </div>
+  </div>
+  <div class="pagenum">05</div>
+</div>
+
+<!-- SLIDE 6 — CORE AI/AR FEATURES -->
+<div class="slide light">
+  <div class="brandbar"><div class="kicker">The Platform</div></div>
+  <h1 class="title">Core AI + AR Experience</h1>
+  <p class="sub">This is what the customer sees and touches.</p>
+  <div class="feature-cols">
+    <div class="fcol">
+      <div class="frow"><div class="ic-sm"><svg class="i" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></div><div><b>Real AI Wall Visualization</b><span>Photorealistic preview of any design on the customer's actual wall</span></div></div>
+      <div class="frow"><div class="ic-sm"><svg class="i" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div><div><b>Real AR — Android + iPhone</b><span>Live camera placement, no markers or printouts needed</span></div></div>
+      <div class="frow"><div class="ic-sm"><svg class="i" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></div><div><b>Automatic Wall Detection</b><span>Detects wall surfaces on its own for accurate placement</span></div></div>
+      <div class="frow"><div class="ic-sm"><svg class="i" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="21" y1="3" x2="14" y2="10"/><polyline points="8 21 3 21 3 16"/><line x1="3" y1="21" x2="10" y2="14"/></svg></div><div><b>Automatic Tile Fit</b><span>Tiles auto-align and scale to the detected wall size</span></div></div>
+    </div>
+    <div class="fcol">
+      <div class="frow"><div class="ic-sm"><svg class="i" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></div><div><b>Live Swipe Design Compare</b><span>Switch between stone/tile designs instantly on the same wall</span></div></div>
+      <div class="frow"><div class="ic-sm"><svg class="i" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div><div><b>AI Room Photo Mode</b><span>Upload a room photo to visualize without live AR</span></div></div>
+      <div class="frow"><div class="ic-sm"><svg class="i" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="8" width="20" height="8" rx="1"/><line x1="6" y1="8" x2="6" y2="12"/><line x1="10" y1="8" x2="10" y2="12"/><line x1="14" y1="8" x2="14" y2="12"/><line x1="18" y1="8" x2="18" y2="12"/></svg></div><div><b>Wall Measurement</b><span>Height × width captured directly from the camera</span></div></div>
+      <div class="frow"><div class="ic-sm"><svg class="i" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="14" x2="8.01" y2="14"/><line x1="12" y1="14" x2="12.01" y2="14"/><line x1="16" y1="14" x2="16.01" y2="14"/><line x1="8" y1="18" x2="16" y2="18"/></svg></div><div><b>Tile Qty + Cost Estimator</b><span>Auto-calculates boxes needed and instant price — with shareable PDF quote</span></div></div>
+    </div>
+  </div>
+  <div class="pagenum">06</div>
+</div>
+
+<!-- SLIDE 7 — BUSINESS FEATURES -->
+<div class="slide light">
+  <div class="brandbar"><div class="kicker">The Platform</div></div>
+  <h1 class="title">Business & Growth Engine</h1>
+  <p class="sub">This is what runs behind the scenes for Grazia and its dealer network.</p>
+  <div class="value-grid">
+    <div class="value-card"><div class="ic-md"><svg class="i" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></div><div class="h">Admin Panel</div><div class="d">Manage products, pricing, designs, and the entire catalogue centrally — update once, reflect everywhere.</div></div>
+    <div class="value-card"><div class="ic-md"><svg class="i" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="h">Dealer Panel & Lead Management</div><div class="d">Every dealer gets their own login. Every lead is tracked and assigned — nothing slips through WhatsApp again.</div></div>
+    <div class="value-card"><div class="ic-md"><svg class="i" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></div><div class="h">Payment Gateway & Online Ordering</div><div class="d">Accept payments and orders directly in-app — turns a browsing session into a closed sale.</div></div>
+    <div class="value-card"><div class="ic-md"><svg class="i" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1-5h16l1 5"/><path d="M3 9v10a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V9"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="14" x2="15" y2="14"/></svg></div><div class="h">Play Store + App Store Presence</div><div class="d">Full submission on both platforms — Grazia becomes a real, installable brand, not just a showroom.</div></div>
+  </div>
+  <div class="pagenum">07</div>
+</div>
+
+<!-- SLIDE 8 — WHY THIS WINS -->
+<div class="slide dark">
+  <div class="brandbar"><div class="kicker" style="color:#c9a35a;">The Payoff</div></div>
+  <h1 class="title" style="color:#f3ead9;">Why This Wins For Grazia</h1>
+  <p class="sub" style="color:#d8c7a3;">Not just an app — a sales advantage competitors don't have yet.</p>
+  <div class="grid2">
+    <div class="col">
+      <div class="point"><div class="ic" style="background:#c9a35a; color:#1c1712;"><svg class="i" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div><div class="tx"><b style="color:#f3ead9;">Fewer wasted showroom visits</b><span style="color:#cbb98f;">Customers arrive already sure of the design — sales conversations start at "yes", not "maybe".</span></div></div>
+      <div class="point"><div class="ic" style="background:#c9a35a; color:#1c1712;"><svg class="i" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div class="tx"><b style="color:#f3ead9;">Faster decisions, faster closes</b><span style="color:#cbb98f;">Instant AI visualization + instant cost estimate removes the biggest delay in every sale: uncertainty.</span></div></div>
+    </div>
+    <div class="col">
+      <div class="point"><div class="ic" style="background:#c9a35a; color:#1c1712;"><svg class="i" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></div><div class="tx"><b style="color:#f3ead9;">Dealer network becomes a lead engine</b><span style="color:#cbb98f;">Every dealer login feeds tracked leads back to Grazia HQ — visible, measurable, no longer invisible.</span></div></div>
+      <div class="point"><div class="ic" style="background:#c9a35a; color:#1c1712;"><svg class="i" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg></div><div class="tx"><b style="color:#f3ead9;">Most tech-forward stone brand in the market</b><span style="color:#cbb98f;">Real AI + AR — not a gimmick — positions Grazia ahead of every competitor still using catalogues and phone calls.</span></div></div>
+    </div>
+  </div>
+  <div class="pagenum">08</div>
+</div>
+
+<!-- SLIDE 9 — TIMELINE -->
+<div class="slide light">
+  <div class="brandbar"><div class="kicker">Execution</div></div>
+  <h1 class="title">Timeline — Live in 6 Weeks</h1>
+  <p class="sub">From go-ahead to store submission, fully scoped week by week.</p>
+  <div class="tl-track">
+    <div class="tl-node"><div class="dot"></div><div class="wl">Week 1–2</div><div class="ds">Backend, Admin Panel, catalogue management</div></div>
+    <div class="tl-node"><div class="line"></div><div class="dot"></div><div class="wl">Week 3–4</div><div class="ds">Real AI Visualization + Real AR</div></div>
+    <div class="tl-node"><div class="line"></div><div class="dot"></div><div class="wl">Week 5</div><div class="ds">Measurement, calculator, PDF BOQ</div></div>
+    <div class="tl-node"><div class="line"></div><div class="dot"></div><div class="wl">Week 6</div><div class="ds">Testing + Store submission</div></div>
+  </div>
+  <table class="pd">
+    <tr><th>Phase</th><th>Deliverable</th></tr>
+    <tr><td class="wk">Week 1–2</td><td>Backend setup, Admin Panel, product & catalogue management</td></tr>
+    <tr><td class="wk">Week 3–4</td><td>Real AI Visualization + Real AR (wall detection, auto tile fit)</td></tr>
+    <tr><td class="wk">Week 5</td><td>Wall measurement, tile calculator, cost estimator, PDF BOQ</td></tr>
+    <tr><td class="wk">Week 6</td><td>Testing, Play Store + App Store submission</td></tr>
+  </table>
+  <div class="pagenum">09</div>
+</div>
+
+<!-- SLIDE 10 — INVESTMENT -->
+<div class="slide dark">
+  <div class="brandbar"><div class="kicker" style="color:#c9a35a;">Investment</div></div>
+  <h1 class="title" style="color:#f3ead9; text-align:center;">One Number, Everything Included</h1>
+  <div class="bar-compare" style="width:70%; margin-left:auto; margin-right:auto;">
+    <div class="bar-row old"><div class="lbl">Standard Price</div><div class="track"><div class="fill">₹1,49,000</div></div></div>
+    <div class="bar-row new"><div class="lbl">Your Price Today</div><div class="track"><div class="fill">₹1,45,000</div></div></div>
+  </div>
+  <div class="invest-box">
+    <div class="label">FINAL DISCOUNTED PRICE</div>
+    <div class="amount">₹1,45,000</div>
+    <div class="sub">One-time development cost — every feature on slides 6 &amp; 7 included</div>
+  </div>
+  <div class="badge-row"><span>You save ₹4,000 — loyalty discount for confirming this month</span></div>
+  <div class="pagenum">10</div>
+</div>
+
+<!-- SLIDE 11 — TRANSPARENT OPS COSTS -->
+<div class="slide light">
+  <div class="brandbar"><div class="kicker">Full Transparency</div></div>
+  <h1 class="title">The Only Other Costs — Shown Honestly</h1>
+  <p class="sub">Real third-party costs to run and publish the app — zero markup, ever.</p>
+  <table class="pd">
+    <tr><th>Item</th><th>Cost</th><th>Notes</th></tr>
+    <tr><td>Google Play Developer Account</td><td>₹2,100 <i>(one-time)</i></td><td>Required to publish on Play Store</td></tr>
+    <tr><td>Apple Developer Program</td><td>₹8,500 <i>(per year)</i></td><td>Required to publish &amp; stay live on App Store</td></tr>
+    <tr><td>Backend Server &amp; Database Hosting</td><td>₹2,500 – ₹4,000 <i>/month</i></td><td>Billed at actual usage, scales with traffic</td></tr>
+    <tr><td>AI Visualization API Usage</td><td>₹3,000 – ₹7,000 <i>/month</i></td><td>Billed at actual consumption only</td></tr>
+  </table>
+  <p class="sub" style="margin-top:10pt;">Estimated running cost once live: <strong>₹5,500 – ₹11,000/month</strong> — only once customers are actively using the app.</p>
+  <div class="pagenum">11</div>
+</div>
+
+<!-- SLIDE 12 — PAYMENT SCHEDULE -->
+<div class="slide light">
+  <div class="brandbar"><div class="kicker">Structured Simply</div></div>
+  <h1 class="title">Payment Schedule</h1>
+  <p class="sub">Three milestones, tied to visible progress — not blind trust.</p>
+  <div class="split-bar">
+    <div class="s1">40% — ₹58,000</div>
+    <div class="s2">30% — ₹43,500</div>
+    <div class="s3">30% — ₹43,500</div>
+  </div>
+  <table class="pd">
+    <tr><th>Milestone</th><th>Payment</th><th>Amount</th></tr>
+    <tr><td>Advance — on agreement sign-off</td><td>40%</td><td>₹58,000</td></tr>
+    <tr><td>Midway — on AI/AR module demo</td><td>30%</td><td>₹43,500</td></tr>
+    <tr><td>On delivery — before store publish</td><td>30%</td><td>₹43,500</td></tr>
+    <tr><td>Total</td><td>100%</td><td>₹1,45,000</td></tr>
+  </table>
+  <div class="pagenum">12</div>
+</div>
+
+<!-- SLIDE 13 — WHY RAGSPRO -->
+<div class="slide dark">
+  <div class="brandbar"><div class="kicker" style="color:#c9a35a;">Your Partner</div></div>
+  <h1 class="title" style="color:#f3ead9;">Why RAGSPRO</h1>
+  <ul class="trust-list">
+    <li><div class="ic"><svg class="i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div class="tx"><b>Founder-led, single point of contact</b><span>No account managers, no relay — you talk directly to the person building it.</span></div></li>
+    <li><div class="ic"><svg class="i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div><div class="tx"><b>Already built and demoed</b><span>This isn't a pitch on paper — the AI/AR engine is live and working today.</span></div></li>
+    <li><div class="ic"><svg class="i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><div class="tx"><b>No hidden markup on running costs</b><span>Server, AI API, and store fees always shown at actual invoice.</span></div></li>
+    <li><div class="ic"><svg class="i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><div class="tx"><b>30 days free post-launch support</b><span>Bugs fixed at no cost after go-live.</span></div></li>
+  </ul>
+  <div class="pagenum">13</div>
+</div>
+
+<!-- SLIDE 14 — NEXT STEPS -->
+<div class="slide dark cta-slide">
+  <div class="kicker" style="color:#c9a35a;">Let's Move</div>
+  <h1>Next Steps</h1>
+  <div class="steps">
+    <div class="step"><div class="ic"><svg class="i" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></div><div class="t">Sign today to lock in the ₹1,45,000 rate — valid 7 days from this meeting</div></div>
+    <div class="step"><div class="ic"><svg class="i" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></div><div class="t">Pay the 40% advance (₹58,000) to kick off immediately this week</div></div>
+    <div class="step"><div class="ic"><svg class="i" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></div><div class="t">Live on Play Store + App Store in 6 weeks from go-ahead</div></div>
+  </div>
+  <div class="pagenum">14</div>
+</div>
+
+<!-- SLIDE 15 — CLOSING -->
+<div class="slide dark closing">
+  <div class="logos">
+    <img src="file:///Users/raghavshah/02_BUSINESS/03_CLIENTS/16_GRAZIA_STONES/04_ASSETS/logos/ragspro-logo.png">
+    <div class="x" style="color:#b8a878; font-size:16pt;">×</div>
+    <img src="file:///Users/raghavshah/02_BUSINESS/03_CLIENTS/16_GRAZIA_STONES/04_ASSETS/logos/grazia-logo-white.png" style="height:56pt;">
+  </div>
+  <h1>Thank You</h1>
+  <p>Raghav Shah — RAGSPRO Digital Solutions</p>
+  <p>+91 87000 48490 &nbsp;|&nbsp; raghav@ragspro.com &nbsp;|&nbsp; ragspro.com</p>
+</div>
+
+</body>
+</html>

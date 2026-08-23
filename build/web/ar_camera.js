@@ -413,24 +413,44 @@
         var edgeDensity = edgeCount / perimeter;
         if (edgeDensity < 0.4) continue; // Not a clean rectangle
 
-        // Classify object type based on position and aspect ratio
+        // Classify object type based on position, aspect ratio, and size
         var type = 'other';
         var relY = (minY - wallTop) / wallH;
         var relX = (minX - wallLeft) / wallW;
+        var areaRatio = compArea / wallArea;
         
-        if (aspectRatio > 1.5 && aspectRatio < 4 && relY > 0.1 && relY < 0.9) {
-          type = 'painting'; // Horizontal rectangle, mid-wall
-        } else if (aspectRatio > 2 && aspectRatio < 5 && relY > 0.3 && relY < 0.8) {
-          type = 'window'; // Tall rectangle
-        } else if (aspectRatio > 0.5 && aspectRatio < 1.5 && relY > 0.5) {
-          type = 'furniture'; // Square-ish, lower wall
-        } else if (aspectRatio > 0.2 && aspectRatio < 0.5) {
-          type = 'door'; // Very tall
+        // TV: wide horizontal, typically at mid-height (eye level), ~16:9 aspect
+        if (aspectRatio > 1.3 && aspectRatio < 2.2 && relY > 0.25 && relY < 0.7 && areaRatio > 0.03 && areaRatio < 0.2) {
+          type = 'tv';
+        } 
+        // Window: tall vertical, often centered or upper wall
+        else if (aspectRatio > 1.5 && aspectRatio < 4 && relY > 0.1 && relY < 0.85 && areaRatio > 0.05) {
+          type = 'window';
+        } 
+        // Door: very tall, reaches near bottom of wall
+        else if (aspectRatio > 0.2 && aspectRatio < 0.6 && relY < 0.5 && (wallBottom - maxY) < wallH * 0.15) {
+          type = 'door';
+        } 
+        // Mirror: similar to painting but often larger, centered
+        else if (aspectRatio > 0.8 && aspectRatio < 1.5 && relY > 0.2 && relY < 0.8 && areaRatio > 0.04) {
+          type = 'mirror';
+        }
+        // Painting/Frame: horizontal or square, mid-wall
+        else if (aspectRatio > 0.7 && aspectRatio < 1.8 && relY > 0.15 && relY < 0.85 && areaRatio < 0.15) {
+          type = 'painting';
+        } 
+        // Furniture: square-ish, lower portion of wall, larger area
+        else if (aspectRatio > 0.5 && aspectRatio < 1.5 && relY > 0.4 && areaRatio > 0.08) {
+          type = 'furniture';
+        } 
+        // Shelf/Outlet/Switch: small horizontal elements
+        else if (aspectRatio > 2.5 && aspectRatio < 6 && areaRatio < 0.05) {
+          type = 'shelf';
         }
 
         objects.push({
           type: type,
-          confidence: 0.6,
+          confidence: type === 'other' ? 0.5 : 0.65,
           polygon: [
             [minX / width, minY / height],
             [maxX / width, minY / height],

@@ -11,6 +11,7 @@ import 'package:grazia_stones/shared/widgets/grazia_button.dart';
 import 'package:grazia_stones/core/utils/validators.dart';
 import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/utils/user_friendly_error.dart';
+import 'package:grazia_stones/shared/widgets/grazia_logo.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -205,43 +206,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
                 GLuxurySpacing.gapLg,
 
                 // Brand Logo
-                Center(
-                  child: Container(
-                    width: 70,
-                    height: 70,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: palette.primaryGradient,
-                      boxShadow: [
-                        BoxShadow(
-                          color: palette.primary.withValues(alpha: 0.3),
-                          blurRadius: 20,
-                          spreadRadius: 2,
-                        ),
-                      ],
-                    ),
-                    child: Container(
-                      margin: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: palette.background,
-                      ),
-                      child: Center(
-                        child: ShaderMask(
-                          shaderCallback: (bounds) =>
-                              palette.primaryGradient.createShader(bounds),
-                          child: const Text(
-                            'G',
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 36,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
+                const Center(
+                  child: GraziaLogo(
+                    variant: GraziaLogoVariant.full,
+                    height: 80,
+                    enableGlow: true,
                   ),
                 ),
                 

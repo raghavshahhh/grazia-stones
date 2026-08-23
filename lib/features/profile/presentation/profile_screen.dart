@@ -8,6 +8,7 @@ import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/features/cart/presentation/cart_screen.dart';
 import 'package:grazia_stones/features/profile/presentation/edit_profile_screen.dart';
 import 'package:grazia_stones/features/profile/presentation/addresses_screen.dart';
+import 'package:grazia_stones/shared/widgets/grazia_logo.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -348,7 +349,7 @@ class ProfileScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 20),
             Text(
-              'Architect Concierge',
+              'Architect & Client Concierge',
               style: GoogleFonts.playfairDisplay(
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
@@ -357,15 +358,17 @@ class ProfileScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'Connect with our stone specialist for project consultation.',
+              'Direct assistance from Grazia Stones Head Office.',
               style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary),
             ),
             const SizedBox(height: 20),
-            _helpItem(palette, Icons.phone_outlined, 'Direct Helpline', '+91 98765 43210'),
+            _helpItem(palette, Icons.phone_outlined, 'Direct Helpline', '+91 9839846105 / 7518102550'),
             const SizedBox(height: 10),
-            _helpItem(palette, Icons.email_outlined, 'Architect Desk', 'concierge@graziastones.com'),
+            _helpItem(palette, Icons.email_outlined, 'Official Mailbox', 'hello@graziastones.com'),
             const SizedBox(height: 10),
-            _helpItem(palette, Icons.chat_bubble_outline_rounded, 'WhatsApp Concierge', '24/7 Priority Support'),
+            _helpItem(palette, Icons.location_on_outlined, 'Head Office', '123/477, Kalpi Road, Fazalganj, Kanpur'),
+            const SizedBox(height: 10),
+            _helpItem(palette, Icons.language_outlined, 'Official Website', 'www.graziastones.com'),
             const SizedBox(height: 20),
           ],
         ),
@@ -392,22 +395,24 @@ class ProfileScreen extends ConsumerWidget {
             child: Icon(icon, color: palette.primary, size: 20),
           ),
           const SizedBox(width: 14),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: GoogleFonts.inter(
-                  color: palette.textPrimary,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.inter(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
                 ),
-              ),
-              Text(
-                subtitle,
-                style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 12),
-              ),
-            ],
+                Text(
+                  subtitle,
+                  style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 12),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -423,35 +428,74 @@ class ProfileScreen extends ConsumerWidget {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: palette.primary.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Icon(Icons.diamond_outlined, color: palette.primary, size: 28),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'GRAZIA STONES',
-              style: GoogleFonts.playfairDisplay(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 2,
-                color: palette.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Architectural Natural Stone Studio',
-              style: GoogleFonts.inter(fontSize: 11, color: palette.textTertiary),
+            const GraziaLogo(
+              variant: GraziaLogoVariant.full,
+              height: 72,
+              enableGlow: true,
             ),
             const SizedBox(height: 14),
             Text(
-              'Grazia Stones delivers curated Italian, Turkish, and Brazilian natural stones with AI neural lighting and AR spatial preview.',
+              'STONES THAT INSPIRE',
+              style: GoogleFonts.inter(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 2.5,
+                color: palette.primary,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'Grazia Stones delivers curated cultured stone, ledge stone, and designer wall cladding with real-time AR spatial projection and AI room visualization.',
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary, height: 1.4),
+              style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary, height: 1.45),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: palette.background,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: palette.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.location_on_outlined, size: 14, color: palette.primary),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '123/477, Kalpi Road, Fazalganj, Kanpur',
+                          style: GoogleFonts.inter(fontSize: 11, color: palette.textPrimary),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(Icons.email_outlined, size: 14, color: palette.primary),
+                      const SizedBox(width: 6),
+                      Text(
+                        'hello@graziastones.com',
+                        style: GoogleFonts.inter(fontSize: 11, color: palette.textPrimary),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(Icons.phone_outlined, size: 14, color: palette.primary),
+                      const SizedBox(width: 6),
+                      Text(
+                        '+91 9839846105 / 7518102550',
+                        style: GoogleFonts.inter(fontSize: 11, color: palette.textPrimary),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 20),
             ElevatedButton(
@@ -460,7 +504,7 @@ class ProfileScreen extends ConsumerWidget {
                 backgroundColor: palette.primary,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
                 elevation: 0,
               ),
               child: const Text('Close'),

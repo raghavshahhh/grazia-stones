@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 
+import 'package:grazia_stones/shared/widgets/grazia_logo.dart';
+
 /// Premium Branded 404 / Route Not Found Screen.
 class NotFoundScreen extends ConsumerWidget {
   final String? uri;
@@ -31,14 +33,13 @@ class NotFoundScreen extends ConsumerWidget {
           },
           icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
         ),
-        title: Text(
-          'GRAZIA STONES',
-          style: GoogleFonts.playfairDisplay(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 4.0,
-            color: palette.textPrimary,
-          ),
+        title: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GraziaLogo(variant: GraziaLogoVariant.emblem, height: 22),
+            SizedBox(width: 8),
+            Text('GRAZIA STONES'),
+          ],
         ),
         centerTitle: true,
       ),
@@ -52,29 +53,11 @@ class NotFoundScreen extends ConsumerWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Luxury Emblem
-                Container(
-                  width: 80,
+                // Luxury Official Logo
+                const GraziaLogo(
+                  variant: GraziaLogoVariant.full,
                   height: 80,
-                  decoration: BoxDecoration(
-                    color: palette.surface,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: palette.border, width: 1.2),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.03),
-                        blurRadius: 16,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Center(
-                    child: Icon(
-                      Icons.diamond_outlined,
-                      size: 36,
-                      color: palette.primary,
-                    ),
-                  ),
+                  enableGlow: true,
                 ),
 
                 const SizedBox(height: 32),
