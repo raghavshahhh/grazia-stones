@@ -25,7 +25,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   List<Stone>? _trendingStones;
   List<Collection>? _collections;
   final Set<String> _wishlistedIds = {};
+  String _selectedCategory = 'All';
   bool _isLoading = true;
+
+  final List<String> _categories = [
+    'All',
+    'Ledge Stone',
+    'Cultured Stone',
+    'Rustic Brick',
+    'Designer 3D',
+  ];
 
   @override
   void initState() {
@@ -42,7 +51,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       final stoneRepo = ref.read(stoneRepositoryProvider);
       
       final results = await Future.wait([
-        stoneRepo.getTrendingStones(limit: 10),
+        stoneRepo.getTrendingStones(limit: 20),
         stoneRepo.getCollections(),
       ]);
 
@@ -109,70 +118,89 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               onRefresh: _loadData,
               color: palette.primary,
               backgroundColor: palette.surface,
-              child: CustomScrollView(
-                physics: const BouncingScrollPhysics(),
-                slivers: [
-                  // 1. Editorial Hero Section
-                  SliverToBoxAdapter(
-                    child: _buildEditorialHero(palette),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1080),
+                  child: CustomScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    slivers: [
+                      // 1. Editorial Hero Section
+                      SliverToBoxAdapter(
+                        child: _buildEditorialHero(palette),
+                      ),
+
+                      const SliverToBoxAdapter(child: SizedBox(height: 18)),
+
+                      // 2. Interactive Feature Hub (AR, AI Studio, Calculator, Samples)
+                      SliverToBoxAdapter(
+                        child: _buildFeatureHub(palette),
+                      ),
+
+                      const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+                      // 3. Category Filter Chips
+                      SliverToBoxAdapter(
+                        child: _buildCategoryChips(palette),
+                      ),
+
+                      const SliverToBoxAdapter(child: SizedBox(height: 18)),
+
+                      // 4. Trending Stones Section
+                      SliverToBoxAdapter(
+                        child: _buildTrendingHeader(palette),
+                      ),
+
+                      const SliverToBoxAdapter(child: SizedBox(height: 14)),
+
+                      SliverToBoxAdapter(
+                        child: _buildTrendingCarousel(palette),
+                      ),
+
+                      const SliverToBoxAdapter(child: SizedBox(height: 30)),
+
+                      // 5. Curated Collections
+                      SliverToBoxAdapter(
+                        child: _buildCollectionsHeader(palette),
+                      ),
+
+                      const SliverToBoxAdapter(child: SizedBox(height: 14)),
+
+                      SliverToBoxAdapter(
+                        child: _buildCollectionsList(palette),
+                      ),
+
+                      const SliverToBoxAdapter(child: SizedBox(height: 30)),
+
+                      // 6. Room Upload AI Visualization Card
+                      SliverToBoxAdapter(
+                        child: _buildAIStudioPromoCard(palette),
+                      ),
+
+                      const SliverToBoxAdapter(child: SizedBox(height: 32)),
+
+                      // 7. Why Grazia Stones (4 Pillars)
+                      SliverToBoxAdapter(
+                        child: _buildWhyGraziaPillars(palette),
+                      ),
+
+                      const SliverToBoxAdapter(child: SizedBox(height: 30)),
+
+                      // 8. Architectural Consultation / Dealer CTA
+                      SliverToBoxAdapter(
+                        child: _buildConsultationCTA(palette),
+                      ),
+
+                      const SliverToBoxAdapter(child: SizedBox(height: 30)),
+
+                      // 9. Official Brand & Kanpur Headquarters Signature
+                      SliverToBoxAdapter(
+                        child: _buildBrandFooter(palette),
+                      ),
+
+                      const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                    ],
                   ),
-
-                  const SliverToBoxAdapter(child: SizedBox(height: 16)),
-
-                  // 2. Quick Action AR Card
-                  SliverToBoxAdapter(
-                    child: _buildQuickActionARCard(palette),
-                  ),
-
-                  const SliverToBoxAdapter(child: SizedBox(height: 28)),
-
-                  // 3. Trending Stones Section
-                  SliverToBoxAdapter(
-                    child: _buildTrendingHeader(palette),
-                  ),
-
-                  const SliverToBoxAdapter(child: SizedBox(height: 14)),
-
-                  SliverToBoxAdapter(
-                    child: _buildTrendingCarousel(palette),
-                  ),
-
-                  const SliverToBoxAdapter(child: SizedBox(height: 28)),
-
-                  // 4. Curated Collections
-                  SliverToBoxAdapter(
-                    child: _buildCollectionsHeader(palette),
-                  ),
-
-                  const SliverToBoxAdapter(child: SizedBox(height: 14)),
-
-                  SliverToBoxAdapter(
-                    child: _buildCollectionsList(palette),
-                  ),
-
-                  const SliverToBoxAdapter(child: SizedBox(height: 28)),
-
-                  // 5. Room Upload AI Visualization Card
-                  SliverToBoxAdapter(
-                    child: _buildAIStudioPromoCard(palette),
-                  ),
-
-                  const SliverToBoxAdapter(child: SizedBox(height: 32)),
-
-                  // 6. Why Grazia Stones (4 Pillars)
-                  SliverToBoxAdapter(
-                    child: _buildWhyGraziaPillars(palette),
-                  ),
-
-                  const SliverToBoxAdapter(child: SizedBox(height: 28)),
-
-                  // 7. Architectural Consultation / Dealer CTA
-                  SliverToBoxAdapter(
-                    child: _buildConsultationCTA(palette),
-                  ),
-
-                  const SliverToBoxAdapter(child: SizedBox(height: 100)),
-                ],
+                ),
               ),
             ),
     );
@@ -185,20 +213,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         : null;
 
     return Container(
-      height: 260,
+      height: 280,
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 6),
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -213,62 +241,132 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withValues(alpha: 0.15),
-                    Colors.black.withValues(alpha: 0.75),
+                    Colors.black.withValues(alpha: 0.2),
+                    Colors.black.withValues(alpha: 0.85),
                   ],
-                  stops: const [0.3, 1.0],
+                  stops: const [0.25, 1.0],
                 ),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.all(22),
+              padding: const EdgeInsets.all(24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
+                  // Gold badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.45),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFD4AF37).withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const GraziaLogo(
+                          variant: GraziaLogoVariant.emblem,
+                          height: 14,
+                          colorStyle: GraziaLogoColor.gold,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '2025 ARCHITECTURAL CATALOGUE',
+                          style: GoogleFonts.inter(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 2.0,
+                            color: const Color(0xFFD4AF37),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
                   Text(
                     'Natural Stone.\nDesigned for Living.',
                     style: GoogleFonts.playfairDisplay(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
                       color: Colors.white,
                       height: 1.15,
                     ),
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Discover surfaces that transform spaces.',
+                    'Discover architectural surfaces that transform spaces.',
                     style: GoogleFonts.inter(
                       fontSize: 13,
                       fontWeight: FontWeight.w400,
-                      color: Colors.white.withValues(alpha: 0.85),
+                      color: Colors.white.withValues(alpha: 0.9),
                     ),
                   ),
                   const SizedBox(height: 14),
-                  GestureDetector(
-                    onTap: () => context.push('/collections'),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        gradient: palette.primaryGradient,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Explore Collection',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
+                  Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () => context.push('/collections'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                          decoration: BoxDecoration(
+                            gradient: palette.primaryGradient,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: palette.primary.withValues(alpha: 0.35),
+                                blurRadius: 10,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 4),
-                          const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 14),
-                        ],
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Explore Collections',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 14),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 10),
+                      GestureDetector(
+                        onTap: () => context.push('/live-ai'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.view_in_ar_outlined, color: Colors.white, size: 14),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Live AR',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -279,106 +377,231 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  // ── 2. Quick Action AR Card ──
-  Widget _buildQuickActionARCard(LuxuryPalette palette) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: palette.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: palette.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              gradient: palette.primaryGradient,
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(
-                  color: palette.primary.withValues(alpha: 0.3),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
+  // ── 2. Feature Hub (AR, AI Studio, Measure, Samples) ──
+  Widget _buildFeatureHub(LuxuryPalette palette) {
+    final features = [
+      {
+        'icon': Icons.view_in_ar_rounded,
+        'label': 'Live AR Wall',
+        'sub': 'Real-time Camera',
+        'route': '/live-ai',
+        'highlight': true,
+      },
+      {
+        'icon': Icons.auto_awesome_rounded,
+        'label': 'AI Studio',
+        'sub': 'Photo Visualizer',
+        'route': '/ai-viz',
+        'highlight': false,
+      },
+      {
+        'icon': Icons.square_foot_rounded,
+        'label': 'Calculator',
+        'sub': 'Estimate Sqft',
+        'route': '/measure',
+        'highlight': false,
+      },
+      {
+        'icon': Icons.inventory_2_outlined,
+        'label': 'Sample Box',
+        'sub': 'Order Swatches',
+        'route': '/sample-order',
+        'highlight': false,
+      },
+    ];
+
+    return SizedBox(
+      height: 84,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: features.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
+        itemBuilder: (context, index) {
+          final f = features[index];
+          final isHighlight = f['highlight'] as bool;
+
+          return GestureDetector(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              context.push(f['route'] as String);
+            },
+            child: Container(
+              width: 155,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: palette.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isHighlight
+                      ? palette.primary.withValues(alpha: 0.5)
+                      : palette.border,
+                  width: isHighlight ? 1.2 : 0.8,
                 ),
-              ],
-            ),
-            child: const Icon(Icons.view_in_ar_outlined, color: Colors.white, size: 24),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Live AR Visualization',
-                  style: GoogleFonts.inter(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: palette.textPrimary,
+                boxShadow: [
+                  BoxShadow(
+                    color: isHighlight
+                        ? palette.primary.withValues(alpha: 0.08)
+                        : Colors.black.withValues(alpha: 0.02),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Point your camera at any wall to preview stone in real-time.',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: palette.textSecondary,
-                    height: 1.3,
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      gradient: isHighlight
+                          ? palette.primaryGradient
+                          : LinearGradient(
+                              colors: [
+                                palette.primary.withValues(alpha: 0.15),
+                                palette.primary.withValues(alpha: 0.05),
+                              ],
+                            ),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      f['icon'] as IconData,
+                      color: isHighlight ? Colors.white : palette.primary,
+                      size: 20,
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          // Flexible is required here: Row gives non-flex children an
-          // unbounded max-width, and ElevatedButton's min-tap-target
-          // wrapper (_InputPadding) throws on infinite width constraints.
-          Flexible(
-            child: ElevatedButton(
-              onPressed: () => context.push('/live-ai'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: palette.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 0,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          f['label'] as String,
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: palette.textPrimary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          f['sub'] as String,
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            color: palette.textSecondary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              child: Text(
-                'Open AR →',
-                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
-              ),
             ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
 
-  // ── 3. Trending Header & Carousel ──
+  // ── 3. Category Filter Chips ──
+  Widget _buildCategoryChips(LuxuryPalette palette) {
+    return SizedBox(
+      height: 38,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: _categories.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final cat = _categories[index];
+          final isSelected = _selectedCategory == cat;
+
+          return GestureDetector(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              setState(() {
+                _selectedCategory = cat;
+              });
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                gradient: isSelected ? palette.primaryGradient : null,
+                color: isSelected ? null : palette.surface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isSelected ? Colors.transparent : palette.border,
+                ),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: palette.primary.withValues(alpha: 0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Center(
+                child: Text(
+                  cat,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    color: isSelected ? Colors.white : palette.textSecondary,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ── 4. Trending Header & Carousel ──
   Widget _buildTrendingHeader(LuxuryPalette palette) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            'TRENDING STONES',
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 2.0,
-              color: palette.textTertiary,
-            ),
+          Row(
+            children: [
+              Text(
+                'TRENDING STONES',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 2.0,
+                  color: palette.textTertiary,
+                ),
+              ),
+              if (_selectedCategory != 'All') ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: palette.primary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    _selectedCategory,
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: palette.primary,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
           GestureDetector(
             onTap: () => context.push('/collections'),
@@ -403,45 +626,60 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildTrendingCarousel(LuxuryPalette palette) {
-    final stones = _trendingStones ?? [];
-    if (stones.isEmpty) return const SizedBox.shrink();
+    final allStones = _trendingStones ?? [];
+    if (allStones.isEmpty) return const SizedBox.shrink();
+
+    // Filter by selected category if not 'All'
+    final stones = _selectedCategory == 'All'
+        ? allStones
+        : allStones.where((s) {
+            final cat = _selectedCategory.toLowerCase();
+            return s.collection.toLowerCase().contains(cat) ||
+                s.name.toLowerCase().contains(cat) ||
+                s.category.toLowerCase().contains(cat) ||
+                s.description.toLowerCase().contains(cat);
+          }).toList();
+
+    final displayStones = stones.isEmpty ? allStones : stones;
 
     return SizedBox(
-      height: 250,
+      height: 275,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: stones.length,
+        itemCount: displayStones.length,
         separatorBuilder: (_, _) => const SizedBox(width: 14),
         itemBuilder: (context, index) {
-          final stone = stones[index];
+          final stone = displayStones[index];
+          final isWishlisted = _wishlistedIds.contains(stone.id);
+
           return GestureDetector(
             onTap: () {
               HapticFeedback.lightImpact();
               context.push('/stones/${stone.id}');
             },
             child: Container(
-              width: 175,
+              width: 185,
               decoration: BoxDecoration(
                 color: palette.surface,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(18),
                 border: Border.all(color: palette.border),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.03),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(15),
+                borderRadius: BorderRadius.circular(17),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Dominant image
+                    // Dominant image with AR and Wishlist overlays
                     Expanded(
-                      flex: 3,
+                      flex: 4,
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
@@ -450,6 +688,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             fit: BoxFit.cover,
                             palette: palette,
                           ),
+                          // Gradient bottom shadow on image
+                          Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.transparent,
+                                  Colors.black.withValues(alpha: 0.4),
+                                ],
+                                stops: const [0.6, 1.0],
+                              ),
+                            ),
+                          ),
+                          // Top Right: Wishlist Icon
                           Positioned(
                             top: 8,
                             right: 8,
@@ -465,16 +718,58 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 });
                               },
                               child: Container(
-                                width: 28,
-                                height: 28,
+                                width: 30,
+                                height: 30,
                                 decoration: BoxDecoration(
-                                  color: palette.surface.withValues(alpha: 0.9),
+                                  color: palette.surface.withValues(alpha: 0.92),
                                   shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.1),
+                                      blurRadius: 4,
+                                    ),
+                                  ],
                                 ),
                                 child: Icon(
-                                  _wishlistedIds.contains(stone.id) ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                                  size: 15,
-                                  color: _wishlistedIds.contains(stone.id) ? palette.primary : palette.textSecondary,
+                                  isWishlisted ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                                  size: 16,
+                                  color: isWishlisted ? palette.primary : palette.textSecondary,
+                                ),
+                              ),
+                            ),
+                          ),
+                          // Bottom Left: 1-Tap AR Button
+                          Positioned(
+                            bottom: 8,
+                            left: 8,
+                            child: GestureDetector(
+                              onTap: () {
+                                HapticFeedback.lightImpact();
+                                context.push('/live-ai?stoneId=${stone.id}');
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.65),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: const Color(0xFFD4AF37).withValues(alpha: 0.5),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.view_in_ar_rounded, size: 12, color: Color(0xFFD4AF37)),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'AR View',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
@@ -482,9 +777,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ],
                       ),
                     ),
-                    // Metadata
+                    // Metadata section
                     Padding(
-                      padding: const EdgeInsets.all(10),
+                      padding: const EdgeInsets.all(12),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -492,7 +787,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             stone.name,
                             style: GoogleFonts.inter(
                               fontSize: 13,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w700,
                               color: palette.textPrimary,
                             ),
                             maxLines: 1,
@@ -509,13 +804,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 6),
-                          Text(
-                            '₹${stone.pricePerSqFt.toInt()} / sq ft',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: palette.primary,
-                            ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                '₹${stone.pricePerSqFt.toInt()}/sqft',
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: palette.primary,
+                                ),
+                              ),
+                              Icon(Icons.arrow_forward_rounded, size: 14, color: palette.primary),
+                            ],
                           ),
                         ],
                       ),
@@ -899,6 +1200,96 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── 9. Official Brand & Kanpur Headquarters Signature ──
+  Widget _buildBrandFooter(LuxuryPalette palette) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: palette.border),
+      ),
+      child: Column(
+        children: [
+          const GraziaLogo(
+            variant: GraziaLogoVariant.full,
+            height: 48,
+            colorStyle: GraziaLogoColor.gold,
+            enableGlow: false,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'STONES THAT INSPIRE',
+            style: GoogleFonts.inter(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 4.0,
+              color: palette.primary,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Divider(color: palette.border, thickness: 0.8),
+          const SizedBox(height: 14),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.location_on_outlined, size: 16, color: palette.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Head Office: 123/477, Kalpi Road, Fazalganj, Kanpur, Uttar Pradesh',
+                  style: GoogleFonts.inter(
+                    fontSize: 11.5,
+                    color: palette.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.phone_outlined, size: 16, color: palette.primary),
+              const SizedBox(width: 8),
+              Text(
+                '+91 9839846105 / 7518102550',
+                style: GoogleFonts.inter(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: palette.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.mail_outline_rounded, size: 16, color: palette.primary),
+              const SizedBox(width: 8),
+              Text(
+                'hello@graziastones.com',
+                style: GoogleFonts.inter(
+                  fontSize: 11.5,
+                  color: palette.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            '© 2025 Grazia Stones. All rights reserved.',
+            style: GoogleFonts.inter(
+              fontSize: 10,
+              color: palette.textTertiary,
+            ),
           ),
         ],
       ),

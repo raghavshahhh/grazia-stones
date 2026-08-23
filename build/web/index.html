@@ -1,23 +1,10 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
   <base href="/">
-
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="description" content="Grazia Stones — Luxury Natural Stones, AR Wall Projection & AI Room Visualization.">
 
   <!-- iOS meta tags & icons -->
@@ -32,18 +19,185 @@
 
   <title>Grazia Stones | Stones That Inspire</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- Preconnect to Google Fonts for instant typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      background-color: #111110;
+      color: #F7F5F0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Luxury Preloader */
+    #grazia-preloader {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at center, #1B1B19 0%, #0D0D0C 100%);
+      z-index: 999999;
+      transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.6s;
+    }
+    #grazia-preloader.loaded {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .emblem-wrapper {
+      position: relative;
+      width: 120px;
+      height: 120px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 24px;
+    }
+    .emblem-aura {
+      position: absolute;
+      width: 140px;
+      height: 140px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(212, 175, 55, 0.28) 0%, rgba(212, 175, 55, 0) 70%);
+      animation: auraPulse 2.8s ease-in-out infinite;
+    }
+    .emblem-img {
+      width: 90px;
+      height: 90px;
+      object-fit: contain;
+      filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.6));
+      animation: emblemReveal 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    .brand-heading {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: 9px;
+      color: #FFFFFF;
+      margin: 0;
+      text-align: center;
+      text-transform: uppercase;
+      opacity: 0;
+      animation: textFadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.3s forwards;
+    }
+
+    .brand-sub {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 5.5px;
+      color: #D4AF37;
+      margin-top: 6px;
+      text-align: center;
+      text-transform: uppercase;
+      opacity: 0;
+      animation: textFadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.5s forwards;
+    }
+
+    .loader-bar {
+      margin-top: 24px;
+      width: 72px;
+      height: 2px;
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 2px;
+      overflow: hidden;
+      position: relative;
+      opacity: 0;
+      animation: textFadeIn 0.6s ease 0.6s forwards;
+    }
+    .loader-progress {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      width: 45%;
+      background: linear-gradient(90deg, transparent, #D4AF37, #FFF2D1, #D4AF37, transparent);
+      animation: shimmerSweep 1.5s infinite ease-in-out;
+    }
+
+    .brand-slogan {
+      margin-top: 14px;
+      font-size: 9.5px;
+      font-weight: 500;
+      letter-spacing: 3.5px;
+      color: rgba(255, 255, 255, 0.45);
+      text-transform: uppercase;
+      opacity: 0;
+      animation: textFadeIn 0.8s ease 0.7s forwards;
+    }
+
+    @keyframes auraPulse {
+      0%, 100% { transform: scale(0.92); opacity: 0.5; }
+      50% { transform: scale(1.18); opacity: 0.95; }
+    }
+    @keyframes emblemReveal {
+      0% { transform: scale(0.65); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    @keyframes textFadeIn {
+      0% { opacity: 0; transform: translateY(6px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes shimmerSweep {
+      0% { left: -100%; }
+      100% { left: 200%; }
+    }
+  </style>
 </head>
 <body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
+  <!-- Instant Luxury Brand Preloader -->
+  <div id="grazia-preloader">
+    <div class="emblem-wrapper">
+      <div class="emblem-aura"></div>
+      <img src="favicon.png" alt="Grazia Stones Emblem" class="emblem-img" />
+    </div>
+    <h1 class="brand-heading">GRAZIA</h1>
+    <div class="brand-sub">STONES</div>
+    <div class="loader-bar">
+      <div class="loader-progress"></div>
+    </div>
+    <div class="brand-slogan">STONES THAT INSPIRE</div>
+  </div>
 
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
   <!-- Grazia Stones AR Camera Engine -->
   <script src="ar_camera.js"></script>
+
+  <script>
+    // Smooth transition from HTML preloader to Flutter CanvasKit
+    window.addEventListener('DOMContentLoaded', function() {
+      var checkFlutter = setInterval(function() {
+        var flutterHost = document.querySelector('flt-glass-pane') || document.querySelector('flutter-view') || document.querySelector('flt-scene-host');
+        if (flutterHost) {
+          clearInterval(checkFlutter);
+          setTimeout(function() {
+            var preloader = document.getElementById('grazia-preloader');
+            if (preloader) {
+              preloader.classList.add('loaded');
+              setTimeout(function() { preloader.remove(); }, 650);
+            }
+          }, 350);
+        }
+      }, 40);
+    });
+  </script>
+
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

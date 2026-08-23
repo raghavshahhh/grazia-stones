@@ -28,19 +28,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
     if (!mounted) return;
 
-    final authState = ref.read(authRiverpodProvider);
-
-    String route;
-    if (!authState.onboardingComplete) {
-      route = '/onboarding';
-    } else if (!authState.isLoggedIn) {
-      route = '/login';
-    } else {
-      route = '/home';
-    }
-
     if (mounted) {
-      context.go(route);
+      context.go('/home');
     }
   }
 
