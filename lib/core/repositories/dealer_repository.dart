@@ -10,14 +10,20 @@ class DealerRepository {
     double? longitude,
     double? radius,
   }) async {
-    var builder = _sb.client
-        .from('dealers')
-        .select()
-        .eq('active', true)
-        .order('rating', ascending: false);
+    try {
+      var builder = _sb.client
+          .from('dealers')
+          .select()
+          .eq('active', true)
+          .order('rating', ascending: false);
 
-    final data = await builder;
-    return data.map((j) => Dealer.fromJson(j)).toList();
+      final data = await builder;
+      return data.map((j) => Dealer.fromJson(j)).toList();
+    } catch (e) {
+      // Dealer list isn't critical path — fail soft to empty rather than
+      // breaking whatever screen renders it.
+      return [];
+    }
   }
 
   Future<Dealer?> getDealerById(String id) async {

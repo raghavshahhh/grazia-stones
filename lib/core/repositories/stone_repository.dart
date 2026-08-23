@@ -2,15 +2,13 @@ import '../models/stone.dart';
 import '../models/collection.dart';
 import '../services/supabase_service.dart';
 import '../services/mock_data_service.dart';
-import '../config/env_config.dart';
 import 'package:flutter/foundation.dart';
 
-/// Stone & collection repository backed by Supabase.
-/// Uses mock data only in development mode when Supabase isn't configured.
-/// In production, throws actual errors so they can be monitored and fixed.
+/// Stone & collection repository backed by Supabase, with a mock-data
+/// safety net so the catalogue/AR product carousel keeps working even
+/// if Supabase credentials aren't reachable in a given deployment.
 class StoneRepository {
   final SupabaseService _sb = SupabaseService.instance;
-  final EnvConfig _env = EnvConfig();
 
   // Falls back to catalogue mock data whenever Supabase actually fails —
   // not just in dev builds — so the storefront/AR product carousel never
