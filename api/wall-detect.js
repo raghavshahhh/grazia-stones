@@ -127,13 +127,22 @@ async function _callNIM(model, prompt, imageDataUrl) {
 }
 
 module.exports = async (req, res) => {
-  const origin = req.headers.origin || req.headers.referer || '';
-  const originAllowed = ALLOWED_ORIGINS.some((allowed) => origin.startsWith(allowed));
+  const rawOrigin = req.headers.origin || req.headers.referer || '';
+  // Exact-match the request's actual origin (scheme+host+port) against the
+  // allowlist — a startsWith() prefix check would let
+  // "https://grazia-stones.vercel.app.evil.com" impersonate an allowed origin.
+  let originValue = '';
+  try {
+    originValue = new URL(rawOrigin).origin;
+  } catch {
+    originValue = '';
+  }
+  const originAllowed = ALLOWED_ORIGINS.includes(originValue);
 
   // CORS: only echo back the origin if it's actually on the allowlist —
   // never reflect an arbitrary Origin header.
   if (originAllowed) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Origin', originValue);
     res.setHeader('Vary', 'Origin');
   }
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');

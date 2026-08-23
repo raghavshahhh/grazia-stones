@@ -3,6 +3,8 @@
 **Session date:** 2026-08-23
 **Objective:** Audit + demo-readiness pass ahead of tomorrow's 12:00 PM client meeting. No rebuild, no mock replacement of real systems — fix what's broken in place.
 
+> **CORRECTION (later same day):** This report was written before production backend verification. It's now confirmed the live site itself was broken (`.vercelignore` bug) and `/api/wall-detect` had never actually worked (`FUNCTION_INVOCATION_FAILED` on every request, missing `module.exports`). Both are now fixed and redeployed. Real NVIDIA AI and real Supabase are **still not verified working** — see `PRODUCTION_QA.md`, which supersedes the readiness claims below. Do not treat anything in this file as confirmation that the AI/AR flow works in production.
+
 ---
 
 ## Verification Legend
@@ -51,7 +53,7 @@
 | Measurement/quantity calculation | Code-complete, math verified by reading, not live-tested |
 | AI Photo Visualization | ~85% — UI complete, detection API real, full round-trip not exercised |
 | Authentication | Code exists, production Supabase not configured |
-| Catalogue | 100% demo-ready (mock fallback, real-looking data, verified working) |
+| Catalogue | Mock fallback verified working locally — **not real Supabase data**; Supabase is not configured in production at all (see PRODUCTION_QA.md §2) |
 | Commerce (cart/checkout) | Not touched this session, out of today's scope |
 | Safari (mobile/desktop) | **Not tested this session** — no Safari device available in this environment beyond the WebKit engine used for automation |
 | Chrome | Home/Collections/Product/404 verified in WebKit-based automation; real Chrome not separately tested |
