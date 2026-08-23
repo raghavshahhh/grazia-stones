@@ -109029,8 +109029,8 @@ A.aDM.prototype={
 iz(){var s=0,r=A.t(t.H)
 var $async$iz=A.u(function(a,b){if(a===1)return A.p(b,r)
 for(;;)switch(s){case 0:s=2
-return A.o(A.aDR("",""),$async$iz)
-case 2:A.es().$1("\u2705 Supabase initialized")
+return A.o(A.aDR("sb_publishable_l0K305hiCMwZ8Mh3lON3YQ_ueSMXo4a","https://jrrmjtbauimrrxwjvmzh.supabase.co"),$async$iz)
+case 2:A.es().$1("\u2705 Supabase initialized with project: https://jrrmjtbauimrrxwjvmzh.supabase.co")
 return A.q(null,r)}})
 return A.r($async$iz,r)},
 n2(a){return this.adk(a)},

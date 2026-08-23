@@ -16,6 +16,27 @@ class EnvConfig {
   bool get isDevelopment => kDebugMode;
 
   // ═══════════════════════════════════════════════════════════════════════
+  // SUPABASE CONFIGURATION
+  // ═══════════════════════════════════════════════════════════════════════
+
+  String get supabaseUrl {
+    return const String.fromEnvironment(
+      'SUPABASE_URL',
+      defaultValue: 'https://jrrmjtbauimrrxwjvmzh.supabase.co',
+    );
+  }
+
+  String get supabasePublishableKey {
+    return const String.fromEnvironment(
+      'SUPABASE_PUBLISHABLE_KEY',
+      defaultValue: String.fromEnvironment(
+        'SUPABASE_ANON_KEY',
+        defaultValue: 'sb_publishable_l0K305hiCMwZ8Mh3lON3YQ_ueSMXo4a',
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
   // API CONFIGURATION
   // ═══════════════════════════════════════════════════════════════════════
 

@@ -20,7 +20,7 @@ jobs:
         run: flutter pub get
 
       - name: Build web
-        run: flutter build web --release
+        run: flutter build web --release --dart-define=SUPABASE_URL=https://jrrmjtbauimrrxwjvmzh.supabase.co --dart-define=SUPABASE_ANON_KEY=sb_publishable_l0K305hiCMwZ8Mh3lON3YQ_ueSMXo4a
 
       - name: Deploy to Vercel
         uses: amondnet/vercel-action@v25

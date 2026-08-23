@@ -14,11 +14,27 @@ class SupabaseService {
 
   /// Initialize Supabase — call once in main()
   Future<void> init() async {
-    await Supabase.initialize(
-      url: const String.fromEnvironment('SUPABASE_URL'),
-      anonKey: const String.fromEnvironment('SUPABASE_ANON_KEY'),
+    const url = String.fromEnvironment(
+      'SUPABASE_URL',
+      defaultValue: 'https://jrrmjtbauimrrxwjvmzh.supabase.co',
     );
-    debugPrint('✅ Supabase initialized');
+    const anonKey = String.fromEnvironment(
+      'SUPABASE_PUBLISHABLE_KEY',
+      defaultValue: String.fromEnvironment(
+        'SUPABASE_ANON_KEY',
+        defaultValue: 'sb_publishable_l0K305hiCMwZ8Mh3lON3YQ_ueSMXo4a',
+      ),
+    );
+
+    if (url.isNotEmpty && anonKey.isNotEmpty) {
+      await Supabase.initialize(
+        url: url,
+        anonKey: anonKey,
+      );
+      debugPrint('✅ Supabase initialized with project: $url');
+    } else {
+      debugPrint('⚠️ Supabase URL or anonKey missing');
+    }
   }
 
   // ─── Auth helpers ───
