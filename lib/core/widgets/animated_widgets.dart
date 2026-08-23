@@ -1,5 +1,103 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+/// Apple-style spring pressable with micro scale bounce on touch and cursor hover
+class ApplePressable extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  final double pressedScale;
+  final double hoverScale;
+  final Duration duration;
+  final bool enableHaptics;
+
+  const ApplePressable({
+    super.key,
+    required this.child,
+    this.onTap,
+    this.pressedScale = 0.96,
+    this.hoverScale = 1.025,
+    this.duration = const Duration(milliseconds: 160),
+    this.enableHaptics = true,
+  });
+
+  @override
+  State<ApplePressable> createState() => _ApplePressableState();
+}
+
+class _ApplePressableState extends State<ApplePressable>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scaleAnimation;
+  bool _isHovered = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: widget.duration,
+    );
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: widget.pressedScale,
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeOutBack,
+    ));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _handleTapDown(TapDownDetails details) {
+    if (widget.enableHaptics) {
+      HapticFeedback.lightImpact();
+    }
+    _controller.forward();
+  }
+
+  void _handleTapUp(TapUpDetails details) {
+    _controller.reverse();
+    widget.onTap?.call();
+  }
+
+  void _handleTapCancel() {
+    _controller.reverse();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: widget.onTap != null ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: widget.onTap != null ? _handleTapDown : null,
+        onTapUp: widget.onTap != null ? _handleTapUp : null,
+        onTapCancel: widget.onTap != null ? _handleTapCancel : null,
+        child: AnimatedScale(
+          scale: _isHovered && !_controller.isAnimating && _controller.value == 0
+              ? widget.hoverScale
+              : 1.0,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+          child: ScaleTransition(
+            scale: _scaleAnimation,
+            child: widget.child,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// HoverScale widget for desktop/web hover interactions
 class HoverScale extends StatefulWidget {
   final Widget child;
   final double scale;
@@ -33,7 +131,7 @@ class _HoverScaleState extends State<HoverScale>
     _scaleAnim = Tween<double>(
       begin: 1.0,
       end: widget.scale,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
   }
 
   @override
@@ -55,6 +153,7 @@ class _HoverScaleState extends State<HoverScale>
   }
 }
 
+/// Staggered Fade + Slide Entry Animation
 class FadeInStagger extends StatefulWidget {
   final Widget child;
   final int index;
@@ -66,9 +165,9 @@ class FadeInStagger extends StatefulWidget {
     super.key,
     required this.child,
     this.index = 0,
-    this.delay = const Duration(milliseconds: 60),
-    this.duration = const Duration(milliseconds: 400),
-    this.slideOffset = const Offset(0, 0.12),
+    this.delay = const Duration(milliseconds: 50),
+    this.duration = const Duration(milliseconds: 450),
+    this.slideOffset = const Offset(0, 0.08),
   });
 
   @override
@@ -85,7 +184,7 @@ class _FadeInStaggerState extends State<FadeInStagger>
   void initState() {
     super.initState();
     _controller = AnimationController(vsync: this, duration: widget.duration);
-    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOutQuart);
     _slide = Tween<Offset>(
       begin: widget.slideOffset,
       end: Offset.zero,
@@ -111,6 +210,7 @@ class _FadeInStaggerState extends State<FadeInStagger>
   }
 }
 
+/// Pulse scale loop for badges and notifications
 class PulseWidget extends StatefulWidget {
   final Widget child;
   final Duration duration;
@@ -153,6 +253,7 @@ class _PulseWidgetState extends State<PulseWidget>
   }
 }
 
+/// Shimmer loader effect
 class ShimmerWidget extends StatefulWidget {
   final Widget child;
 

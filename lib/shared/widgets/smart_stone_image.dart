@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 
-/// Renders local asset images or network images seamlessly with an elegant stone texture fallback.
-/// Supports both [imageUrl] for backwards compatibility and [localAsset] for local images.
+/// Renders local asset images or network images seamlessly with an Apple-grade crossfade & luxury stone texture placeholder.
 class SmartStoneImage extends StatelessWidget {
   final String? imageUrl;
   final String? localAsset;
@@ -40,6 +39,19 @@ class SmartStoneImage extends StatelessWidget {
         fit: fit,
         width: width,
         height: height,
+        cacheWidth: width != null && width! > 0 ? (width! * 2).toInt() : null,
+        cacheHeight: height != null && height! > 0 ? (height! * 2).toInt() : null,
+        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+          if (wasSynchronouslyLoaded || frame != null) {
+            return AnimatedOpacity(
+              opacity: frame != null ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeOutCubic,
+              child: child,
+            );
+          }
+          return _buildPlaceholder(activePalette);
+        },
         errorBuilder: (_, _, _) => _buildPlaceholder(activePalette),
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) return child;
@@ -54,6 +66,12 @@ class SmartStoneImage extends StatelessWidget {
       fit: fit,
       width: width,
       height: height,
+      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+        if (wasSynchronouslyLoaded || frame != null) {
+          return child;
+        }
+        return _buildPlaceholder(activePalette);
+      },
       errorBuilder: (_, _, _) => _buildPlaceholder(activePalette),
     );
   }
@@ -63,12 +81,12 @@ class SmartStoneImage extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: fallbackColor,
+        color: fallbackColor ?? palette.surface,
         gradient: fallbackColor == null
             ? LinearGradient(
                 colors: [
-                  palette.surfaceLight,
-                  palette.surfaceDark,
+                  palette.surfaceLight.withValues(alpha: 0.8),
+                  palette.surfaceDark.withValues(alpha: 0.95),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -80,18 +98,18 @@ class SmartStoneImage extends StatelessWidget {
         children: [
           Icon(
             Icons.texture_rounded,
-            size: 40,
-            color: palette.primary.withValues(alpha: 0.3),
+            size: 32,
+            color: palette.primary.withValues(alpha: 0.25),
           ),
           Positioned(
-            bottom: 8,
+            bottom: 6,
             child: Text(
-              'GRAZIA STONES',
+              'GRAZIA',
               style: TextStyle(
-                fontSize: 9,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 2,
-                color: palette.textTertiary.withValues(alpha: 0.4),
+                fontSize: 8.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 2.5,
+                color: palette.primary.withValues(alpha: 0.35),
               ),
             ),
           ),
