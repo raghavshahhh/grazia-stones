@@ -340,18 +340,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
           const SizedBox(width: 10),
-          ElevatedButton(
-            onPressed: () => context.push('/live-ai'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: palette.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              elevation: 0,
-            ),
-            child: Text(
-              'Open AR →',
-              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
+          // Flexible is required here: Row gives non-flex children an
+          // unbounded max-width, and ElevatedButton's min-tap-target
+          // wrapper (_InputPadding) throws on infinite width constraints.
+          Flexible(
+            child: ElevatedButton(
+              onPressed: () => context.push('/live-ai'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: palette.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+              ),
+              child: Text(
+                'Open AR →',
+                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
+              ),
             ),
           ),
         ],

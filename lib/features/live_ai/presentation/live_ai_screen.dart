@@ -722,28 +722,34 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
         child: Row(
           children: [
             // Back button
-            IconButton(
-              onPressed: () {
-                if (context.canPop()) {
-                  context.pop();
-                } else {
-                  context.go('/home');
-                }
-              },
-              icon: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.45),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    width: 0.8,
+            // Flexible is required here: Row gives non-flex children an
+            // unbounded max-width, and IconButton's min-tap-target wrapper
+            // (_InputPadding) throws on infinite width constraints once a
+            // Spacer/Expanded sibling forces that intrinsic-width query.
+            Flexible(
+              child: IconButton(
+                onPressed: () {
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    context.go('/home');
+                  }
+                },
+                icon: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.45),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      width: 0.8,
+                    ),
                   ),
-                ),
-                child: const Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  size: 15,
-                  color: Colors.white,
+                  child: const Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    size: 15,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ),
@@ -819,22 +825,24 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
             ),
 
             // Settings button
-            IconButton(
-              onPressed: _showSettingsSheet,
-              icon: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.45),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    width: 0.8,
+            Flexible(
+              child: IconButton(
+                onPressed: _showSettingsSheet,
+                icon: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.45),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      width: 0.8,
+                    ),
                   ),
-                ),
-                child: const Icon(
-                  Icons.tune_rounded,
-                  size: 17,
-                  color: Colors.white,
+                  child: const Icon(
+                    Icons.tune_rounded,
+                    size: 17,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ),

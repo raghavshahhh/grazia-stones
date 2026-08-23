@@ -667,14 +667,16 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
               ],
             ),
           ),
-          TextButton(
-            onPressed: () => context.push('/stones/${stone.id}'),
-            child: Text(
-              'Details →',
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: palette.primary,
+          Flexible(
+            child: TextButton(
+              onPressed: () => context.push('/stones/${stone.id}'),
+              child: Text(
+                'Details →',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: palette.primary,
+                ),
               ),
             ),
           ),

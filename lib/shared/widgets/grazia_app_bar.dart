@@ -54,7 +54,7 @@ class GraziaAppBar extends StatelessWidget implements PreferredSizeWidget {
                   const Spacer(),
                   _buildTitle(),
                   const Spacer(),
-                  if (actions != null) ...actions!,
+                  if (actions != null) ...actions!.map((a) => Flexible(child: a)),
                   const SizedBox(width: 8),
                 ],
               ),

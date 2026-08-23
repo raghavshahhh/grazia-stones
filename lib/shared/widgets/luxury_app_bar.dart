@@ -53,14 +53,19 @@ class GLuxuryAppBar extends StatelessWidget implements PreferredSizeWidget {
               child: Row(
                 children: [
                   if (showBackButton)
-                    IconButton(
-                      onPressed: onBackPressed ?? () => Navigator.of(context).pop(),
-                      icon: Icon(
-                        Icons.arrow_back_ios_rounded,
-                        size: 22,
-                        color: palette.textPrimary,
+                    // Flexible bounds the width Row gives this Material button —
+                    // without it, Row's Expanded title sibling forces an intrinsic
+                    // width query that crashes IconButton's tap-target padding.
+                    Flexible(
+                      child: IconButton(
+                        onPressed: onBackPressed ?? () => Navigator.of(context).pop(),
+                        icon: Icon(
+                          Icons.arrow_back_ios_rounded,
+                          size: 22,
+                          color: palette.textPrimary,
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: GTokens.space3),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: GTokens.space3),
                     )
                   else if (leading != null)
                     leading!,
@@ -80,7 +85,7 @@ class GLuxuryAppBar extends StatelessWidget implements PreferredSizeWidget {
                   else if (titleWidget != null)
                     Expanded(child: titleWidget!),
                   if (actions != null)
-                    ...actions!
+                    ...actions!.map((a) => Flexible(child: a))
                   else
                     const SizedBox(width: 48),
                 ],
