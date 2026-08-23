@@ -126,13 +126,30 @@ async function _callNIM(model, prompt, imageDataUrl) {
   return JSON.parse(jsonMatch[0]);
 }
 
-if (req.method !== 'POST') {
+module.exports = async (req, res) => {
+  const origin = req.headers.origin || req.headers.referer || '';
+  const originAllowed = ALLOWED_ORIGINS.some((allowed) => origin.startsWith(allowed));
+
+  // CORS: only echo back the origin if it's actually on the allowlist —
+  // never reflect an arbitrary Origin header.
+  if (originAllowed) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.status(204).end();
+    return;
+  }
+
+  if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
     return;
   }
 
-  const origin = req.headers.origin || req.headers.referer || '';
-  if (!ALLOWED_ORIGINS.some((allowed) => origin.startsWith(allowed))) {
+  if (!originAllowed) {
     res.status(403).json({ error: 'Forbidden' });
     return;
   }

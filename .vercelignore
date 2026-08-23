@@ -18,9 +18,7 @@ docs
 scripts
 training-data
 graphify-out
-*.md
 *.sh
-*.json
 *.yaml
 *.lock
 Dockerfile*
@@ -31,5 +29,11 @@ production-deploy.sh
 push-to-github.sh
 setup.sh
 start.sh
-vercel.json
 README.md
+
+# NOTE: do NOT blanket-ignore *.json or *.md or vercel.json here.
+# build/web/manifest.json, build/web/assets/AssetManifest.bin.json, and
+# build/web/assets/FontManifest.json are required at runtime by the Flutter
+# web app — a previous *.json rule silently broke the PWA manifest and font
+# loading in production (manifest.json was falling through to the SPA
+# index.html fallback instead of being served as JSON).
