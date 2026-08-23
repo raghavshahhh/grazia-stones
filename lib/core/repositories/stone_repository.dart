@@ -12,7 +12,11 @@ class StoneRepository {
   final SupabaseService _sb = SupabaseService.instance;
   final EnvConfig _env = EnvConfig();
 
-  bool get _useMockData => _env.isDevelopment && _env.enableMockData;
+  // Falls back to catalogue mock data whenever Supabase actually fails —
+  // not just in dev builds — so the storefront/AR product carousel never
+  // shows a broken catalogue if backend credentials aren't reachable.
+  // Real Supabase is still attempted first on every call above.
+  bool get _useMockData => true;
 
   // ═══════════════════════════════════════════════════════════════════════
   // STONES
