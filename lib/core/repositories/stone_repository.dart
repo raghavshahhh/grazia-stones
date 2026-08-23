@@ -16,6 +16,51 @@ class StoneRepository {
   // Real Supabase is still attempted first on every call above.
   bool get _useMockData => true;
 
+  /// Maps a real `stones` row (snake_case Postgres columns, dimensions in
+  /// cm/mm numerics) to the shape [Stone.fromJson] expects (camelCase,
+  /// dimensions as display strings) — the live schema and the app's model
+  /// were built independently and don't share a wire format.
+  Stone _stoneFromRow(Map<String, dynamic> row) {
+    final lengthCm = (row['length_cm'] as num?)?.toDouble();
+    final widthCm = (row['width_cm'] as num?)?.toDouble();
+    final thicknessMm = (row['thickness_mm'] as num?)?.toDouble();
+    final lengthMm = lengthCm != null ? (lengthCm * 10).round() : null;
+    final widthMm = widthCm != null ? (widthCm * 10).round() : null;
+    final collectionName = (row['collections'] as Map<String, dynamic>?)?['name'] as String?;
+    final images = List<String>.from(row['images'] ?? const []);
+
+    return Stone(
+      id: row['id']?.toString() ?? '',
+      name: row['name'] ?? '',
+      productCode: row['product_code'] ?? '',
+      collection: collectionName ?? row['collection_id']?.toString() ?? '',
+      category: row['category'] ?? '',
+      pricePerSqFt: (row['price_per_sqft'] as num?)?.toDouble() ?? 0,
+      description: row['description'] ?? '',
+      images: images,
+      mainImageUrl: row['thumbnail_url'] ?? (images.isNotEmpty ? images.first : null),
+      rating: 0.0,
+      reviewCount: 0,
+      length: lengthMm != null ? '${lengthMm}mm' : '',
+      width: widthMm != null ? '${widthMm}mm' : '',
+      thickness: thicknessMm != null ? '${thicknessMm.toStringAsFixed(0)}mm' : '',
+      size: (lengthMm != null && widthMm != null)
+          ? '$lengthMm×$widthMm${thicknessMm != null ? '×${thicknessMm.toStringAsFixed(0)}' : ''}mm'
+          : '',
+      sqftPerBox: (row['coverage_sqft'] as num?)?.toDouble() ?? 0,
+      piecesPerBox: 0,
+      finish: row['finish'] ?? '',
+      texture: row['material'] ?? '',
+      availableColors: List<String>.from(row['colors'] ?? const []),
+      idealFor: List<String>.from(row['tags'] ?? const []),
+      isFeatured: row['featured'] == true,
+      inStock: row['stock_status'] == null || row['stock_status'] == 'in_stock',
+      stockQuantity: (row['stock_quantity'] as num?)?.toInt() ?? 0,
+      weight: row['weight_kg'] != null ? '${row['weight_kg']}kg' : null,
+      origin: row['origin'],
+    );
+  }
+
   // ═══════════════════════════════════════════════════════════════════════
   // STONES
   // ═══════════════════════════════════════════════════════════════════════
@@ -58,7 +103,7 @@ class StoneRepository {
       final data = await query
           .order(sortBy ?? 'sort_order', ascending: sortOrder == 'asc')
           .range(from, to);
-      return data.map((j) => Stone.fromJson(j)).toList();
+      return data.map((j) => _stoneFromRow(j)).toList();
     } catch (e) {
       if (_useMockData) {
         debugPrint('[StoneRepository] Supabase error, falling back to mock data: $e');
@@ -83,7 +128,7 @@ class StoneRepository {
           .select('*, collections(name, slug)')
           .eq('id', id)
           .single();
-      return Stone.fromJson(data);
+      return _stoneFromRow(data);
     } catch (e) {
       if (_useMockData) {
         debugPrint('[StoneRepository] getStoneById fallback: $e');
@@ -104,7 +149,7 @@ class StoneRepository {
           .or('name.ilike.%$query%,product_code.ilike.%$query%,tags.cs.{$query}')
           .order('sort_order')
           .limit(limit);
-      return data.map((j) => Stone.fromJson(j)).toList();
+      return data.map((j) => _stoneFromRow(j)).toList();
     } catch (e) {
       if (_useMockData) {
         debugPrint('[StoneRepository] searchStones fallback: $e');
@@ -123,7 +168,7 @@ class StoneRepository {
           .eq('featured', true)
           .order('sort_order')
           .limit(limit);
-      return data.map((j) => Stone.fromJson(j)).toList();
+      return data.map((j) => _stoneFromRow(j)).toList();
     } catch (e) {
       if (_useMockData) {
         debugPrint('[StoneRepository] getTrendingStones fallback: $e');
@@ -143,7 +188,7 @@ class StoneRepository {
           .eq('collection_id', stone.collection)
           .neq('id', stoneId)
           .limit(limit);
-      return data.map((j) => Stone.fromJson(j)).toList();
+      return data.map((j) => _stoneFromRow(j)).toList();
     } catch (e) {
       if (_useMockData) {
         debugPrint('[StoneRepository] getSimilarStones fallback: $e');
@@ -210,7 +255,7 @@ class StoneRepository {
           .eq('collection_id', collectionId)
           .order('sort_order')
           .range(from, from + limit - 1);
-      return data.map((j) => Stone.fromJson(j)).toList();
+      return data.map((j) => _stoneFromRow(j)).toList();
     } catch (e) {
       if (_useMockData) {
         debugPrint('[StoneRepository] getStonesByCollection fallback: $e');
@@ -233,7 +278,7 @@ class StoneRepository {
         .eq('user_id', userId);
     return data
         .where((j) => j['stones'] != null)
-        .map((j) => Stone.fromJson(j['stones']))
+        .map((j) => _stoneFromRow(j['stones']))
         .toList();
   }
 

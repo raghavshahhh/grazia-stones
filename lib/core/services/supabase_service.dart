@@ -29,11 +29,11 @@ class SupabaseService {
     if (url.isNotEmpty && anonKey.isNotEmpty) {
       await Supabase.initialize(
         url: url,
-        anonKey: anonKey,
+        publishableKey: anonKey,
       );
-      debugPrint('✅ Supabase initialized with project: $url');
+      debugPrint('✅ Supabase initialized');
     } else {
-      debugPrint('⚠️ Supabase URL or anonKey missing');
+      debugPrint('⚠️ Supabase URL or key missing');
     }
   }
 

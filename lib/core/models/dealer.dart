@@ -30,12 +30,12 @@ class Dealer {
   };
 
   factory Dealer.fromMap(Map<String, dynamic> map) => Dealer(
-    id: map['id'] ?? '',
+    id: map['id']?.toString() ?? '',
     name: map['name'] ?? '',
-    address: map['address'] ?? '',
+    address: map['address'] ?? (map['city'] != null ? '${map['city']}, ${map['state'] ?? ""}' : ''),
     phone: map['phone'] ?? '',
     distance: map['distance'] ?? '',
     rating: (map['rating'] ?? 0).toDouble(),
-    isAuthorized: map['isAuthorized'] ?? false,
+    isAuthorized: (map['verified'] == true) || (map['isAuthorized'] == true),
   );
 }

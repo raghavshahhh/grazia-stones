@@ -21,9 +21,11 @@ class Collection {
   };
 
   factory Collection.fromMap(Map<String, dynamic> map) => Collection(
-    id: map['id'] ?? '',
+    id: map['id']?.toString() ?? '',
     name: map['name'] ?? '',
     description: map['description'] ?? '',
-    stoneCount: map['stoneCount'] ?? 0,
+    stoneCount: (map['stone_count'] ?? map['stoneCount'] ?? 0) is int
+        ? (map['stone_count'] ?? map['stoneCount'] ?? 0)
+        : int.tryParse((map['stone_count'] ?? map['stoneCount'] ?? 0).toString()) ?? 0,
   );
 }

@@ -124,40 +124,85 @@ class Stone {
 
   Map<String, dynamic> toJson() => toMap();
 
-  factory Stone.fromMap(Map<String, dynamic> map) => Stone(
-    id: map['id'] ?? '',
-    name: map['name'] ?? '',
-    productCode: map['productCode'] ?? '',
-    collection: map['collection'] ?? '',
-    category: map['category'] ?? '',
-    pricePerSqFt: (map['pricePerSqFt'] ?? 0).toDouble(),
-    description: map['description'] ?? '',
-    images: List<String>.from(map['images'] ?? []),
-    mainImageUrl: map['mainImageUrl'] ?? map['imageUrl'], // Backward compatibility
-    arTexture: map['arTexture'],
-    rating: (map['rating'] ?? 0).toDouble(),
-    reviewCount: map['reviewCount'] ?? 0,
-    length: map['length'] ?? '',
-    width: map['width'] ?? '',
-    thickness: map['thickness'] ?? '',
-    size: map['size'] ?? '',
-    sqftPerBox: (map['sqftPerBox'] ?? 0).toDouble(),
-    piecesPerBox: map['piecesPerBox'] ?? 0,
-    finish: map['finish'] ?? '',
-    texture: map['texture'] ?? '',
-    availableColors: List<String>.from(map['availableColors'] ?? []),
-    colorImages: List<String>.from(map['colorImages'] ?? []),
-    idealFor: List<String>.from(map['idealFor'] ?? []),
-    installationGuide: map['installationGuide'] ?? '',
-    isTrending: map['isTrending'] ?? false,
-    isNewArrival: map['isNewArrival'] ?? false,
-    isFeatured: map['isFeatured'] ?? false,
-    inStock: map['inStock'] ?? true,
-    stockQuantity: map['stockQuantity'] ?? 0,
-    relatedProductIds: List<String>.from(map['relatedProductIds'] ?? []),
-    weight: map['weight'],
-    origin: map['origin'],
-  );
+  factory Stone.fromMap(Map<String, dynamic> map) {
+    // Resolve collection name from nested collections object or string
+    String collectionName = '';
+    if (map['collections'] is Map) {
+      collectionName = map['collections']['name'] ?? '';
+    } else if (map['collection'] != null) {
+      collectionName = map['collection'].toString();
+    }
+
+    // Resolve images
+    List<String> imageList = [];
+    if (map['images'] is List) {
+      imageList = List<String>.from(map['images']);
+    }
+
+    // Resolve main image
+    String? mainImg = map['thumbnail_url'] ?? map['mainImageUrl'] ?? map['imageUrl'];
+    if (mainImg == null && imageList.isNotEmpty) {
+      mainImg = imageList.first;
+    }
+
+    // Resolve dimensions
+    String lengthStr = map['length'] ?? '';
+    if (lengthStr.isEmpty && map['length_cm'] != null) {
+      lengthStr = '${map['length_cm']} cm';
+    }
+
+    String widthStr = map['width'] ?? '';
+    if (widthStr.isEmpty && map['width_cm'] != null) {
+      widthStr = '${map['width_cm']} cm';
+    }
+
+    String thicknessStr = map['thickness'] ?? '';
+    if (thicknessStr.isEmpty && map['thickness_mm'] != null) {
+      thicknessStr = '${map['thickness_mm']} mm';
+    }
+
+    String sizeStr = map['size'] ?? '';
+    if (sizeStr.isEmpty && lengthStr.isNotEmpty && widthStr.isNotEmpty) {
+      sizeStr = '$lengthStr x $widthStr';
+    }
+
+    return Stone(
+      id: map['id']?.toString() ?? '',
+      name: map['name'] ?? '',
+      productCode: map['product_code'] ?? map['productCode'] ?? '',
+      collection: collectionName,
+      category: map['category'] ?? '',
+      pricePerSqFt: (map['price_per_sqft'] ?? map['pricePerSqFt'] ?? 0).toDouble(),
+      description: map['description'] ?? map['short_description'] ?? '',
+      images: imageList,
+      mainImageUrl: mainImg,
+      arTexture: map['ar_texture'] ?? map['arTexture'],
+      rating: (map['rating'] ?? 0).toDouble(),
+      reviewCount: (map['review_count'] ?? map['reviewCount'] ?? 0) is int
+          ? (map['review_count'] ?? map['reviewCount'] ?? 0)
+          : int.tryParse((map['review_count'] ?? map['reviewCount'] ?? 0).toString()) ?? 0,
+      length: lengthStr,
+      width: widthStr,
+      thickness: thicknessStr,
+      size: sizeStr,
+      sqftPerBox: (map['coverage_sqft'] ?? map['sqftPerBox'] ?? 0).toDouble(),
+      piecesPerBox: map['pieces_per_box'] ?? map['piecesPerBox'] ?? 0,
+      finish: map['finish'] ?? '',
+      texture: map['material'] ?? map['texture'] ?? '',
+      availableColors: List<String>.from(map['colors'] ?? map['availableColors'] ?? []),
+      colorImages: List<String>.from(map['color_images'] ?? map['colorImages'] ?? []),
+      idealFor: List<String>.from(map['tags'] ?? map['idealFor'] ?? []),
+      installationGuide: map['installation_guide'] ?? map['installationGuide'] ?? '',
+      isTrending: (map['featured'] == true) || (map['isTrending'] == true),
+      isNewArrival: (map['is_new_arrival'] == true) || (map['isNewArrival'] == true),
+      isFeatured: (map['featured'] == true) || (map['isFeatured'] == true),
+      inStock: map['stock_status'] == 'in_stock' || (map['inStock'] ?? true),
+      stockQuantity: map['stock_quantity'] ?? map['stockQuantity'] ?? 0,
+      relatedProductIds: List<String>.from(map['related_product_ids'] ?? map['relatedProductIds'] ?? []),
+      weight: map['weight_kg']?.toString() ?? map['weight'],
+      origin: map['origin'],
+    );
+  }
 
   Stone copyWith({
     String? id,
