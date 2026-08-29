@@ -42,6 +42,25 @@ class SampleOrderRepository {
       'status': 'pending',
     };
 
+    // Guests can insert (RLS: "Anyone can create sample requests") but can't
+    // read the row back (RLS: select is own-user-only, and a public
+    // guest-rows-readable policy would leak every guest's phone/address).
+    // So skip the round-trip for guests and build the confirmation locally.
+    if (_userId == null) {
+      await _sb.client.from('sample_requests').insert(sampleData);
+      return SampleOrder(
+        id: '',
+        stoneId: stoneId,
+        stoneName: sampleData['stone_name'] as String,
+        name: name,
+        phone: phone,
+        address: address,
+        city: city,
+        pincode: pincode,
+        createdAt: DateTime.now(),
+      );
+    }
+
     final res = await _sb.client.from('sample_requests').insert(sampleData).select().single();
     return SampleOrder.fromJson(res);
   }

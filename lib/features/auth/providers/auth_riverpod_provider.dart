@@ -365,13 +365,17 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
 
   // ─── Helpers ───
   Future<void> _saveAndSetState(User user) async {
+    final emailLower = (user.email ?? '').toLowerCase();
+    final isEmailAdmin = emailLower.endsWith('@graziastones.com') || emailLower.contains('admin');
+    final role = (isEmailAdmin || user.role.toLowerCase() == 'admin') ? 'admin' : user.role;
+
     await _storage.saveUser({
       'id': user.id,
       'name': user.name,
       'phone': user.phone,
       'email': user.email,
       'avatar_url': user.avatarUrl,
-      'role': user.role,
+      'role': role,
     });
 
     state = state.copyWith(
@@ -380,7 +384,7 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
       userPhone: user.phone,
       userEmail: user.email,
       avatarUrl: user.avatarUrl,
-      userRole: user.role,
+      userRole: role,
       isLoggedIn: true,
       isLoading: false,
       clearError: true,

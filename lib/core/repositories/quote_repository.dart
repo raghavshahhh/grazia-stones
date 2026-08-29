@@ -41,6 +41,21 @@ class QuoteRepository {
       'message': message,
     };
 
+    // Guests can insert (RLS: "Anyone can create quotes") but can't read the
+    // row back (RLS select is own-user-only — a guest-readable policy would
+    // leak every guest's phone/company). Skip the round-trip for guests.
+    if (_userId == null) {
+      await _sb.client.from('quote_requests').insert(data);
+      return QuoteRequest(
+        id: '',
+        stoneName: stoneName ?? 'Architectural Stone',
+        finish: 'Natural',
+        area: areaSqft?.toString() ?? '150 sq.ft.',
+        notes: message ?? '',
+        createdAt: DateTime.now(),
+      );
+    }
+
     final res = await _sb.client.from('quote_requests').insert(data).select().single();
     return QuoteRequest.fromJson(res);
   }
