@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>RAGSPRO — Grazia Stones App Documentation</title>
+<style>
+  @page {
+    size: A4;
+    margin: 2.2cm 1.8cm 2.4cm 1.8cm;
+    @top-center {
+      content: "RAGSPRO • Grazia Stones — App Documentation";
+      font-size: 8pt; color: #9a8a6a; font-family: Helvetica, Arial, sans-serif;
+      border-bottom: 0.5pt solid #e8e0d0; padding-bottom: 6pt;
+    }
+    @bottom-center {
+      content: "RAGSPRO | ragspro.com | raghav@ragspro.com — Page " counter(page) " of " counter(pages);
+      font-size: 8pt; color: #9a8a6a; font-family: Helvetica, Arial, sans-serif;
+      border-top: 0.5pt solid #e8e0d0; padding-top: 6pt;
+    }
+  }
+  @page cover { margin: 0; @top-center { content: none; } @bottom-center { content: none; } }
+  * { box-sizing: border-box; }
+  body { font-family: Helvetica, Arial, sans-serif; color: #2a2420; font-size: 10.3pt; line-height: 1.6; margin: 0; }
+
+  .cover { page: cover; page-break-after: always; height: 29.7cm; width: 21cm;
+    background: linear-gradient(160deg, #1c1712 0%, #2b2118 55%, #3d2e1c 100%);
+    color: #f3ead9; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+  .cover img.logo { width: 96px; height: 96px; margin-bottom: 26pt; border-radius: 20px; }
+  .cover .brand { letter-spacing: 4pt; font-size: 10pt; color: #c9a35a; margin-bottom: 36pt; }
+  .cover h1 { font-size: 28pt; margin: 0 0 8pt; font-weight: 700; }
+  .cover h2 { font-size: 13pt; font-weight: 400; color: #cbb98f; margin: 0 0 40pt; }
+  .cover .meta { font-size: 9.5pt; color: #9a8a6a; line-height: 2; }
+
+  .section { margin: 20pt 0; page-break-inside: avoid; }
+  h1.page-title { font-size: 18pt; color: #1c1712; border-bottom: 2pt solid #c9a35a; padding-bottom: 8pt; margin: 0 0 16pt; }
+  h3.sec-title { font-size: 12pt; color: #1c1712; border-left: 3pt solid #c9a35a; padding-left: 8pt; margin: 18pt 0 8pt; }
+  h4 { font-size: 10.5pt; color: #4a3d24; margin: 10pt 0 4pt; }
+  p, li { font-size: 9.8pt; color: #4a4038; }
+  .badge { display: inline-block; font-size: 8pt; font-weight: 700; padding: 2pt 8pt; border-radius: 10pt; letter-spacing: 0.3pt; }
+  .badge.done { background: #eaf6ea; color: #1e5c22; border: 0.5pt solid #2e7d32; }
+  .badge.progress { background: #fff6e0; color: #8a6d00; border: 0.5pt solid #c9a300; }
+  .badge.next { background: #eaf1fb; color: #1e4a8a; border: 0.5pt solid #4070c0; }
+
+  table.flow { width: 100%; border-collapse: collapse; margin: 8pt 0 16pt; }
+  table.flow th { background: #1c1712; color: #f3ead9; text-align: left; padding: 7pt 10pt; font-size: 8.5pt; }
+  table.flow td { padding: 7pt 10pt; border-bottom: 0.5pt solid #eee2ca; font-size: 9pt; vertical-align: top; }
+
+  .callout { background: #faf6ec; border: 1pt solid #e8dcc0; border-radius: 8pt; padding: 12pt 14pt; margin: 10pt 0; font-size: 9.3pt; }
+  .callout.warn { background: #fdf2e8; border-color: #eecfa0; }
+  .callout.good { background: #eaf6ea; border-color: #bfe0bf; }
+
+  .progress-bar-wrap { background: #eee2ca; border-radius: 8pt; height: 16pt; overflow: hidden; margin: 6pt 0 2pt; }
+  .progress-bar { background: linear-gradient(90deg, #c9a35a, #e0be7a); height: 100%; }
+  .progress-label { font-size: 8.5pt; color: #8a7a5a; display: flex; justify-content: space-between; }
+
+  ol.flow-steps { padding-left: 18pt; }
+  ol.flow-steps li { margin-bottom: 5pt; }
+  ul.check-list { padding-left: 0; list-style: none; }
+  ul.check-list li { margin-bottom: 6pt; padding-left: 18pt; position: relative; font-size: 9.5pt; }
+  ul.check-list li:before { content: "✓"; position: absolute; left: 0; color: #2e7d32; font-weight: 700; }
+  ul.next-list { padding-left: 0; list-style: none; }
+  ul.next-list li { margin-bottom: 6pt; padding-left: 18pt; position: relative; font-size: 9.5pt; }
+  ul.next-list li:before { content: "→"; position: absolute; left: 0; color: #1e4a8a; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <img class="logo" src="file:///Users/raghavshah/02_BUSINESS/03_CLIENTS/11_DMS_SECURITY/ragspro-logo.png">
+  <div class="brand">RAGSPRO DIGITAL SOLUTIONS</div>
+  <h1>Grazia Stones — AI Smart Estimator</h1>
+  <h2>Complete App Documentation &amp; Feature Flow</h2>
+  <div class="meta">
+    Project Ref: GRAZIA-AI-AR-2026-08<br>
+    Prepared for: Grazia Stones<br>
+    Prepared by: Raghav Shah — raghav@ragspro.com<br>
+    Document Date: 28 August 2026
+  </div>
+</div>
+
+<h1 class="page-title">1. Progress Summary — This Sprint (Aug 23–28)</h1>
+
+<div class="progress-bar-wrap"><div class="progress-bar" style="width: 55%"></div></div>
+<div class="progress-label"><span>UI/UX + App Shell Complete</span><span>Backend Integration Next</span></div>
+
+<div class="callout good" style="margin-top:14pt;">
+<strong>Where we are:</strong> Every screen in the app is built and running live on a physical iPhone (tested on iPhone 13 Pro
+this week) — full navigation, native feel, and interactions are working end-to-end. Backend wiring for Live AR, AI
+Visualization, and the Admin Panel is the active work for next week.
+</div>
+
+<h3 class="sec-title">✓ Done This Sprint</h3>
+<ul class="check-list">
+  <li>All app screens built — onboarding, login/register, home, catalogue, search, stone detail, Live AR, AI Studio, measurement, cart, checkout, orders, wishlist, dealer locator, quotes, sample orders, profile, settings.</li>
+  <li>Native bottom navigation, page transitions, and gestures matching iOS/Android platform conventions.</li>
+  <li>Haptic feedback wired throughout — wall lock, button taps, tab switches, and key actions on Live AR.</li>
+  <li>Native iOS back-swipe and Android back-button handling on every screen.</li>
+  <li>App installed and running live on a physical iPhone 13 Pro — verified cold start, navigation, and screen transitions on real hardware, not just the simulator.</li>
+  <li>Core native AR foundation in place on iOS (ARKit) — world tracking and wall detection running on-device.</li>
+</ul>
+
+<h3 class="sec-title">→ Next Week</h3>
+<ul class="next-list">
+  <li>Finish the Admin Panel — product, order, and quote management from one dashboard.</li>
+  <li>Wire the backend for Live AR — full wall-lock-to-checkout data flow connected to the live database.</li>
+  <li>Wire the backend for AI Visualization (room photo mode) end-to-end.</li>
+  <li>You add the real product catalogue (tiles/stones, prices, images) — the app will pull it live once added.</li>
+  <li>Set up the 3D wall visualizer (elevation + perspective view).</li>
+</ul>
+
+<h1 class="page-title">2. Project Overview</h1>
+<p>
+Grazia Stones AI Smart Estimator is a mobile + web application that lets a customer point their phone at a real wall,
+see a chosen tile/stone design projected onto it in real time using AR, measure the wall directly from the camera,
+get an automatic tile quantity and cost estimate, and place an order or request a quote — all inside one app.
+It also includes an AI-based "upload a room photo" mode for customers who don't want to use live AR, plus a
+catalogue, cart/checkout, dealer &amp; lead management, and an admin panel to manage products centrally.
+</p>
+
+<h3 class="sec-title">Tech Stack</h3>
+<table class="flow">
+  <tr><th>Layer</th><th>Technology</th></tr>
+  <tr><td>Mobile App</td><td>Flutter (iOS + Android), Riverpod (state), GoRouter (navigation)</td></tr>
+  <tr><td>AR — iOS</td><td>Native ARKit (Swift) — world tracking, vertical plane detection, LiDAR/scene-depth where supported</td></tr>
+  <tr><td>AR — Android</td><td>Native ARCore (Kotlin) — world tracking, plane detection</td></tr>
+  <tr><td>AI Visualization</td><td>NVIDIA NIM (vision model) for wall/object segmentation</td></tr>
+  <tr><td>Backend / Database</td><td>Supabase (Postgres + Auth + Storage + Realtime)</td></tr>
+  <tr><td>Payments</td><td>Razorpay</td></tr>
+</table>
+
+<h1 class="page-title">3. Complete App Flow</h1>
+
+<h3 class="sec-title">3.1 First-Time Journey</h3>
+<ol class="flow-steps">
+  <li><strong>Splash</strong> — brand animation, initializes local storage and connects to backend in the background.</li>
+  <li><strong>Onboarding</strong> — introduces the core value: point your phone at a wall, see the design live.</li>
+  <li><strong>Login / Register / Guest</strong> — email+password or phone OTP; guest browsing supported for the catalogue.</li>
+  <li><strong>Home</strong> — featured collections, trending stones, quick entry into Live AR.</li>
+</ol>
+
+<h3 class="sec-title">3.2 Core Flow — Live AR Visualization</h3>
+<table class="flow">
+  <tr><th>Step</th><th>What Happens</th></tr>
+  <tr><td>Open Live AR</td><td>Camera permission requested contextually (only here, not at app launch). Native ARKit/ARCore session starts.</td></tr>
+  <tr><td>Point at wall</td><td>App detects vertical wall planes in real time and shows a subtle detection indicator.</td></tr>
+  <tr><td>Wall locked</td><td>Once tracked with confidence, status changes from "Searching" to "Wall detected" — with haptic feedback.</td></tr>
+  <tr><td>Select tile/stone</td><td>Swipe through the product carousel — material projects onto the real wall instantly, no AR restart.</td></tr>
+  <tr><td>Switch colour/variant</td><td>Tap a colour swatch — texture updates on the wall live, tracking is not interrupted.</td></tr>
+  <tr><td>Move the phone</td><td>The wall anchor stays spatially fixed — perspective changes naturally as you move.</td></tr>
+  <tr><td>Measure wall</td><td>Tap two points on the wall (real ARKit world anchors, not screen pixels) for width, then two more for height.</td></tr>
+  <tr><td>Auto tile quantity</td><td>App calculates tiles needed, wastage %, and estimated cost from the measured wall area and tile size.</td></tr>
+  <tr><td>Capture / Share</td><td>Save or share the visualization and the estimate.</td></tr>
+</table>
+
+<h3 class="sec-title">3.3 AI Room Photo Mode (no live AR needed)</h3>
+<ol class="flow-steps">
+  <li>Upload or take a photo of the room.</li>
+  <li>Select tile/stone + colour + finish.</li>
+  <li>Backend detects the wall, segments obstacles (furniture, windows, doors), applies the material only to the wall.</li>
+  <li>Result preserves the room's real furniture and lighting.</li>
+</ol>
+
+<h3 class="sec-title">3.4 Catalogue → Order Flow</h3>
+<ol class="flow-steps">
+  <li><strong>Collections / Search</strong> — browse by category, filter, search.</li>
+  <li><strong>Stone Detail</strong> — full specs, price, gallery, "Try in AR" shortcut.</li>
+  <li><strong>Cart</strong> — add tiles/stones with quantity.</li>
+  <li><strong>Checkout</strong> — address, Razorpay payment, order confirmation.</li>
+  <li><strong>Orders</strong> — track order status.</li>
+  <li><strong>Sample Order / Quote Request</strong> — request a physical sample or a formal PDF quotation instead of buying directly.</li>
+</ol>
+
+<h3 class="sec-title">3.5 Supporting Flows</h3>
+<table class="flow">
+  <tr><th>Screen</th><th>Purpose</th></tr>
+  <tr><td>Wishlist</td><td>Save products for later.</td></tr>
+  <tr><td>Dealer Locator</td><td>Find the nearest Grazia Stones dealer.</td></tr>
+  <tr><td>Profile</td><td>Account details, addresses, order history, help &amp; support.</td></tr>
+  <tr><td>Settings</td><td>Theme, notifications, unit preferences (ft/m/in/cm).</td></tr>
+</table>
+
+<h1 class="page-title">4. Feature Status</h1>
+<table class="flow">
+  <tr><th>Feature</th><th>Status</th><th>Notes</th></tr>
+  <tr><td>All app screens / UI</td><td><span class="badge done">DONE</span></td><td>Every screen built and navigable, running live on physical iPhone.</td></tr>
+  <tr><td>Native feel — haptics, gestures, transitions</td><td><span class="badge done">DONE</span></td><td>Verified on iPhone 13 Pro this sprint.</td></tr>
+  <tr><td>Native AR — iOS (ARKit)</td><td><span class="badge done">DONE</span></td><td>World tracking, wall detection, texture projection running on-device.</td></tr>
+  <tr><td>Wall measurement (world-space)</td><td><span class="badge done">DONE</span></td><td>Real ARKit anchors, not screen coordinates.</td></tr>
+  <tr><td>Live AR — backend data flow</td><td><span class="badge progress">IN PROGRESS</span></td><td>Starting next week — connecting AR flow to live product/order data.</td></tr>
+  <tr><td>AI Visualization — backend</td><td><span class="badge progress">IN PROGRESS</span></td><td>Starting next week.</td></tr>
+  <tr><td>Admin Panel</td><td><span class="badge progress">IN PROGRESS</span></td><td>Being finished this week/next.</td></tr>
+  <tr><td>Product catalogue (real data)</td><td><span class="badge next">NEXT</span></td><td>Client to provide product list next week.</td></tr>
+  <tr><td>3D Wall Visualizer</td><td><span class="badge next">NEXT</span></td><td>Setup planned next week.</td></tr>
+  <tr><td>Payments (Razorpay)</td><td><span class="badge progress">IN PROGRESS</span></td><td>Integrated; server-side verification being finalized.</td></tr>
+</table>
+
+<div class="callout">
+This status is kept up to date against the actual running build — every "DONE" item above has been verified on a
+physical device, not just in code.
+</div>
+
+<h1 class="page-title">5. Timeline Reference</h1>
+<table class="flow">
+  <tr><th>Phase</th><th>Deliverable</th></tr>
+  <tr><td>Week 1–2</td><td>Backend setup, Admin Panel, product &amp; catalogue management</td></tr>
+  <tr><td>Week 3–4</td><td>Real AI Visualization + Real AR (wall detection, auto tile fit)</td></tr>
+  <tr><td>Week 5</td><td>Wall measurement, tile calculator, cost estimator, PDF BOQ</td></tr>
+  <tr><td>Week 6</td><td>Testing, Play Store + App Store submission</td></tr>
+</table>
+
+<div class="callout warn">
+For full commercial terms, payment schedule, and scope, refer to the signed Service Agreement (GRAZIA-AI-AR-2026-08).
+This document is a technical/functional progress reference.
+</div>
+
+</body>
+</html>

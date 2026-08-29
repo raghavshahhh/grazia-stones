@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:grazia_stones/app.dart';
+import 'package:grazia_stones/core/config/env_config.dart';
 import 'package:grazia_stones/core/services/storage_service.dart';
 import 'package:grazia_stones/core/services/supabase_service.dart';
 import 'package:grazia_stones/core/widgets/error_boundary.dart';
@@ -31,17 +34,36 @@ void main() async {
   ]);
 
   try {
-    // Initialize storage (Hive, SharedPrefs, SecureStorage)
-    await StorageService.instance.init();
-    debugPrint('✅ Storage service initialized');
-
-    // Initialize Supabase
-    await SupabaseService.instance.init();
-    debugPrint('✅ Supabase initialized');
+    await dotenv.load(fileName: ".env");
+    debugPrint('✅ Environment variables loaded from .env');
   } catch (e) {
-    debugPrint('❌ Service initialization error: $e');
+    debugPrint('⚠️ Could not load .env file, using default configurations: $e');
   }
 
-  runApp(const ProviderScope(child: GraziaApp()));
-}
+  try {
+    // Local disk only (Hive, SharedPrefs, Keychain) — fast, no network, safe
+    // to await before first frame since router/auth state reads it synchronously.
+    await StorageService.instance.init();
+    debugPrint('✅ Storage service initialized');
+  } catch (e) {
+    debugPrint('❌ Storage initialization error: $e');
+  }
 
+  // Render the first frame now. Supabase init includes a network round-trip
+  // (session refresh + connectivity check) and must NEVER gate app startup —
+  // a slow/unreachable network would otherwise freeze the splash screen forever.
+  runApp(const ProviderScope(child: GraziaApp()));
+
+  unawaited(
+    SupabaseService.instance
+        .init()
+        .timeout(
+          const Duration(seconds: 8),
+          onTimeout: () => debugPrint('⚠️ Supabase initialization timed out'),
+        )
+        .then((_) => debugPrint('✅ Supabase initialized'))
+        .catchError((e) => debugPrint('❌ Supabase initialization error: $e')),
+  );
+
+  EnvConfig().printConfig();
+}

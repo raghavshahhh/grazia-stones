@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import '../models/user.dart';
 import '../services/supabase_service.dart';
 
@@ -17,11 +18,11 @@ class UserRepository {
 
   Future<User> getProfile() async {
     final data = await _sb.client
-        .from('users')
+        .from('profiles')
         .select()
         .eq('id', _userId)
         .single();
-    return User.fromJson(data);
+    return User.fromMap(data);
   }
 
   Future<User> updateProfile({
@@ -37,16 +38,25 @@ class UserRepository {
     if (name != null) updates['full_name'] = name;
     if (phone != null) updates['phone'] = phone;
     if (email != null) updates['email'] = email;
-    if (companyName != null) updates['company_name'] = companyName;
     if (avatarUrl != null) updates['avatar_url'] = avatarUrl;
 
     final data = await _sb.client
-        .from('users')
+        .from('profiles')
         .update(updates)
         .eq('id', _userId)
         .select()
         .single();
-    return User.fromJson(data);
+    return User.fromMap(data);
+  }
+
+  Future<String> uploadAvatar(Uint8List bytes, String fileExtension) async {
+    final fileName = '$_userId/avatar_${DateTime.now().millisecondsSinceEpoch}.$fileExtension';
+    final path = await _sb.client.storage
+        .from('avatars')
+        .uploadBinary(fileName, bytes);
+    final publicUrl = _sb.client.storage.from('avatars').getPublicUrl(fileName);
+    await updateProfile(avatarUrl: publicUrl);
+    return publicUrl;
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -55,11 +65,12 @@ class UserRepository {
 
   Future<List<Map<String, dynamic>>> getAddresses() async {
     final data = await _sb.client
-        .from('user_addresses')
+        .from('addresses')
         .select()
         .eq('user_id', _userId)
-        .order('is_default', ascending: false);
-    return data;
+        .order('is_default', ascending: false)
+        .order('created_at', ascending: false);
+    return List<Map<String, dynamic>>.from(data);
   }
 
   Future<Map<String, dynamic>> addAddress({
@@ -70,10 +81,19 @@ class UserRepository {
     required String city,
     required String state,
     required String pincode,
+    String label = 'Home',
     bool isDefault = false,
   }) async {
-    final data = await _sb.client.from('user_addresses').insert({
+    if (isDefault) {
+      await _sb.client
+          .from('addresses')
+          .update({'is_default': false})
+          .eq('user_id', _userId);
+    }
+
+    final data = await _sb.client.from('addresses').insert({
       'user_id': _userId,
+      'label': label,
       'name': name,
       'phone': phone,
       'address_line1': addressLine1,
@@ -86,55 +106,105 @@ class UserRepository {
     return data;
   }
 
+  Future<void> updateAddress({
+    required String addressId,
+    String? name,
+    String? phone,
+    String? addressLine1,
+    String? addressLine2,
+    String? city,
+    String? state,
+    String? pincode,
+    String? label,
+    bool? isDefault,
+  }) async {
+    if (isDefault == true) {
+      await _sb.client
+          .from('addresses')
+          .update({'is_default': false})
+          .eq('user_id', _userId);
+    }
+
+    final updates = <String, dynamic>{};
+    if (name != null) updates['name'] = name;
+    if (phone != null) updates['phone'] = phone;
+    if (addressLine1 != null) updates['address_line1'] = addressLine1;
+    if (addressLine2 != null) updates['address_line2'] = addressLine2;
+    if (city != null) updates['city'] = city;
+    if (state != null) updates['state'] = state;
+    if (pincode != null) updates['pincode'] = pincode;
+    if (label != null) updates['label'] = label;
+    if (isDefault != null) updates['is_default'] = isDefault;
+
+    await _sb.client
+        .from('addresses')
+        .update(updates)
+        .eq('id', addressId)
+        .eq('user_id', _userId);
+  }
+
+  Future<void> setDefaultAddress(String addressId) async {
+    await _sb.client
+        .from('addresses')
+        .update({'is_default': false})
+        .eq('user_id', _userId);
+
+    await _sb.client
+        .from('addresses')
+        .update({'is_default': true})
+        .eq('id', addressId)
+        .eq('user_id', _userId);
+  }
+
   Future<void> deleteAddress(String addressId) async {
     await _sb.client
-        .from('user_addresses')
+        .from('addresses')
         .delete()
         .eq('id', addressId)
         .eq('user_id', _userId);
   }
 
   // ═══════════════════════════════════════════════════════════════════════
-  // PREFERENCES
+  // SAVED DESIGNS (AI Room Visualizations)
   // ═══════════════════════════════════════════════════════════════════════
 
-  Future<Map<String, dynamic>> getPreferences() async {
+  Future<List<Map<String, dynamic>>> getSavedDesigns() async {
     final data = await _sb.client
-        .from('users')
-        .select('preferences')
-        .eq('id', _userId)
-        .single();
-    return data['preferences'] ?? {};
-  }
-
-  Future<void> updatePreferences(Map<String, dynamic> prefs) async {
-    await _sb.client.from('users').update({
-      'preferences': prefs,
-      'updated_at': DateTime.now().toIso8601String(),
-    }).eq('id', _userId);
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // NOTIFICATIONS
-  // ═══════════════════════════════════════════════════════════════════════
-
-  Future<List<Map<String, dynamic>>> getNotifications({
-    int page = 1,
-    int limit = 20,
-  }) async {
-    final from = (page - 1) * limit;
-    final data = await _sb.client
-        .from('notifications')
+        .from('saved_designs')
         .select()
         .eq('user_id', _userId)
-        .order('created_at', ascending: false)
-        .range(from, from + limit - 1);
+        .order('created_at', ascending: false);
+    return List<Map<String, dynamic>>.from(data);
+  }
+
+  Future<Map<String, dynamic>> saveDesign({
+    String? stoneId,
+    required String stoneName,
+    String? roomImageUrl,
+    required String generatedImageUrl,
+    String? color,
+    String? finish,
+    String? notes,
+  }) async {
+    final data = await _sb.client.from('saved_designs').insert({
+      'user_id': _userId,
+      'stone_id': stoneId,
+      'stone_name': stoneName,
+      'room_image_url': roomImageUrl,
+      'generated_image_url': generatedImageUrl,
+      'color': color,
+      'finish': finish,
+      'notes': notes,
+    }).select().single();
     return data;
   }
 
-  Future<void> markNotificationRead(String notificationId) async {
-    await _sb.client.from('notifications').update({
-      'read': true,
-    }).eq('id', notificationId);
+  Future<void> deleteSavedDesign(String designId) async {
+    await _sb.client
+        .from('saved_designs')
+        .delete()
+        .eq('id', designId)
+        .eq('user_id', _userId);
   }
 }
+

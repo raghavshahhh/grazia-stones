@@ -8,6 +8,7 @@ import 'package:grazia_stones/core/providers/stone_providers.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
+import 'package:grazia_stones/features/cart/presentation/cart_screen.dart';
 
 class StoneDetailScreen extends ConsumerStatefulWidget {
   final String stoneId;
@@ -395,7 +396,7 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
                         children: [
                           Expanded(
                             child: ElevatedButton.icon(
-                              onPressed: () => context.push('/live-ai'),
+                              onPressed: () => context.push('/live-ai?stoneId=${stone.id}'),
                               icon: const Icon(Icons.view_in_ar_outlined, size: 18),
                               label: const Text('Live AR View'),
                               style: ElevatedButton.styleFrom(
@@ -410,7 +411,7 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: OutlinedButton.icon(
-                              onPressed: () => context.push('/ai-viz'),
+                              onPressed: () => context.push('/ai-viz?stoneId=${stone.id}'),
                               icon: Icon(Icons.auto_awesome_outlined, color: palette.primary, size: 18),
                               label: Text(
                                 'AI Room Studio',
@@ -634,7 +635,7 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
                   Expanded(
                     flex: 1,
                     child: OutlinedButton(
-                      onPressed: () => context.push('/sample-order'),
+                      onPressed: () => context.push('/sample-order?stoneId=${stone.id}'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: palette.textPrimary,
                         side: BorderSide(color: palette.border, width: 1.2),
@@ -653,10 +654,16 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
                     child: ElevatedButton(
                       onPressed: () {
                         HapticFeedback.mediumImpact();
+                        ref.read(cartProvider.notifier).addItem(stone);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text('${stone.name} added to project'),
                             backgroundColor: palette.primary,
+                            action: SnackBarAction(
+                              label: 'View Cart',
+                              textColor: Colors.white,
+                              onPressed: () => context.push('/cart'),
+                            ),
                           ),
                         );
                       },

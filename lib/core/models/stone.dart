@@ -79,6 +79,7 @@ class Stone {
     this.origin,
   });
 
+
   Map<String, dynamic> toMap() => {
     'id': id,
     'name': name,
@@ -117,12 +118,34 @@ class Stone {
   // Backward compatibility - get first image as imageUrl
   String? get imageUrl => mainImageUrl ?? (images.isNotEmpty ? images.first : null);
 
+  // Compatibility getters for admin and filters
+  List<String> get colors => availableColors;
+  List<String> get tags => idealFor;
+  String? get collectionId => null;
+  double? get lengthCm => double.tryParse(length.replaceAll(RegExp(r'[^0-9.]'), ''));
+  double? get widthCm => double.tryParse(width.replaceAll(RegExp(r'[^0-9.]'), ''));
+  double? get thicknessMm => double.tryParse(thickness.replaceAll(RegExp(r'[^0-9.]'), ''));
+  double? get coverageSqft => sqftPerBox;
+  String get material => texture;
+  List<String> get patterns => const [];
+  String? get shortDescription => description;
+  String? get model3dUrl => null;
+  String? get videoUrl => null;
+  String? get cataloguePdfUrl => null;
+  String get stockStatus => inStock ? 'in_stock' : 'out_of_stock';
+  bool get active => inStock;
+  double? get discountPercent => null;
+  String get currency => 'INR';
+
+
   // AR overlay uses a cropped, logo-free texture when available, falling back to the main photo
   String? get arTextureUrl => arTexture ?? imageUrl;
+
 
   factory Stone.fromJson(Map<String, dynamic> json) => Stone.fromMap(json);
 
   Map<String, dynamic> toJson() => toMap();
+
 
   factory Stone.fromMap(Map<String, dynamic> map) {
     // Resolve collection name from nested collections object or string

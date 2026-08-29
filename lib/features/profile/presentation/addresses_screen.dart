@@ -44,7 +44,8 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = e.toString();
+          _addresses = [];
+          _error = null;
           _isLoading = false;
         });
       }
@@ -64,6 +65,163 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
       if (mounted) {
         showErrorSnackbar(context, e);
       }
+    }
+  }
+
+  void _showAddressDialog({Map<String, dynamic>? address, required LuxuryPalette palette}) {
+    final isEditing = address != null;
+    final nameCtrl = TextEditingController(text: address?['name'] ?? '');
+    final phoneCtrl = TextEditingController(text: address?['phone'] ?? '');
+    final addr1Ctrl = TextEditingController(text: address?['address_line1'] ?? '');
+    final addr2Ctrl = TextEditingController(text: address?['address_line2'] ?? '');
+    final cityCtrl = TextEditingController(text: address?['city'] ?? '');
+    final stateCtrl = TextEditingController(text: address?['state'] ?? 'Uttar Pradesh');
+    final pinCtrl = TextEditingController(text: address?['pincode'] ?? '');
+    String label = address?['label'] ?? 'Home';
+    bool isDefault = address?['is_default'] ?? false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: palette.surface,
+          title: Text(
+            isEditing ? 'Edit Address' : 'New Delivery Address',
+            style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w700, color: palette.textPrimary),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  style: TextStyle(color: palette.textPrimary),
+                  decoration: InputDecoration(labelText: 'Contact Person / Name', labelStyle: TextStyle(color: palette.textSecondary)),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: phoneCtrl,
+                  style: TextStyle(color: palette.textPrimary),
+                  keyboardType: TextInputType.phone,
+                  decoration: InputDecoration(labelText: 'Contact Phone Number', labelStyle: TextStyle(color: palette.textSecondary)),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: addr1Ctrl,
+                  style: TextStyle(color: palette.textPrimary),
+                  decoration: InputDecoration(labelText: 'Address Line 1 (Flat / Plot / Street)', labelStyle: TextStyle(color: palette.textSecondary)),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: addr2Ctrl,
+                  style: TextStyle(color: palette.textPrimary),
+                  decoration: InputDecoration(labelText: 'Address Line 2 (Landmark / Area)', labelStyle: TextStyle(color: palette.textSecondary)),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: cityCtrl,
+                        style: TextStyle(color: palette.textPrimary),
+                        decoration: InputDecoration(labelText: 'City', labelStyle: TextStyle(color: palette.textSecondary)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: pinCtrl,
+                        style: TextStyle(color: palette.textPrimary),
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(labelText: 'Pincode', labelStyle: TextStyle(color: palette.textSecondary)),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: stateCtrl,
+                  style: TextStyle(color: palette.textPrimary),
+                  decoration: InputDecoration(labelText: 'State', labelStyle: TextStyle(color: palette.textSecondary)),
+                ),
+                const SizedBox(height: 8),
+                CheckboxListTile(
+                  title: Text('Set as Default Address', style: TextStyle(color: palette.textPrimary, fontSize: 13)),
+                  value: isDefault,
+                  activeColor: palette.primary,
+                  onChanged: (v) => setDialogState(() => isDefault = v ?? false),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Cancel', style: TextStyle(color: palette.textSecondary)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: palette.primary, foregroundColor: Colors.white),
+              onPressed: () async {
+                if (nameCtrl.text.trim().isEmpty || addr1Ctrl.text.trim().isEmpty) return;
+                Navigator.pop(ctx);
+
+                try {
+                  final userRepo = ref.read(userRepositoryProvider);
+                  if (isEditing) {
+                    await userRepo.updateAddress(
+                      addressId: address['id'] ?? '',
+                      name: nameCtrl.text.trim(),
+                      phone: phoneCtrl.text.trim(),
+                      addressLine1: addr1Ctrl.text.trim(),
+                      addressLine2: addr2Ctrl.text.trim(),
+                      city: cityCtrl.text.trim(),
+                      state: stateCtrl.text.trim(),
+                      pincode: pinCtrl.text.trim(),
+                      label: label,
+                      isDefault: isDefault,
+                    );
+                  } else {
+                    await userRepo.addAddress(
+                      name: nameCtrl.text.trim(),
+                      phone: phoneCtrl.text.trim(),
+                      addressLine1: addr1Ctrl.text.trim(),
+                      addressLine2: addr2Ctrl.text.trim(),
+                      city: cityCtrl.text.trim(),
+                      state: stateCtrl.text.trim(),
+                      pincode: pinCtrl.text.trim(),
+                      label: label,
+                      isDefault: isDefault,
+                    );
+                  }
+
+                  if (mounted) {
+                    showSuccessSnackbar(context, isEditing ? 'Address updated' : 'Address added');
+                    _loadAddresses();
+                  }
+                } catch (e) {
+                  if (mounted) showErrorSnackbar(context, e);
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _setDefaultAddress(String addressId) async {
+    try {
+      final userRepo = ref.read(userRepositoryProvider);
+      await userRepo.setDefaultAddress(addressId);
+
+      if (mounted) {
+        showSuccessSnackbar(context, 'Default address updated');
+        _loadAddresses();
+      }
+    } catch (e) {
+      if (mounted) showErrorSnackbar(context, e);
     }
   }
 
@@ -114,9 +272,7 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
                       ),
                     ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          showInfoSnackbar(context, 'Add address screen coming soon');
-        },
+        onPressed: () => _showAddressDialog(palette: palette),
         backgroundColor: palette.primary,
         foregroundColor: Colors.white,
         elevation: 2,
@@ -157,9 +313,7 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
           ),
           const SizedBox(height: 24),
           ElevatedButton.icon(
-            onPressed: () {
-              showInfoSnackbar(context, 'Add address screen coming soon');
-            },
+            onPressed: () => _showAddressDialog(palette: palette),
             icon: const Icon(Icons.add, size: 18),
             label: const Text('Add Delivery Address'),
             style: ElevatedButton.styleFrom(
@@ -234,11 +388,11 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
                 color: palette.surface,
                 onSelected: (value) {
                   if (value == 'edit') {
-                    showInfoSnackbar(context, 'Edit address coming soon');
+                    _showAddressDialog(address: address, palette: palette);
                   } else if (value == 'delete') {
                     _showDeleteDialog(address['id'] ?? '', palette);
                   } else if (value == 'default') {
-                    showInfoSnackbar(context, 'Set default coming soon');
+                    _setDefaultAddress(address['id'] ?? '');
                   }
                 },
                 itemBuilder: (context) => [
@@ -279,7 +433,7 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            '${address['address_line1'] ?? ''}${address['address_line2'] != null ? ', ${address['address_line2']}' : ''}',
+            '${address['address_line1'] ?? ''}${address['address_line2'] != null && address['address_line2'] != '' ? ', ${address['address_line2']}' : ''}',
             style: GoogleFonts.inter(
               color: palette.textSecondary,
               fontSize: 13,
@@ -344,3 +498,4 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
     );
   }
 }
+

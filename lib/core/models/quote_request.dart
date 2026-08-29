@@ -18,13 +18,13 @@ class QuoteRequest {
   });
 
   factory QuoteRequest.fromJson(Map<String, dynamic> json) => QuoteRequest(
-    id: json['id'] ?? '',
-    stoneName: json['stoneName'] ?? '',
-    finish: json['finish'] ?? '',
-    area: json['area'] ?? '',
-    notes: json['notes'] ?? '',
-    status: json['status'] ?? 'Pending',
-    createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
+    id: json['id']?.toString() ?? '',
+    stoneName: (json['stone_name'] ?? json['stoneName'])?.toString() ?? 'Architectural Stone',
+    finish: json['finish']?.toString() ?? 'Natural',
+    area: (json['area_sqft'] ?? json['area'])?.toString() ?? '150 sq.ft.',
+    notes: (json['message'] ?? json['notes'])?.toString() ?? '',
+    status: json['status']?.toString() ?? 'Pending',
+    createdAt: DateTime.tryParse((json['created_at'] ?? json['createdAt'])?.toString() ?? '') ?? DateTime.now(),
   );
 
   Map<String, dynamic> toJson() => {

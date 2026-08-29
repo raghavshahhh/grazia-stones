@@ -87,11 +87,31 @@ class QuoteRiverpodNotifier extends StateNotifier<QuoteRiverpodState> {
     }
   }
 
-  Future<void> createQuote(String stoneId, int quantity, {String? notes}) async {
+  Future<void> createQuote({
+    required String name,
+    required String phone,
+    String? email,
+    String? company,
+    String? stoneId,
+    String? stoneName,
+    int? quantity,
+    double? areaSqft,
+    String? message,
+  }) async {
     if (_repo == null) return;
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final quote = await _repo.createQuote(stoneId: stoneId, quantity: quantity, notes: notes);
+      final quote = await _repo.createQuote(
+        name: name,
+        phone: phone,
+        email: email,
+        company: company,
+        stoneId: stoneId,
+        stoneName: stoneName,
+        quantity: quantity,
+        areaSqft: areaSqft,
+        message: message,
+      );
       state = state.copyWith(
         quotes: [quote, ...state.quotes],
         isLoading: false,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:grazia_stones/core/di.dart';
+import 'package:grazia_stones/core/services/storage_service.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/grazia_logo.dart';
 
@@ -15,6 +16,8 @@ class SplashScreen extends ConsumerStatefulWidget {
 }
 
 class _SplashScreenState extends ConsumerState<SplashScreen> {
+  bool _hasNavigated = false;
+
   @override
   void initState() {
     super.initState();
@@ -23,15 +26,28 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
   Future<void> _checkAuthAndNavigate() async {
     if (!widget.skipDelay) {
-      await Future.delayed(const Duration(milliseconds: 1900));
+      await Future.delayed(const Duration(milliseconds: 2300));
     }
+    _navigateNext();
+  }
 
-    if (!mounted) return;
+  void _navigateNext() {
+    if (!mounted || _hasNavigated) return;
+    _hasNavigated = true;
 
-    if (mounted) {
+    final onboardingComplete = StorageService.instance.getOnboardingCompleted() ||
+        ref.read(authRiverpodProvider).onboardingComplete;
+    final authState = ref.read(authRiverpodProvider);
+
+    if (!onboardingComplete) {
+      context.go('/onboarding');
+    } else if (authState.isLoggedIn) {
       context.go('/home');
+    } else {
+      context.go('/login');
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -40,25 +56,15 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     return Scaffold(
       backgroundColor: palette.background,
       body: GestureDetector(
-        onTap: () {
-          final authState = ref.read(authRiverpodProvider);
-          if (!authState.onboardingComplete) {
-            context.go('/onboarding');
-          } else if (!authState.isLoggedIn) {
-            context.go('/login');
-          } else {
-            context.go('/home');
-          }
-        },
+        onTap: _navigateNext,
         behavior: HitTestBehavior.opaque,
         child: Center(
           child: GraziaAnimatedSplashLogo(
-            onAnimationComplete: () {
-              // Nav handled by timer or callback
-            },
+            onAnimationComplete: _navigateNext,
           ),
         ),
       ),
     );
   }
 }
+

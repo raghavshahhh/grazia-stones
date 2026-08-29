@@ -20,17 +20,17 @@ class PaymentService {
   void init() {
     if (_isInitialized) return;
 
-    // DEMO MODE: Skip Razorpay initialization to avoid errors
     try {
-      // _razorpay = Razorpay();
-      // _razorpay!.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
-      // _razorpay!.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
-      // _razorpay!.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+      _razorpay = Razorpay();
+      _razorpay!.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
+      _razorpay!.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
+      _razorpay!.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
       
-      _isInitialized = false; // Keep false for demo
-      debugPrint('⚠️ Payment service DISABLED for demo');
+      _isInitialized = true;
+      debugPrint('✅ Payment service initialized with Razorpay');
     } catch (e) {
       debugPrint('❌ Payment service initialization error: $e');
+      _isInitialized = false;
     }
   }
 
@@ -184,6 +184,23 @@ class PaymentService {
       'status': 'captured',
       'method': 'card',
     };
+  }
+
+  // ─── Razorpay Event Handlers ───
+
+  void _handlePaymentSuccess(PaymentSuccessResponse response) {
+    debugPrint('✅ Payment successful: ${response.paymentId}');
+    // The callback is handled in openCheckout via the onSuccess parameter
+    // This is a global handler for any other listeners
+  }
+
+  void _handlePaymentError(PaymentFailureResponse response) {
+    debugPrint('❌ Payment failed: ${response.code} - ${response.message}');
+    // The callback is handled in openCheckout via the onError parameter
+  }
+
+  void _handleExternalWallet(ExternalWalletResponse response) {
+    debugPrint('💳 External wallet: ${response.walletName}');
   }
 
   /// Dispose Razorpay instance

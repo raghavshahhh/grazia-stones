@@ -14,6 +14,7 @@ import 'package:grazia_stones/core/models/collection.dart';
 import 'package:grazia_stones/core/widgets/animated_widgets.dart';
 import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 import 'package:grazia_stones/shared/widgets/grazia_logo.dart';
+import 'package:grazia_stones/features/cart/presentation/cart_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -191,12 +192,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ),
                       ),
 
+                      const SliverToBoxAdapter(child: SizedBox(height: 28)),
+
+                      // 5B. Full Architectural Product Grid
+                      SliverToBoxAdapter(
+                        child: FadeInStagger(
+                          index: 7,
+                          child: _buildAllProductsHeader(palette),
+                        ),
+                      ),
+
+                      const SliverToBoxAdapter(child: SizedBox(height: 14)),
+
+                      SliverToBoxAdapter(
+                        child: FadeInStagger(
+                          index: 8,
+                          child: _buildAllProductsGrid(palette),
+                        ),
+                      ),
+
                       const SliverToBoxAdapter(child: SizedBox(height: 30)),
 
                       // 6. Room Upload AI Visualization Card
                       SliverToBoxAdapter(
                         child: FadeInStagger(
-                          index: 7,
+                          index: 9,
                           child: _buildAIStudioPromoCard(palette),
                         ),
                       ),
@@ -231,7 +251,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ),
                       ),
 
-                      const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                      const SliverToBoxAdapter(child: SizedBox(height: 140)),
                     ],
                   ),
                 ),
@@ -275,10 +295,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withValues(alpha: 0.2),
-                    Colors.black.withValues(alpha: 0.85),
+                    Colors.black.withValues(alpha: 0.35),
+                    Colors.black.withValues(alpha: 0.65),
+                    Colors.black.withValues(alpha: 0.95),
                   ],
-                  stops: const [0.25, 1.0],
+                  stops: const [0.0, 0.45, 1.0],
                 ),
               ),
             ),
@@ -338,20 +359,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       color: Colors.white.withValues(alpha: 0.9),
                     ),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 16),
                   Row(
                     children: [
                       ApplePressable(
-                        onTap: () => context.push('/collections'),
+                        onTap: () => context.push('/live-ai'),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                           decoration: BoxDecoration(
                             gradient: palette.primaryGradient,
                             borderRadius: BorderRadius.circular(20),
                             boxShadow: [
                               BoxShadow(
-                                color: palette.primary.withValues(alpha: 0.4),
-                                blurRadius: 12,
+                                color: palette.primary.withValues(alpha: 0.45),
+                                blurRadius: 14,
                                 offset: const Offset(0, 4),
                               ),
                             ],
@@ -359,25 +380,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
+                              const Icon(Icons.view_in_ar_rounded, color: Colors.white, size: 16),
+                              const SizedBox(width: 6),
                               Text(
-                                'Explore Collections',
+                                'Visualize in AR',
                                 style: GoogleFonts.inter(
-                                  fontSize: 12.5,
+                                  fontSize: 13,
                                   fontWeight: FontWeight.w700,
                                   color: Colors.white,
                                 ),
                               ),
-                              const SizedBox(width: 5),
-                              const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 14),
                             ],
                           ),
                         ),
                       ),
                       const SizedBox(width: 10),
                       ApplePressable(
-                        onTap: () => context.push('/live-ai'),
+                        onTap: () => context.push('/collections'),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(20),
@@ -386,16 +407,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.view_in_ar_outlined, color: Colors.white, size: 15),
-                              const SizedBox(width: 6),
                               Text(
-                                'Live AR',
+                                'Explore Stones',
                                 style: GoogleFonts.inter(
-                                  fontSize: 12.5,
+                                  fontSize: 13,
                                   fontWeight: FontWeight.w600,
                                   color: Colors.white,
                                 ),
                               ),
+                              const SizedBox(width: 4),
+                              const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 14),
                             ],
                           ),
                         ),
@@ -429,9 +450,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         'highlight': false,
       },
       {
-        'icon': Icons.square_foot_rounded,
-        'label': 'Calculator',
-        'sub': 'Estimate Sqft',
+        'icon': Icons.architecture_rounded,
+        'label': '3D Wall Calc',
+        'sub': 'Proportional 3D',
         'route': '/measure',
         'highlight': false,
       },
@@ -673,7 +694,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final displayStones = stones.isEmpty ? allStones : stones;
 
     return SizedBox(
-      height: 280,
+      height: 295,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -686,7 +707,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           return ApplePressable(
             onTap: () => context.push('/stones/${stone.id}'),
             child: Container(
-              width: 188,
+              width: 195,
               decoration: BoxDecoration(
                 color: palette.surface,
                 borderRadius: BorderRadius.circular(20),
@@ -713,6 +734,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           SmartStoneImage(
                             imageUrl: stone.imageUrl,
                             fit: BoxFit.cover,
+                            alignment: Alignment.topCenter,
                             palette: palette,
                           ),
                           // Gradient bottom shadow on image
@@ -931,7 +953,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   fit: StackFit.expand,
                   children: [
                     SmartStoneImage(
-                      imageUrl: matchingStone?.imageUrl,
+                      imageUrl: (col.imageUrl != null && col.imageUrl!.isNotEmpty)
+                          ? col.imageUrl
+                          : matchingStone?.imageUrl,
+                      localAsset: (col.imageUrl == null || col.imageUrl!.isEmpty) && matchingStone?.imageUrl == null
+                          ? 'assets/images/placeholder_stone.png'
+                          : null,
                       fit: BoxFit.cover,
                       palette: palette,
                     ),
@@ -978,6 +1005,210 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                   ],
                 ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ── 4B. Full Architectural Product Grid with 1-Tap Quick Add ──
+  Widget _buildAllProductsHeader(LuxuryPalette palette) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Text(
+                'ARCHITECTURAL CATALOGUE',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 2.0,
+                  color: palette.textTertiary,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: GLuxuryPalettes.gold.primary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '${_trendingStones?.length ?? 0} Products',
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: GLuxuryPalettes.gold.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          GestureDetector(
+            onTap: () => context.push('/catalogue'),
+            child: Row(
+              children: [
+                Text(
+                  'Explore All',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: palette.primary,
+                  ),
+                ),
+                const SizedBox(width: 2),
+                Icon(Icons.arrow_forward_ios_rounded, size: 11, color: palette.primary),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAllProductsGrid(LuxuryPalette palette) {
+    final stones = _trendingStones ?? [];
+    if (stones.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: stones.length,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          childAspectRatio: 0.72,
+          crossAxisSpacing: 14,
+          mainAxisSpacing: 14,
+        ),
+        itemBuilder: (context, index) {
+          final stone = stones[index];
+          return ApplePressable(
+            onTap: () => context.push('/stone/${stone.id}'),
+            child: Container(
+              decoration: BoxDecoration(
+                color: palette.surface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: palette.border, width: 0.8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ClipRRect(
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                          child: SmartStoneImage(
+                            imageUrl: stone.imageUrl,
+                            fit: BoxFit.cover,
+                            alignment: Alignment.topCenter,
+                            palette: palette,
+                          ),
+                        ),
+                        // Quick 1-Tap Add to Cart Button
+                        Positioned(
+                          bottom: 8,
+                          right: 8,
+                          child: ApplePressable(
+                            onTap: () {
+                              HapticFeedback.mediumImpact();
+                              ref.read(cartProvider.notifier).addItem(stone);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('${stone.name} added to Project Cart'),
+                                  duration: const Duration(seconds: 1),
+                                  behavior: SnackBarBehavior.floating,
+                                  backgroundColor: GLuxuryPalettes.gold.primary,
+                                ),
+                              );
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: GLuxuryPalettes.gold.primary,
+                                borderRadius: BorderRadius.circular(14),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: GLuxuryPalettes.gold.primary.withValues(alpha: 0.4),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.add_shopping_cart_rounded, size: 13, color: Colors.black),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '+ Add',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          stone.name,
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: palette.textPrimary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          stone.collection,
+                          style: GoogleFonts.inter(
+                            fontSize: 10.5,
+                            color: palette.textSecondary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '₹${stone.pricePerSqFt.toInt()}/sqft',
+                          style: GoogleFonts.playfairDisplay(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: palette.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           );
@@ -1353,9 +1584,61 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 12,
+            runSpacing: 6,
+            children: [
+              InkWell(
+                onTap: () => context.push('/about'),
+                child: Text(
+                  'About Us',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: palette.primary,
+                  ),
+                ),
+              ),
+              Text('•', style: TextStyle(color: palette.textTertiary, fontSize: 11)),
+              InkWell(
+                onTap: () => context.push('/privacy'),
+                child: Text(
+                  'Privacy Policy',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: palette.textSecondary,
+                  ),
+                ),
+              ),
+              Text('•', style: TextStyle(color: palette.textTertiary, fontSize: 11)),
+              InkWell(
+                onTap: () => context.push('/terms'),
+                child: Text(
+                  'Terms of Service',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: palette.textSecondary,
+                  ),
+                ),
+              ),
+              Text('•', style: TextStyle(color: palette.textTertiary, fontSize: 11)),
+              InkWell(
+                onTap: () => context.push('/help'),
+                child: Text(
+                  'Help Desk',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: palette.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
           Text(
-            '© 2025 Grazia Stones. All rights reserved.',
+            '© 2026 Grazia Stones Private Limited. All rights reserved.',
             style: GoogleFonts.inter(
               fontSize: 10,
               color: palette.textTertiary,
@@ -1365,6 +1648,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
     );
   }
+
 
   Widget _buildLoading(LuxuryPalette palette) {
     return SingleChildScrollView(

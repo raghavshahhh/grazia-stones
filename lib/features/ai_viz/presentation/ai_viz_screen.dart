@@ -9,15 +9,27 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:grazia_stones/core/providers/stone_providers.dart';
-import 'package:grazia_stones/core/services/ai_visualization_service.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 
 import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 
+import 'package:share_plus/share_plus.dart';
+import 'package:grazia_stones/core/di.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:grazia_stones/core/models/stone.dart';
+
+import 'package:grazia_stones/core/models/ai_job.dart';
+import 'package:grazia_stones/core/services/supabase_service.dart';
+import 'package:grazia_stones/core/services/room_analysis_service.dart';
+import 'package:grazia_stones/features/ai_viz/providers/ai_job_provider.dart';
+import 'package:grazia_stones/features/ai_viz/presentation/widgets/room_analysis_widget.dart';
+
 class AIVizScreen extends ConsumerStatefulWidget {
-  const AIVizScreen({super.key});
+  final String? preSelectedStoneId;
+
+  const AIVizScreen({super.key, this.preSelectedStoneId});
 
   @override
   ConsumerState<AIVizScreen> createState() => _AIVizScreenState();
@@ -25,20 +37,27 @@ class AIVizScreen extends ConsumerStatefulWidget {
 
 class _AIVizScreenState extends ConsumerState<AIVizScreen> {
   Uint8List? _selectedImage;
-  Uint8List? _visualizedImage;
-  bool _wallNotDetected = false;
+  File? _selectedImageFile;
+  String? _uploadedImageUrl;
+  RoomAnalysisResult? _roomAnalysis;
+  bool _isAnalyzing = false;
   String? _selectedStoneId;
-  bool _isProcessing = false;
-  String _processingStage = 'Analyzing room architecture...';
-  bool _textureApplied = false;
-  bool _showOriginal = false;
+  String _selectedFinish = 'Natural';
+  String _selectedColor = 'Default';
+  bool _isCreatingJob = false;
+  bool _isSaving = false;
+  String? _currentJobId;
+  AIJob? _completedJob;
   final _picker = ImagePicker();
-  final _aiVizService = AIVisualizationService.instance;
+  final _roomAnalysisService = RoomAnalysisService.instance;
+
+  final List<String> _finishes = ['Natural', 'Polished', 'Honed', 'Leathered'];
 
   @override
   void initState() {
     super.initState();
-    _aiVizService.init();
+    _selectedStoneId = widget.preSelectedStoneId;
+    _roomAnalysisService.init();
   }
 
   Future<void> _pickImage(ImageSource source) async {
@@ -51,15 +70,20 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
       );
       if (pickedFile != null) {
         final bytes = await pickedFile.readAsBytes();
+        final file = File(pickedFile.path);
+        
         if (!mounted) return;
         setState(() {
           _selectedImage = bytes;
-          _visualizedImage = null;
-          _textureApplied = false;
-          _wallNotDetected = false;
-          _showOriginal = false;
+          _selectedImageFile = file;
+          _roomAnalysis = null;
+          _currentJobId = null;
+          _completedJob = null;
         });
         HapticFeedback.mediumImpact();
+
+        // Auto-analyze room
+        await _analyzeRoom();
       }
     } catch (e) {
       if (!mounted) return;
@@ -71,14 +95,43 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
     }
   }
 
-  Future<void> _applyStoneTexture() async {
-    if (_selectedImage == null || _selectedStoneId == null) return;
+  Future<void> _analyzeRoom() async {
+    if (_selectedImageFile == null) return;
 
-    setState(() {
-      _isProcessing = true;
-      _processingStage = 'Uploading room photo...';
-      _wallNotDetected = false;
-    });
+    setState(() => _isAnalyzing = true);
+    HapticFeedback.mediumImpact();
+
+    try {
+      final result = await _roomAnalysisService.analyzeRoom(
+        roomImage: _selectedImageFile!,
+        useSegmentation: true,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _roomAnalysis = result;
+        _isAnalyzing = false;
+      });
+
+      if (result.isUsable) {
+        HapticFeedback.heavyImpact();
+        showSuccessSnackbar(
+          context, 
+          '${result.walls.length} wall surface${result.walls.length > 1 ? 's' : ''} detected!',
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isAnalyzing = false);
+      debugPrint('❌ Room analysis error: $e');
+    }
+  }
+
+  Future<void> _createVisualizationJob() async {
+    if (_uploadedImageUrl == null || _selectedStoneId == null) return;
+
+    setState(() => _isCreatingJob = true);
     HapticFeedback.mediumImpact();
 
     try {
@@ -87,52 +140,153 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
         (s) => s.id == _selectedStoneId,
         orElse: () => allStones.first,
       );
-      
-      final tempDir = await Directory.systemTemp.createTemp('aiviz_');
-      final imageFile = File('${tempDir.path}/room_image.jpg');
-      await imageFile.writeAsBytes(_selectedImage!);
 
-      final result = await _aiVizService.generateVisualization(
-        roomImage: imageFile,
-        stone: stone,
-        onProgress: (progress) {
-          if (!mounted) return;
-          if (progress < 0.25) {
-            setState(() => _processingStage = 'Uploading room photo...');
-          } else if (progress < 0.50) {
-            setState(() => _processingStage = 'Analyzing room architecture...');
-          } else if (progress < 0.75) {
-            setState(() => _processingStage = 'Detecting surface boundaries...');
-          } else if (progress < 0.90) {
-            setState(() => _processingStage = 'Applying selected stone texture...');
-          } else {
-            setState(() => _processingStage = 'Rendering visualization...');
-          }
+      // Create job via provider
+      final job = await ref.read(aiJobListProvider.notifier).createVisualizationJob(
+        inputImageUrl: _uploadedImageUrl!,
+        stoneId: stone.id,
+        stoneName: stone.name,
+        color: _selectedColor,
+        finish: _selectedFinish,
+        metadata: {
+          'room_analysis': _roomAnalysis?.toJson(),
+          'wall_confidence': _roomAnalysis?.confidence,
         },
       );
 
       if (!mounted) return;
-      
-      try { await tempDir.delete(recursive: true); } catch (_) {}
 
-      setState(() {
-        _isProcessing = false;
-        _visualizedImage = base64Decode(result.visualizedImageUrl.split(',').last);
-        _textureApplied = true;
-        _wallNotDetected = false;
-      });
-      HapticFeedback.heavyImpact();
+      if (job != null) {
+        setState(() {
+          _currentJobId = job.id;
+          _isCreatingJob = false;
+        });
+
+        showSuccessSnackbar(
+          context,
+          'AI visualization job created! Processing...',
+        );
+
+        // Start tracking the job
+        _trackJob(job.id);
+      } else {
+        setState(() => _isCreatingJob = false);
+        showErrorSnackbar(
+          context,
+          Exception('Failed to create job'),
+          customMessage: 'Could not create visualization job. Please try again.',
+        );
+      }
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _isProcessing = false;
-        _visualizedImage = null;
-        _textureApplied = false;
-        _wallNotDetected = true;
-      });
-      debugPrint('❌ AI Visualization error: $e');
+      setState(() => _isCreatingJob = false);
+      showErrorSnackbar(
+        context,
+        e,
+        customMessage: 'Failed to create visualization job',
+      );
     }
   }
+
+  void _trackJob(String jobId) {
+    // Listen to job updates via provider
+    ref.listen<AIJobTrackingState>(
+      aiJobTrackingProvider(jobId),
+      (previous, next) {
+        if (!mounted) return;
+
+        final job = next.job;
+        if (job == null) return;
+
+        if (job.status == 'completed') {
+          setState(() => _completedJob = job);
+          HapticFeedback.heavyImpact();
+          showSuccessSnackbar(
+            context,
+            'AI visualization complete!',
+          );
+        } else if (job.status == 'failed') {
+          HapticFeedback.mediumImpact();
+          showErrorSnackbar(
+            context,
+            Exception(job.errorMessage ?? 'Job failed'),
+            customMessage: 'Visualization failed: ${job.errorMessage ?? 'Unknown error'}',
+          );
+        }
+      },
+    );
+  }
+
+  Future<void> _uploadImage() async {
+    if (_selectedImage == null) return;
+
+    try {
+      final client = SupabaseService.instance.client;
+      final fileName = 'room_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      
+      await client.storage
+          .from('ai-visualizations')
+          .uploadBinary(
+            'input/$fileName',
+            _selectedImage!,
+            fileOptions: FileOptions(
+              contentType: 'image/jpeg',
+              cacheControl: '3600',
+            ),
+
+          );
+
+      final url = client.storage
+          .from('ai-visualizations')
+          .getPublicUrl('input/$fileName');
+
+      setState(() => _uploadedImageUrl = url);
+    } catch (e) {
+      debugPrint('❌ Image upload error: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> _saveJobResult() async {
+    if (_completedJob == null || _completedJob!.resultImageUrl == null) return;
+
+    setState(() => _isSaving = true);
+    HapticFeedback.mediumImpact();
+
+    try {
+      final userRepo = ref.read(userRepositoryProvider);
+
+      await userRepo.saveDesign(
+        stoneId: _completedJob!.stoneId ?? '',
+        stoneName: _completedJob!.stoneName ?? 'AI Visualization',
+        roomImageUrl: _completedJob!.inputImageUrl,
+        generatedImageUrl: _completedJob!.resultImageUrl!,
+        color: _completedJob!.color ?? _selectedColor,
+        finish: _completedJob!.finish ?? _selectedFinish,
+        notes: 'AI Studio visualization created on ${DateTime.now()}',
+      );
+
+      if (mounted) {
+        setState(() => _isSaving = false);
+        showSuccessSnackbar(context, 'Visualization saved to your Saved Designs!');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        showErrorSnackbar(context, e);
+      }
+    }
+  }
+
+  void _shareConcept() {
+    if (_completedJob == null) return;
+    
+    HapticFeedback.lightImpact();
+    Share.share(
+      'Grazia Stones AI Studio Visualization: ${_completedJob!.stoneName} (${_completedJob!.finish} finish). Explore premium stones at https://graziastones.com',
+    );
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -262,77 +416,50 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
             else
               _buildImagePreviewCard(palette),
 
-            if (_wallNotDetected) ...[
-              const SizedBox(height: 14),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: palette.surface,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: palette.primary.withValues(alpha: 0.35)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.info_outline_rounded, color: palette.primary, size: 20),
-                        const SizedBox(width: 10),
-                        Text(
-                          'Visualization couldn\'t be completed',
-                          style: GoogleFonts.playfairDisplay(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: palette.textPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Please ensure the target architectural surface is well-lit and clearly visible, then try again.',
-                      style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary, height: 1.4),
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: _applyStoneTexture,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: palette.primary,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              elevation: 0,
-                            ),
-                            child: Text(
-                              'Try Again',
-                              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () => _pickImage(ImageSource.gallery),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: palette.textPrimary,
-                              side: BorderSide(color: palette.border),
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            ),
-                            child: Text(
-                              'Choose Photo',
-                              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+            // Room Analysis Result
+            if (_roomAnalysis != null) ...[
+              const SizedBox(height: 16),
+              RoomAnalysisWidget(
+                analysis: _roomAnalysis!,
+                palette: palette,
+                onWallSelected: _roomAnalysis!.isUsable
+                    ? () async {
+                        await _uploadImage();
+                        await _createVisualizationJob();
+                      }
+                    : null,
+                onRetry: () => _pickImage(ImageSource.gallery),
+              ),
+            ],
+
+            // Job Tracking
+            if (_currentJobId != null) ...[
+              const SizedBox(height: 16),
+              Consumer(
+                builder: (context, ref, _) {
+                  final jobState = ref.watch(aiJobTrackingProvider(_currentJobId!));
+                  if (jobState.job == null) return const SizedBox.shrink();
+
+                  final job = jobState.job!;
+                  return _buildJobTrackingCard(palette, job);
+                },
+              ),
+            ],
+
+            // Completed Job Result
+            if (_completedJob != null && _completedJob!.resultImageUrl != null) ...[
+              const SizedBox(height: 24),
+              Text(
+                '4. AI VISUALIZATION RESULT',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.8,
+                  color: palette.textTertiary,
                 ),
               ),
+              const SizedBox(height: 12),
+              _buildResultPreview(palette, _completedJob!),
             ],
 
             const SizedBox(height: 28),
@@ -351,8 +478,44 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
 
             _buildStoneSelectorGrid(palette, stones),
 
-            if (_textureApplied && _visualizedImage != null && selectedStone != null)
-              _buildAppliedStoneSummary(palette, selectedStone),
+            const SizedBox(height: 24),
+
+            // Step 3: Choose Finish
+            Text(
+              '3. SELECT FINISH & LIGHTING',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.8,
+                color: palette.textTertiary,
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: Row(
+                children: _finishes.map((f) {
+                  final isSel = _selectedFinish == f;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(f),
+                      selected: isSel,
+                      selectedColor: palette.primary,
+                      backgroundColor: palette.surface,
+                      labelStyle: GoogleFonts.inter(
+                        color: isSel ? Colors.white : palette.textPrimary,
+                        fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
+                        fontSize: 12,
+                      ),
+                      onSelected: (_) => setState(() => _selectedFinish = f),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
 
             const SizedBox(height: 110),
           ],
@@ -369,32 +532,194 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
           color: palette.surface,
           border: Border(top: BorderSide(color: palette.border, width: 1.0)),
         ),
-        child: ElevatedButton.icon(
-          onPressed: _selectedImage != null && _selectedStoneId != null && !_isProcessing
-              ? _applyStoneTexture
-              : null,
-          icon: _isProcessing
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
-              : const Icon(Icons.auto_awesome_rounded, size: 18),
-          label: Text(
-            _isProcessing
-                ? _processingStage
-                : _textureApplied
-                    ? 'Re-Render Surface'
-                    : 'Generate AI Visualization',
-            style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700),
+        child: _buildBottomAction(palette, selectedStone),
+      ),
+    );
+  }
+
+  Widget _buildBottomAction(LuxuryPalette palette, Stone? selectedStone) {
+    // Show "Create Visualization" when room analyzed and stone selected
+    if (_roomAnalysis != null && 
+        _roomAnalysis!.isUsable && 
+        _selectedStoneId != null && 
+        _currentJobId == null &&
+        _completedJob == null) {
+      return ElevatedButton.icon(
+        onPressed: _isCreatingJob
+            ? null
+            : () async {
+                await _uploadImage();
+                await _createVisualizationJob();
+              },
+        icon: _isCreatingJob
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              )
+            : const Icon(Icons.auto_awesome_rounded, size: 18),
+        label: Text(
+          _isCreatingJob ? 'Creating Job...' : 'Generate AI Visualization',
+          style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: palette.primary,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          elevation: 0,
+          disabledBackgroundColor: palette.border,
+        ),
+      );
+    }
+
+    // Show actions for completed job
+    if (_completedJob != null && selectedStone != null) {
+      return Row(
+        children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: _isSaving ? null : _saveJobResult,
+              icon: _isSaving
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.bookmark_add_outlined, size: 16),
+              label: const Text('Save'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: palette.primary,
+                side: BorderSide(color: palette.primary),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
           ),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: palette.primary,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            elevation: 0,
-            disabledBackgroundColor: palette.border,
+          const SizedBox(width: 12),
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: _shareConcept,
+              icon: const Icon(Icons.share_outlined, size: 16),
+              label: const Text('Share'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: palette.textPrimary,
+                side: BorderSide(color: palette.border),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: ElevatedButton.icon(
+              onPressed: () => context.push('/quotes'),
+              icon: const Icon(Icons.request_quote_outlined, size: 16),
+              label: const Text('Quote'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: palette.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 0,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Default: View Jobs button
+    return OutlinedButton.icon(
+      onPressed: () => context.push('/ai-jobs'),
+      icon: const Icon(Icons.list_alt_rounded, size: 18),
+      label: Text(
+        'View All AI Jobs',
+        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700),
+      ),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: palette.textPrimary,
+        side: BorderSide(color: palette.border),
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+    );
+  }
+
+  Widget _buildJobTrackingCard(LuxuryPalette palette, AIJob job) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: palette.primary.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: palette.primary,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Processing Visualization',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: palette.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      job.readableStatus,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: palette.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: job.status == 'processing' ? null : 0.1,
+              backgroundColor: palette.border,
+              valueColor: AlwaysStoppedAnimation(palette.primary),
+              minHeight: 6,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResultPreview(LuxuryPalette palette, AIJob job) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: Image.network(
+        job.resultImageUrl!,
+        height: 300,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(
+          height: 300,
+          color: palette.border,
+          child: Center(
+            child: Icon(Icons.broken_image_outlined, size: 48, color: palette.textTertiary),
           ),
         ),
       ),
@@ -449,10 +774,6 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
   }
 
   Widget _buildImagePreviewCard(LuxuryPalette palette) {
-    final displayImage = (_showOriginal || _visualizedImage == null)
-        ? _selectedImage!
-        : _visualizedImage!;
-
     return Container(
       decoration: BoxDecoration(
         color: palette.surface,
@@ -471,50 +792,38 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
         child: Stack(
           children: [
             Image.memory(
-              displayImage,
+              _selectedImage!,
               height: 260,
               width: double.infinity,
               fit: BoxFit.cover,
             ),
-            // Comparison Toggle button
-            if (_visualizedImage != null)
-              Positioned(
-                bottom: 12,
-                left: 12,
-                child: GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    setState(() => _showOriginal = !_showOriginal);
-                  },
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        color: Colors.black.withValues(alpha: 0.6),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.compare_arrows_rounded, color: Colors.white, size: 14),
-                            const SizedBox(width: 6),
-                            Text(
-                              _showOriginal ? 'Showing: Original' : 'Showing: AI Render',
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
+
+            // Analyzing indicator
+            if (_isAnalyzing)
+              Positioned.fill(
+                child: Container(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(color: Colors.white),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Analyzing room...',
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                   ),
                 ),
               ),
 
-            // Remove/Reset button
+            // Remove button
             Positioned(
               top: 10,
               right: 10,
@@ -523,11 +832,10 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
                   HapticFeedback.lightImpact();
                   setState(() {
                     _selectedImage = null;
-                    _visualizedImage = null;
-                    _selectedStoneId = null;
-                    _textureApplied = false;
-                    _wallNotDetected = false;
-                    _showOriginal = false;
+                    _selectedImageFile = null;
+                    _roomAnalysis = null;
+                    _currentJobId = null;
+                    _completedJob = null;
                   });
                 },
                 child: Container(
@@ -626,62 +934,5 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
       },
     );
   }
-
-  Widget _buildAppliedStoneSummary(LuxuryPalette palette, dynamic stone) {
-    return Container(
-      margin: const EdgeInsets.only(top: 20),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: palette.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: palette.border),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: const Color(0xFF2E7D32).withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(Icons.check_circle_rounded, color: Color(0xFF2E7D32), size: 22),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Surface Render Complete',
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: palette.textPrimary,
-                  ),
-                ),
-                Text(
-                  '${stone.name} • ₹${stone.pricePerSqFt.toInt()} / sq ft',
-                  style: GoogleFonts.inter(fontSize: 11, color: palette.textSecondary),
-                ),
-              ],
-            ),
-          ),
-          Flexible(
-            child: TextButton(
-              onPressed: () => context.push('/stones/${stone.id}'),
-              child: Text(
-                'Details →',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: palette.primary,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
+

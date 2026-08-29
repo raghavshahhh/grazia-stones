@@ -56,16 +56,16 @@ class UserFriendlyError {
       );
     }
 
-    // 3. Authentication & Session Errors
-    if (errStr.contains('auth') ||
+    // 3. Authentication & Login Errors
+    if (errStr.contains('invalid_credentials') ||
         errStr.contains('invalid login credentials') ||
         errStr.contains('invalid password') ||
+        errStr.contains('wrong password') ||
         errStr.contains('user not found') ||
-        errStr.contains('jwt expired') ||
-        errStr.contains('unauthorized')) {
-      return const UserFriendlyError(
+        errStr.contains('invalid_grant')) {
+      return UserFriendlyError(
         title: 'Authentication Notice',
-        message: 'We couldn\'t sign you in with those details. Please check your email and password and try again.',
+        message: fallbackMessage ?? 'We couldn\'t sign you in with those details. Please check your email and password and try again.',
         actionLabel: 'Try Again',
       );
     }

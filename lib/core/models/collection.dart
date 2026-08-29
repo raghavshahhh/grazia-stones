@@ -2,12 +2,14 @@ class Collection {
   final String id;
   final String name;
   final String description;
+  final String? imageUrl;
   final int stoneCount;
 
   const Collection({
     required this.id,
     required this.name,
     required this.description,
+    this.imageUrl,
     this.stoneCount = 0,
   });
 
@@ -17,6 +19,7 @@ class Collection {
     'id': id,
     'name': name,
     'description': description,
+    'imageUrl': imageUrl,
     'stoneCount': stoneCount,
   };
 
@@ -24,8 +27,10 @@ class Collection {
     id: map['id']?.toString() ?? '',
     name: map['name'] ?? '',
     description: map['description'] ?? '',
+    imageUrl: map['image_url'] ?? map['imageUrl'] ?? map['image'],
     stoneCount: (map['stone_count'] ?? map['stoneCount'] ?? 0) is int
         ? (map['stone_count'] ?? map['stoneCount'] ?? 0)
         : int.tryParse((map['stone_count'] ?? map['stoneCount'] ?? 0).toString()) ?? 0,
   );
 }
+

@@ -9,6 +9,7 @@ import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/models/collection.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
+import 'package:grazia_stones/shared/widgets/loading_skeleton.dart';
 
 /// Fetch collections from Supabase
 final collectionsProvider = FutureProvider.autoDispose<List<Collection>>((ref) async {
@@ -31,7 +32,7 @@ class CollectionListScreen extends ConsumerWidget {
         slivers: [
           SliverAppBar(
             backgroundColor: palette.background,
-            expandedHeight: 140,
+            expandedHeight: 120,
             pinned: true,
             elevation: 0,
             automaticallyImplyLeading: false,
@@ -39,7 +40,7 @@ class CollectionListScreen extends ConsumerWidget {
               background: Container(
                 color: palette.background,
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 60, 20, 16),
+                  padding: const EdgeInsets.fromLTRB(20, 48, 20, 12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.end,
@@ -57,7 +58,7 @@ class CollectionListScreen extends ConsumerWidget {
                         collectionsAsync.when(
                           data: (c) => '${c.length} Curated Series',
                           loading: () => 'Loading...',
-                          error: (_, __) => '',
+                          error: (_, _) => '',
                         ),
                         style: GoogleFonts.inter(
                           fontSize: 12,
@@ -74,20 +75,72 @@ class CollectionListScreen extends ConsumerWidget {
           ),
 
           collectionsAsync.when(
-            loading: () => const SliverFillRemaining(child: Center(child: CircularProgressIndicator())),
-            error: (e, _) => SliverFillRemaining(child: Center(child: Text('Error loading collections'))),
-            data: (collections) => SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final collection = collections[index];
-                    return _CollectionCard(collection: collection, palette: palette);
-                  },
-                  childCount: collections.length,
+            loading: () => const SliverPadding(
+              padding: EdgeInsets.fromLTRB(16, 8, 16, 100),
+              sliver: SliverToBoxAdapter(
+                child: CollectionListSkeleton(),
+              ),
+            ),
+            error: (e, _) => SliverFillRemaining(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.cloud_off_rounded, size: 48, color: palette.textTertiary),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Unable to Load Collections',
+                        style: GoogleFonts.playfairDisplay(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: palette.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Please check your connection and try again.',
+                        style: GoogleFonts.inter(fontSize: 13, color: palette.textSecondary),
+                      ),
+                      const SizedBox(height: 20),
+                      ElevatedButton.icon(
+                        onPressed: () => ref.invalidate(collectionsProvider),
+                        icon: const Icon(Icons.refresh_rounded, size: 18),
+                        label: const Text('Retry'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: palette.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
+            data: (collections) {
+              final filteredCollections = collections.where((c) {
+                final name = c.name.toLowerCase();
+                return !name.startsWith('test') && !name.contains('test collection');
+              }).toList();
+
+              final displayList = filteredCollections.isEmpty ? collections : filteredCollections;
+
+              return SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 140),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final collection = displayList[index];
+                      return _CollectionCard(collection: collection, palette: palette);
+                    },
+                    childCount: displayList.length,
+                  ),
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -102,6 +155,9 @@ class _CollectionCard extends StatelessWidget {
   const _CollectionCard({required this.collection, required this.palette});
 
   String? _getCollectionImage() {
+    if (collection.imageUrl != null && collection.imageUrl!.isNotEmpty) {
+      return collection.imageUrl;
+    }
     final name = collection.name.toLowerCase();
     if (name.contains('grande')) return 'assets/images/grande_ledge_ta02.png';
     if (name.contains('classic')) return 'assets/images/classic_ledge_07.png';
@@ -136,7 +192,14 @@ class _CollectionCard extends StatelessWidget {
               children: [
                 ClipRRect(
                   borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), bottomLeft: Radius.circular(16)),
-                  child: SmartStoneImage(localAsset: _getCollectionImage(), width: 110, height: 110, fit: BoxFit.cover, fallbackColor: palette.surfaceDark),
+                  child: SmartStoneImage(
+                    imageUrl: _getCollectionImage()?.startsWith('http') == true ? _getCollectionImage() : null,
+                    localAsset: _getCollectionImage()?.startsWith('http') == false ? _getCollectionImage() : null,
+                    width: 110,
+                    height: 110,
+                    fit: BoxFit.cover,
+                    fallbackColor: palette.surfaceDark,
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(

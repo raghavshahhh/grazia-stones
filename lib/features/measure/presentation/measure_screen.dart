@@ -61,6 +61,13 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
     }
 
     double area = l * w;
+    if (_shape == 'Circle') {
+      area = 3.141592653589793 * w * w; // w is radius
+    } else if (_shape == 'L-Shape') {
+      final cutout = double.tryParse(_heightController.text) ?? (l * 0.35);
+      area = (l * w) - (cutout * (w * 0.35));
+    }
+
     if (_unit == 'meters') area *= 10.764;
     if (_unit == 'inches') area /= 144;
 
@@ -374,7 +381,7 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
               ],
             ),
 
-            // Results Card
+            // Results Card & 3D Interactive Wall Representation
             if (_hasResult) ...[
               const SizedBox(height: 24),
               AnimatedBuilder(
@@ -386,55 +393,63 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
                     child: child,
                   ),
                 ),
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: palette.surface,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: palette.border),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 14,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.verified_outlined, color: palette.primary, size: 20),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Estimated Material Breakdown',
-                            style: GoogleFonts.inter(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: palette.textPrimary,
-                            ),
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: palette.surface,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: palette.border),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.04),
+                            blurRadius: 14,
+                            offset: const Offset(0, 4),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 16),
-                      Row(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildResultCell('Net Area', '${_totalArea!.toStringAsFixed(1)} sq ft', palette),
-                          _buildResultCell('With Buffer', '${_totalWithWastage!.toStringAsFixed(1)} sq ft', palette),
-                          _buildResultCell('Boxes Needed', '${_boxes!.toInt()}', palette, isHighlight: true),
+                          Row(
+                            children: [
+                              Icon(Icons.verified_outlined, color: palette.primary, size: 20),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Estimated Material Breakdown',
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: palette.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              _buildResultCell('Net Area', '${_totalArea!.toStringAsFixed(1)} sq ft', palette),
+                              _buildResultCell('With Buffer', '${_totalWithWastage!.toStringAsFixed(1)} sq ft', palette),
+                              _buildResultCell('Boxes Needed', '${_boxes!.toInt()}', palette, isHighlight: true),
+                            ],
+                          ),
+                          const Divider(height: 24),
+                          Text(
+                            '* Standard slab box coverage: ~10.5 sq ft per box.',
+                            style: GoogleFonts.inter(fontSize: 11, color: palette.textTertiary),
+                          ),
                         ],
                       ),
-                      const Divider(height: 24),
-                      Text(
-                        '* Standard slab box coverage: ~10.5 sq ft per box.',
-                        style: GoogleFonts.inter(fontSize: 11, color: palette.textTertiary),
-                      ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 16),
+                    // Proportional Interactive Wall Visualization Card
+                    _build3DWallPreview(palette),
+                  ],
                 ),
               ),
             ],
+
 
             const SizedBox(height: 28),
 
@@ -538,6 +553,275 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
     );
   }
 
+  bool _is3DView = true;
+
+  Widget _build3DWallPreview(LuxuryPalette palette) {
+    final l = double.tryParse(_lengthController.text) ?? 10.0;
+    final w = double.tryParse(_widthController.text) ?? 10.0;
+    final unitLabel = _unit == 'feet' ? 'ft' : _unit == 'meters' ? 'm' : 'in';
+
+    // Calculate proportional grid rows and columns (e.g. 2x1 ft tiles or slabs)
+    final cols = (l / 2.0).clamp(3, 8).round();
+    final rows = (w / 1.5).clamp(3, 6).round();
+    final totalTiles = cols * rows;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: palette.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.view_in_ar_rounded, color: palette.primary, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Interactive Wall Layout',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: palette.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              // 2D / 3D Toggle Pill
+              Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: palette.surfaceDark,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: palette.border),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GestureDetector(
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() => _is3DView = false);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: !_is3DView ? palette.primary : Colors.transparent,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '2D Elevation',
+                          style: GoogleFonts.inter(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                            color: !_is3DView ? Colors.white : palette.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() => _is3DView = true);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _is3DView ? palette.primary : Colors.transparent,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '3D Isometric',
+                          style: GoogleFonts.inter(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                            color: _is3DView ? Colors.white : palette.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Proportional Wall Grid with Dimension Labels
+          Center(
+            child: SizedBox(
+              height: 220,
+              width: double.infinity,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Top Dimension callout
+                  Positioned(
+                    top: 4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: palette.surfaceDark,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: palette.border),
+                      ),
+                      child: Text(
+                        'Width: ${l.toStringAsFixed(1)} $unitLabel',
+                        style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w700, color: palette.primary),
+                      ),
+                    ),
+                  ),
+
+                  // Left Dimension callout
+                  Positioned(
+                    left: 4,
+                    child: RotatedBox(
+                      quarterTurns: 3,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: palette.surfaceDark,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: palette.border),
+                        ),
+                        child: Text(
+                          'Height: ${w.toStringAsFixed(1)} $unitLabel',
+                          style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w700, color: palette.primary),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // The Wall Representation
+                  Padding(
+                    padding: const EdgeInsets.only(left: 36, top: 24, right: 12, bottom: 8),
+                    child: Transform(
+                      transform: _is3DView
+                          ? (Matrix4.identity()
+                              ..setEntry(3, 2, 0.0015)
+                              ..rotateX(0.25)
+                              ..rotateY(-0.25)
+                              ..rotateZ(0.04))
+                          : Matrix4.identity(),
+                      alignment: Alignment.center,
+                      child: Container(
+                        height: 150,
+                        width: 240,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2C2420),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: palette.primary, width: 1.5),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.18),
+                              blurRadius: 18,
+                              offset: const Offset(8, 12),
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(7),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              // Stone texture background
+                              Image.asset(
+                                'assets/images/grande_ledge_ta02.png',
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) => Container(color: const Color(0xFF382E2B)),
+                              ),
+                              // Grout Grid Lines
+                              Column(
+                                children: List.generate(rows, (r) {
+                                  return Expanded(
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        border: Border(
+                                          bottom: BorderSide(
+                                            color: Colors.black.withValues(alpha: 0.5),
+                                            width: 1.0,
+                                          ),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: List.generate(cols, (c) {
+                                          return Expanded(
+                                            child: Container(
+                                              decoration: BoxDecoration(
+                                                border: Border(
+                                                  right: BorderSide(
+                                                    color: Colors.black.withValues(alpha: 0.5),
+                                                    width: 1.0,
+                                                  ),
+                                                ),
+                                              ),
+                                              child: Center(
+                                                child: Container(
+                                                  width: 4,
+                                                  height: 4,
+                                                  decoration: BoxDecoration(
+                                                    color: palette.primary.withValues(alpha: 0.4),
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        }),
+                                      ),
+                                    ),
+                                  );
+                                }),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: palette.surfaceDark,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Grid Pattern: $cols cols × $rows rows',
+                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: palette.textSecondary),
+                ),
+                Text(
+                  '~$totalTiles Course Tiles',
+                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: palette.primary),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildResultCell(String label, String value, LuxuryPalette palette, {bool isHighlight = false}) {
     return Expanded(
       child: Column(
@@ -558,3 +842,4 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
     );
   }
 }
+

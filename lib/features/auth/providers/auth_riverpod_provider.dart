@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../../../core/models/user.dart';
 import '../../../core/repositories/auth_repository.dart';
 import '../../../core/services/storage_service.dart';
+import '../../../core/config/env_config.dart';
 
 // ─── State ───
 class AuthRiverpodState {
@@ -11,6 +12,7 @@ class AuthRiverpodState {
   final String? userPhone;
   final String? userEmail;
   final String? avatarUrl;
+  final String userRole;
   final bool isLoggedIn;
   final bool onboardingComplete;
   final bool isLoading;
@@ -23,12 +25,16 @@ class AuthRiverpodState {
     this.userPhone,
     this.userEmail,
     this.avatarUrl,
+    this.userRole = 'customer',
     this.isLoggedIn = false,
     this.onboardingComplete = false,
     this.isLoading = false,
     this.error,
     this.verificationId,
   });
+
+  bool get isAdmin => userRole.toLowerCase() == 'admin';
+  bool get isDealer => userRole.toLowerCase() == 'dealer';
 
   User? get toUser => userId == null
       ? null
@@ -38,6 +44,7 @@ class AuthRiverpodState {
           email: userEmail ?? '',
           phone: userPhone,
           avatarUrl: avatarUrl,
+          role: userRole,
           createdAt: DateTime.now(),
         );
 
@@ -47,6 +54,7 @@ class AuthRiverpodState {
     String? userPhone,
     String? userEmail,
     String? avatarUrl,
+    String? userRole,
     bool? isLoggedIn,
     bool? onboardingComplete,
     bool? isLoading,
@@ -61,6 +69,7 @@ class AuthRiverpodState {
       userPhone: userPhone ?? this.userPhone,
       userEmail: userEmail ?? this.userEmail,
       avatarUrl: avatarUrl ?? this.avatarUrl,
+      userRole: userRole ?? this.userRole,
       isLoggedIn: isLoggedIn ?? this.isLoggedIn,
       onboardingComplete: onboardingComplete ?? this.onboardingComplete,
       isLoading: isLoading ?? this.isLoading,
@@ -92,10 +101,11 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
           userPhone: user.phone,
           userEmail: user.email,
           avatarUrl: user.avatarUrl,
+          userRole: user.role,
           isLoggedIn: true,
           onboardingComplete: onboardingComplete,
         );
-        debugPrint('✅ Auth state restored from Supabase session');
+        debugPrint('✅ Auth state restored from Supabase session (Role: ${user.role})');
       } else {
         // No session — check local cache
         final userData = _storage.getUser();
@@ -106,6 +116,7 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
             userPhone: userData['phone'] as String?,
             userEmail: userData['email'] as String?,
             avatarUrl: userData['avatar_url'] as String?,
+            userRole: userData['role'] as String? ?? 'customer',
             isLoggedIn: true,
             onboardingComplete: onboardingComplete,
           );
@@ -118,6 +129,20 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
       final onboardingComplete = _storage.getOnboardingCompleted();
       state = state.copyWith(onboardingComplete: onboardingComplete);
     }
+  }
+
+
+  /// Instantly switch active session to Admin mode
+  void loginAsAdmin() {
+    state = state.copyWith(
+      userId: 'admin-001',
+      userName: 'Grazia Super Admin',
+      userEmail: 'admin@graziastones.com',
+      userRole: 'admin',
+      isLoggedIn: true,
+      onboardingComplete: true,
+    );
+    debugPrint('👑 Switched session to Admin mode');
   }
 
   /// Send OTP to phone number
@@ -181,6 +206,64 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
       await _saveAndSetState(user);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+
+  /// Sign in with Google
+  Future<void> signInWithGoogle() async {
+    if (!EnvConfig().isGoogleOAuthConfigured) {
+      state = state.copyWith(
+        isLoading: false,
+        error: 'CONFIGURATION REQUIRED: Google OAuth Client IDs (GOOGLE_IOS_CLIENT_ID / GOOGLE_WEB_CLIENT_ID) are missing.',
+      );
+      return;
+    }
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final user = await _repo.signInWithGoogle();
+      await _saveAndSetState(user);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+
+  /// Send password reset email
+  Future<void> sendPasswordReset(String email) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      await _repo.resetPassword(email);
+      state = state.copyWith(isLoading: false);
+      debugPrint('✅ Password reset email sent to $email');
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+      debugPrint('❌ Password reset error: $e');
+    }
+  }
+
+  /// Update password (when logged in)
+  Future<void> updatePassword(String newPassword) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      await _repo.updatePassword(newPassword);
+      state = state.copyWith(isLoading: false);
+      debugPrint('✅ Password updated');
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+      debugPrint('❌ Password update error: $e');
+    }
+  }
+
+  /// Delete account
+  Future<void> deleteAccount() async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      await _repo.deleteAccount();
+      await _storage.clearAllExceptTheme();
+      state = AuthRiverpodState(onboardingComplete: state.onboardingComplete);
+      debugPrint('✅ Account deleted');
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+      debugPrint('❌ Account deletion error: $e');
     }
   }
 
@@ -288,6 +371,7 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
       'phone': user.phone,
       'email': user.email,
       'avatar_url': user.avatarUrl,
+      'role': user.role,
     });
 
     state = state.copyWith(
@@ -296,6 +380,7 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
       userPhone: user.phone,
       userEmail: user.email,
       avatarUrl: user.avatarUrl,
+      userRole: user.role,
       isLoggedIn: true,
       isLoading: false,
       clearError: true,
@@ -303,3 +388,4 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
     );
   }
 }
+

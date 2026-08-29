@@ -24,16 +24,16 @@ class SampleOrder {
   });
 
   factory SampleOrder.fromJson(Map<String, dynamic> json) => SampleOrder(
-    id: json['id'] ?? '',
-    stoneId: json['stoneId'] ?? '',
-    stoneName: json['stoneName'] ?? '',
-    name: json['name'] ?? '',
-    phone: json['phone'] ?? '',
-    address: json['address'] ?? '',
-    city: json['city'] ?? '',
-    pincode: json['pincode'] ?? '',
-    status: json['status'] ?? 'Pending',
-    createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
+    id: json['id']?.toString() ?? '',
+    stoneId: (json['stone_id'] ?? json['stoneId'])?.toString() ?? '',
+    stoneName: (json['stone_name'] ?? json['stoneName'])?.toString() ?? 'Architectural Stone Sample',
+    name: json['name']?.toString() ?? '',
+    phone: json['phone']?.toString() ?? '',
+    address: json['address']?.toString() ?? '',
+    city: json['city']?.toString() ?? '',
+    pincode: json['pincode']?.toString() ?? '',
+    status: json['status']?.toString() ?? 'Pending',
+    createdAt: DateTime.tryParse((json['created_at'] ?? json['createdAt'])?.toString() ?? '') ?? DateTime.now(),
   );
 
   Map<String, dynamic> toJson() => {

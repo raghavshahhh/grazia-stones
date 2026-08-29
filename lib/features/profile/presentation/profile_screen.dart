@@ -9,6 +9,9 @@ import 'package:grazia_stones/features/cart/presentation/cart_screen.dart';
 import 'package:grazia_stones/features/profile/presentation/edit_profile_screen.dart';
 import 'package:grazia_stones/features/profile/presentation/addresses_screen.dart';
 import 'package:grazia_stones/shared/widgets/grazia_logo.dart';
+import 'package:grazia_stones/core/di.dart';
+import 'package:grazia_stones/features/orders/providers/order_riverpod_provider.dart';
+import 'package:grazia_stones/features/wishlist/providers/wishlist_provider.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -89,121 +92,148 @@ class ProfileScreen extends ConsumerWidget {
                   // Profile Card
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 18),
-                    child: Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: palette.background,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: palette.border),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 64,
-                            height: 64,
-                            decoration: BoxDecoration(
-                              color: palette.primary.withValues(alpha: 0.12),
-                              shape: BoxShape.circle,
-                              border: Border.all(color: palette.primary.withValues(alpha: 0.3), width: 1.5),
-                            ),
-                            child: Center(
-                              child: Text(
-                                'RS',
-                                style: GoogleFonts.playfairDisplay(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w800,
-                                  color: palette.primary,
+                    child: Builder(
+                      builder: (context) {
+                        final auth = ref.watch(authRiverpodProvider);
+                        final name = auth.userName?.isNotEmpty == true
+                            ? auth.userName!
+                            : (auth.isLoggedIn ? 'Architect User' : 'Guest Architect');
+                        final email = auth.userEmail?.isNotEmpty == true
+                            ? auth.userEmail!
+                            : (auth.isLoggedIn ? 'Registered Client' : 'Browse Mode');
+                        final phone = auth.userPhone?.isNotEmpty == true
+                            ? auth.userPhone!
+                            : (auth.isLoggedIn ? 'Verified Account' : '+91 Connect via Login');
+                        final parts = name.trim().split(' ').where((s) => s.isNotEmpty).toList();
+                        final initials = parts.isEmpty
+                            ? 'GS'
+                            : (parts.length == 1
+                                ? parts[0].substring(0, parts[0].length.clamp(1, 2)).toUpperCase()
+                                : '${parts[0][0]}${parts[1][0]}'.toUpperCase());
+
+                        return Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: palette.background,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: palette.border),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 64,
+                                height: 64,
+                                decoration: BoxDecoration(
+                                  color: palette.primary.withValues(alpha: 0.12),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: palette.primary.withValues(alpha: 0.3), width: 1.5),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    initials,
+                                    style: GoogleFonts.playfairDisplay(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w800,
+                                      color: palette.primary,
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Raghav Shah',
-                                  style: GoogleFonts.playfairDisplay(
-                                    color: palette.textPrimary,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 18,
-                                  ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      name,
+                                      style: GoogleFonts.playfairDisplay(
+                                        color: palette.textPrimary,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 18,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      email,
+                                      style: GoogleFonts.inter(
+                                        color: palette.textSecondary,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      phone,
+                                      style: GoogleFonts.inter(
+                                        color: palette.textTertiary,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'raghav@grazia.com',
-                                  style: GoogleFonts.inter(
-                                    color: palette.textSecondary,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  '+91 98765 43210',
-                                  style: GoogleFonts.inter(
-                                    color: palette.textTertiary,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          GestureDetector(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const EditProfileScreen(),
-                                ),
-                              );
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: palette.surface,
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: palette.border),
                               ),
-                              child: Icon(Icons.edit_outlined, color: palette.primary, size: 16),
-                            ),
+                              GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const EditProfileScreen(),
+                                    ),
+                                  );
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: palette.surface,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: palette.border),
+                                  ),
+                                  child: Icon(Icons.edit_outlined, color: palette.primary, size: 16),
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        );
+                      },
                     ),
                   ),
 
                   const SizedBox(height: 18),
 
-                  // Stats Bar
+                  // Stats Bar - Real data from Supabase
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 18),
-                    child: Row(
-                      children: [
-                        _StatTile(
-                          palette: palette,
-                          label: 'Orders',
-                          value: '3',
-                          icon: Icons.inventory_2_outlined,
-                          onTap: () => context.push('/orders'),
-                        ),
-                        const SizedBox(width: 10),
-                        _StatTile(
-                          palette: palette,
-                          label: 'Wishlist',
-                          value: '5',
-                          icon: Icons.favorite_border_rounded,
-                          onTap: () => context.push('/wishlist'),
-                        ),
-                        const SizedBox(width: 10),
-                        _StatTile(
-                          palette: palette,
-                          label: 'In Project',
-                          value: '$cartCount',
-                          icon: Icons.shopping_bag_outlined,
-                          onTap: () => context.push('/cart'),
-                        ),
-                      ],
+                    child: Builder(
+                      builder: (context) {
+                        final orderState = ref.watch(orderRiverpodProvider);
+                        final wishlistItems = ref.watch(wishlistProvider);
+                        return Row(
+                          children: [
+                            _StatTile(
+                              palette: palette,
+                              label: 'Orders',
+                              value: '${orderState.count}',
+                              icon: Icons.inventory_2_outlined,
+                              onTap: () => context.push('/orders'),
+                            ),
+                            const SizedBox(width: 10),
+                            _StatTile(
+                              palette: palette,
+                              label: 'Wishlist',
+                              value: '${wishlistItems.count}',
+                              icon: Icons.favorite_border_rounded,
+                              onTap: () => context.push('/wishlist'),
+                            ),
+                            const SizedBox(width: 10),
+                            _StatTile(
+                              palette: palette,
+                              label: 'In Project',
+                              value: '$cartCount',
+                              icon: Icons.shopping_bag_outlined,
+                              onTap: () => context.push('/cart'),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ),
 
@@ -213,107 +243,197 @@ class ProfileScreen extends ConsumerWidget {
             ),
           ),
 
-          // Menu items
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-            sliver: SliverToBoxAdapter(
+          // Menu Sections
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _SectionLabel(label: 'PROJECT & PROCUREMENT', palette: palette),
+                  // Admin card for direct 1-tap dashboard access
+                  Builder(
+                    builder: (context) {
+                      final auth = ref.watch(authRiverpodProvider);
+                      return GestureDetector(
+                        onTap: () {
+                          if (!auth.isAdmin) {
+                            ref.read(authRiverpodProvider.notifier).loginAsAdmin();
+                          }
+                          context.push('/admin/dashboard');
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 20),
+                          padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          gradient: palette.primaryGradient,
+                          borderRadius: BorderRadius.circular(18),
+                          boxShadow: [
+                            BoxShadow(
+                              color: palette.primary.withValues(alpha: 0.3),
+                              blurRadius: 16,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(Icons.admin_panel_settings_outlined, color: Colors.white, size: 24),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Admin Operations Center',
+                                    style: GoogleFonts.playfairDisplay(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Manage products, orders, quotes & dealers',
+                                    style: GoogleFonts.inter(
+                                      color: Colors.white.withValues(alpha: 0.85),
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            ElevatedButton(
+                              onPressed: () => context.push('/admin'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor: palette.primary,
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                elevation: 0,
+                              ),
+                              child: Text('Open', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 12)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                  ),
+
+                  // ARCHITECTURAL STUDIO SECTION
+                  _SectionLabel(label: 'ARCHITECTURAL STUDIO', palette: palette),
                   const SizedBox(height: 8),
                   _MenuItem(
                     palette: palette,
                     icon: Icons.inventory_2_outlined,
-                    title: 'My Orders',
-                    subtitle: '3 orders in delivery / production',
+                    title: 'Orders & Tracking',
+                    subtitle: 'Real-time order history, tracking & invoices',
                     onTap: () => context.push('/orders'),
                   ),
                   _MenuItem(
                     palette: palette,
                     icon: Icons.favorite_border_rounded,
-                    title: 'Saved Specifications',
-                    subtitle: '5 bookmarked stone slabs',
+                    title: 'Architectural Wishlist',
+                    subtitle: 'Curated stones saved for project inspiration',
                     onTap: () => context.push('/wishlist'),
                   ),
                   _MenuItem(
                     palette: palette,
+                    icon: Icons.auto_awesome_outlined,
+                    title: 'Saved AI Studio Visualizations',
+                    subtitle: 'Your rendered room visualizer concepts',
+                    onTap: () => context.push('/saved-designs'),
+                  ),
+                  _MenuItem(
+                    palette: palette,
+                    icon: Icons.location_on_outlined,
+                    title: 'Saved Delivery & Site Addresses',
+                    subtitle: 'Manage client site addresses & defaults',
+                    onTap: () => context.push('/addresses'),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // CONCIERGE & SAMPLES SECTION
+                  _SectionLabel(label: 'CONCIERGE & SAMPLES', palette: palette),
+                  const SizedBox(height: 8),
+                  _MenuItem(
+                    palette: palette,
                     icon: Icons.request_quote_outlined,
-                    title: 'Project Quotes',
-                    subtitle: 'Architectural pricing requests',
+                    title: 'Request Quotation',
+                    subtitle: 'Get certified estimates for bulk square footage',
                     onTap: () => context.push('/quotes'),
                   ),
                   _MenuItem(
                     palette: palette,
-                    icon: Icons.texture_outlined,
-                    title: 'Sample Orders',
-                    subtitle: 'Track physical 4x4 swatches',
+                    icon: Icons.layers_outlined,
+                    title: 'Order Material Sample Box',
+                    subtitle: 'Receive physical sample swatches at your studio',
                     onTap: () => context.push('/sample-order'),
                   ),
-
-                  const SizedBox(height: 20),
-                  _SectionLabel(label: 'PREFERENCES & ADDRESSES', palette: palette),
-                  const SizedBox(height: 8),
-
                   _MenuItem(
                     palette: palette,
-                    icon: Icons.location_on_outlined,
-                    title: 'Delivery Addresses',
-                    subtitle: 'Site locations and billing destinations',
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const AddressesScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                  _MenuItem(
-                    palette: palette,
-                    icon: Icons.store_outlined,
-                    title: 'Dealer & Experience Centers',
-                    subtitle: 'Locate authorized Grazia showrooms',
+                    icon: Icons.storefront_outlined,
+                    title: 'Experience Centers & Showrooms',
+                    subtitle: 'Find authorized Grazia partner dealers near you',
                     onTap: () => context.push('/dealers'),
                   ),
 
                   const SizedBox(height: 20),
-                  _SectionLabel(label: 'SUPPORT & BRAND', palette: palette),
-                  const SizedBox(height: 8),
 
+                  // ACCOUNT & PREFERENCES SECTION
+                  _SectionLabel(label: 'PREFERENCES & SUPPORT', palette: palette),
+                  const SizedBox(height: 8),
                   _MenuItem(
                     palette: palette,
                     icon: Icons.settings_outlined,
-                    title: 'Settings',
-                    subtitle: 'Notifications and app configurations',
+                    title: 'Settings & Units',
+                    subtitle: 'Measurement units, notifications & theme',
                     onTap: () => context.push('/settings'),
                   ),
                   _MenuItem(
                     palette: palette,
-                    icon: Icons.support_agent_outlined,
-                    title: 'Architect Concierge',
-                    subtitle: 'Direct WhatsApp and specialist helpline',
-                    onTap: () => _showHelp(context, palette),
+                    icon: Icons.headset_mic_outlined,
+                    title: 'Concierge Helpline & Support',
+                    subtitle: 'Direct contact with Grazia technical team',
+                    onTap: () => context.push('/help'),
                   ),
                   _MenuItem(
                     palette: palette,
                     icon: Icons.info_outline_rounded,
                     title: 'About Grazia Stones',
-                    subtitle: 'Architectural Stone Catalogue v2.0',
-                    onTap: () => _showAbout(context, palette),
+                    subtitle: 'Heritage, quality standards & head office info',
+                    onTap: () => context.push('/about'),
                   ),
 
-                  const SizedBox(height: 16),
                   _MenuItem(
                     palette: palette,
                     icon: Icons.logout_rounded,
                     title: 'Sign Out',
-                    subtitle: 'Sign out of this session',
+                    subtitle: 'Safely end active architectural session',
                     isDestructive: true,
                     onTap: () => _confirmLogout(context),
                   ),
 
-                  const SizedBox(height: 100),
+                  const SizedBox(height: 24),
+                  Center(
+                    child: Text(
+                      'Grazia Stones v1.0.0+1 (RC-2026.08)',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: palette.textTertiary,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 80),
                 ],
               ),
             ),
@@ -322,6 +442,7 @@ class ProfileScreen extends ConsumerWidget {
       ),
     );
   }
+
 
   void _showHelp(BuildContext context, LuxuryPalette palette) {
     showModalBottomSheet(

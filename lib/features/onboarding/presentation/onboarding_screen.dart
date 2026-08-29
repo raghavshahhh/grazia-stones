@@ -26,25 +26,25 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
 
   final List<_OnboardingPage> _pages = const [
     _OnboardingPage(
-      title: 'Discover\nTimeless Stone',
+      title: 'The Architecture\nof Nature',
       subtitle:
-          'Browse our curated collection of premium natural stones—each with a unique story etched by nature over millennia.',
+          'Explore our curated quarry collections of handcrafted Italian & global architectural stone surfaces.',
+      imagePath: 'assets/images/onboarding_1.png',
       icon: Icons.diamond_outlined,
-      gradient: [Color(0xFFC9A84C), Color(0xFFD4AF37)],
     ),
     _OnboardingPage(
-      title: 'Visualize\nYour Vision',
+      title: 'Precision AI\nRoom Studio',
       subtitle:
-          'Use AI to see how any stone looks in your space. Tap once—the room transforms instantly.',
+          'Transform your living walls in seconds. Upload any space to visualize realistic stone cladding.',
+      imagePath: 'assets/images/onboarding_2.png',
       icon: Icons.auto_awesome_outlined,
-      gradient: [Color(0xFFD4AF37), Color(0xFFB8860B)],
     ),
     _OnboardingPage(
-      title: 'Experience\nin Reality',
+      title: 'Real-Time AR\nWall Visualization',
       subtitle:
-          'See stones in your actual space with AR. Place, rotate, and feel the transformation before you buy.',
+          'Detect walls, project real-scale stone textures, measure square footage, and order samples directly.',
+      imagePath: 'assets/images/onboarding_3.png',
       icon: Icons.view_in_ar_outlined,
-      gradient: [Color(0xFFB8860B), Color(0xFFC9A84C)],
     ),
   ];
 
@@ -59,11 +59,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     _iconScaleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _iconAnimationController,
-        curve: Curves.elasticOut,
+        curve: Curves.easeOutCubic,
       ),
     );
 
-    _iconRotationAnimation = Tween<double>(begin: -0.5, end: 0.0).animate(
+    _iconRotationAnimation = Tween<double>(begin: -0.2, end: 0.0).animate(
       CurvedAnimation(
         parent: _iconAnimationController,
         curve: Curves.easeOutCubic,
@@ -90,8 +90,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   void _next() {
     if (_currentPage < _pages.length - 1) {
       _pageController.nextPage(
-        duration: const Duration(milliseconds: 600),
-        curve: Curves.easeInOutCubic,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeOutCubic,
       );
     } else {
       _completeOnboarding();
@@ -103,9 +103,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   }
 
   void _completeOnboarding() {
+    HapticFeedback.mediumImpact();
     ref.read(authRiverpodProvider.notifier).completeOnboarding();
     context.go('/login');
   }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -180,70 +183,75 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
 
   Widget _buildPage(_OnboardingPage page, LuxuryPalette palette) {
     return Padding(
-      padding: GLuxurySpacing.horizontalXxl,
-      child: SingleChildScrollView(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            minHeight: MediaQuery.of(context).size.height * 0.7,
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Architectural Image with Luxury Frame & Floating Icon
+          Stack(
+            alignment: Alignment.bottomRight,
             children: [
-          // Animated Icon with Gradient Circle
-          AnimatedBuilder(
-            animation: _iconAnimationController,
-            builder: (context, child) {
-              return Transform.scale(
-                scale: _iconScaleAnimation.value,
-                child: Transform.rotate(
-                  angle: _iconRotationAnimation.value,
-                  child: child,
-                ),
-              );
-            },
-            child: Container(
-              width: 200,
-              height: 200,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  colors: [
-                    page.gradient[0].withValues(alpha: 0.15),
-                    page.gradient[1].withValues(alpha: 0.05),
+              Container(
+                height: 280,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: palette.border),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.06),
+                      blurRadius: 24,
+                      offset: const Offset(0, 10),
+                    ),
                   ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
                 ),
-                border: Border.all(
-                  width: 1.5,
-                  color: palette.primary.withValues(alpha: 0.2),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: palette.primary.withValues(alpha: 0.1),
-                    blurRadius: 40,
-                    spreadRadius: 10,
-                  ),
-                ],
-              ),
-              child: Center(
-                child: ShaderMask(
-                  shaderCallback: (bounds) => LinearGradient(
-                    colors: page.gradient,
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ).createShader(bounds),
-                  child: Icon(
-                    page.icon,
-                    size: 90,
-                    color: Colors.white,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(23),
+                  child: Image.asset(
+                    page.imagePath,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      color: palette.surfaceDark,
+                      child: Icon(page.icon, size: 64, color: palette.primary),
+                    ),
                   ),
                 ),
               ),
-            ),
+              // Floating Accent Badge
+              Transform.translate(
+                offset: const Offset(-16, 18),
+                child: AnimatedBuilder(
+                  animation: _iconAnimationController,
+                  builder: (context, child) {
+                    return Transform.rotate(
+                      angle: _iconRotationAnimation.value,
+                      child: Transform.scale(
+                        scale: _iconScaleAnimation.value,
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: palette.surface,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: palette.border),
+                      boxShadow: [
+                        BoxShadow(
+                          color: palette.primary.withValues(alpha: 0.15),
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Icon(page.icon, size: 28, color: palette.primary),
+                  ),
+                ),
+              ),
+            ],
           ),
-          GLuxurySpacing.gapXxl,
-          GLuxurySpacing.gapLg,
+          const SizedBox(height: 38),
 
           // Title
           Text(
@@ -252,11 +260,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
             style: GLuxuryTypography.h1.copyWith(
               color: palette.textPrimary,
               height: 1.15,
-              fontSize: 40,
+              fontSize: 32,
               fontWeight: FontWeight.w700,
             ),
           ),
-          GLuxurySpacing.gapLg,
+          const SizedBox(height: 14),
 
           // Subtitle
           Text(
@@ -264,13 +272,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
             textAlign: TextAlign.center,
             style: GLuxuryTypography.bodyLarge.copyWith(
               color: palette.textSecondary,
-              height: 1.6,
-              fontSize: 16,
+              height: 1.5,
+              fontSize: 15,
             ),
           ),
         ],
-          ),
-        ),
       ),
     );
   }
@@ -283,26 +289,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
         (index) {
           final isActive = _currentPage == index;
           return AnimatedContainer(
-            duration: const Duration(milliseconds: 400),
+            duration: const Duration(milliseconds: 350),
             curve: Curves.easeOutCubic,
-            margin: const EdgeInsets.symmetric(horizontal: 5),
-            width: isActive ? 40 : 10,
-            height: 10,
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            width: isActive ? 32 : 8,
+            height: 6,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(5),
-              gradient: isActive
-                  ? palette.primaryGradient
-                  : null,
+              borderRadius: BorderRadius.circular(3),
+              gradient: isActive ? palette.primaryGradient : null,
               color: isActive ? null : palette.border,
-              boxShadow: isActive
-                  ? [
-                      BoxShadow(
-                        color: palette.primary.withValues(alpha: 0.4),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ]
-                  : null,
             ),
           );
         },
@@ -315,15 +310,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
 
     return Container(
       width: double.infinity,
-      height: 56,
+      height: 54,
       decoration: BoxDecoration(
         gradient: palette.primaryGradient,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: palette.primary.withValues(alpha: 0.4),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: palette.primary.withValues(alpha: 0.3),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -331,17 +326,17 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
         color: Colors.transparent,
         child: InkWell(
           onTap: _next,
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(16),
           child: Center(
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  isLastPage ? 'Get Started' : 'Next',
+                  isLastPage ? 'Explore Showroom' : 'Continue',
                   style: GLuxuryTypography.labelLarge.copyWith(
                     color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
                     letterSpacing: 0.5,
                   ),
                 ),
@@ -349,7 +344,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                 const Icon(
                   Icons.arrow_forward_rounded,
                   color: Colors.white,
-                  size: 20,
+                  size: 18,
                 ),
               ],
             ),
@@ -363,13 +358,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
 class _OnboardingPage {
   final String title;
   final String subtitle;
+  final String imagePath;
   final IconData icon;
-  final List<Color> gradient;
 
   const _OnboardingPage({
     required this.title,
     required this.subtitle,
+    required this.imagePath,
     required this.icon,
-    required this.gradient,
   });
 }
+

@@ -8,6 +8,7 @@ class SmartStoneImage extends StatelessWidget {
   final BoxFit fit;
   final double? width;
   final double? height;
+  final Alignment alignment;
   final LuxuryPalette? palette;
   final Color? fallbackColor;
 
@@ -16,6 +17,7 @@ class SmartStoneImage extends StatelessWidget {
     this.imageUrl,
     this.localAsset,
     this.fit = BoxFit.cover,
+    this.alignment = Alignment.center,
     this.width,
     this.height,
     this.palette,
@@ -37,6 +39,7 @@ class SmartStoneImage extends StatelessWidget {
       return Image.network(
         effectiveAsset,
         fit: fit,
+        alignment: alignment,
         width: width,
         height: height,
         cacheWidth: width != null && width! > 0 ? (width! * 2).toInt() : null,
@@ -64,6 +67,7 @@ class SmartStoneImage extends StatelessWidget {
     return Image.asset(
       effectiveAsset,
       fit: fit,
+      alignment: alignment,
       width: width,
       height: height,
       frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {

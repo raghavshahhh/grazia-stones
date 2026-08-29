@@ -9,6 +9,8 @@ import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 
+import 'package:image_picker/image_picker.dart';
+
 class EditProfileScreen extends ConsumerStatefulWidget {
   const EditProfileScreen({super.key});
 
@@ -22,6 +24,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
+  String? _avatarUrl;
+  bool _isUploadingAvatar = false;
   bool _isLoading = true;
   bool _isSaving = false;
   String? _error;
@@ -42,30 +46,69 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   }
 
   Future<void> _loadProfile() async {
-    try {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-      });
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
 
+    final authState = ref.read(authRiverpodProvider);
+
+    _nameController.text = authState.userName ?? 'Guest Architect';
+    _emailController.text = authState.userEmail ?? 'guest@graziastones.com';
+    _phoneController.text = authState.userPhone ?? '';
+    _avatarUrl = authState.avatarUrl;
+
+    try {
       final userRepo = ref.read(userRepositoryProvider);
       final profile = await userRepo.getProfile();
 
       if (mounted) {
         setState(() {
-          _nameController.text = profile.name;
-          _emailController.text = profile.email;
-          _phoneController.text = profile.phone ?? '';
-          _addressController.text = '';
+          if (profile.name.isNotEmpty) _nameController.text = profile.name;
+          if (profile.email.isNotEmpty) _emailController.text = profile.email;
+          if (profile.phone != null && profile.phone!.isNotEmpty) _phoneController.text = profile.phone!;
+          if (profile.avatarUrl != null && profile.avatarUrl!.isNotEmpty) _avatarUrl = profile.avatarUrl;
           _isLoading = false;
+          _error = null;
         });
       }
     } catch (e) {
+      debugPrint('ℹ️ Profile fetch info (guest/unauthenticated): $e');
       if (mounted) {
         setState(() {
-          _error = e.toString();
           _isLoading = false;
+          _error = null;
         });
+      }
+    }
+  }
+
+  Future<void> _pickAndUploadAvatar() async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+      if (picked == null) return;
+
+      setState(() => _isUploadingAvatar = true);
+      HapticFeedback.mediumImpact();
+
+      final bytes = await picked.readAsBytes();
+      final ext = picked.name.split('.').last;
+      final userRepo = ref.read(userRepositoryProvider);
+      final publicUrl = await userRepo.uploadAvatar(bytes, ext);
+
+      if (mounted) {
+        setState(() {
+          _avatarUrl = publicUrl;
+          _isUploadingAvatar = false;
+        });
+        showSuccessSnackbar(context, 'Profile picture updated');
+        ref.read(authRiverpodProvider.notifier).loadProfile();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isUploadingAvatar = false);
+        showErrorSnackbar(context, e);
       }
     }
   }
@@ -82,7 +125,14 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
         phone: _phoneController.text.trim(),
-        companyName: _addressController.text.trim(),
+        avatarUrl: _avatarUrl,
+      );
+
+      await ref.read(authRiverpodProvider.notifier).updateProfile(
+        name: _nameController.text.trim(),
+        email: _emailController.text.trim(),
+        phone: _phoneController.text.trim(),
+        avatarUrl: _avatarUrl,
       );
 
       if (mounted) {
@@ -138,55 +188,80 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                       children: [
                         // Profile Avatar
                         Center(
-                          child: Stack(
-                            children: [
-                              Container(
-                                width: 88,
-                                height: 88,
-                                decoration: BoxDecoration(
-                                  color: palette.primary.withValues(alpha: 0.12),
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: palette.primary.withValues(alpha: 0.3),
-                                    width: 1.5,
-                                  ),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    _nameController.text.isNotEmpty
-                                        ? _nameController.text.substring(0, 1).toUpperCase()
-                                        : 'A',
-                                    style: GoogleFonts.playfairDisplay(
-                                      fontSize: 32,
-                                      fontWeight: FontWeight.w700,
-                                      color: palette.primary,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Positioned(
-                                bottom: 0,
-                                right: 0,
-                                child: Container(
-                                  padding: const EdgeInsets.all(6),
+                          child: GestureDetector(
+                            onTap: _isUploadingAvatar ? null : _pickAndUploadAvatar,
+                            child: Stack(
+                              children: [
+                                Container(
+                                  width: 88,
+                                  height: 88,
                                   decoration: BoxDecoration(
-                                    color: palette.primary,
+                                    color: palette.primary.withValues(alpha: 0.12),
                                     shape: BoxShape.circle,
                                     border: Border.all(
-                                      color: palette.background,
-                                      width: 2,
+                                      color: palette.primary.withValues(alpha: 0.3),
+                                      width: 1.5,
                                     ),
                                   ),
-                                  child: const Icon(
-                                    Icons.camera_alt,
-                                    size: 14,
-                                    color: Colors.white,
+                                  child: _isUploadingAvatar
+                                      ? Center(child: CircularProgressIndicator(strokeWidth: 2, color: palette.primary))
+                                      : _avatarUrl != null && _avatarUrl!.isNotEmpty
+                                          ? ClipOval(
+                                              child: Image.network(
+                                                _avatarUrl!,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (_, __, ___) => Center(
+                                                  child: Text(
+                                                    _nameController.text.isNotEmpty
+                                                        ? _nameController.text.substring(0, 1).toUpperCase()
+                                                        : 'A',
+                                                    style: GoogleFonts.playfairDisplay(
+                                                      fontSize: 32,
+                                                      fontWeight: FontWeight.w700,
+                                                      color: palette.primary,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            )
+                                          : Center(
+                                              child: Text(
+                                                _nameController.text.isNotEmpty
+                                                    ? _nameController.text.substring(0, 1).toUpperCase()
+                                                    : 'A',
+                                                style: GoogleFonts.playfairDisplay(
+                                                  fontSize: 32,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: palette.primary,
+                                                ),
+                                              ),
+                                            ),
+                                ),
+                                Positioned(
+                                  bottom: 0,
+                                  right: 0,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: palette.primary,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: palette.background,
+                                        width: 2,
+                                      ),
+                                    ),
+                                    child: const Icon(
+                                      Icons.camera_alt,
+                                      size: 14,
+                                      color: Colors.white,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
+
 
                         const SizedBox(height: 28),
 

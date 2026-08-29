@@ -1,5 +1,9 @@
+import 'dart:developer';
+
 import '../models/order.dart';
 import '../services/supabase_service.dart';
+import '../services/storage_service.dart';
+import '../config/env_config.dart';
 
 /// Order repository backed by Supabase `orders` + `order_items` tables.
 class OrderRepository {
@@ -7,9 +11,18 @@ class OrderRepository {
 
   String get _userId {
     final id = _sb.currentUser?.id;
-    if (id == null) throw Exception('Not logged in');
-    return id;
+    if (id != null) return id;
+
+    final savedUser = StorageService.instance.getUser();
+    final localId = savedUser?['id']?.toString();
+    if (localId != null && localId.isNotEmpty) {
+      return localId;
+    }
+
+    throw Exception('Please sign in to complete your order.');
   }
+
+  String get _apiBaseUrl => EnvConfig().apiBaseUrl;
 
   Future<List<Order>> getOrders({int page = 1, int limit = 20, String? status}) async {
     var query = _sb.client
@@ -110,10 +123,17 @@ class OrderRepository {
       'payment_status': 'initiated',
     }).eq('id', orderId).eq('user_id', _userId);
 
-    // Return order info for Razorpay checkout
+    // Get order details
     final order = await getOrderById(orderId);
+    
+    // Call Supabase Edge Function to create Razorpay order
+    // NO FALLBACK - Edge Function must succeed with validated amount from DB
+    final response = await _sb.client.functions.invoke('create-razorpay-order', body: {
+      'orderId': orderId,
+    });
+
     return {
-      'razorpay_order_id': orderId,
+      'razorpay_order_id': response.data['id'],
       'amount': order.total,
       'currency': order.currency ?? 'INR',
     };
@@ -124,12 +144,26 @@ class OrderRepository {
     required String paymentId,
     required String signature,
   }) async {
-    await _sb.client.from('orders').update({
-      'payment_status': 'completed',
-      'razorpay_payment_id': paymentId,
-      'razorpay_signature': signature,
-      'status': 'confirmed',
-    }).eq('id', orderId).eq('user_id', _userId);
+    // Call Supabase Edge Function to verify payment signature
+    // NO FALLBACK - verification failure must remain a failure
+    try {
+      await _sb.client.functions.invoke('verify-razorpay-payment', body: {
+        'orderId': orderId,
+        'paymentId': paymentId,
+        'signature': signature,
+      });
+
+      log('[OrderRepository] Payment verified successfully for order: $orderId');
+    } catch (e) {
+      // FunctionException is thrown on non-2xx responses
+      log('[OrderRepository] Payment verification failed: $e');
+      // Mark payment as failed, do NOT mark as completed/confirmed
+      await _sb.client.from('orders').update({
+        'payment_status': 'failed',
+        'payment_failure_reason': e.toString(),
+      }).eq('id', orderId).eq('user_id', _userId);
+      rethrow;
+    }
   }
 
   Future<void> paymentFailed({

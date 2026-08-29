@@ -1,8 +1,9 @@
 import '../models/user.dart';
 import '../services/supabase_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 
 /// Auth repository using Supabase Auth.
-/// Replaces Dio/REST-based AuthRepository.
+/// Supports: Phone OTP, Email/Password, Google Sign-In, Password Reset
 class AuthRepository {
   final SupabaseService _sb = SupabaseService.instance;
 
@@ -15,6 +16,7 @@ class AuthRepository {
       email: u.email ?? '',
       phone: u.phone ?? u.userMetadata?['phone'] as String?,
       avatarUrl: u.userMetadata?['avatar_url'] as String?,
+      role: u.userMetadata?['role'] as String? ?? 'customer',
       createdAt: DateTime.tryParse(u.createdAt) ?? DateTime.now(),
     );
   }
@@ -31,7 +33,7 @@ class AuthRepository {
     return _userFromSession()!;
   }
 
-  /// Sign up with email
+  /// Sign up with email and password
   Future<User> register({
     required String name,
     required String email,
@@ -47,26 +49,37 @@ class AuthRepository {
     return _userFromSession()!;
   }
 
-  /// Sign in with email
+  /// Sign in with email and password
   Future<User> login(String email, String password) async {
     final res = await _sb.signIn(email, password);
     if (res.user == null) throw Exception('Login failed');
     return _userFromSession()!;
   }
 
+  /// Sign in with Google
+  Future<User> signInWithGoogle() async {
+    final success = await _sb.signInWithOAuth(OAuthProvider.google);
+    if (!success) throw Exception('Google sign-in failed');
+    return _userFromSession()!;
+  }
+
+  /// Send password reset email
+  Future<void> resetPassword(String email) async {
+    await _sb.resetPassword(email);
+  }
+
+  /// Update password (when logged in)
+  Future<void> updatePassword(String newPassword) async {
+    await _sb.updatePassword(newPassword);
+  }
+
   /// Get current user profile
   Future<User> getProfile() async {
     final data = await _sb.getProfile();
     if (data == null) throw Exception('Profile not found');
-    return User(
-      id: data['id'] as String,
-      name: data['full_name'] as String? ?? '',
-      email: data['email'] as String? ?? '',
-      phone: data['phone'] as String?,
-      avatarUrl: data['avatar_url'] as String?,
-      createdAt: DateTime.tryParse(data['created_at'] as String? ?? '') ?? DateTime.now(),
-    );
+    return User.fromMap(data);
   }
+
 
   /// Update profile
   Future<void> updateProfile({String? name, String? email, String? phone, String? avatarUrl}) async {
@@ -81,6 +94,11 @@ class AuthRepository {
   /// Sign out
   Future<void> logout() async {
     await _sb.signOut();
+  }
+
+  /// Delete account
+  Future<void> deleteAccount() async {
+    await _sb.deleteAccount();
   }
 
   bool isLoggedIn() => _sb.isLoggedIn;

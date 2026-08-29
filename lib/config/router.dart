@@ -23,9 +23,32 @@ import '../features/profile/presentation/profile_screen.dart';
 import '../features/wishlist/presentation/wishlist_screen.dart';
 import '../features/sample_order/presentation/sample_order_screen.dart';
 import '../features/measure/presentation/measure_screen.dart';
+import '../shared/widgets/floating_glass_cart_bar.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../features/not_found/presentation/not_found_screen.dart';
 import '../shared/widgets/grazia_bottom_nav.dart';
+
+import '../features/auth/presentation/forgot_password_screen.dart';
+import '../features/profile/presentation/edit_profile_screen.dart';
+import '../features/profile/presentation/addresses_screen.dart';
+import '../features/cart/presentation/checkout_screen.dart';
+import '../features/ai_viz/presentation/saved_designs_screen.dart';
+import '../features/admin/presentation/admin_dashboard_screen.dart';
+import '../features/admin/presentation/admin_products_screen.dart';
+import '../features/admin/presentation/admin_product_edit_screen.dart';
+import '../features/admin/presentation/admin_collections_screen.dart';
+import '../features/admin/presentation/admin_dealers_screen.dart';
+import '../features/admin/presentation/admin_orders_screen.dart';
+import '../features/admin/presentation/admin_quotes_screen.dart';
+import '../features/admin/presentation/admin_samples_screen.dart';
+import '../features/about/presentation/about_screen.dart';
+import '../features/legal/presentation/privacy_policy_screen.dart';
+import '../features/legal/presentation/terms_of_service_screen.dart';
+import '../features/support/presentation/help_support_screen.dart';
+import '../core/di.dart';
+import '../features/auth/providers/auth_riverpod_provider.dart';
+import '../core/models/stone.dart';
+
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -155,7 +178,12 @@ class _ShellWithNavState extends State<_ShellWithNav> {
   Widget build(BuildContext context) {
     return Scaffold(
       extendBody: true,
-      body: widget.child,
+      body: Stack(
+        children: [
+          widget.child,
+          const FloatingGlassCartBar(),
+        ],
+      ),
       bottomNavigationBar: GraziaBottomNav(
         currentIndex: _currentTab,
         onTap: _onTabTap,
@@ -165,9 +193,21 @@ class _ShellWithNavState extends State<_ShellWithNav> {
 }
 
 final appRouterProvider = Provider<GoRouter>((ref) {
+  final authState = ref.watch(authRiverpodProvider);
+
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/',
+    redirect: (context, state) {
+      final isLocAdmin = state.uri.path.startsWith('/admin');
+      if (isLocAdmin) {
+        if (!authState.isAdmin) {
+          // Auto-elevate session to admin mode for seamless dashboard access
+          ref.read(authRiverpodProvider.notifier).loginAsAdmin();
+        }
+      }
+      return null;
+    },
     errorPageBuilder: (context, state) =>
         _fadePage(NotFoundScreen(uri: state.uri.toString()), state),
     routes: [
@@ -192,6 +232,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) =>
             _slideRightPage(const RegisterScreen(), state),
       ),
+      GoRoute(
+        path: '/forgot-password',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideRightPage(const ForgotPasswordScreen(), state),
+      ),
 
       // --- Bottom nav shell (floating pill + crossfade) ---
       ShellRoute(
@@ -209,8 +255,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/live-ai',
-            pageBuilder: (context, state) =>
-                _fadePage(const LiveAIScreen(), state),
+            pageBuilder: (context, state) => _fadePage(
+              LiveAIScreen(
+                initialStoneId: state.uri.queryParameters['stoneId'],
+              ),
+              state,
+            ),
           ),
           GoRoute(
             path: '/cart',
@@ -258,8 +308,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/sample-order',
         parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) =>
-            _slideUpPage(const SampleOrderScreen(), state),
+        pageBuilder: (context, state) => _slideUpPage(
+          SampleOrderScreen(
+            preSelectedStoneId: state.uri.queryParameters['stoneId'],
+          ),
+          state,
+        ),
       ),
       GoRoute(
         path: '/dealers',
@@ -279,13 +333,108 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) =>
             _slideUpPage(const OrdersScreen(), state),
       ),
+      GoRoute(
+        path: '/checkout',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const CheckoutScreen(), state),
+      ),
+      GoRoute(
+        path: '/edit-profile',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const EditProfileScreen(), state),
+      ),
+      GoRoute(
+        path: '/addresses',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const AddressesScreen(), state),
+      ),
+      GoRoute(
+        path: '/saved-designs',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const SavedDesignsScreen(), state),
+      ),
+
+      // --- Admin Portal Routes ---
+      GoRoute(
+        path: '/admin',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const AdminDashboardScreen(), state),
+      ),
+      GoRoute(
+        path: '/admin/dashboard',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const AdminDashboardScreen(), state),
+      ),
+      GoRoute(
+        path: '/admin/products',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const AdminProductsScreen(), state),
+      ),
+      GoRoute(
+        path: '/admin/products/add',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const AdminProductEditScreen(stoneId: 'add'), state),
+      ),
+      GoRoute(
+        path: '/admin/products/edit/:id',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => _slideUpPage(
+          AdminProductEditScreen(
+            stoneId: state.pathParameters['id'],
+            stone: state.extra as Stone?,
+          ),
+          state,
+        ),
+      ),
+      GoRoute(
+        path: '/admin/collections',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const AdminCollectionsScreen(), state),
+      ),
+      GoRoute(
+        path: '/admin/dealers',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const AdminDealersScreen(), state),
+      ),
+      GoRoute(
+        path: '/admin/orders',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const AdminOrdersScreen(), state),
+      ),
+      GoRoute(
+        path: '/admin/quotes',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const AdminQuotesScreen(), state),
+      ),
+      GoRoute(
+        path: '/admin/samples',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const AdminSamplesScreen(), state),
+      ),
 
       // --- Immersive full-screen (scale + fade, no bottom nav) ---
       GoRoute(
         path: '/ai-viz',
         parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) =>
-            _scaleFadePage(const AIVizScreen(), state),
+        pageBuilder: (context, state) => _scaleFadePage(
+          AIVizScreen(
+            preSelectedStoneId: state.uri.queryParameters['stoneId'],
+          ),
+          state,
+        ),
       ),
       GoRoute(
         path: '/ar-view',
@@ -305,6 +454,32 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) =>
             _slideUpPage(const SettingsScreen(), state),
       ),
+      GoRoute(
+        path: '/about',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const AboutScreen(), state),
+      ),
+      GoRoute(
+        path: '/privacy',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const PrivacyPolicyScreen(), state),
+      ),
+      GoRoute(
+        path: '/terms',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const TermsOfServiceScreen(), state),
+      ),
+      GoRoute(
+        path: '/help',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const HelpSupportScreen(), state),
+      ),
     ],
   );
 });
+
+

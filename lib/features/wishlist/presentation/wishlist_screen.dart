@@ -8,9 +8,12 @@ import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
+import 'package:grazia_stones/features/cart/presentation/cart_screen.dart';
+
+import 'package:grazia_stones/features/wishlist/providers/wishlist_provider.dart';
 
 /// Wishlist items provider — fetches from Supabase
-final wishlistProvider = FutureProvider.autoDispose<List<Stone>>((ref) async {
+final wishlistStonesProvider = FutureProvider.autoDispose<List<Stone>>((ref) async {
   final repo = ref.watch(stoneRepositoryProvider);
   return repo.getWishlist();
 });
@@ -28,8 +31,8 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
 
   void _removeItem(String id) {
     HapticFeedback.mediumImpact();
-    ref.read(stoneRepositoryProvider).removeFromWishlist(id);
-    ref.invalidate(wishlistProvider);
+    ref.read(wishlistProvider.notifier).removeStone(id);
+    ref.invalidate(wishlistStonesProvider);
     _selectedIds.remove(id);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Removed from wishlist'), behavior: SnackBarBehavior.floating),
@@ -39,13 +42,12 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
   void _removeSelected() {
     if (_selectedIds.isEmpty) return;
     HapticFeedback.mediumImpact();
-    final repo = ref.read(stoneRepositoryProvider);
     for (final id in _selectedIds) {
-      repo.removeFromWishlist(id);
+      ref.read(wishlistProvider.notifier).removeStone(id);
     }
     _selectedIds.clear();
     _isSelectionMode = false;
-    ref.invalidate(wishlistProvider);
+    ref.invalidate(wishlistStonesProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Removed selected items'), behavior: SnackBarBehavior.floating),
     );
@@ -63,7 +65,7 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
 
   void _clearAll() {
     HapticFeedback.mediumImpact();
-    ref.invalidate(wishlistProvider);
+    ref.invalidate(wishlistStonesProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Wishlist cleared'), behavior: SnackBarBehavior.floating),
     );
@@ -71,7 +73,7 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
 
   void _addToCart(Stone stone) {
     HapticFeedback.lightImpact();
-    ref.read(cartRiverpodProvider.notifier).addItem(stone);
+    ref.read(cartProvider.notifier).addItem(stone);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('${stone.name} added to cart'), behavior: SnackBarBehavior.floating),
     );
@@ -80,7 +82,7 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
   @override
   Widget build(BuildContext context) {
     final palette = ref.watch(themePaletteProvider);
-    final wishlistAsync = ref.watch(wishlistProvider);
+    final wishlistAsync = ref.watch(wishlistStonesProvider);
 
     return Scaffold(
       backgroundColor: palette.background,
@@ -213,13 +215,13 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
                   child: OutlinedButton.icon(
                     onPressed: () {
                       for (final stone in wishlist) {
-                        ref.read(cartRiverpodProvider.notifier).addItem(stone);
+                        ref.read(cartProvider.notifier).addItem(stone);
                       }
                       final repo = ref.read(stoneRepositoryProvider);
                       for (final s in wishlist) {
-                        repo.removeFromWishlist(s.id);
+                        ref.read(wishlistProvider.notifier).removeStone(s.id);
                       }
-                      ref.invalidate(wishlistProvider);
+                      ref.invalidate(wishlistStonesProvider);
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text('${wishlist.length} item${wishlist.length > 1 ? 's' : ''} moved to cart'),

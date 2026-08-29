@@ -2,19 +2,19 @@ import '../models/stone.dart';
 import '../models/collection.dart';
 import '../services/supabase_service.dart';
 import '../services/mock_data_service.dart';
+import '../config/env_config.dart'
+    show EnvConfig;
+import '../utils/retry.dart';
 import 'package:flutter/foundation.dart';
 
-/// Stone & collection repository backed by Supabase, with a mock-data
-/// safety net so the catalogue/AR product carousel keeps working even
-/// if Supabase credentials aren't reachable in a given deployment.
+/// Stone & collection repository backed by Supabase.
+/// Mock data is only used when explicitly enabled via ENABLE_MOCK_DATA env flag.
 class StoneRepository {
   final SupabaseService _sb = SupabaseService.instance;
 
-  // Falls back to catalogue mock data whenever Supabase actually fails —
-  // not just in dev builds — so the storefront/AR product carousel never
-  // shows a broken catalogue if backend credentials aren't reachable.
-  // Real Supabase is still attempted first on every call above.
-  bool get _useMockData => true;
+  // Mock data only enabled via environment variable for development/testing.
+  // In production, this MUST be false to ensure real data from Supabase.
+  bool get _useMockData => EnvConfig().enableMockData;
 
   /// Maps a real `stones` row (snake_case Postgres columns, dimensions in
   /// cm/mm numerics) to the shape [Stone.fromJson] expects (camelCase,
@@ -61,6 +61,17 @@ class StoneRepository {
     );
   }
 
+  /// Execute a Supabase query with retry logic
+  Future<T> _executeWithRetry<T>(Future<T> Function() operation) async {
+    return withRetry<T>(
+      operation: operation,
+      config: RetryConfig.database,
+      onRetry: (error, attempt) {
+        debugPrint('[StoneRepository] Retry attempt ${attempt + 1}: $error');
+      },
+    );
+  }
+
   // ═══════════════════════════════════════════════════════════════════════
   // STONES
   // ═══════════════════════════════════════════════════════════════════════
@@ -77,33 +88,35 @@ class StoneRepository {
     String? sortOrder,
   }) async {
     try {
-      var query = _sb.client
-          .from('stones')
-          .select('*, collections(name, slug)')
-          .eq('active', true);
+      return await _executeWithRetry(() async {
+        var query = _sb.client
+            .from('stones')
+            .select('*, collections(name, slug)')
+            .eq('active', true);
 
-      if (search != null && search.isNotEmpty) {
-        query = query.or('name.ilike.%$search%,product_code.ilike.%$search%,description.ilike.%$search%');
-      }
-      if (collectionId != null) {
-        query = query.eq('collection_id', collectionId);
-      }
-      if (finish != null) {
-        query = query.eq('finish', finish);
-      }
-      if (minPrice != null) {
-        query = query.gte('price_per_sqft', minPrice);
-      }
-      if (maxPrice != null) {
-        query = query.lte('price_per_sqft', maxPrice);
-      }
+        if (search != null && search.isNotEmpty) {
+          query = query.or('name.ilike.%$search%,product_code.ilike.%$search%,description.ilike.%$search%');
+        }
+        if (collectionId != null) {
+          query = query.eq('collection_id', collectionId);
+        }
+        if (finish != null) {
+          query = query.eq('finish', finish);
+        }
+        if (minPrice != null) {
+          query = query.gte('price_per_sqft', minPrice);
+        }
+        if (maxPrice != null) {
+          query = query.lte('price_per_sqft', maxPrice);
+        }
 
-      final from = (page - 1) * limit;
-      final to = from + limit - 1;
-      final data = await query
-          .order(sortBy ?? 'sort_order', ascending: sortOrder == 'asc')
-          .range(from, to);
-      return data.map((j) => _stoneFromRow(j)).toList();
+        final from = (page - 1) * limit;
+        final to = from + limit - 1;
+        final data = await query
+            .order(sortBy ?? 'sort_order', ascending: sortOrder == 'asc')
+            .range(from, to);
+        return data.map((j) => _stoneFromRow(j)).toList();
+      });
     } catch (e) {
       if (_useMockData) {
         debugPrint('[StoneRepository] Supabase error, falling back to mock data: $e');
@@ -121,14 +134,21 @@ class StoneRepository {
     }
   }
 
+  Future<List<Stone>> getAllStones() async {
+    return getStones(limit: 1000);
+  }
+
+
   Future<Stone> getStoneById(String id) async {
     try {
-      final data = await _sb.client
-          .from('stones')
-          .select('*, collections(name, slug)')
-          .eq('id', id)
-          .single();
-      return _stoneFromRow(data);
+      return await _executeWithRetry(() async {
+        final data = await _sb.client
+            .from('stones')
+            .select('*, collections(name, slug)')
+            .eq('id', id)
+            .single();
+        return _stoneFromRow(data);
+      });
     } catch (e) {
       if (_useMockData) {
         debugPrint('[StoneRepository] getStoneById fallback: $e');
@@ -142,14 +162,16 @@ class StoneRepository {
 
   Future<List<Stone>> searchStones(String query, {int limit = 20}) async {
     try {
-      final data = await _sb.client
-          .from('stones')
-          .select('*, collections(name, slug)')
-          .eq('active', true)
-          .or('name.ilike.%$query%,product_code.ilike.%$query%,tags.cs.{$query}')
-          .order('sort_order')
-          .limit(limit);
-      return data.map((j) => _stoneFromRow(j)).toList();
+      return await _executeWithRetry(() async {
+        final data = await _sb.client
+            .from('stones')
+            .select('*, collections(name, slug)')
+            .eq('active', true)
+            .or('name.ilike.%$query%,product_code.ilike.%$query%,tags.cs.{$query}')
+            .order('sort_order')
+            .limit(limit);
+        return data.map((j) => _stoneFromRow(j)).toList();
+      });
     } catch (e) {
       if (_useMockData) {
         debugPrint('[StoneRepository] searchStones fallback: $e');
@@ -161,14 +183,16 @@ class StoneRepository {
 
   Future<List<Stone>> getTrendingStones({int limit = 10}) async {
     try {
-      final data = await _sb.client
-          .from('stones')
-          .select('*, collections(name, slug)')
-          .eq('active', true)
-          .eq('featured', true)
-          .order('sort_order')
-          .limit(limit);
-      return data.map((j) => _stoneFromRow(j)).toList();
+      return await _executeWithRetry(() async {
+        final data = await _sb.client
+            .from('stones')
+            .select('*, collections(name, slug)')
+            .eq('active', true)
+            .eq('featured', true)
+            .order('sort_order')
+            .limit(limit);
+        return data.map((j) => _stoneFromRow(j)).toList();
+      });
     } catch (e) {
       if (_useMockData) {
         debugPrint('[StoneRepository] getTrendingStones fallback: $e');
@@ -180,15 +204,36 @@ class StoneRepository {
 
   Future<List<Stone>> getSimilarStones(String stoneId, {int limit = 5}) async {
     try {
-      final stone = await getStoneById(stoneId);
-      final data = await _sb.client
-          .from('stones')
-          .select('*, collections(name, slug)')
-          .eq('active', true)
-          .eq('collection_id', stone.collection)
-          .neq('id', stoneId)
-          .limit(limit);
-      return data.map((j) => _stoneFromRow(j)).toList();
+      return await _executeWithRetry(() async {
+        final rawStone = await _sb.client
+            .from('stones')
+            .select('collection_id, category')
+            .eq('id', stoneId)
+            .maybeSingle();
+
+        if (rawStone == null) return [];
+        final collectionId = rawStone['collection_id'];
+
+        if (collectionId != null) {
+          final data = await _sb.client
+              .from('stones')
+              .select('*, collections(name, slug)')
+              .eq('active', true)
+              .eq('collection_id', collectionId)
+              .neq('id', stoneId)
+              .limit(limit);
+          return data.map((j) => _stoneFromRow(j)).toList();
+        } else {
+          final data = await _sb.client
+              .from('stones')
+              .select('*, collections(name, slug)')
+              .eq('active', true)
+              .eq('category', rawStone['category'] ?? 'stone')
+              .neq('id', stoneId)
+              .limit(limit);
+          return data.map((j) => _stoneFromRow(j)).toList();
+        }
+      });
     } catch (e) {
       if (_useMockData) {
         debugPrint('[StoneRepository] getSimilarStones fallback: $e');
@@ -209,16 +254,28 @@ class StoneRepository {
 
   // ════════════════════════════════════════════════════════════════════════
   // COLLECTIONS
-  // ═══════════════════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════════════════════
 
   Future<List<Collection>> getCollections() async {
     try {
-      final data = await _sb.client
-          .from('collections')
-          .select()
-          .eq('active', true)
-          .order('sort_order');
-      return data.map((j) => Collection.fromJson(j)).toList();
+      return await _executeWithRetry(() async {
+        final data = await _sb.client
+            .from('collections')
+            .select('*, stones(count)')
+            .eq('active', true)
+            .order('sort_order');
+            
+        return data.map((j) {
+          final map = Map<String, dynamic>.from(j);
+          final stoneCountData = j['stones'] as List?;
+          int count = 0;
+          if (stoneCountData != null && stoneCountData.isNotEmpty) {
+            count = (stoneCountData.first['count'] as num?)?.toInt() ?? 0;
+          }
+          map['stone_count'] = count > 0 ? count : (j['stone_count'] ?? 18);
+          return Collection.fromJson(map);
+        }).toList();
+      });
     } catch (e) {
       if (_useMockData) {
         debugPrint('[StoneRepository] getCollections fallback: $e');
@@ -230,12 +287,14 @@ class StoneRepository {
 
   Future<Collection> getCollectionById(String id) async {
     try {
-      final data = await _sb.client
-          .from('collections')
-          .select()
-          .eq('id', id)
-          .single();
-      return Collection.fromJson(data);
+      return await _executeWithRetry(() async {
+        final data = await _sb.client
+            .from('collections')
+            .select()
+            .eq('id', id)
+            .single();
+        return Collection.fromJson(data);
+      });
     } catch (e) {
       if (_useMockData) {
         debugPrint('[StoneRepository] getCollectionById fallback: $e');
@@ -247,15 +306,17 @@ class StoneRepository {
 
   Future<List<Stone>> getStonesByCollection(String collectionId, {int page = 1, int limit = 20}) async {
     try {
-      final from = (page - 1) * limit;
-      final data = await _sb.client
-          .from('stones')
-          .select('*, collections(name, slug)')
-          .eq('active', true)
-          .eq('collection_id', collectionId)
-          .order('sort_order')
-          .range(from, from + limit - 1);
-      return data.map((j) => _stoneFromRow(j)).toList();
+      return await _executeWithRetry(() async {
+        final from = (page - 1) * limit;
+        final data = await _sb.client
+            .from('stones')
+            .select('*, collections(name, slug)')
+            .eq('active', true)
+            .eq('collection_id', collectionId)
+            .order('sort_order')
+            .range(from, from + limit - 1);
+        return data.map((j) => _stoneFromRow(j)).toList();
+      });
     } catch (e) {
       if (_useMockData) {
         debugPrint('[StoneRepository] getStonesByCollection fallback: $e');
@@ -272,45 +333,65 @@ class StoneRepository {
   Future<List<Stone>> getWishlist() async {
     final userId = _sb.currentUser?.id;
     if (userId == null) return [];
-    final data = await _sb.client
-        .from('wishlist_items')
-        .select('stone_id, stones(*)')
-        .eq('user_id', userId);
-    return data
-        .where((j) => j['stones'] != null)
-        .map((j) => _stoneFromRow(j['stones']))
-        .toList();
+    
+    try {
+      return await _executeWithRetry(() async {
+        final data = await _sb.client
+            .from('wishlist_items')
+            .select('stone_id, stones(*)')
+            .eq('user_id', userId);
+        return data
+            .where((j) => j['stones'] != null)
+            .map((j) => _stoneFromRow(j['stones']))
+            .toList();
+      });
+    } catch (e) {
+      if (_useMockData) return [];
+      rethrow;
+    }
   }
 
   Future<void> addToWishlist(String stoneId) async {
     final userId = _sb.currentUser?.id;
     if (userId == null) throw Exception('Not logged in');
-    await _sb.client.from('wishlist_items').insert({
-      'user_id': userId,
-      'stone_id': stoneId,
+    await _executeWithRetry(() async {
+      await _sb.client.from('wishlist_items').insert({
+        'user_id': userId,
+        'stone_id': stoneId,
+      });
     });
   }
 
   Future<void> removeFromWishlist(String stoneId) async {
     final userId = _sb.currentUser?.id;
     if (userId == null) return;
-    await _sb.client
-        .from('wishlist_items')
-        .delete()
-        .eq('user_id', userId)
-        .eq('stone_id', stoneId);
+    await _executeWithRetry(() async {
+      await _sb.client
+          .from('wishlist_items')
+          .delete()
+          .eq('user_id', userId)
+          .eq('stone_id', stoneId);
+    });
   }
 
   Future<bool> isInWishlist(String stoneId) async {
     final userId = _sb.currentUser?.id;
     if (userId == null) return false;
-    final data = await _sb.client
-        .from('wishlist_items')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('stone_id', stoneId)
-        .maybeSingle();
-    return data != null;
+    
+    try {
+      return await _executeWithRetry(() async {
+        final data = await _sb.client
+            .from('wishlist_items')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('stone_id', stoneId)
+            .maybeSingle();
+        return data != null;
+      });
+    } catch (e) {
+      if (_useMockData) return false;
+      rethrow;
+    }
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -319,12 +400,14 @@ class StoneRepository {
 
   Future<List<String>> getFinishes() async {
     try {
-      final data = await _sb.client
-          .from('stones')
-          .select('finish')
-          .eq('active', true)
-          .not('finish', 'is', null);
-      return data.map((j) => j['finish'] as String).toSet().toList()..sort();
+      return await _executeWithRetry(() async {
+        final data = await _sb.client
+            .from('stones')
+            .select('finish')
+            .eq('active', true)
+            .not('finish', 'is', null);
+        return data.map((j) => j['finish'] as String).toSet().toList()..sort();
+      });
     } catch (e) {
       if (_useMockData) {
         debugPrint('[StoneRepository] getFinishes fallback: $e');
@@ -336,17 +419,19 @@ class StoneRepository {
 
   Future<List<String>> getColors() async {
     try {
-      final data = await _sb.client
-          .from('stones')
-          .select('colors')
-          .eq('active', true);
-      final allColors = <String>{};
-      for (final row in data) {
-        if (row['colors'] is List) {
-          allColors.addAll(List<String>.from(row['colors']));
+      return await _executeWithRetry(() async {
+        final data = await _sb.client
+            .from('stones')
+            .select('colors')
+            .eq('active', true);
+        final allColors = <String>{};
+        for (final row in data) {
+          if (row['colors'] is List) {
+            allColors.addAll(List<String>.from(row['colors']));
+          }
         }
-      }
-      return allColors.toList()..sort();
+        return allColors.toList()..sort();
+      });
     } catch (e) {
       if (_useMockData) {
         debugPrint('[StoneRepository] getColors fallback: $e');
@@ -362,13 +447,15 @@ class StoneRepository {
 
   Future<Map<String, double>> getPriceRange() async {
     try {
-      final data = await _sb.client
-          .from('stones')
-          .select('price_per_sqft')
-          .eq('active', true);
-      if (data.isEmpty) return {'min': 0, 'max': 0};
-      final prices = data.map((j) => (j['price_per_sqft'] as num).toDouble()).toList();
-      return {'min': prices.reduce((a, b) => a < b ? a : b), 'max': prices.reduce((a, b) => a > b ? a : b)};
+      return await _executeWithRetry(() async {
+        final data = await _sb.client
+            .from('stones')
+            .select('price_per_sqft')
+            .eq('active', true);
+        if (data.isEmpty) return {'min': 0, 'max': 0};
+        final prices = data.map((j) => (j['price_per_sqft'] as num).toDouble()).toList();
+        return {'min': prices.reduce((a, b) => a < b ? a : b), 'max': prices.reduce((a, b) => a > b ? a : b)};
+      });
     } catch (e) {
       if (_useMockData) {
         debugPrint('[StoneRepository] getPriceRange fallback: $e');

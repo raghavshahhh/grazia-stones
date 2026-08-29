@@ -1,12 +1,35 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Environment configuration for the app
-/// In production, use flutter_dotenv or similar package to load from .env file
 class EnvConfig {
   // Singleton
   static final EnvConfig _instance = EnvConfig._internal();
   factory EnvConfig() => _instance;
   EnvConfig._internal();
+
+  /// Helper to get env variable with fallback hierarchy:
+  /// 1. dotenv runtime (.env file)
+  /// 2. const String.fromEnvironment (build flag --dart-define)
+  /// 3. defaultValue
+  static String _getEnv(String key, String defaultValue) {
+    if (dotenv.isInitialized && dotenv.env.containsKey(key)) {
+      final val = dotenv.env[key];
+      if (val != null && val.isNotEmpty && !val.contains('your-') && !val.contains('_PLACEHOLDER')) {
+        return val;
+      }
+    }
+    return String.fromEnvironment(key, defaultValue: defaultValue);
+  }
+
+  static bool _getBoolEnv(String key, bool defaultValue) {
+    if (dotenv.isInitialized && dotenv.env.containsKey(key)) {
+      final val = dotenv.env[key]?.toLowerCase();
+      if (val == 'true') return true;
+      if (val == 'false') return false;
+    }
+    return bool.fromEnvironment(key, defaultValue: defaultValue);
+  }
 
   // ═══════════════════════════════════════════════════════════════════════
   // ENVIRONMENT
@@ -20,19 +43,13 @@ class EnvConfig {
   // ═══════════════════════════════════════════════════════════════════════
 
   String get supabaseUrl {
-    return const String.fromEnvironment(
-      'SUPABASE_URL',
-      defaultValue: 'https://jrrmjtbauimrrxwjvmzh.supabase.co',
-    );
+    return _getEnv('SUPABASE_URL', 'https://jrrmjtbauimrrxwjvmzh.supabase.co');
   }
 
   String get supabasePublishableKey {
-    return const String.fromEnvironment(
+    return _getEnv(
       'SUPABASE_PUBLISHABLE_KEY',
-      defaultValue: String.fromEnvironment(
-        'SUPABASE_ANON_KEY',
-        defaultValue: 'sb_publishable_l0K305hiCMwZ8Mh3lON3YQ_ueSMXo4a',
-      ),
+      _getEnv('SUPABASE_ANON_KEY', 'sb_publishable_l0K305hiCMwZ8Mh3lON3YQ_ueSMXo4a'),
     );
   }
 
@@ -121,6 +138,16 @@ class EnvConfig {
   // Note: Never expose secret key in client code!
   // This is just for documentation purposes
   // Actual secret should only be on backend
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // GOOGLE OAUTH CONFIGURATION
+  // ═══════════════════════════════════════════════════════════════════════
+
+  String get googleIosClientId => _getEnv('GOOGLE_IOS_CLIENT_ID', '');
+  String get googleWebClientId => _getEnv('GOOGLE_WEB_CLIENT_ID', '');
+
+  bool get isGoogleOAuthConfigured =>
+      googleIosClientId.isNotEmpty || googleWebClientId.isNotEmpty;
 
   // ═══════════════════════════════════════════════════════════════════════
   // CDN CONFIGURATION

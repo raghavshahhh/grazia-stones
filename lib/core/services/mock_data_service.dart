@@ -140,7 +140,7 @@ class MockDataService {
       pricePerSqFt: 580,
       description: 'Sculptural 3D panel inspired by classical Greek architecture. Creates stunning shadow lines under accent lighting.',
       images: [
-        'assets/images/athena_3d.png',
+        'assets/images/verona_3d.png',
         'assets/images/onboarding_3.png',
       ],
       arTexture: 'assets/images/athena_3d_tex.png',

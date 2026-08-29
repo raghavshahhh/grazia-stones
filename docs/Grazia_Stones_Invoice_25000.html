@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>RAGSPRO — Invoice — Grazia Stones</title>
+<style>
+  @page {
+    size: A4;
+    margin: 1.6cm 1.8cm 1.8cm 1.8cm;
+    @top-center {
+      content: "RAGSPRO • Grazia Stones — Invoice";
+      font-size: 8pt; color: #9a8a6a; font-family: Helvetica, Arial, sans-serif;
+      border-bottom: 0.5pt solid #e8e0d0; padding-bottom: 6pt;
+    }
+    @bottom-center {
+      content: "RAGSPRO | ragspro.com | raghav@ragspro.com";
+      font-size: 8pt; color: #9a8a6a; font-family: Helvetica, Arial, sans-serif;
+      border-top: 0.5pt solid #e8e0d0; padding-top: 6pt;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { font-family: Helvetica, Arial, sans-serif; color: #2a2420; font-size: 10pt; line-height: 1.45; margin: 0; }
+
+  .letterhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16pt; padding-bottom: 12pt; border-bottom: 2pt solid #1c1712; }
+  .letterhead .brand { display: flex; align-items: center; gap: 10pt; }
+  .letterhead img.logo { width: 44px; height: 44px; border-radius: 10px; }
+  .letterhead .brand-text h1 { font-size: 14pt; margin: 0; letter-spacing: 1pt; color: #1c1712; }
+  .letterhead .brand-text p { font-size: 8pt; margin: 2pt 0 0; color: #8a7a5a; letter-spacing: 1.5pt; text-transform: uppercase; }
+  .letterhead .invoice-tag { text-align: right; }
+  .letterhead .invoice-tag h2 { font-size: 18pt; margin: 0; color: #c9a35a; letter-spacing: 2pt; }
+  .letterhead .invoice-tag p { font-size: 8.5pt; margin: 2pt 0 0; color: #6a5c40; }
+
+  .meta-grid { display: flex; justify-content: space-between; margin-bottom: 14pt; gap: 20pt; }
+  .meta-col h3 { font-size: 8pt; letter-spacing: 1.5pt; text-transform: uppercase; color: #9a8a6a; margin: 0 0 5pt; }
+  .meta-col p { margin: 0 0 2pt; font-size: 9.5pt; }
+  .meta-col p.name { font-weight: 700; font-size: 10.5pt; }
+
+  .status-badge { display: inline-block; background: #eaf6ea; border: 1pt solid #2e7d32; color: #1e5c22; font-size: 8.5pt; font-weight: 700; padding: 3pt 12pt; border-radius: 18pt; margin: 2pt 0 12pt; }
+
+  table.details { width: 100%; border-collapse: collapse; margin: 6pt 0 12pt; }
+  table.details th { background: #1c1712; color: #f3ead9; text-align: left; padding: 7pt 10pt; font-size: 8.5pt; letter-spacing: 0.5pt; }
+  table.details td { padding: 8pt 10pt; border-bottom: 0.5pt solid #eee2ca; font-size: 9.5pt; vertical-align: top; }
+  table.details td.amt { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .two-col { display: flex; gap: 16pt; margin: 10pt 0; }
+  .two-col .col { flex: 1; }
+
+  .summary table { width: 100%; border-collapse: collapse; }
+  .summary td { padding: 5pt 0; font-size: 9.5pt; border-bottom: 0.5pt solid #eee2ca; }
+  .summary td.label { color: #6a5c40; }
+  .summary td.val { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .summary tr.total td { border-top: 1.5pt solid #1c1712; border-bottom: none; font-weight: 700; font-size: 11pt; padding-top: 8pt; }
+  .summary tr.paid td { color: #2e7d32; font-weight: 700; }
+  .summary tr.balance td { color: #b8590a; font-weight: 700; }
+
+  .payment-box { background: #faf6ec; border: 1pt solid #e8dcc0; border-radius: 6pt; padding: 10pt 12pt; }
+  .payment-box h3 { font-size: 8.5pt; letter-spacing: 1pt; text-transform: uppercase; color: #8a7a5a; margin: 0 0 6pt; }
+  .payment-box table td { padding: 2.5pt 0; font-size: 8.8pt; border: none; }
+  .payment-box table td.k { color: #8a7a5a; width: 90pt; }
+  .payment-box table tr.current td { font-weight: 700; color: #1e5c22; }
+
+  .section { margin: 14pt 0 0; }
+  .section h3 { font-size: 9.5pt; letter-spacing: 0.5pt; color: #1c1712; border-left: 3pt solid #c9a35a; padding-left: 8pt; margin: 0 0 6pt; }
+  .section p { font-size: 8.8pt; color: #4a4038; margin: 0; }
+</style>
+</head>
+<body>
+
+  <div class="letterhead">
+    <div class="brand">
+      <img class="logo" src="file:///Users/raghavshah/02_BUSINESS/03_CLIENTS/11_DMS_SECURITY/ragspro-logo.png">
+      <div class="brand-text">
+        <h1>RAGSPRO</h1>
+        <p>Digital Solutions</p>
+      </div>
+    </div>
+    <div class="invoice-tag">
+      <h2>INVOICE</h2>
+      <p>#RAGS-GRAZIA-2026-01</p>
+    </div>
+  </div>
+
+  <div class="meta-grid">
+    <div class="meta-col">
+      <h3>Billed To</h3>
+      <p class="name">Grazia Stones</p>
+      <p>Kanpur, Uttar Pradesh</p>
+    </div>
+    <div class="meta-col">
+      <h3>From</h3>
+      <p class="name">RAGSPRO Digital Solutions</p>
+      <p>Raghav Shah (Founder)</p>
+      <p>raghav@ragspro.com &nbsp;|&nbsp; +91 87000 48490</p>
+    </div>
+    <div class="meta-col">
+      <h3>Invoice Details</h3>
+      <p><strong>Date:</strong> 28 August 2026</p>
+      <p><strong>Project Ref:</strong> GRAZIA-AI-AR-2026-08</p>
+      <p><strong>Payment Mode:</strong> UPI</p>
+    </div>
+  </div>
+
+  <span class="status-badge">✓ PAYMENT RECEIVED — ₹25,000</span>
+
+  <table class="details">
+    <tr>
+      <th>Description</th>
+      <th style="text-align:right;">Amount</th>
+    </tr>
+    <tr>
+      <td>
+        <strong>Grazia Stones — AI Smart Estimator (App)</strong><br>
+        Advance payment received towards Milestone 1 (40% of total project value, due on agreement sign-off),
+        as per the signed Service Agreement, Project Ref GRAZIA-AI-AR-2026-08.
+      </td>
+      <td class="amt">₹25,000</td>
+    </tr>
+  </table>
+
+  <div class="two-col">
+    <div class="col summary">
+      <table>
+        <tr><td class="label">Total Project Value (excl. GST)</td><td class="val">₹1,45,000</td></tr>
+        <tr class="paid"><td class="label">Amount Received (this invoice)</td><td class="val">₹25,000</td></tr>
+        <tr class="balance"><td class="label">Balance — Milestone 1 (of ₹58,000)</td><td class="val">₹33,000</td></tr>
+        <tr class="total"><td class="label">Total Balance Remaining</td><td class="val">₹1,20,000</td></tr>
+      </table>
+    </div>
+    <div class="col payment-box">
+      <h3>Full Payment Schedule</h3>
+      <table>
+        <tr class="current"><td class="k">Milestone 1 — Advance (40%)</td><td>₹58,000 — ₹25,000 received</td></tr>
+        <tr><td class="k">Milestone 2 — Midway (30%)</td><td>₹43,500 — due on AI/AR demo</td></tr>
+        <tr><td class="k">Milestone 3 — Delivery (30%)</td><td>₹43,500 — due before publish</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <h3>Notes</h3>
+    <p>
+      GST is charged extra @ 18%, if applicable, as per the Service Agreement — this invoice reflects the base amount received;
+      a GST-inclusive invoice will follow if RAGSPRO's GST registration applies to this transaction.
+      Late payment fee of 2% per week applies post due date, per the agreed terms. This is a computer-generated
+      acknowledgement of payment received — for questions, contact raghav@ragspro.com or +91 87000 48490.
+    </p>
+  </div>
+
+</body>
+</html>

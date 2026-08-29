@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,12 +9,15 @@ import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/providers/stone_providers.dart';
 import 'widgets/ar_camera_view.dart';
+import 'widgets/ar_measure_overlay.dart';
 import 'widgets/corner_adjust_overlay.dart';
 import 'widgets/measure_overlay.dart';
 
 /// Live AI Visualizer — real camera + wall texture visualization
 class LiveAIScreen extends ConsumerStatefulWidget {
-  const LiveAIScreen({super.key});
+  final String? initialStoneId;
+
+  const LiveAIScreen({super.key, this.initialStoneId});
 
   @override
   ConsumerState<LiveAIScreen> createState() => _LiveAIScreenState();
@@ -75,10 +79,10 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     _updateFilteredStones();
     
     // Start polling wall state from AR engine
-    _wallStateTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+    _wallStateTimer = Timer.periodic(const Duration(milliseconds: 500), (_) async {
       if (!mounted) return;
-      final state = ARCameraView.getWallState();
-      if (state != null && state != _wallState) {
+      final state = await ARCameraView.getWallState();
+      if (mounted && state != null && state != _wallState) {
         setState(() => _wallState = state);
       }
     });
@@ -107,8 +111,16 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
           _filteredStones = List<Stone>.from(allStones);
         }
       }
-      _selectedStoneIndex = 0;
+      if (widget.initialStoneId != null) {
+        final matchIdx = _filteredStones.indexWhere((s) => s.id == widget.initialStoneId);
+        _selectedStoneIndex = matchIdx >= 0 ? matchIdx : 0;
+      } else {
+        _selectedStoneIndex = 0;
+      }
     });
+    if (_selectedStoneIndex > 0 && _stonePageController.hasClients) {
+      _stonePageController.jumpToPage(_selectedStoneIndex);
+    }
   }
 
   Stone? get _selectedStone => _filteredStones.isEmpty
@@ -178,7 +190,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
   // ── Wall Selection ────────────────────────────────────────────────────────
 
   void _refreshWalls() async {
-    final walls = ARCameraView.getWalls();
+    final walls = await ARCameraView.getWalls();
     if (walls != null && mounted) {
       setState(() => _detectedWalls = walls);
     }
@@ -209,7 +221,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     });
   }
 
-  void _finishCalibration() {
+  Future<void> _finishCalibration() async {
     final length = double.tryParse(_calibrationLengthController.text);
     if (length == null || length <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -217,8 +229,8 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
       );
       return;
     }
-    final success = ARCameraView.finishCalibration(length);
-    if (success) {
+    final success = await ARCameraView.finishCalibration(length);
+    if (success && mounted) {
       setState(() => _calibrationMode = false);
       _calculateQuantity();
     }
@@ -226,25 +238,28 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
   // ── Quantity Calculation ─────────────────────────────────────────────────
 
-  void _calculateQuantity() async {
+  /// Parses "WWWxHHH mm" style stone size strings into (width, height) mm.
+  (double, double)? _tileDimensionsMm() {
     final stone = _selectedStone;
-    if (stone == null) return;
-
-    // Parse tile dimensions from stone
-    double tileWidth = 0, tileHeight = 0;
+    if (stone == null) return null;
     final sizeParts = stone.size.split('×');
-    if (sizeParts.length >= 2) {
-      tileWidth = double.tryParse(sizeParts[0].replaceAll('mm', '').trim()) ?? 0;
-      tileHeight = double.tryParse(sizeParts[1].replaceAll('mm', '').trim()) ?? 0;
-    }
+    if (sizeParts.length < 2) return null;
+    final width = double.tryParse(sizeParts[0].replaceAll('mm', '').trim()) ?? 0;
+    final height = double.tryParse(sizeParts[1].replaceAll('mm', '').trim()) ?? 0;
+    if (width <= 0 || height <= 0) return null;
+    return (width, height);
+  }
 
-    if (tileWidth <= 0 || tileHeight <= 0) return;
+  void _calculateQuantity() async {
+    final dims = _tileDimensionsMm();
+    if (dims == null) return;
+    final (tileWidth, tileHeight) = dims;
 
     // Use calibration-aware calculation
-    final calibration = ARCameraView.getCalibration();
+    final calibration = await ARCameraView.getCalibration();
     final isCalibrated = calibration != null && calibration['pixelsPerUnit'] != null;
-    
-    final result = ARCameraView.calculateTileQuantity(
+
+    final result = await ARCameraView.calculateTileQuantity(
       tileWidth: tileWidth,
       tileHeight: tileHeight,
       tileUnit: 'mm',
@@ -307,9 +322,22 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
           // 4. Info button — product name/price + link to product page
           _buildInfoButton(),
 
-          // 5. Tap-to-measure overlay
+          // 5. Tap-to-measure overlay — real ARKit world anchors on mobile,
+          // screen-pixel calibration fallback on web (no WebXR depth there).
           if (_measureMode)
-            MeasureOverlay(onClose: () => setState(() => _measureMode = false)),
+            (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.android)
+                ? ArMeasureOverlay(
+                    onClose: () => setState(() => _measureMode = false),
+                    tileWidthMm: _tileDimensionsMm()?.$1,
+                    tileHeightMm: _tileDimensionsMm()?.$2,
+                    onComplete: (result) {
+                      setState(() {
+                        _measureMode = false;
+                        _quantityResult = result;
+                      });
+                    },
+                  )
+                : MeasureOverlay(onClose: () => setState(() => _measureMode = false)),
 
           // 6. Manual wall-corner adjustment overlay
           if (_adjustingCorners)

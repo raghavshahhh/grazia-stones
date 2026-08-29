@@ -317,7 +317,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> with SingleTickerPr
   void _showCancelDialog(BuildContext context, Order order, LuxuryPalette palette) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: palette.surface,
         title: Text(
           'Cancel Order?',
@@ -329,20 +329,20 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> with SingleTickerPr
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: Text('Keep Order', style: TextStyle(color: palette.textSecondary)),
           ),
           TextButton(
             onPressed: () async {
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
               try {
                 await ref.read(orderRiverpodProvider.notifier).cancelOrder(order.id);
                 if (mounted) {
-                  showSuccessSnackbar(context, 'Order cancelled successfully');
+                  showSuccessSnackbar(this.context, 'Order cancelled successfully');
                 }
               } catch (e) {
                 if (mounted) {
-                  showErrorSnackbar(context, e);
+                  showErrorSnackbar(this.context, e);
                 }
               }
             },

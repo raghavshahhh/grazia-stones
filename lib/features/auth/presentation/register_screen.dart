@@ -154,8 +154,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
       setState(() => _isLoading = false);
       
       if (success) {
-        // Navigate to home
-        context.go('/home');
+        final state = GoRouterState.of(context);
+        final redirectPath = state.uri.queryParameters['redirect'];
+        if (redirectPath != null && redirectPath.isNotEmpty) {
+          context.go(redirectPath);
+        } else {
+          context.go('/home');
+        }
       } else {
         final error = ref.read(authRiverpodProvider).error;
         final safeMsg = UserFriendlyError.from(
@@ -193,7 +198,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
                         _otpController.clear();
                       });
                     } else {
-                      context.pop();
+                      if (context.canPop()) {
+                        context.pop();
+                      } else {
+                        context.go('/home');
+                      }
                     }
                   },
                   icon: Icon(
@@ -395,32 +404,49 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
                         ),
                       ),
                       Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() => _agreedToTerms = !_agreedToTerms);
-                          },
-                          child: RichText(
-                            text: TextSpan(
-                              text: 'I agree to the ',
+                        child: Wrap(
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text(
+                              'I agree to the ',
                               style: GLuxuryTypography.bodySmall.copyWith(
                                 color: palette.textTertiary,
                               ),
-                              children: [
-                                TextSpan(
-                                  text: 'Terms & Conditions',
-                                  style: GLuxuryTypography.bodySmall.copyWith(
-                                    color: palette.primary,
-                                    fontWeight: FontWeight.w600,
-                                    decoration: TextDecoration.underline,
-                                  ),
-                                ),
-                              ],
                             ),
-                          ),
+                            GestureDetector(
+                              onTap: () => context.push('/terms'),
+                              child: Text(
+                                'Terms & Conditions',
+                                style: GLuxuryTypography.bodySmall.copyWith(
+                                  color: palette.primary,
+                                  fontWeight: FontWeight.w600,
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              ' and ',
+                              style: GLuxuryTypography.bodySmall.copyWith(
+                                color: palette.textTertiary,
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () => context.push('/privacy'),
+                              child: Text(
+                                'Privacy Policy',
+                                style: GLuxuryTypography.bodySmall.copyWith(
+                                  color: palette.primary,
+                                  fontWeight: FontWeight.w600,
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
+
                 ] else ...[
                   // OTP Input
                   GraziaTextField(

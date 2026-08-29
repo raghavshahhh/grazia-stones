@@ -1,17 +1,26 @@
-# grazia_stones
+# Grazia Stones — AI Smart Estimator
 
-A new Flutter project.
+Flutter app (iOS + Android + Web) with real AR wall visualization, AI room photo mode,
+wall measurement, and commerce — built for Grazia Stones by [RAGSPRO](https://ragspro.com).
 
-## Getting Started
+## Documentation
 
-This project is a starting point for a Flutter application.
+- **[Grazia_Stones_App_Documentation.pdf](docs/Grazia_Stones_App_Documentation.pdf)** — complete app flow, feature status, tech stack
+- **[Grazia_Stones_Service_Agreement_Final.pdf](docs/Grazia_Stones_Service_Agreement_Final.pdf)** — commercial terms, scope, payment schedule
+- `docs/archive/status-reports/` — historical build session notes (superseded by the App Documentation above)
 
-A few resources to get you started if this is your first Flutter project:
+## Running Locally
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+```bash
+flutter pub get
+cd ios && pod install && cd ..
+flutter run
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Project Structure
+
+- `lib/features/` — one folder per screen/feature
+- `lib/core/services/ar_native_channel.dart` — Flutter ↔ native AR bridge
+- `ios/Runner/AR/` — native ARKit implementation (Swift)
+- `android/app/src/main/kotlin/.../ar/` — native ARCore implementation (Kotlin)
+- `supabase/` — database schema

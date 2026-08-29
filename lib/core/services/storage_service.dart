@@ -195,6 +195,28 @@ class StorageService {
 
   Future<void> clearRecentlyViewed() => _appBox.delete('recently_viewed');
 
+  // Generic Data Storage
+  Future<void> saveData(String key, Map<String, dynamic> data) async {
+    await _appBox.put(key, jsonEncode(data));
+  }
+
+  Map<String, dynamic>? getData(String key) {
+    final data = _appBox.get(key);
+    if (data == null) return null;
+    try {
+      if (data is String) {
+        return Map<String, dynamic>.from(jsonDecode(data));
+      } else if (data is Map) {
+        return Map<String, dynamic>.from(data);
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<void> deleteData(String key) => _appBox.delete(key);
+
   // ═══════════════════════════════════════════════════════════════════════
   // CLEANUP
   // ═══════════════════════════════════════════════════════════════════════

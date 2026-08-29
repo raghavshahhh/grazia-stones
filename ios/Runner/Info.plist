@@ -68,6 +68,10 @@
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Grazia Stones needs camera access to visualize stones in your space using augmented reality.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Grazia Stones needs photo library access to let you select room photos for AI visualization.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Grazia Stones needs permission to save visualized architectural designs to your photo library.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Grazia Stones needs your location to find nearby dealers and show distance.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>

@@ -1795,36 +1795,6 @@
       return true;
     },
 
-    isRecording: function () { return _mediaRecorder !== null && _mediaRecorder.state === 'recording'; },
-
-    // Measurement & Quantity Calculation
-    calculateTileQuantity: function (tileWidth, tileHeight, tileUnit, wastagePercent) {
-      var wall = _walls.find(function(w) { return w.id === _selectedWallId; });
-      if (!wall || !_pixelsPerUnit) return null;
-
-      var corners = _manualCorners || wall.corners;
-      var wallWidth = _distance(corners.tl, corners.tr) / _pixelsPerUnit;
-      var wallHeight = _distance(corners.tl, corners.bl) / _pixelsPerUnit;
-      var wallArea = wallWidth * wallHeight;
-
-      var tileW = (tileUnit === 'in') ? tileWidth / 12 : tileWidth;
-      var tileH = (tileUnit === 'in') ? tileHeight / 12 : tileH;
-      var tileArea = tileW * tileH;
-
-      var baseQty = Math.ceil(wallArea / tileArea);
-      var wastage = wastagePercent || 10;
-      var recommended = Math.ceil(baseQty * (1 + wastage / 100));
-
-      return {
-        wallWidth: wallWidth.toFixed(2),
-        wallHeight: wallHeight.toFixed(2),
-        wallArea: wallArea.toFixed(2),
-        tileArea: tileArea.toFixed(2),
-        baseQuantity: baseQty,
-        wastagePercent: wastage,
-        recommendedQuantity: recommended,
-        unit: _calibrationUnit
-      };
-    }
+    isRecording: function () { return _mediaRecorder !== null && _mediaRecorder.state === 'recording'; }
   };
 })();

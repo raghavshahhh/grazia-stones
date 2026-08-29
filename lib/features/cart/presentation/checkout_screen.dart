@@ -10,20 +10,22 @@ import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 
+import 'package:grazia_stones/features/cart/presentation/cart_screen.dart';
+
 class CheckoutScreen extends ConsumerStatefulWidget {
-  final List<CheckoutItem> items;
-  final double subtotal;
-  final double gst;
-  final double shipping;
-  final double total;
+  final List<CheckoutItem>? items;
+  final double? subtotal;
+  final double? gst;
+  final double? shipping;
+  final double? total;
 
   const CheckoutScreen({
     super.key,
-    required this.items,
-    required this.subtotal,
-    required this.gst,
-    required this.shipping,
-    required this.total,
+    this.items,
+    this.subtotal,
+    this.gst,
+    this.shipping,
+    this.total,
   });
 
   @override
@@ -36,29 +38,32 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   final _couponController = TextEditingController();
   bool _isApplyingCoupon = false;
   bool _isProcessing = false;
+  bool _isLoadingAddresses = true;
   double _discount = 0;
+  List<Map<String, dynamic>> _addresses = [];
 
-  // Mock addresses - In production, load from UserApi
-  final List<Map<String, String>> _addresses = [
-    {
-      'id': '1',
-      'name': 'Home',
-      'address': '123 Main Street, Apartment 4B',
-      'city': 'Mumbai',
-      'state': 'Maharashtra',
-      'pincode': '400001',
-      'phone': '+91 9876543210',
-    },
-    {
-      'id': '2',
-      'name': 'Office',
-      'address': '456 Business Park, Floor 5',
-      'city': 'Mumbai',
-      'state': 'Maharashtra',
-      'pincode': '400002',
-      'phone': '+91 9876543210',
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadAddresses();
+  }
+
+  Future<void> _loadAddresses() async {
+    try {
+      final userRepo = ref.read(userRepositoryProvider);
+      final list = await userRepo.getAddresses();
+      if (mounted) {
+        setState(() {
+          _addresses = list;
+          _isLoadingAddresses = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isLoadingAddresses = false);
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -77,14 +82,16 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
     try {
       final code = _couponController.text.trim().toUpperCase();
-      // Simple coupon validation - can be extended with API check
+      final cartItems = ref.read(cartProvider);
+      final defaultSubtotal = cartItems.fold<double>(0.0, (s, i) => s + (i.stone.pricePerSqFt * i.quantity));
+      final currentSubtotal = widget.subtotal ?? defaultSubtotal;
       double discount = 0;
       if (code == 'WELCOME10') {
-        discount = widget.subtotal * 0.10;
+        discount = currentSubtotal * 0.10;
       } else if (code == 'GRAB20') {
-        discount = widget.subtotal * 0.20;
+        discount = currentSubtotal * 0.20;
       } else if (code == 'FESTIVE15') {
-        discount = widget.subtotal * 0.15;
+        discount = currentSubtotal * 0.15;
       } else {
         throw Exception('Invalid coupon code');
       }
@@ -104,22 +111,42 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     }
   }
 
+
   Future<void> _proceedToPayment() async {
+    final authState = ref.read(authRiverpodProvider);
+    if (!authState.isLoggedIn) {
+      _showSignInRequiredDialog();
+      return;
+    }
+
+    if (_addresses.isEmpty) {
+      showErrorSnackbar(context, Exception('Please add a delivery address first'));
+      return;
+    }
+
     setState(() => _isProcessing = true);
     HapticFeedback.mediumImpact();
 
     try {
       final orderRepo = ref.read(orderRepositoryProvider);
-      final cartRepo = ref.read(cartRepositoryProvider);
+      final cartNotifier = ref.read(cartProvider.notifier);
+      final cartItems = ref.read(cartProvider);
 
-      // 1. Validate cart
-      final summary = await cartRepo.getCartSummary();
-      if (summary['itemCount'] == 0) {
+      final currentItems = widget.items ??
+          cartItems
+              .map((it) => CheckoutItem(
+                    stoneId: it.stone.id,
+                    name: it.stone.name,
+                    quantity: it.quantity,
+                    price: it.stone.pricePerSqFt,
+                  ))
+              .toList();
+
+      if (currentItems.isEmpty) {
         throw Exception('Cart is empty');
       }
 
-      // 2. Create order
-      final orderItems = widget.items
+      final orderItems = currentItems
           .map((item) => {
                 'stone_id': item.stoneId,
                 'name': item.name,
@@ -130,41 +157,44 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               })
           .toList();
 
-      final addr = _addresses[_selectedAddressIndex];
+      final addr = _addresses[_selectedAddressIndex.clamp(0, _addresses.length - 1)];
       final order = await orderRepo.createOrder(
         items: orderItems,
         address: {
           'name': addr['name'] ?? '',
           'phone': addr['phone'] ?? '',
-          'address_line1': addr['address'] ?? '',
+          'address_line1': addr['address_line1'] ?? '',
+          'address_line2': addr['address_line2'] ?? '',
           'city': addr['city'] ?? '',
           'state': addr['state'] ?? '',
           'pincode': addr['pincode'] ?? '',
         },
         paymentMethod: _selectedPaymentMethod,
-        notes: 'Checkout from app',
+        notes: 'Checkout from mobile app',
       );
 
-      // 3. Initiate payment if Razorpay selected
+      final cartSubtotal = cartItems.fold<double>(0.0, (s, i) => s + (i.stone.pricePerSqFt * i.quantity));
+      final cartGst = cartSubtotal * 0.18;
+      final cartShipping = cartSubtotal > 10000 ? 0.0 : (cartSubtotal > 0 ? 500.0 : 0.0);
+      final effectiveTotal = (widget.total ?? (cartSubtotal + cartGst + cartShipping)) - _discount;
+
+
       if (_selectedPaymentMethod == 'razorpay') {
         final paymentResult = await orderRepo.initiatePayment(
           orderId: order.id,
           paymentMethod: 'razorpay',
         );
 
-        // 4. Open Razorpay checkout
         final paymentService = PaymentService.instance;
-        final finalAmount = widget.total - _discount;
 
         await paymentService.openCheckout(
-          amount: finalAmount,
+          amount: effectiveTotal,
           orderId: paymentResult['razorpay_order_id'] ?? order.id,
-          name: _addresses[_selectedAddressIndex]['name']!,
+          name: addr['name']?.toString() ?? 'Client',
           description: 'Grazia Stones Order Payment',
           email: SupabaseService.instance.currentUser?.email ?? 'guest@graziastones.com',
-          contact: _addresses[_selectedAddressIndex]['phone']!,
+          contact: addr['phone']?.toString() ?? '',
           onSuccess: (response) async {
-            // Verify payment
             try {
               await orderRepo.verifyPayment(
                 orderId: order.id,
@@ -174,9 +204,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
               if (mounted) {
                 setState(() => _isProcessing = false);
-                // Clear cart
-                await cartRepo.clearCart();
-                // Show success and navigate
+                cartNotifier.clear();
                 _showSuccessDialog(order.id);
               }
             } catch (e) {
@@ -187,7 +215,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             }
           },
           onError: (response) async {
-            // Mark payment as failed
             await orderRepo.paymentFailed(
               orderId: order.id,
               reason: response.message ?? 'Payment failed',
@@ -203,10 +230,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           },
         );
       } else {
-        // COD or other payment methods
         if (mounted) {
           setState(() => _isProcessing = false);
-          await cartRepo.clearCart();
+          cartNotifier.clear();
           _showSuccessDialog(order.id);
         }
       }
@@ -216,6 +242,43 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         showErrorSnackbar(context, e);
       }
     }
+  }
+
+  void _showSignInRequiredDialog() {
+    final palette = ref.read(themePaletteProvider);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: palette.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Sign In Required',
+          style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w700, color: palette.textPrimary),
+        ),
+        content: Text(
+          'Please sign in or register an account to place your order.',
+          style: GoogleFonts.inter(fontSize: 14, color: palette.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: GoogleFonts.inter(color: palette.textTertiary)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              context.push('/login');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: palette.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: Text('Sign In', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showSuccessDialog(String orderId) {
@@ -330,7 +393,16 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   @override
   Widget build(BuildContext context) {
     final palette = ref.watch(themePaletteProvider);
-    final finalTotal = widget.total - _discount;
+    final cartItems = ref.watch(cartProvider);
+    final calcSubtotal = cartItems.fold<double>(0.0, (s, i) => s + (i.stone.pricePerSqFt * i.quantity));
+    final calcGst = calcSubtotal * 0.18;
+    final calcShipping = calcSubtotal > 10000 ? 0.0 : (calcSubtotal > 0 ? 500.0 : 0.0);
+    final effectiveSubtotal = widget.subtotal ?? calcSubtotal;
+    final effectiveGst = widget.gst ?? calcGst;
+    final effectiveShipping = widget.shipping ?? calcShipping;
+    final effectiveTotal = (widget.total ?? (effectiveSubtotal + effectiveGst + effectiveShipping)) - _discount;
+    final itemCount = widget.items?.length ?? cartItems.length;
+
 
     return Scaffold(
       backgroundColor: palette.background,
@@ -360,18 +432,24 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             // Delivery Address
             _buildSectionTitle('DELIVERY DESTINATION', palette),
             const SizedBox(height: 10),
-            ..._addresses.asMap().entries.map((entry) {
-              final index = entry.key;
-              final address = entry.value;
-              return _buildAddressCard(palette, address, index);
-            }),
+            if (_isLoadingAddresses)
+              Center(child: Padding(padding: const EdgeInsets.all(20), child: CircularProgressIndicator(color: palette.primary)))
+            else if (_addresses.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text('No delivery addresses found. Please add one below.', style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 13)),
+              )
+            else
+              ..._addresses.asMap().entries.map((entry) {
+                final index = entry.key;
+                final address = entry.value;
+                return _buildAddressCard(palette, address, index);
+              }),
             const SizedBox(height: 8),
             OutlinedButton.icon(
-              onPressed: () {
-                showInfoSnackbar(context, 'Add address feature coming soon');
-              },
+              onPressed: () => context.push('/addresses').then((_) => _loadAddresses()),
               icon: const Icon(Icons.add_location_alt_outlined, size: 18),
-              label: const Text('Add New Delivery Address'),
+              label: const Text('Manage Delivery Addresses'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: palette.primary,
                 side: BorderSide(color: palette.border),
@@ -487,17 +565,17 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               ),
               child: Column(
                 children: [
-                  _buildSummaryRow('Slabs / Samples (${widget.items.length} items)', widget.subtotal, palette),
+                  _buildSummaryRow('Slabs / Samples ($itemCount items)', effectiveSubtotal, palette),
                   const SizedBox(height: 12),
-                  _buildSummaryRow('GST (18%)', widget.gst, palette),
+                  _buildSummaryRow('GST (18%)', effectiveGst, palette),
                   const SizedBox(height: 12),
-                  _buildSummaryRow('Delivery & Insurance', widget.shipping, palette, highlight: widget.shipping == 0),
+                  _buildSummaryRow('Delivery & Insurance', effectiveShipping, palette, highlight: effectiveShipping == 0),
                   if (_discount > 0) ...[
                     const SizedBox(height: 12),
                     _buildSummaryRow('Discount Applied', -_discount, palette, isDiscount: true),
                   ],
                   Divider(color: palette.border, height: 24),
-                  _buildSummaryRow('Payable Amount', finalTotal, palette, isTotal: true),
+                  _buildSummaryRow('Payable Amount', effectiveTotal, palette, isTotal: true),
                 ],
               ),
             ),
@@ -552,7 +630,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   ],
                 )
               : Text(
-                  'Authorize Payment • ₹${finalTotal.toInt()}',
+                  'Authorize Payment • ₹${effectiveTotal.toInt()}',
                   style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700),
                 ),
         ),
@@ -572,7 +650,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     );
   }
 
-  Widget _buildAddressCard(LuxuryPalette palette, Map<String, String> address, int index) {
+  Widget _buildAddressCard(LuxuryPalette palette, Map<String, dynamic> address, int index) {
     final isSelected = _selectedAddressIndex == index;
 
     return GestureDetector(
@@ -610,14 +688,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   Row(
                     children: [
                       Text(
-                        address['name']!,
+                        address['name']?.toString() ?? 'Address',
                         style: GoogleFonts.inter(
                           color: palette.textPrimary,
                           fontWeight: FontWeight.w700,
                           fontSize: 14,
                         ),
                       ),
-                      if (index == 0) ...[
+                      if (address['is_default'] == true || index == 0) ...[
                         const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -640,18 +718,20 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${address['address']}, ${address['city']}, ${address['state']} - ${address['pincode']}',
+                    '${address['address_line1'] ?? ''}${address['address_line2'] != null && address['address_line2'] != '' ? ', ${address['address_line2']}' : ''}, ${address['city'] ?? ''}, ${address['state'] ?? ''} - ${address['pincode'] ?? ''}',
                     style: GoogleFonts.inter(
                       color: palette.textSecondary,
                       fontSize: 12,
                       height: 1.35,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Phone: ${address['phone']}',
-                    style: GoogleFonts.inter(color: palette.textTertiary, fontSize: 11),
-                  ),
+                  if (address['phone'] != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Phone: ${address['phone']}',
+                      style: GoogleFonts.inter(color: palette.textTertiary, fontSize: 11),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -774,3 +854,4 @@ class CheckoutItem {
     required this.price,
   });
 }
+
