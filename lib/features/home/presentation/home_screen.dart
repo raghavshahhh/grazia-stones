@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
@@ -30,6 +31,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   String _selectedCategory = 'All';
   bool _isLoading = true;
 
+  late PageController _heroPageController;
+  Timer? _heroTimer;
+  int _currentHeroIndex = 0;
+
   final List<String> _categories = [
     'All',
     'Ledge Stone',
@@ -41,7 +46,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _heroPageController = PageController();
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _heroTimer?.cancel();
+    _heroPageController.dispose();
+    super.dispose();
+  }
+
+  void _startHeroTimer(int itemCount) {
+    _heroTimer?.cancel();
+    if (itemCount <= 1) return;
+    _heroTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
+      if (!mounted || !_heroPageController.hasClients) return;
+      final nextIndex = (_currentHeroIndex + 1) % itemCount;
+      _heroPageController.animateToPage(
+        nextIndex,
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.easeInOutCubic,
+      );
+    });
   }
 
   Future<void> _loadData() async {
@@ -63,6 +90,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           _collections = results[1] as List<Collection>;
           _isLoading = false;
         });
+        if (_trendingStones != null && _trendingStones!.isNotEmpty) {
+          _startHeroTimer(_trendingStones!.length.clamp(1, 5));
+        }
       }
     } catch (e) {
       debugPrint('❌ Home screen error: $e');
@@ -260,14 +290,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  // ── 1. Editorial Hero ──
+  // ── 1. Auto-Looping Editorial Hero Carousel ──
   Widget _buildEditorialHero(LuxuryPalette palette) {
-    final heroStone = (_trendingStones != null && _trendingStones!.isNotEmpty)
-        ? _trendingStones!.first
-        : null;
+    final heroStones = (_trendingStones != null && _trendingStones!.isNotEmpty)
+        ? _trendingStones!.take(5).toList()
+        : <Stone>[];
+
+    if (heroStones.isEmpty) return const SizedBox.shrink();
 
     return Container(
-      height: 280,
+      height: 290,
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
@@ -284,146 +316,187 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            SmartStoneImage(
-              imageUrl: heroStone?.imageUrl,
-              fit: BoxFit.cover,
-              palette: palette,
-            ),
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withValues(alpha: 0.35),
-                    Colors.black.withValues(alpha: 0.65),
-                    Colors.black.withValues(alpha: 0.95),
+            PageView.builder(
+              controller: _heroPageController,
+              itemCount: heroStones.length,
+              onPageChanged: (idx) {
+                setState(() => _currentHeroIndex = idx);
+              },
+              itemBuilder: (context, index) {
+                final stone = heroStones[index];
+                return Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    SmartStoneImage(
+                      imageUrl: stone.imageUrl,
+                      fit: BoxFit.cover,
+                      alignment: Alignment.topCenter,
+                      palette: palette,
+                    ),
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withValues(alpha: 0.30),
+                            Colors.black.withValues(alpha: 0.65),
+                            Colors.black.withValues(alpha: 0.95),
+                          ],
+                          stops: const [0.0, 0.45, 1.0],
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(22),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          // Gold badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.5),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFFD4AF37).withValues(alpha: 0.5)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const GraziaLogo(
+                                  variant: GraziaLogoVariant.emblem,
+                                  height: 14,
+                                  colorStyle: GraziaLogoColor.gold,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  stone.collection.toUpperCase(),
+                                  style: GoogleFonts.inter(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 1.8,
+                                    color: const Color(0xFFD4AF37),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 8),
+
+                          Text(
+                            stone.name,
+                            style: GoogleFonts.playfairDisplay(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                              height: 1.15,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '₹${stone.pricePerSqFt.toInt()}/sqft • ${stone.category}',
+                            style: GoogleFonts.inter(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white.withValues(alpha: 0.9),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Row(
+                            children: [
+                              ApplePressable(
+                                onTap: () => context.push('/live-ai?stoneId=${stone.id}'),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                  decoration: BoxDecoration(
+                                    gradient: palette.primaryGradient,
+                                    borderRadius: BorderRadius.circular(18),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: palette.primary.withValues(alpha: 0.45),
+                                        blurRadius: 14,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.view_in_ar_rounded, color: Colors.white, size: 15),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'Visualize in AR',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              ApplePressable(
+                                onTap: () => context.push('/stone/${stone.id}'),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(18),
+                                    border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        'Explore Stone',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 13),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
-                  stops: const [0.0, 0.45, 1.0],
-                ),
-              ),
+                );
+              },
             ),
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  // Gold badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+
+            // Top Right Dots Indicator Overlay
+            Positioned(
+              top: 18,
+              right: 18,
+              child: Row(
+                children: List.generate(
+                  heroStones.length,
+                  (i) => AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    width: _currentHeroIndex == i ? 18 : 6,
+                    height: 6,
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.45),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFD4AF37).withValues(alpha: 0.4)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const GraziaLogo(
-                          variant: GraziaLogoVariant.emblem,
-                          height: 14,
-                          colorStyle: GraziaLogoColor.gold,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '2025 ARCHITECTURAL CATALOGUE',
-                          style: GoogleFonts.inter(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 2.0,
-                            color: const Color(0xFFD4AF37),
-                          ),
-                        ),
-                      ],
+                      color: _currentHeroIndex == i
+                          ? const Color(0xFFD4AF37)
+                          : Colors.white.withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(4),
                     ),
                   ),
-
-                  const SizedBox(height: 10),
-
-                  Text(
-                    'Natural Stone.\nDesigned for Living.',
-                    style: GoogleFonts.playfairDisplay(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                      height: 1.15,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Discover architectural surfaces that transform spaces.',
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w400,
-                      color: Colors.white.withValues(alpha: 0.9),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      ApplePressable(
-                        onTap: () => context.push('/live-ai'),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                          decoration: BoxDecoration(
-                            gradient: palette.primaryGradient,
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: palette.primary.withValues(alpha: 0.45),
-                                blurRadius: 14,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.view_in_ar_rounded, color: Colors.white, size: 16),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Visualize in AR',
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      ApplePressable(
-                        onTap: () => context.push('/collections'),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                'Explore Stones',
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 14),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                ),
               ),
             ),
           ],
@@ -1020,34 +1093,39 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              Text(
-                'ARCHITECTURAL CATALOGUE',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 2.0,
-                  color: palette.textTertiary,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: GLuxuryPalettes.gold.primary.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  '${_trendingStones?.length ?? 0} Products',
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: GLuxuryPalettes.gold.primary,
+          Expanded(
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    'ARCHITECTURAL CATALOGUE',
+                    style: GoogleFonts.inter(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.5,
+                      color: palette.textTertiary,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: GLuxuryPalettes.gold.primary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '${_trendingStones?.length ?? 0} Products',
+                    style: GoogleFonts.inter(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w700,
+                      color: GLuxuryPalettes.gold.primary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           GestureDetector(
             onTap: () => context.push('/catalogue'),
@@ -1678,75 +1756,158 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   void _showNotificationsSheet(BuildContext context, LuxuryPalette palette) {
     final notifications = [
-      {'title': 'Welcome to Grazia Stones', 'subtitle': 'Discover our luxury natural surfaces', 'time': 'Just now', 'icon': Icons.diamond_outlined},
-      {'title': 'New Collection Arrived', 'subtitle': 'Explore the Royal Heritage marble series', 'time': '2h ago', 'icon': Icons.auto_awesome_outlined},
-      {'title': 'Order Status Update', 'subtitle': 'Your sample order has been confirmed', 'time': '1d ago', 'icon': Icons.local_shipping_outlined},
+      {'title': 'Welcome to Grazia Stones', 'subtitle': 'Discover our luxury natural stone surfaces & 3D panels', 'time': 'Just now', 'icon': Icons.diamond_outlined, 'category': 'General'},
+      {'title': 'New Collection Arrived', 'subtitle': 'Explore the Royal Heritage Marble Series catalogue', 'time': '2h ago', 'icon': Icons.auto_awesome_outlined, 'category': 'Collection'},
+      {'title': 'Sample Order Confirmed', 'subtitle': 'Your swatch sample box #GS-8821 is being prepared', 'time': '1d ago', 'icon': Icons.inventory_2_outlined, 'category': 'Orders'},
+      {'title': 'Exclusive Architectural Discount', 'subtitle': 'Get 12% off on orders above 500 sqft this month', 'time': '2d ago', 'icon': Icons.local_offer_outlined, 'category': 'Offers'},
+      {'title': 'AI Studio Visualization Ready', 'subtitle': 'Your living room wall design rendering is ready to view', 'time': '3d ago', 'icon': Icons.auto_awesome_rounded, 'category': 'AI'},
+      {'title': 'Kanpur Headquarters Opening', 'subtitle': 'Visit our experience showroom in Kanpur today', 'time': '5d ago', 'icon': Icons.storefront_outlined, 'category': 'General'},
     ];
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: palette.background,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: palette.border,
-                borderRadius: BorderRadius.circular(2),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.35,
+        maxChildSize: 0.94,
+        expand: false,
+        builder: (context, scrollController) => Container(
+          decoration: BoxDecoration(
+            color: palette.background,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.25),
+                blurRadius: 28,
+                offset: const Offset(0, -6),
               ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Notifications',
-              style: GoogleFonts.playfairDisplay(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: palette.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 16),
-            ...notifications.map((n) => Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: palette.surface,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: palette.border),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: palette.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(n['icon'] as IconData, color: palette.primary, size: 20),
+            ],
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              // Drag handle
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: palette.border,
+                    borderRadius: BorderRadius.circular(3),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(n['title'] as String, style: GLuxuryTypography.bodyMedium.copyWith(color: palette.textPrimary, fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 2),
-                        Text(n['subtitle'] as String, style: GLuxuryTypography.bodySmall.copyWith(color: palette.textSecondary)),
-                      ],
-                    ),
-                  ),
-                  Text(n['time'] as String, style: GLuxuryTypography.bodySmall.copyWith(color: palette.textTertiary, fontSize: 11)),
-                ],
+                ),
               ),
-            )),
-          ],
+              const SizedBox(height: 16),
+              // Header title
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Notifications',
+                      style: GoogleFonts.playfairDisplay(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: palette.textPrimary,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: GLuxuryPalettes.gold.primary.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${notifications.length} New',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: GLuxuryPalettes.gold.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Divider(height: 1),
+
+              // Notification List View
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  padding: const EdgeInsets.all(18),
+                  itemCount: notifications.length,
+                  itemBuilder: (context, index) {
+                    final n = notifications[index];
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: palette.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: palette.border, width: 0.8),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: GLuxuryPalettes.gold.primary.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(n['icon'] as IconData, color: GLuxuryPalettes.gold.primary, size: 20),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        n['title'] as String,
+                                        style: GLuxuryTypography.bodyMedium.copyWith(
+                                          color: palette.textPrimary,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                    Text(
+                                      n['time'] as String,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 10.5,
+                                        color: palette.textTertiary,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  n['subtitle'] as String,
+                                  style: GLuxuryTypography.bodySmall.copyWith(
+                                    color: palette.textSecondary,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

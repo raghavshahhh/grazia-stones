@@ -26,7 +26,7 @@ class _GraziaBottomNavState extends ConsumerState<GraziaBottomNav> {
     _NavItem(icon: Icons.home_rounded, label: 'Home'),
     _NavItem(icon: Icons.grid_view_rounded, label: 'Collections'),
     _NavItem(icon: Icons.camera_rounded, label: 'Live AR', isCenter: true),
-    _NavItem(icon: Icons.shopping_bag_rounded, label: 'Cart'),
+    _NavItem(icon: Icons.auto_awesome_rounded, label: 'AI Studio'),
     _NavItem(icon: Icons.person_rounded, label: 'Profile'),
   ];
 

@@ -57,7 +57,7 @@ const _tabRoutes = [
   '/home',
   '/collections',
   '/live-ai',
-  '/cart',
+  '/ai-viz',
   '/profile',
 ];
 
