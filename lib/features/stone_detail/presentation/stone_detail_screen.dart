@@ -657,12 +657,16 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
                         ref.read(cartProvider.notifier).addItem(stone);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('${stone.name} added to project'),
+                            content: Text('${stone.name} added to cart', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
                             backgroundColor: palette.primary,
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            margin: const EdgeInsets.only(bottom: 90, left: 24, right: 24),
+                            duration: const Duration(seconds: 2),
                             action: SnackBarAction(
-                              label: 'View Cart',
-                              textColor: Colors.white,
-                              onPressed: () => context.push('/cart'),
+                              label: 'Checkout →',
+                              textColor: const Color(0xFFD4AF37),
+                              onPressed: () => context.push('/checkout'),
                             ),
                           ),
                         );

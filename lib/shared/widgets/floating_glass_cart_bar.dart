@@ -59,155 +59,163 @@ class _FloatingGlassCartBarState extends ConsumerState<FloatingGlassCartBar>
     final bottomPadding = MediaQuery.of(context).padding.bottom;
 
     return Positioned(
-      left: 18,
-      right: 18,
-      bottom: (bottomPadding > 0 ? bottomPadding + 6 : 14) + 68,
-      child: ScaleTransition(
-        scale: _scaleAnimation,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () {
-              HapticFeedback.mediumImpact();
-              context.push('/cart');
-            },
-            borderRadius: BorderRadius.circular(24),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: isDark
-                          ? [
-                              const Color(0xFF2C2417).withValues(alpha: 0.95),
-                              const Color(0xFF191714).withValues(alpha: 0.95),
-                            ]
-                          : [
-                              const Color(0xFF171717).withValues(alpha: 0.92),
-                              const Color(0xFF2A2826).withValues(alpha: 0.92),
-                            ],
-                    ),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                      color: GLuxuryPalettes.gold.primary.withValues(alpha: 0.45),
-                      width: 1.2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: GLuxuryPalettes.gold.primary.withValues(alpha: 0.25),
-                        blurRadius: 20,
-                        spreadRadius: 1,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      // Thumbnail preview of latest stone added
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
-                        child: SmartStoneImage(
-                          imageUrl: lastItem.mainImageUrl,
-                          width: 44,
-                          height: 44,
-                          fit: BoxFit.cover,
-                          fallbackColor: palette.surfaceDark,
+      left: 0,
+      right: 0,
+      bottom: (bottomPadding > 0 ? bottomPadding + 6 : 14) + 72,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 325),
+          child: ScaleTransition(
+            scale: _scaleAnimation,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  HapticFeedback.heavyImpact();
+                  context.push('/checkout');
+                },
+                borderRadius: BorderRadius.circular(32),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(32),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: isDark
+                              ? [
+                                  const Color(0xFF2E2519).withValues(alpha: 0.96),
+                                  const Color(0xFF1A1714).withValues(alpha: 0.96),
+                                ]
+                              : [
+                                  const Color(0xFF1A1918).withValues(alpha: 0.94),
+                                  const Color(0xFF2C2825).withValues(alpha: 0.94),
+                                ],
                         ),
+                        borderRadius: BorderRadius.circular(32),
+                        border: Border.all(
+                          color: GLuxuryPalettes.gold.primary.withValues(alpha: 0.6),
+                          width: 1.5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: GLuxuryPalettes.gold.primary.withValues(alpha: 0.35),
+                            blurRadius: 22,
+                            spreadRadius: 1,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 12),
-
-                      // Item count & surface details
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: GLuxuryPalettes.gold.primary,
-                                    borderRadius: BorderRadius.circular(10),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Round stone image thumbnail + item badge
+                          Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(20),
+                                child: SmartStoneImage(
+                                  imageUrl: lastItem.mainImageUrl,
+                                  width: 38,
+                                  height: 38,
+                                  fit: BoxFit.cover,
+                                  fallbackColor: palette.surfaceDark,
+                                ),
+                              ),
+                              Positioned(
+                                top: -3,
+                                right: -3,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFFD4AF37),
+                                    shape: BoxShape.circle,
                                   ),
+                                  constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
                                   child: Text(
-                                    '$totalCount ${totalCount == 1 ? 'ITEM' : 'ITEMS'}',
+                                    '$totalCount',
                                     style: GoogleFonts.inter(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w800,
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.w900,
                                       color: Colors.black,
-                                      letterSpacing: 0.5,
                                     ),
+                                    textAlign: TextAlign.center,
                                   ),
                                 ),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    lastItem.name,
-                                    style: GoogleFonts.inter(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white.withValues(alpha: 0.9),
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(width: 10),
+
+                          // Price details
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '$totalCount ${totalCount == 1 ? 'Surface' : 'Surfaces'} Added',
+                                style: GoogleFonts.inter(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white.withValues(alpha: 0.8),
+                                ),
+                              ),
+                              Text(
+                                '₹${totalPrice.toStringAsFixed(0)}',
+                                style: GoogleFonts.playfairDisplay(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: const Color(0xFFD4AF37),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(width: 14),
+
+                          // Direct Checkout Action Pill
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFFD4AF37), Color(0xFFF3E5AB)],
+                              ),
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFFD4AF37).withValues(alpha: 0.5),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 2),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '₹${totalPrice.toStringAsFixed(0)} total',
-                              style: GoogleFonts.playfairDisplay(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                color: GLuxuryPalettes.gold.primary,
-                              ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Checkout',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.black,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                const Icon(
+                                  Icons.arrow_forward_rounded,
+                                  size: 13,
+                                  color: Colors.black,
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-
-                      // View Cart Button Action
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: GLuxuryPalettes.gold.primary,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: GLuxuryPalettes.gold.primary.withValues(alpha: 0.4),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'View Cart',
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.black,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            const Icon(
-                              Icons.arrow_forward_rounded,
-                              size: 14,
-                              color: Colors.black,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
