@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:grazia_stones/core/models/ai_job.dart';
+import 'package:grazia_stones/core/services/ai_endpoint_client.dart';
 import 'package:grazia_stones/core/services/supabase_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -325,42 +328,73 @@ class AIJobRepository {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // JOB PROCESSING TRIGGER (FOR EDGE FUNCTION)
+  // JOB PROCESSING (api/generate-visualization — Gemini image generation)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Trigger AI processing via Edge Function
-  /// 
-  /// This calls the process-ai-visualization Edge Function
+  /// Run AI generation for a queued job and persist the result.
+  ///
+  /// This calls api/generate-visualization directly (no Supabase Edge
+  /// Function involved — none is deployed for this project). Every path,
+  /// including a missing GEMINI_API_KEY, ends the job in 'completed' or
+  /// 'failed' so the realtime job tracker never hangs on 'queued'.
   Future<void> processJob(String jobId) async {
+    final startedAt = DateTime.now();
     try {
-      debugPrint('🚀 Triggering AI processing for job: $jobId');
-      
-      // Get job details
+      debugPrint('🚀 Processing AI job: $jobId');
+
       final job = await getJobById(jobId);
-      if (job == null) {
-        throw Exception('Job not found');
+      if (job == null) throw Exception('Job not found');
+
+      await updateJobStatus(jobId: jobId, status: AIJobStatus.processing.value);
+
+      final imageResponse = await Dio().get<List<int>>(
+        job.inputImageUrl,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      final inputBytes = imageResponse.data!;
+      final inputDataUrl = 'data:image/jpeg;base64,${base64Encode(inputBytes)}';
+
+      final data = await AIEndpointClient.post('/api/generate-visualization', {
+        'image': inputDataUrl,
+        'stoneName': job.stoneName ?? 'Architectural Stone',
+        'color': job.color,
+        'finish': job.finish,
+        'variantIndex': 0,
+      });
+
+      final resultDataUrl = data['resultImage'] as String?;
+      if (resultDataUrl == null) {
+        throw Exception(data['error'] ?? 'Generation did not return an image');
       }
 
-      // Call Edge Function
-      final response = await _client.functions.invoke(
-        'process-ai-visualization',
-        body: {
-          'jobId': jobId,
-          'inputImageUrl': job.inputImageUrl,
-          'stoneId': job.stoneId,
-          'color': job.color,
-          'finish': job.finish,
-        },
+      final resultBase64 = resultDataUrl.split(',').last;
+      final resultBytes = base64Decode(resultBase64);
+      final resultFileName = 'result_${jobId}_${DateTime.now().millisecondsSinceEpoch}.png';
+      await _client.storage.from('ai-visualizations').uploadBinary(
+            'results/$resultFileName',
+            resultBytes,
+            fileOptions: const FileOptions(contentType: 'image/png'),
+          );
+      final resultImageUrl = _client.storage
+          .from('ai-visualizations')
+          .getPublicUrl('results/$resultFileName');
+
+      await updateJobStatus(
+        jobId: jobId,
+        status: AIJobStatus.completed.value,
+        resultImageUrl: resultImageUrl,
+        processingTimeMs: DateTime.now().difference(startedAt).inMilliseconds,
       );
 
-      if (response.status != 200) {
-        final error = response.data?['error'] ?? 'Unknown error';
-        throw Exception('Edge Function error: $error');
-      }
-
-      debugPrint('✅ AI processing triggered successfully');
+      debugPrint('✅ AI job completed: $jobId');
     } catch (e) {
-      debugPrint('❌ Error triggering AI processing: $e');
+      debugPrint('❌ Error processing AI job: $e');
+      await updateJobStatus(
+        jobId: jobId,
+        status: AIJobStatus.failed.value,
+        errorMessage: e.toString(),
+        processingTimeMs: DateTime.now().difference(startedAt).inMilliseconds,
+      );
       rethrow;
     }
   }

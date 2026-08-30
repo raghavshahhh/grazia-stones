@@ -1,14 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:grazia_stones/core/repositories/ai_job_repository.dart';
+import 'package:grazia_stones/core/services/ai_endpoint_client.dart';
 import 'package:grazia_stones/core/services/supabase_service.dart';
 
 
 /// Room analysis service for detecting walls and surfaces
-/// 
-/// Integrates with analyze-room Edge Function for:
+///
+/// Calls the api/wall-detect Vercel endpoint (NVIDIA NIM-backed) for:
 /// - Wall detection and segmentation
 /// - Surface identification
 /// - Confidence scoring
@@ -20,20 +21,18 @@ class RoomAnalysisService {
   RoomAnalysisService._();
 
   final _supabase = SupabaseService.instance.client;
-  late final AIJobRepository _jobRepository;
 
   bool _initialized = false;
 
   /// Initialize service
   void init() {
     if (_initialized) return;
-    _jobRepository = AIJobRepository();
     _initialized = true;
     debugPrint('✅ Room Analysis service initialized');
   }
 
   /// Analyze room image for walls and surfaces
-  /// 
+  ///
   /// Returns analysis result with detected walls and confidence
   Future<RoomAnalysisResult> analyzeRoom({
     required File roomImage,
@@ -49,18 +48,16 @@ class RoomAnalysisService {
       final base64Image = base64Encode(bytes);
       final imageDataUrl = 'data:image/jpeg;base64,$base64Image';
 
-      // Upload to storage for URL access
+      // Upload to storage so the result image URL is durable (not just the
+      // data: URL), and for the caller to reference the input later.
       final fileName = 'room_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final storageResponse = await _supabase.storage
-          .from('ai-visualizations')
-          .uploadBinary(
+      await _supabase.storage.from('ai-visualizations').uploadBinary(
             'temp/$fileName',
             bytes,
-            fileOptions: FileOptions(
+            fileOptions: const FileOptions(
               contentType: 'image/jpeg',
               cacheControl: '3600',
             ),
-
           );
 
       final imageUrl = _supabase.storage
@@ -69,15 +66,20 @@ class RoomAnalysisService {
 
       debugPrint('📤 Image uploaded: $imageUrl');
 
-      // Call Edge Function for room analysis
-      final analysisData = await _jobRepository.analyzeRoom(
-        imageUrl: imageUrl,
-        imageBase64: base64Image,
-      );
+      final data = await AIEndpointClient.post('/api/wall-detect', {
+        'image': imageDataUrl,
+        'useSegmentation': useSegmentation,
+      });
+      // api/wall-detect returns {wallDetected, confidence, walls, objects}
+      // without a `success` field — derive it so isUsable works correctly.
+      data['success'] = data['wallDetected'] ?? false;
+      data['message'] = data['wallDetected'] == true
+          ? 'Wall detected'
+          : 'No wall detected';
 
       debugPrint('✅ Room analysis complete');
 
-      return RoomAnalysisResult.fromJson(analysisData);
+      return RoomAnalysisResult.fromJson(data);
     } catch (e) {
       debugPrint('❌ Room analysis error: $e');
       throw RoomAnalysisException(
@@ -94,11 +96,23 @@ class RoomAnalysisService {
     try {
       debugPrint('🔍 Analyzing room from URL...');
 
-      final analysisData = await _jobRepository.analyzeRoom(
-        imageUrl: imageUrl,
+      final imageResponse = await Dio().get<List<int>>(
+        imageUrl,
+        options: Options(responseType: ResponseType.bytes),
       );
+      final bytes = imageResponse.data!;
+      final imageDataUrl = 'data:image/jpeg;base64,${base64Encode(bytes)}';
 
-      return RoomAnalysisResult.fromJson(analysisData);
+      final data = await AIEndpointClient.post('/api/wall-detect', {
+        'image': imageDataUrl,
+        'useSegmentation': true,
+      });
+      data['success'] = data['wallDetected'] ?? false;
+      data['message'] = data['wallDetected'] == true
+          ? 'Wall detected'
+          : 'No wall detected';
+
+      return RoomAnalysisResult.fromJson(data);
     } catch (e) {
       debugPrint('❌ Room analysis error: $e');
       throw RoomAnalysisException(
@@ -108,27 +122,14 @@ class RoomAnalysisService {
     }
   }
 
-  /// Check if AI service is configured
+  /// Check if the AI analysis endpoint is configured (NVIDIA key present)
   Future<bool> isServiceConfigured() async {
     try {
-      // Try a test call to see if service is configured
-      final response = await _supabase.functions.invoke(
-        'analyze-room',
-        body: {
-          'imageUrl': 'test',
-          'test': true,
-        },
-      );
-
-      // If status is 503, service not configured
-      if (response.status == 503) {
-        final data = response.data as Map<String, dynamic>?;
-        if (data?['error'] == 'AI_SERVICE_NOT_CONFIGURED') {
-          return false;
-        }
-      }
-
-      return true;
+      final data = await AIEndpointClient.post('/api/wall-detect', {
+        'image': 'data:image/png;base64,AA==',
+        'useSegmentation': false,
+      });
+      return data['error'] != 'NVIDIA_NIM_API_KEY not configured';
     } catch (e) {
       debugPrint('⚠️ Could not check service configuration: $e');
       return false;
