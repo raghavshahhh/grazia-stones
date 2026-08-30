@@ -656,7 +656,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final isWishlisted = wishlistState.contains(stone.id);
 
     return GestureDetector(
-      onTap: () => context.push('/stone/${stone.id}', extra: stone),
+      onTap: () => context.push('/stones/${stone.id}', extra: stone),
       child: Container(
         decoration: BoxDecoration(
           color: palette.surface,
@@ -750,7 +750,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final isWishlisted = wishlistState.contains(stone.id);
 
     return GestureDetector(
-      onTap: () => context.push('/stone/${stone.id}', extra: stone),
+      onTap: () => context.push('/stones/${stone.id}', extra: stone),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(12),

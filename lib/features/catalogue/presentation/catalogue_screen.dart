@@ -350,7 +350,7 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
     final isWishlisted = wishlistState.contains(stone.id);
 
     return GestureDetector(
-      onTap: () => context.push('/stone/${stone.id}', extra: stone),
+      onTap: () => context.push('/stones/${stone.id}', extra: stone),
       child: Container(
         decoration: BoxDecoration(
           color: palette.surface,

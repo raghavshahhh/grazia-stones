@@ -446,7 +446,7 @@ class _SavedDesignsScreenState extends ConsumerState<SavedDesignsScreen> {
                       GestureDetector(
                         onTap: () {
                           if (design.hasStone) {
-                            context.push('/stone/${design.stoneId}');
+                            context.push('/stones/${design.stoneId}');
                           } else {
                             context.push('/quotes');
                           }
@@ -513,7 +513,7 @@ class _SavedDesignsScreenState extends ConsumerState<SavedDesignsScreen> {
                 title: Text('View Stone Details', style: TextStyle(color: palette.textPrimary)),
                 onTap: () {
                   Navigator.pop(ctx);
-                  context.push('/stone/${design.stoneId}');
+                  context.push('/stones/${design.stoneId}');
                 },
               ),
             ListTile(
@@ -521,7 +521,9 @@ class _SavedDesignsScreenState extends ConsumerState<SavedDesignsScreen> {
               title: Text('Request Quote', style: TextStyle(color: palette.textPrimary)),
               onTap: () {
                 Navigator.pop(ctx);
-                context.push('/quotes');
+                context.push(
+                  design.hasStone ? '/quotes/new?stoneId=${design.stoneId}' : '/quotes/new',
+                );
               },
             ),
             const Divider(),

@@ -17,6 +17,7 @@ import '../features/ai_viz/presentation/ai_result_gallery_screen.dart';
 import '../features/ar_view/presentation/ar_view_screen.dart';
 import '../features/dealer/presentation/dealer_locator_screen.dart';
 import '../features/quotes/presentation/quotes_screen.dart';
+import '../features/quotes/presentation/quote_request_supabase_screen.dart';
 import '../features/cart/presentation/cart_screen.dart';
 import '../features/orders/presentation/orders_screen.dart';
 import '../features/live_ai/presentation/live_ai_screen.dart';
@@ -201,12 +202,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/',
     redirect: (context, state) {
+      // Admin routes require a genuinely authenticated session whose
+      // role is 'admin' in the backend profiles table. Non-admins are
+      // sent to login with a return-to path — never auto-elevated.
       final isLocAdmin = state.uri.path.startsWith('/admin');
-      if (isLocAdmin) {
-        if (!authState.isAdmin) {
-          // Auto-elevate session to admin mode for seamless dashboard access
-          ref.read(authRiverpodProvider.notifier).loginAsAdmin();
-        }
+      if (isLocAdmin && !authState.isAdmin) {
+        final intended = Uri.encodeComponent(state.uri.toString());
+        return '/login?redirect=$intended';
       }
       return null;
     },
@@ -328,6 +330,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
             _slideUpPage(const QuotesScreen(), state),
+      ),
+      GoRoute(
+        path: '/quotes/new',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => _slideUpPage(
+          QuoteRequestSupabaseScreen(
+            preselectedStoneId: state.uri.queryParameters['stoneId'],
+          ),
+          state,
+        ),
       ),
       GoRoute(
         path: '/orders',

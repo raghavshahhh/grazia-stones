@@ -55,26 +55,37 @@ class OrderRepository {
     required Map<String, dynamic> address,
     required String paymentMethod,
     String? notes,
+    double? tax,
+    double? shippingCost,
+    double? discount,
+    double? total,
   }) async {
     // Generate order number
     final now = DateTime.now();
     final orderNum = 'GS-${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}-${now.millisecondsSinceEpoch.toString().substring(8)}';
 
-    // Calculate totals
+    // Calculate totals — item prices are server-side derived from the
+    // same source (unit_price × qty); tax/shipping/discount/total are
+    // provided by the caller so the persisted order always matches the
+    // amount actually charged.
     double subtotal = 0;
     for (final item in items) {
       subtotal += (item['unit_price'] as double) * (item['quantity'] as int);
     }
+    final effectiveTax = tax ?? 0;
+    final effectiveShipping = shippingCost ?? 0;
+    final effectiveDiscount = discount ?? 0;
+    final effectiveTotal = total ?? (subtotal + effectiveTax + effectiveShipping - effectiveDiscount);
 
     final orderData = {
       'user_id': _userId,
       'order_number': orderNum,
       'status': 'pending',
       'subtotal': subtotal,
-      'shipping_cost': 0,
-      'tax': 0,
-      'discount': 0,
-      'total': subtotal,
+      'shipping_cost': effectiveShipping,
+      'tax': effectiveTax,
+      'discount': effectiveDiscount,
+      'total': effectiveTotal,
       'currency': 'INR',
       'shipping_name': address['name'],
       'shipping_phone': address['phone'],

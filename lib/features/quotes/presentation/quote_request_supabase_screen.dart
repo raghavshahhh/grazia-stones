@@ -20,8 +20,13 @@ import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 /// - Architectural project type options
 class QuoteRequestSupabaseScreen extends ConsumerStatefulWidget {
   final Stone? preselectedStone;
+  final String? preselectedStoneId;
 
-  const QuoteRequestSupabaseScreen({super.key, this.preselectedStone});
+  const QuoteRequestSupabaseScreen({
+    super.key,
+    this.preselectedStone,
+    this.preselectedStoneId,
+  });
 
   @override
   ConsumerState<QuoteRequestSupabaseScreen> createState() => _QuoteRequestSupabaseScreenState();
@@ -58,9 +63,13 @@ class _QuoteRequestSupabaseScreenState extends ConsumerState<QuoteRequestSupabas
     super.initState();
     _loadStones();
     
-    // Preselect stone if provided
+    // Preselect stone if provided, either as a full object (e.g. from
+    // Product Detail, already loaded) or by id (e.g. from a route query
+    // param, resolved once the catalogue finishes loading).
     if (widget.preselectedStone != null) {
       _selectedStoneIds.add(widget.preselectedStone!.id);
+    } else if (widget.preselectedStoneId != null) {
+      _selectedStoneIds.add(widget.preselectedStoneId!);
     }
   }
 

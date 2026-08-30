@@ -46,7 +46,10 @@ class _AIResultGalleryScreenState extends ConsumerState<AIResultGalleryScreen> {
           TextButton.icon(
             icon: const Icon(Icons.request_quote_outlined, size: 18),
             label: const Text('Get Quote'),
-            onPressed: () => context.push('/quotes'),
+            onPressed: () {
+              final stoneId = jobsAsync.valueOrNull?.firstOrNull?.stoneId;
+              context.push(stoneId != null ? '/quotes/new?stoneId=$stoneId' : '/quotes/new');
+            },
           ),
         ],
       ),

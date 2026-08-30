@@ -110,6 +110,13 @@ class _QuotesScreenState extends ConsumerState<QuotesScreen> {
             color: palette.textPrimary,
           ),
         ),
+        actions: [
+          IconButton(
+            onPressed: () => context.push('/quotes/new'),
+            icon: Icon(Icons.add_circle_outline, color: palette.primary),
+            tooltip: 'New Quote',
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),

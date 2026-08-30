@@ -15,8 +15,6 @@ import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 
 import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 
-import 'package:share_plus/share_plus.dart';
-import 'package:grazia_stones/core/di.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:grazia_stones/core/models/stone.dart';
 
@@ -45,9 +43,6 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
   String _selectedFinish = 'Natural';
   String _selectedColor = 'Default';
   bool _isCreatingJob = false;
-  bool _isSaving = false;
-  String? _currentJobId;
-  AIJob? _completedJob;
   final _picker = ImagePicker();
   final _roomAnalysisService = RoomAnalysisService.instance;
 
@@ -77,8 +72,6 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
           _selectedImage = bytes;
           _selectedImageFile = file;
           _roomAnalysis = null;
-          _currentJobId = null;
-          _completedJob = null;
         });
         HapticFeedback.mediumImpact();
 
@@ -170,35 +163,6 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
     }
   }
 
-  void _trackJob(String jobId) {
-    // Listen to job updates via provider
-    ref.listen<AIJobTrackingState>(
-      aiJobTrackingProvider(jobId),
-      (previous, next) {
-        if (!mounted) return;
-
-        final job = next.job;
-        if (job == null) return;
-
-        if (job.status == 'completed') {
-          setState(() => _completedJob = job);
-          HapticFeedback.heavyImpact();
-          showSuccessSnackbar(
-            context,
-            'AI visualization complete!',
-          );
-        } else if (job.status == 'failed') {
-          HapticFeedback.mediumImpact();
-          showErrorSnackbar(
-            context,
-            Exception(job.errorMessage ?? 'Job failed'),
-            customMessage: 'Visualization failed: ${job.errorMessage ?? 'Unknown error'}',
-          );
-        }
-      },
-    );
-  }
-
   Future<void> _uploadImage() async {
     if (_selectedImage == null) return;
 
@@ -227,46 +191,6 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
       debugPrint('❌ Image upload error: $e');
       rethrow;
     }
-  }
-
-  Future<void> _saveJobResult() async {
-    if (_completedJob == null || _completedJob!.resultImageUrl == null) return;
-
-    setState(() => _isSaving = true);
-    HapticFeedback.mediumImpact();
-
-    try {
-      final userRepo = ref.read(userRepositoryProvider);
-
-      await userRepo.saveDesign(
-        stoneId: _completedJob!.stoneId ?? '',
-        stoneName: _completedJob!.stoneName ?? 'AI Visualization',
-        roomImageUrl: _completedJob!.inputImageUrl,
-        generatedImageUrl: _completedJob!.resultImageUrl!,
-        color: _completedJob!.color ?? _selectedColor,
-        finish: _completedJob!.finish ?? _selectedFinish,
-        notes: 'AI Studio visualization created on ${DateTime.now()}',
-      );
-
-      if (mounted) {
-        setState(() => _isSaving = false);
-        showSuccessSnackbar(context, 'Visualization saved to your Saved Designs!');
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isSaving = false);
-        showErrorSnackbar(context, e);
-      }
-    }
-  }
-
-  void _shareConcept() {
-    if (_completedJob == null) return;
-    
-    HapticFeedback.lightImpact();
-    Share.share(
-      'Grazia Stones AI Studio Visualization: ${_completedJob!.stoneName} (${_completedJob!.finish} finish). Explore premium stones at https://graziastones.com',
-    );
   }
 
 
@@ -414,36 +338,6 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
               ),
             ],
 
-            // Job Tracking
-            if (_currentJobId != null) ...[
-              const SizedBox(height: 16),
-              Consumer(
-                builder: (context, ref, _) {
-                  final jobState = ref.watch(aiJobTrackingProvider(_currentJobId!));
-                  if (jobState.job == null) return const SizedBox.shrink();
-
-                  final job = jobState.job!;
-                  return _buildJobTrackingCard(palette, job);
-                },
-              ),
-            ],
-
-            // Completed Job Result
-            if (_completedJob != null && _completedJob!.resultImageUrl != null) ...[
-              const SizedBox(height: 24),
-              Text(
-                '4. AI VISUALIZATION RESULT',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.8,
-                  color: palette.textTertiary,
-                ),
-              ),
-              const SizedBox(height: 12),
-              _buildResultPreview(palette, _completedJob!),
-            ],
-
             const SizedBox(height: 28),
 
             // Step 2: Choose Stone
@@ -521,11 +415,9 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
 
   Widget _buildBottomAction(LuxuryPalette palette, Stone? selectedStone) {
     // Show "Create Visualization" when room analyzed and stone selected
-    if (_roomAnalysis != null && 
-        _roomAnalysis!.isUsable && 
-        _selectedStoneId != null && 
-        _currentJobId == null &&
-        _completedJob == null) {
+    if (_roomAnalysis != null &&
+        _roomAnalysis!.isUsable &&
+        _selectedStoneId != null) {
       return ElevatedButton.icon(
         onPressed: _isCreatingJob
             ? null
@@ -552,62 +444,6 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
           elevation: 0,
           disabledBackgroundColor: palette.border,
         ),
-      );
-    }
-
-    // Show actions for completed job
-    if (_completedJob != null && selectedStone != null) {
-      return Row(
-        children: [
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: _isSaving ? null : _saveJobResult,
-              icon: _isSaving
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.bookmark_add_outlined, size: 16),
-              label: const Text('Save'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: palette.primary,
-                side: BorderSide(color: palette.primary),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: _shareConcept,
-              icon: const Icon(Icons.share_outlined, size: 16),
-              label: const Text('Share'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: palette.textPrimary,
-                side: BorderSide(color: palette.border),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: ElevatedButton.icon(
-              onPressed: () => context.push('/quotes'),
-              icon: const Icon(Icons.request_quote_outlined, size: 16),
-              label: const Text('Quote'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: palette.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                elevation: 0,
-              ),
-            ),
-          ),
-        ],
       );
     }
 
@@ -685,25 +521,6 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildResultPreview(LuxuryPalette palette, AIJob job) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: Image.network(
-        job.resultImageUrl!,
-        height: 300,
-        width: double.infinity,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => Container(
-          height: 300,
-          color: palette.border,
-          child: Center(
-            child: Icon(Icons.broken_image_outlined, size: 48, color: palette.textTertiary),
-          ),
-        ),
       ),
     );
   }
@@ -816,8 +633,6 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
                     _selectedImage = null;
                     _selectedImageFile = null;
                     _roomAnalysis = null;
-                    _currentJobId = null;
-                    _completedJob = null;
                   });
                 },
                 child: Container(

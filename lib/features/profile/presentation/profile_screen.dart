@@ -7,10 +7,8 @@ import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/features/cart/presentation/cart_screen.dart';
 import 'package:grazia_stones/features/profile/presentation/edit_profile_screen.dart';
-import 'package:grazia_stones/features/profile/presentation/addresses_screen.dart';
 import 'package:grazia_stones/shared/widgets/grazia_logo.dart';
 import 'package:grazia_stones/core/di.dart';
-import 'package:grazia_stones/features/orders/providers/order_riverpod_provider.dart';
 import 'package:grazia_stones/features/wishlist/providers/wishlist_provider.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -187,17 +185,17 @@ class ProfileScreen extends ConsumerWidget {
                                     borderRadius: BorderRadius.circular(10),
                                     border: Border.all(color: palette.border),
                                   ),
-                                  child: Icon(Icons.edit_outlined, color: palette.primary, size: 16),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ),
+                                   child: Icon(Icons.edit_outlined, color: palette.primary, size: 16),
+                                 ),
+                               ),
+                             ],
+                           ),
+                         );
+                       },
+                     ),
+                   ),
 
-                  const SizedBox(height: 18),
+                   const SizedBox(height: 18),
 
                   // Stats Bar - Real data from Supabase
                   Padding(
@@ -250,15 +248,13 @@ class ProfileScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Admin card for direct 1-tap dashboard access
+                  // Admin card — visible only to real admins (backend
+                  // profiles role), never auto-elevated.
+                  if (ref.watch(authRiverpodProvider.select((s) => s.isAdmin))) ...[
                   Builder(
                     builder: (context) {
-                      final auth = ref.watch(authRiverpodProvider);
                       return GestureDetector(
                         onTap: () {
-                          if (!auth.isAdmin) {
-                            ref.read(authRiverpodProvider.notifier).loginAsAdmin();
-                          }
                           context.push('/admin/dashboard');
                         },
                         child: Container(
@@ -321,12 +317,13 @@ class ProfileScreen extends ConsumerWidget {
                             ),
                           ],
                         ),
-                      ),
-                    );
-                  },
-                  ),
+                       ),
+                     );
+                   },
+                   ),
+                  ],
 
-                  // ARCHITECTURAL STUDIO SECTION
+                   // ARCHITECTURAL STUDIO SECTION
                   _SectionLabel(label: 'ARCHITECTURAL STUDIO', palette: palette),
                   const SizedBox(height: 8),
                   _MenuItem(

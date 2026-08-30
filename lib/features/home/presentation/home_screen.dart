@@ -16,6 +16,7 @@ import 'package:grazia_stones/core/widgets/animated_widgets.dart';
 import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 import 'package:grazia_stones/shared/widgets/grazia_logo.dart';
 import 'package:grazia_stones/features/cart/presentation/cart_screen.dart';
+import 'package:grazia_stones/features/wishlist/providers/wishlist_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -27,7 +28,6 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   List<Stone>? _trendingStones;
   List<Collection>? _collections;
-  final Set<String> _wishlistedIds = {};
   String _selectedCategory = 'All';
   bool _isLoading = true;
 
@@ -442,7 +442,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               ),
                               const SizedBox(width: 8),
                               ApplePressable(
-                                onTap: () => context.push('/stone/${stone.id}'),
+                                onTap: () => context.push('/stones/${stone.id}'),
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                                   decoration: BoxDecoration(
@@ -775,7 +775,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         separatorBuilder: (_, _) => const SizedBox(width: 14),
         itemBuilder: (context, index) {
           final stone = displayStones[index];
-          final isWishlisted = _wishlistedIds.contains(stone.id);
+          final isWishlisted = ref.watch(
+            wishlistProvider.select((w) => w.contains(stone.id)),
+          );
 
           return ApplePressable(
             onTap: () => context.push('/stones/${stone.id}'),
@@ -830,13 +832,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             right: 8,
                             child: ApplePressable(
                               onTap: () {
-                                setState(() {
-                                  if (_wishlistedIds.contains(stone.id)) {
-                                    _wishlistedIds.remove(stone.id);
-                                  } else {
-                                    _wishlistedIds.add(stone.id);
-                                  }
-                                });
+                                HapticFeedback.lightImpact();
+                                ref
+                                    .read(wishlistProvider.notifier)
+                                    .toggleStone(stone.id);
                               },
                               child: Container(
                                 width: 32,
@@ -1168,7 +1167,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         itemBuilder: (context, index) {
           final stone = stones[index];
           return ApplePressable(
-            onTap: () => context.push('/stone/${stone.id}'),
+            onTap: () => context.push('/stones/${stone.id}'),
             child: Container(
               decoration: BoxDecoration(
                 color: palette.surface,

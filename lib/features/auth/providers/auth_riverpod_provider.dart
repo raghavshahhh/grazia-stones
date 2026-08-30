@@ -132,19 +132,6 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
   }
 
 
-  /// Instantly switch active session to Admin mode
-  void loginAsAdmin() {
-    state = state.copyWith(
-      userId: 'admin-001',
-      userName: 'Grazia Super Admin',
-      userEmail: 'admin@graziastones.com',
-      userRole: 'admin',
-      isLoggedIn: true,
-      onboardingComplete: true,
-    );
-    debugPrint('👑 Switched session to Admin mode');
-  }
-
   /// Send OTP to phone number
   Future<bool> sendOTP(String phoneNumber) async {
     state = state.copyWith(isLoading: true, clearError: true);
@@ -365,9 +352,16 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
 
   // ─── Helpers ───
   Future<void> _saveAndSetState(User user) async {
-    final emailLower = (user.email ?? '').toLowerCase();
-    final isEmailAdmin = emailLower.endsWith('@graziastones.com') || emailLower.contains('admin');
-    final role = (isEmailAdmin || user.role.toLowerCase() == 'admin') ? 'admin' : user.role;
+    // Role is the backend profiles table's business — never trust client
+    // metadata or email heuristics for authorization. Fetch the real
+    // profile; fall back to the session claim only if the fetch fails.
+    var role = user.role.toLowerCase() == 'admin' ? 'admin' : user.role;
+    try {
+      final profile = await _repo.getProfile();
+      if (profile.role.isNotEmpty) role = profile.role;
+    } catch (_) {
+      // Profile fetch failed (e.g. trigger lag) — keep session role as-is.
+    }
 
     await _storage.saveUser({
       'id': user.id,

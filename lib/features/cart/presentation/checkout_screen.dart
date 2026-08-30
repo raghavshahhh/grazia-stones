@@ -158,6 +158,18 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           .toList();
 
       final addr = _addresses[_selectedAddressIndex.clamp(0, _addresses.length - 1)];
+
+      // Compute the exact amounts the UI is showing (and Razorpay will
+      // charge) once, from one source of truth, so the persisted order
+      // can never diverge from the charged total.
+      final calcSubtotal = currentItems.fold<double>(0.0, (s, i) => s + i.price * i.quantity);
+      final calcGst = calcSubtotal * 0.18;
+      final calcShipping = calcSubtotal > 10000 ? 0.0 : (calcSubtotal > 0 ? 500.0 : 0.0);
+      final effectiveSubtotal = widget.subtotal ?? calcSubtotal;
+      final effectiveGst = widget.gst ?? calcGst;
+      final effectiveShipping = widget.shipping ?? calcShipping;
+      final effectiveTotal = (widget.total ?? (effectiveSubtotal + effectiveGst + effectiveShipping)) - _discount;
+
       final order = await orderRepo.createOrder(
         items: orderItems,
         address: {
@@ -171,13 +183,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         },
         paymentMethod: _selectedPaymentMethod,
         notes: 'Checkout from mobile app',
+        tax: effectiveGst,
+        shippingCost: effectiveShipping,
+        discount: _discount,
+        total: effectiveTotal,
       );
-
-      final cartSubtotal = cartItems.fold<double>(0.0, (s, i) => s + (i.stone.pricePerSqFt * i.quantity));
-      final cartGst = cartSubtotal * 0.18;
-      final cartShipping = cartSubtotal > 10000 ? 0.0 : (cartSubtotal > 0 ? 500.0 : 0.0);
-      final effectiveTotal = (widget.total ?? (cartSubtotal + cartGst + cartShipping)) - _discount;
-
 
       if (_selectedPaymentMethod == 'razorpay') {
         final paymentResult = await orderRepo.initiatePayment(

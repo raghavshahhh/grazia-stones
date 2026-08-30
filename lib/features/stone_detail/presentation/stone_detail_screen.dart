@@ -9,6 +9,7 @@ import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 import 'package:grazia_stones/features/cart/presentation/cart_screen.dart';
+import 'package:grazia_stones/features/wishlist/providers/wishlist_provider.dart';
 
 class StoneDetailScreen extends ConsumerStatefulWidget {
   final String stoneId;
@@ -21,7 +22,6 @@ class StoneDetailScreen extends ConsumerStatefulWidget {
 
 class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
   int _currentImageIndex = 0;
-  bool _isWishlisted = false;
   
   // Area Estimator State
   double _areaSqFt = 150.0;
@@ -194,7 +194,7 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
                   IconButton(
                     onPressed: () {
                       HapticFeedback.lightImpact();
-                      setState(() => _isWishlisted = !_isWishlisted);
+                      ref.read(wishlistProvider.notifier).toggleStone(stone.id);
                     },
                     icon: Container(
                       width: 36,
@@ -210,9 +210,13 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
                         ],
                       ),
                       child: Icon(
-                        _isWishlisted ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                        ref.watch(wishlistProvider.select((w) => w.contains(stone.id)))
+                            ? Icons.favorite_rounded
+                            : Icons.favorite_border_rounded,
                         size: 18,
-                        color: _isWishlisted ? palette.primary : palette.textPrimary,
+                        color: ref.watch(wishlistProvider.select((w) => w.contains(stone.id)))
+                            ? palette.primary
+                            : palette.textPrimary,
                       ),
                     ),
                   ),
@@ -427,7 +431,23 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
                         ],
                       ),
 
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 12),
+
+                      // Get Quote — one tap, carries this product straight
+                      // into the quote form (no re-selecting the stone).
+                      SizedBox(
+                        width: double.infinity,
+                        child: TextButton.icon(
+                          onPressed: () => context.push('/quotes/new?stoneId=${stone.id}'),
+                          icon: Icon(Icons.request_quote_outlined, size: 18, color: palette.primary),
+                          label: Text(
+                            'Get Quote for This Stone',
+                            style: GoogleFonts.inter(color: palette.primary, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
 
                       // 4. Architectural Specifications Grid
                       Text(
@@ -679,7 +699,7 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
                         elevation: 0,
                       ),
                       child: Text(
-                        'Add to Project / Quote',
+                        'Add to Project',
                         style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700),
                       ),
                     ),
