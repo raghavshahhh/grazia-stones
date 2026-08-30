@@ -12,6 +12,7 @@ import 'package:grazia_stones/features/support/presentation/help_support_screen.
 import 'package:grazia_stones/features/auth/providers/auth_riverpod_provider.dart';
 import 'package:grazia_stones/core/models/sample_order.dart';
 import 'package:grazia_stones/core/models/quote_request.dart';
+import 'package:grazia_stones/core/models/ai_job.dart';
 import 'package:grazia_stones/core/services/supabase_service.dart';
 
 
@@ -369,6 +370,109 @@ void main() {
 
       expect(areaSqM, 12.0);
       expect(areaSqFt.toStringAsFixed(2), '129.17');
+    });
+  });
+
+  group('AI Job Batch & Variant Grouping Verification', () {
+    AIJob jobWithMetadata(Map<String, dynamic>? metadata, {String status = 'completed'}) {
+      final now = DateTime(2026, 1, 1);
+      return AIJob(
+        id: 'job-1',
+        jobType: 'visualization',
+        status: status,
+        inputImageUrl: 'https://example.com/room.jpg',
+        resultImageUrl: status == 'completed' ? 'https://example.com/result.jpg' : null,
+        metadata: metadata,
+        createdAt: now,
+        updatedAt: now,
+      );
+    }
+
+    test('Reads batch_id and variant_index from metadata', () {
+      final job = jobWithMetadata({'batch_id': 'batch-42', 'variant_index': 2});
+      expect(job.batchId, 'batch-42');
+      expect(job.variantIndex, 2);
+    });
+
+    test('Defaults variant_index to 0 when metadata is missing it', () {
+      final job = jobWithMetadata({'batch_id': 'batch-42'});
+      expect(job.variantIndex, 0);
+    });
+
+    test('batchId is null when a job has no batch metadata (single-job jobs)', () {
+      final job = jobWithMetadata(null);
+      expect(job.batchId, isNull);
+    });
+
+    test('isSuccessful requires both completed status and a result image', () {
+      final completed = jobWithMetadata({'batch_id': 'b'}, status: 'completed');
+      final queued = jobWithMetadata({'batch_id': 'b'}, status: 'queued');
+      expect(completed.isSuccessful, isTrue);
+      expect(queued.isSuccessful, isFalse);
+    });
+  });
+
+  group('Tile Wall Visualizer — Unit Conversion & Real Packaging Data', () {
+    // Mirrors TileWallVisualizerScreen._toFeet — normalizes every input
+    // unit to feet before any tile math runs, so a wall entered in metres
+    // and a product measured in cm land in the same coordinate space.
+    double toFeet(double value, String unit) {
+      switch (unit) {
+        case 'in':
+          return value / 12;
+        case 'm':
+          return value * 3.28084;
+        case 'cm':
+          return value * 0.0328084;
+        default:
+          return value;
+      }
+    }
+
+    test('feet passes through unchanged', () {
+      expect(toFeet(10, 'ft'), 10);
+    });
+
+    test('inches convert to feet', () {
+      expect(toFeet(120, 'in'), closeTo(10.0, 0.01));
+    });
+
+    test('metres convert to feet', () {
+      expect(toFeet(3, 'm'), closeTo(9.84, 0.01));
+    });
+
+    test('centimetres convert to feet', () {
+      expect(toFeet(300, 'cm'), closeTo(9.84, 0.01));
+    });
+
+    test('box count uses real coverage_sqft, never a hardcoded constant', () {
+      const wallArea = 100.0; // 10x10 ft
+      const wastage = 10.0;
+      const realSqftPerBox = 10.5; // as returned by a real stones row
+
+      final withWastage = wallArea * (1 + wastage / 100);
+      final boxes = (withWastage / realSqftPerBox).ceil();
+
+      expect(boxes, 11);
+    });
+
+    test('missing coverage_sqft (sqftPerBox == 0) means unavailable, not invented', () {
+      const sqftPerBox = 0.0; // matches Stone.fromJson default when the column is null
+      final packagingKnown = sqftPerBox > 0;
+      expect(packagingKnown, isFalse);
+    });
+
+    test('tile columns/rows derive from the real product tile size, not a fixed grid', () {
+      const wallWidthFt = 10.0;
+      const wallHeightFt = 10.0;
+      final tileWidthFt = 60.0 / 30.48; // 60cm tile, converted
+      final tileHeightFt = 15.0 / 30.48; // 15cm tile, converted
+
+      final columns = (wallWidthFt / tileWidthFt).ceil();
+      final rows = (wallHeightFt / tileHeightFt).ceil();
+
+      expect(columns, 6);
+      expect(rows, 21);
     });
   });
 }

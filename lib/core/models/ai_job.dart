@@ -128,6 +128,14 @@ class AIJob {
 }
 
 extension AIJobX on AIJob {
+  /// Groups the 4 variants of a single "Generate" tap together.
+  /// Stored in `metadata` rather than a new column — a job either belongs
+  /// to a batch or it doesn't, no need to widen the schema for it.
+  String? get batchId => metadata?['batch_id'] as String?;
+
+  /// Which of the 4 variants (0-3) this job is.
+  int get variantIndex => (metadata?['variant_index'] as num?)?.toInt() ?? 0;
+
   /// Check if job is in a terminal state
   bool get isTerminal => status == 'completed' || status == 'failed' || status == 'cancelled';
   

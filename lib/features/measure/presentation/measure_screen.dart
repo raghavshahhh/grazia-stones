@@ -115,6 +115,13 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
             color: palette.textPrimary,
           ),
         ),
+        actions: [
+          TextButton.icon(
+            onPressed: () => context.push('/measure/tile-visualizer'),
+            icon: Icon(Icons.view_in_ar_rounded, size: 18, color: palette.textPrimary),
+            label: Text('Tile Visualizer', style: TextStyle(color: palette.textPrimary)),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),

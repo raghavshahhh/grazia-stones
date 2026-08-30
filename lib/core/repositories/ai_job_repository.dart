@@ -359,7 +359,7 @@ class AIJobRepository {
         'stoneName': job.stoneName ?? 'Architectural Stone',
         'color': job.color,
         'finish': job.finish,
-        'variantIndex': 0,
+        'variantIndex': job.variantIndex,
       });
 
       final resultDataUrl = data['resultImage'] as String?;
@@ -397,6 +397,54 @@ class AIJobRepository {
       );
       rethrow;
     }
+  }
+
+  /// Create the 4 variant jobs for a single "Generate" tap, sharing a
+  /// batch_id so the UI can group and track them together. Each variant
+  /// gets a distinct prompt angle server-side (see VARIANT_PROMPTS in
+  /// api/generate-visualization.js) — never the same image 4 times.
+  Future<List<AIJob>> createVisualizationBatch({
+    required String inputImageUrl,
+    String? stoneId,
+    String? stoneName,
+    String? color,
+    String? finish,
+    Map<String, dynamic>? metadata,
+  }) async {
+    final batchId = DateTime.now().microsecondsSinceEpoch.toString();
+
+    final jobs = await Future.wait(List.generate(4, (variantIndex) {
+      return createVisualizationJob(
+        inputImageUrl: inputImageUrl,
+        stoneId: stoneId,
+        stoneName: stoneName,
+        color: color,
+        finish: finish,
+        metadata: {
+          ...?metadata,
+          'batch_id': batchId,
+          'variant_index': variantIndex,
+        },
+      );
+    }));
+
+    // Process concurrently — each is an independent Gemini call.
+    for (final job in jobs) {
+      unawaited(processJob(job.id).catchError((_) {}));
+    }
+
+    return jobs;
+  }
+
+  /// All jobs belonging to one generation batch, for the result gallery.
+  Future<List<AIJob>> getJobsByBatch(String batchId) async {
+    final response = await _client
+        .from('ai_jobs')
+        .select()
+        .contains('metadata', {'batch_id': batchId}).order('created_at');
+    return (response as List)
+        .map((json) => AIJob.fromJson(json as Map<String, dynamic>))
+        .toList();
   }
 
   /// Trigger room analysis via Edge Function

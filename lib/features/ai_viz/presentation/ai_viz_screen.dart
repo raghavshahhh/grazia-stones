@@ -141,8 +141,10 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
         orElse: () => allStones.first,
       );
 
-      // Create job via provider
-      final job = await ref.read(aiJobListProvider.notifier).createVisualizationJob(
+      // Kick off all 4 variants together; the result gallery screen tracks
+      // each one's real status independently.
+      final createBatch = ref.read(createBatchProvider);
+      final batchId = await createBatch(
         inputImageUrl: _uploadedImageUrl!,
         stoneId: stone.id,
         stoneName: stone.name,
@@ -155,28 +157,8 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
       );
 
       if (!mounted) return;
-
-      if (job != null) {
-        setState(() {
-          _currentJobId = job.id;
-          _isCreatingJob = false;
-        });
-
-        showSuccessSnackbar(
-          context,
-          'AI visualization job created! Processing...',
-        );
-
-        // Start tracking the job
-        _trackJob(job.id);
-      } else {
-        setState(() => _isCreatingJob = false);
-        showErrorSnackbar(
-          context,
-          Exception('Failed to create job'),
-          customMessage: 'Could not create visualization job. Please try again.',
-        );
-      }
+      setState(() => _isCreatingJob = false);
+      context.push('/ai-viz/results/$batchId');
     } catch (e) {
       if (!mounted) return;
       setState(() => _isCreatingJob = false);

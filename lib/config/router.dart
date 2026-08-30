@@ -13,6 +13,7 @@ import '../features/collections/presentation/collection_list_screen.dart';
 import '../features/collections/presentation/collection_detail_screen.dart';
 import '../features/stone_detail/presentation/stone_detail_screen.dart';
 import '../features/ai_viz/presentation/ai_viz_screen.dart';
+import '../features/ai_viz/presentation/ai_result_gallery_screen.dart';
 import '../features/ar_view/presentation/ar_view_screen.dart';
 import '../features/dealer/presentation/dealer_locator_screen.dart';
 import '../features/quotes/presentation/quotes_screen.dart';
@@ -23,6 +24,7 @@ import '../features/profile/presentation/profile_screen.dart';
 import '../features/wishlist/presentation/wishlist_screen.dart';
 import '../features/sample_order/presentation/sample_order_screen.dart';
 import '../features/measure/presentation/measure_screen.dart';
+import '../features/measure/presentation/tile_wall_visualizer_screen.dart';
 import '../shared/widgets/floating_glass_cart_bar.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../features/not_found/presentation/not_found_screen.dart';
@@ -437,6 +439,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
+        path: '/ai-viz/results/:batchId',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => _slideUpPage(
+          AIResultGalleryScreen(batchId: state.pathParameters['batchId']!),
+          state,
+        ),
+      ),
+      GoRoute(
         path: '/ar-view',
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
@@ -447,6 +457,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
             _slideUpPage(const MeasureScreen(), state),
+      ),
+      GoRoute(
+        path: '/measure/tile-visualizer',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const TileWallVisualizerScreen(), state),
       ),
       GoRoute(
         path: '/settings',

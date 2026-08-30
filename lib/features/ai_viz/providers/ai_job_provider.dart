@@ -354,6 +354,61 @@ final activeJobsStreamProvider = StreamProvider<List<AIJob>>((ref) {
   );
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// GENERATION BATCH (4-VARIANT GALLERY) PROVIDER
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Kicks off a 4-variant generation batch and returns its id for tracking.
+final createBatchProvider = Provider<
+    Future<String> Function({
+      required String inputImageUrl,
+      String? stoneId,
+      String? stoneName,
+      String? color,
+      String? finish,
+      Map<String, dynamic>? metadata,
+    })>((ref) {
+  final repository = ref.watch(aiJobRepositoryProvider);
+  return ({
+    required inputImageUrl,
+    stoneId,
+    stoneName,
+    color,
+    finish,
+    metadata,
+  }) async {
+    final jobs = await repository.createVisualizationBatch(
+      inputImageUrl: inputImageUrl,
+      stoneId: stoneId,
+      stoneName: stoneName,
+      color: color,
+      finish: finish,
+      metadata: metadata,
+    );
+    return jobs.first.batchId!;
+  };
+});
+
+/// Live view of the 4 jobs in a batch, reusing the same realtime
+/// subscription as [activeJobsStreamProvider] rather than opening a new one.
+/// Keeps only the newest job per variant slot, so retrying a variant
+/// replaces its tile instead of adding a duplicate.
+final batchTrackingProvider =
+    StreamProvider.family<List<AIJob>, String>((ref, batchId) {
+  final repository = ref.watch(aiJobRepositoryProvider);
+  return repository.subscribeToUserJobs().map((jobs) {
+    final byVariant = <int, AIJob>{};
+    for (final job in jobs.where((j) => j.batchId == batchId)) {
+      final existing = byVariant[job.variantIndex];
+      if (existing == null || job.createdAt.isAfter(existing.createdAt)) {
+        byVariant[job.variantIndex] = job;
+      }
+    }
+    return byVariant.values.toList()
+      ..sort((a, b) => a.variantIndex.compareTo(b.variantIndex));
+  });
+});
+
 /// Provider for active jobs count
 final activeJobsCountProvider = Provider<int>((ref) {
   final activeJobsAsync = ref.watch(activeJobsStreamProvider);
