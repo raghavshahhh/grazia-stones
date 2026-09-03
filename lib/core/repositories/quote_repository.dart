@@ -57,6 +57,20 @@ class QuoteRepository {
     }
 
     final res = await _sb.client.from('quote_requests').insert(data).select().single();
+
+    // Real notification for logged-in users (guests have no rows to read).
+    if (_userId != null) {
+      try {
+        await _sb.client.from('notifications').insert({
+          'user_id': _userId,
+          'title': 'Quote request received',
+          'body': 'We received your quote request for $stoneName. Our team will respond shortly.',
+          'type': 'quote',
+          'action_url': '/quotes',
+        });
+      } catch (_) {}
+    }
+
     return QuoteRequest.fromJson(res);
   }
 

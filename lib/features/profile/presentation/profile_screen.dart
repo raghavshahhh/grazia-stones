@@ -376,6 +376,13 @@ class ProfileScreen extends ConsumerWidget {
                   ),
                   _MenuItem(
                     palette: palette,
+                    icon: Icons.pending_actions_outlined,
+                    title: 'My Sample Requests',
+                    subtitle: 'Track swatch dispatch & delivery status',
+                    onTap: () => context.push('/samples'),
+                  ),
+                  _MenuItem(
+                    palette: palette,
                     icon: Icons.storefront_outlined,
                     title: 'Experience Centers & Showrooms',
                     subtitle: 'Find authorized Grazia partner dealers near you',

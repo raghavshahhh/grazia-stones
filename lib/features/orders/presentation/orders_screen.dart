@@ -170,7 +170,8 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> with SingleTickerPr
           ),
           const SizedBox(height: 24),
           ElevatedButton(
-            onPressed: () => context.go('/'),
+            // '/' is the splash route, not home.
+            onPressed: () => context.go('/home'),
             style: ElevatedButton.styleFrom(
               backgroundColor: palette.primary,
               foregroundColor: Colors.white,

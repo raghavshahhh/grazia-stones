@@ -36,6 +36,7 @@ import '../features/profile/presentation/edit_profile_screen.dart';
 import '../features/profile/presentation/addresses_screen.dart';
 import '../features/cart/presentation/checkout_screen.dart';
 import '../features/ai_viz/presentation/saved_designs_screen.dart';
+import '../features/samples/presentation/sample_history_screen.dart';
 import '../features/admin/presentation/admin_dashboard_screen.dart';
 import '../features/admin/presentation/admin_products_screen.dart';
 import '../features/admin/presentation/admin_product_edit_screen.dart';
@@ -370,6 +371,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
             _slideUpPage(const SavedDesignsScreen(), state),
+      ),
+      GoRoute(
+        path: '/samples',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const SampleHistoryScreen(), state),
       ),
 
       // --- Admin Portal Routes ---

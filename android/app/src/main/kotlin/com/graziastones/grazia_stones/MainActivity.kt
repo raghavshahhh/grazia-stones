@@ -19,7 +19,8 @@ class MainActivity : FlutterActivity() {
             ARCoreViewFactory(flutterEngine.dartExecutor.binaryMessenger)
         )
 
-        // Register ARCore method channel plugin
-        ARCorePlugin.registerWith(flutterEngine.plugins)
+        // Attach the ARCore method-channel plugin directly (v2 embedding
+        // style — the old static registerWith API no longer exists).
+        flutterEngine.plugins.add(ARCorePlugin())
     }
 }

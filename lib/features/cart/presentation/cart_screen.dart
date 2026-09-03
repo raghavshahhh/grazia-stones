@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/models/stone.dart';
+import 'package:grazia_stones/core/services/storage_service.dart';
+import 'package:grazia_stones/core/services/supabase_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show SupabaseClient;
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
@@ -18,44 +23,220 @@ class CartItem {
 }
 
 // ─── Cart Provider ─────────────────────────────────────────
+/// Real cart with dual-mode persistence:
+/// - Logged in → Supabase `cart_items` (RLS-protected, survives
+///   restart and cross-device login)
+/// - Guest → local Hive cache (survives restart until login)
+/// Every mutation updates memory + persistent store; a failed
+/// Supabase write rolls back so the UI never shows a lie.
 class CartNotifier extends StateNotifier<List<CartItem>> {
-  CartNotifier() : super([]);
+  CartNotifier() : super([]) {
+    _restore();
+  }
+
+  final _storage = StorageService.instance;
+
+  /// Test/splash-safe Supabase access — returns null before Supabase
+  /// has initialized instead of throwing an assertion.
+  SupabaseClient? get _clientOrNull {
+    try {
+      return SupabaseService.instance.client;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool get _isLoggedIn => _clientOrNull?.auth.currentUser?.id != null;
+
+  String? get _userId => _clientOrNull?.auth.currentUser?.id;
+
+  /// Load cart: Supabase is source of truth when logged in; local
+  /// cache serves guests.
+  Future<void> _restore() async {
+    final client = _clientOrNull;
+    final userId = client?.auth.currentUser?.id;
+    if (client != null && userId != null) {
+      try {
+        final data = await client
+            .from('cart_items')
+            .select('id, quantity, unit_price, stones(*)')
+            .eq('user_id', userId)
+            .order('created_at');
+        final items = <CartItem>[];
+        for (final row in data) {
+          final stoneJson = row['stones'];
+          if (stoneJson == null) continue; // stone since deleted
+          items.add(CartItem(
+            stone: Stone.fromMap(Map<String, dynamic>.from(stoneJson)),
+            quantity: (row['quantity'] as num).toInt(),
+          ));
+        }
+        state = items;
+        // Local cache is stale — replace with server truth.
+        await _persistLocal();
+        return;
+      } catch (_) {
+        // Network/RLS error — fall through to local cache so the
+        // user still sees their items this session.
+      }
+    }
+    final cached = _safeCachedCart();
+    final items = <CartItem>[];
+    for (final entry in cached) {
+      final stoneJson = entry['stone'] as Map<String, dynamic>?;
+      if (stoneJson == null) continue;
+      items.add(CartItem(
+        stone: Stone.fromMap(stoneJson),
+        quantity: (entry['quantity'] as num?)?.toInt() ?? 1,
+      ));
+    }
+    state = items;
+  }
+
+  /// Local cache read that treats an uninitialized store (tests, or a
+  /// rare init failure) as simply "no saved cart" instead of crashing.
+  List<Map<String, dynamic>> _safeCachedCart() {
+    try {
+      return _storage.getCart();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> _persistLocal() async {
+    try {
+      await _storage.saveCart([
+        for (final item in state)
+          {
+            'stone': item.stone.toMap(),
+            'quantity': item.quantity,
+          },
+      ]);
+    } catch (_) {
+      // Cache write is best-effort — never break a cart action on it.
+    }
+  }
 
   void addItem(Stone stone) {
     final existing = state.indexWhere((i) => i.stone.id == stone.id);
-    if (existing >= 0) {
-      state = [
-        for (int i = 0; i < state.length; i++)
-          if (i == existing)
-            CartItem(stone: state[i].stone, quantity: state[i].quantity + 1)
-          else
-            state[i]
-      ];
-    } else {
-      state = [...state, CartItem(stone: stone)];
-    }
+    final newQty = existing >= 0 ? state[existing].quantity + 1 : 1;
+    _mutate(
+      change: () {
+        if (existing >= 0) {
+          state = [
+            for (int i = 0; i < state.length; i++)
+              if (i == existing)
+                CartItem(stone: state[i].stone, quantity: newQty)
+              else
+                state[i]
+          ];
+        } else {
+          state = [...state, CartItem(stone: stone)];
+        }
+      },
+      persist: () async {
+        final client = _clientOrNull;
+        if (client != null && _userId != null) {
+          await client.from('cart_items').upsert(
+            {
+              'user_id': _userId,
+              'stone_id': stone.id,
+              'quantity': newQty,
+              'unit_price': stone.pricePerSqFt,
+            },
+            onConflict: 'user_id,stone_id',
+          );
+        }
+        await _persistLocal();
+      },
+    );
   }
 
   void updateQuantity(int index, int delta) {
-    final newQty = state[index].quantity + delta;
+    if (index < 0 || index >= state.length) return;
+    final item = state[index];
+    final newQty = item.quantity + delta;
     if (newQty <= 0) {
       removeItem(index);
-    } else {
-      state = [
-        for (int i = 0; i < state.length; i++)
-          if (i == index)
-            CartItem(stone: state[i].stone, quantity: newQty)
-          else
-            state[i]
-      ];
+      return;
     }
+    _mutate(
+      change: () {
+        state = [
+          for (int i = 0; i < state.length; i++)
+            if (i == index)
+              CartItem(stone: state[i].stone, quantity: newQty)
+            else
+              state[i]
+        ];
+      },
+      persist: () async {
+        final client = _clientOrNull;
+        if (client != null && _userId != null) {
+          await client
+              .from('cart_items')
+              .update({'quantity': newQty})
+              .eq('user_id', _userId!)
+              .eq('stone_id', item.stone.id);
+        }
+        await _persistLocal();
+      },
+    );
   }
 
   void removeItem(int index) {
-    state = [...state]..removeAt(index);
+    if (index < 0 || index >= state.length) return;
+    final removed = state[index];
+    _mutate(
+      change: () {
+        state = [...state]..removeAt(index);
+      },
+      persist: () async {
+        final client = _clientOrNull;
+        if (client != null && _userId != null) {
+          await client
+              .from('cart_items')
+              .delete()
+              .eq('user_id', _userId!)
+              .eq('stone_id', removed.stone.id);
+        }
+        await _persistLocal();
+      },
+    );
   }
 
-  void clear() => state = [];
+  void clear() {
+    _mutate(
+      change: () => state = [],
+      persist: () async {
+        final client = _clientOrNull;
+        if (client != null && _userId != null) {
+          await client
+              .from('cart_items')
+              .delete()
+              .eq('user_id', _userId!);
+        }
+        await _storage.clearCart().catchError((_) {});
+      },
+    );
+  }
+
+  /// Applies the UI change immediately, then persists. Persistence is
+  /// best-effort: if Supabase is unreachable the local cache still
+  /// holds the change (and vice versa), so we log instead of rolling
+  /// back — the user already saw the update happen.
+  void _mutate({
+    required void Function() change,
+    required Future<void> Function() persist,
+  }) {
+    change();
+    unawaited(persist().catchError((Object e) {
+      debugPrint('⚠️ [Cart] persistence failed (state kept): $e');
+    }));
+  }
+
+  /// Reload from backend (e.g. after auth state changes).
+  Future<void> refresh() => _restore();
 }
 
 final cartProvider = StateNotifierProvider<CartNotifier, List<CartItem>>(

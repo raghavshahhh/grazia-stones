@@ -145,13 +145,16 @@ void main() {
       stockQuantity: 50,
     );
 
-    test('Add, update quantity, remove, and financial totals', () {
+    test('Add, update quantity, remove, and financial totals', () async {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
       final notifier = container.read(cartProvider.notifier);
 
-      // Initial state
+      // The real notifier restores asynchronously (Supabase when logged
+      // in, local cache for guests). Wait for restore to settle before
+      // mutating so it can't race with these assertions.
+      await Future<void>.delayed(Duration.zero);
       expect(container.read(cartProvider), isEmpty);
 
       // Add item 1 twice
@@ -192,6 +195,11 @@ void main() {
 
       // Clear cart
       notifier.clear();
+      expect(container.read(cartProvider), isEmpty);
+
+      // Give the (best-effort) persistence callbacks a chance to run —
+      // they must never crash or roll back in the test environment.
+      await Future<void>.delayed(Duration.zero);
       expect(container.read(cartProvider), isEmpty);
     });
   });

@@ -34,27 +34,10 @@ class QuoteRiverpodState {
 class QuoteRiverpodNotifier extends StateNotifier<QuoteRiverpodState> {
   final QuoteRepository? _repo;
 
+  /// Starts empty — real quotes load via the repository (see
+  /// quotes_screen.dart's quotesProvider). Never seeded with demo rows.
   QuoteRiverpodNotifier([this._repo])
-      : super(QuoteRiverpodState(
-          quotes: [
-            QuoteRequest(
-              id: 'q1',
-              stoneName: 'Charcoal Black',
-              finish: 'Polished',
-              area: '450 sq ft',
-              status: 'Pending',
-              createdAt: DateTime.now().subtract(const Duration(days: 15)),
-            ),
-            QuoteRequest(
-              id: 'q2',
-              stoneName: 'Walnut Brown',
-              finish: 'Leathered',
-              area: '1200 sq ft',
-              status: 'Completed',
-              createdAt: DateTime.now().subtract(const Duration(days: 30)),
-            ),
-          ],
-        ));
+      : super(QuoteRiverpodState(quotes: []));
 
   void addQuote(QuoteRequest quote) {
     state = state.copyWith(quotes: [quote, ...state.quotes]);

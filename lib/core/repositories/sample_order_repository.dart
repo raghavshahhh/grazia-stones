@@ -62,6 +62,20 @@ class SampleOrderRepository {
     }
 
     final res = await _sb.client.from('sample_requests').insert(sampleData).select().single();
+
+    // Real notification for logged-in users (guests have no rows to read).
+    if (_userId != null) {
+      try {
+        await _sb.client.from('notifications').insert({
+          'user_id': _userId,
+          'title': 'Sample request received',
+          'body': 'Your ${sampleData['stone_name']} sample request is being prepared.',
+          'type': 'sample',
+          'action_url': '/samples',
+        });
+      } catch (_) {}
+    }
+
     return SampleOrder.fromJson(res);
   }
 }

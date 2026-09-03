@@ -6,6 +6,9 @@ import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/core/providers/stone_providers.dart';
+import 'package:grazia_stones/core/di.dart';
+import 'package:grazia_stones/core/models/quote_request.dart';
+import 'package:grazia_stones/core/repositories/quote_repository.dart';
 
 // ─── Quote Model ─────────────────────────────────────────
 class QuoteEntry {
@@ -26,38 +29,45 @@ class QuoteEntry {
     required this.status,
     required this.createdAt,
   });
+
+  factory QuoteEntry.fromRequest(QuoteRequest r) => QuoteEntry(
+    id: r.id,
+    stoneName: r.stoneName,
+    finish: r.finish,
+    area: r.area,
+    notes: r.notes,
+    status: r.status,
+    createdAt: r.createdAt,
+  );
 }
 
 // ─── Quote Riverpod ──────────────────────────────────────
+/// Real quotes from the `quote_requests` table via QuoteRepository.
+/// Guests (or load errors) get an honest empty list — never fabricated
+/// demo quotes.
 class QuoteNotifier extends StateNotifier<List<QuoteEntry>> {
-  QuoteNotifier()
-      : super([
-          QuoteEntry(
-            id: 'q001',
-            stoneName: 'Grande Ledge TA02',
-            finish: 'Natural',
-            area: '150 sq ft',
-            notes: 'For living room feature wall',
-            status: 'Pending',
-            createdAt: DateTime.now().subtract(const Duration(days: 2)),
-          ),
-          QuoteEntry(
-            id: 'q002',
-            stoneName: 'Classic Ledge 07',
-            finish: 'Polished',
-            area: '80 sq ft',
-            notes: '',
-            status: 'Completed',
-            createdAt: DateTime.now().subtract(const Duration(days: 7)),
-          ),
-        ]);
+  QuoteNotifier(this._repo) : super([]) {
+    load();
+  }
+
+  final QuoteRepository _repo;
+
+  Future<void> load() async {
+    try {
+      final requests = await _repo.getQuotes();
+      state = requests.map(QuoteEntry.fromRequest).toList();
+    } catch (_) {
+      // Not logged in / network error — keep whatever we have.
+    }
+  }
 
   void addQuote(QuoteEntry q) => state = [q, ...state];
 }
 
-final quotesProvider = StateNotifierProvider<QuoteNotifier, List<QuoteEntry>>(
-  (_) => QuoteNotifier(),
-);
+final quotesProvider =
+    StateNotifierProvider<QuoteNotifier, List<QuoteEntry>>((ref) {
+  return QuoteNotifier(ref.watch(quoteRepositoryProvider));
+});
 
 // ─── Quotes Screen ───────────────────────────────────────
 class QuotesScreen extends ConsumerStatefulWidget {

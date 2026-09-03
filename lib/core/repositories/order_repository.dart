@@ -117,6 +117,20 @@ class OrderRepository {
     // Clear cart after successful order
     await _sb.client.from('cart_items').delete().eq('user_id', _userId);
 
+    // Real notification so the user's bell shows a genuine update.
+    // Best-effort: an order must never fail because the notification
+    // insert hiccuped.
+    try {
+      await _sb.client.from('notifications').insert({
+        'user_id': _userId,
+        'title': 'Order $orderNum placed',
+        'body':
+            'We received your order for ${orderItems.length} item(s). Track it any time in Orders & Tracking.',
+        'type': 'order',
+        'action_url': '/orders',
+      });
+    } catch (_) {}
+
     return getOrderById(orderRes['id']);
   }
 
@@ -230,6 +244,21 @@ class OrderRepository {
       'area_sqft': areaSqft,
       'message': message,
     });
+
+    // Real notification for logged-in users so the bell shows the update.
+    final uid = _sb.currentUser?.id;
+    if (uid != null) {
+      try {
+        await _sb.client.from('notifications').insert({
+          'user_id': uid,
+          'title': 'Quote request received',
+          'body':
+              'We received your quote request for $stoneName. Our team will respond shortly.',
+          'type': 'quote',
+          'action_url': '/quotes',
+        });
+      } catch (_) {}
+    }
   }
 
   Future<List<Map<String, dynamic>>> getQuotes() async {

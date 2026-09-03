@@ -37,8 +37,12 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
         _error = null;
       });
 
-      final stoneRepo = ref.read(stoneRepositoryProvider);
-      final stones = await stoneRepo.getAllStones();
+      // Admin CMS listing: includes archived (active=false) products so
+      // they can be reviewed, restored, or permanently deleted. Public
+      // catalogue visibility is untouched — RLS still hides archived
+      // rows from normal users.
+      final adminRepo = ref.read(adminProductRepositoryProvider);
+      final stones = await adminRepo.getAllProductsAdmin();
 
       if (mounted) {
         setState(() {
@@ -78,6 +82,51 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
   }
 
   void _showDeleteDialog(Stone stone, LuxuryPalette palette) {
+    // Archived products get a restore path — soft delete was a one-way
+    // trap before (archived rows vanished from the CMS with no way back).
+    if (!stone.isActive) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: palette.surface,
+          title: Text('Archived Stone', style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: palette.textPrimary)),
+          content: Text('"${stone.name}" is hidden from the catalogue. Restore it to make it live again, or delete it permanently.',
+              style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 13)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Cancel', style: TextStyle(color: palette.textSecondary)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: palette.primary, foregroundColor: Colors.white),
+              onPressed: () async {
+                Navigator.pop(ctx);
+                try {
+                  await ref.read(adminProductRepositoryProvider).restoreProduct(stone.id);
+                  if (mounted) {
+                    showSuccessSnackbar(context, '${stone.name} restored to the catalogue');
+                    _loadStones();
+                  }
+                } catch (e) {
+                  if (mounted) showErrorSnackbar(context, e);
+                }
+              },
+              child: const Text('Restore'),
+            ),
+            TextButton(
+              style: TextButton.styleFrom(foregroundColor: Colors.red.shade600),
+              onPressed: () {
+                Navigator.pop(ctx);
+                _deleteStone(stone.id, permanent: true);
+              },
+              child: const Text('Delete Forever'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -246,19 +295,47 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
           ),
           const SizedBox(width: 14),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  stone.name,
-                  style: GoogleFonts.playfairDisplay(
-                    color: palette.textPrimary,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          stone.name,
+                          style: GoogleFonts.playfairDisplay(
+                            color: stone.isActive
+                                ? palette.textPrimary
+                                : palette.textTertiary,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (!stone.isActive) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade700.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.orange.shade700.withValues(alpha: 0.4)),
+                          ),
+                          child: Text(
+                            'ARCHIVED',
+                            style: GoogleFonts.inter(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.orange.shade700,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
                 const SizedBox(height: 2),
                 Text(
                   '${stone.collection} • ${stone.category}',

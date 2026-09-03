@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>RAGSPRO — Milestone Update & Payment Request — Grazia Stones</title>
+<style>
+  @page {
+    size: A4;
+    margin: 1.6cm 1.8cm 1.8cm 1.8cm;
+    @top-center {
+      content: "RAGSPRO • Grazia Stones — Milestone Update & Payment Request";
+      font-size: 8pt; color: #9a8a6a; font-family: Helvetica, Arial, sans-serif;
+      border-bottom: 0.5pt solid #e8e0d0; padding-bottom: 6pt;
+    }
+    @bottom-center {
+      content: "RAGSPRO | ragspro.com | raghav@ragspro.com — Page " counter(page) " of " counter(pages);
+      font-size: 8pt; color: #9a8a6a; font-family: Helvetica, Arial, sans-serif;
+      border-top: 0.5pt solid #e8e0d0; padding-top: 6pt;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { font-family: Helvetica, Arial, sans-serif; color: #2a2420; font-size: 10pt; line-height: 1.5; margin: 0; }
+
+  .letterhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16pt; padding-bottom: 12pt; border-bottom: 2pt solid #1c1712; }
+  .letterhead .brand-text h1 { font-size: 14pt; margin: 0; letter-spacing: 1pt; color: #1c1712; }
+  .letterhead .brand-text p { font-size: 8pt; margin: 2pt 0 0; color: #8a7a5a; letter-spacing: 1.5pt; text-transform: uppercase; }
+  .letterhead .doc-tag { text-align: right; }
+  .letterhead .doc-tag h2 { font-size: 16pt; margin: 0; color: #c9a35a; letter-spacing: 1pt; }
+  .letterhead .doc-tag p { font-size: 8.5pt; margin: 2pt 0 0; color: #6a5c40; }
+
+  .meta-grid { display: flex; justify-content: space-between; margin-bottom: 16pt; gap: 20pt; }
+  .meta-col h3 { font-size: 8pt; letter-spacing: 1.5pt; text-transform: uppercase; color: #9a8a6a; margin: 0 0 5pt; }
+  .meta-col p { margin: 0 0 2pt; font-size: 9.5pt; }
+  .meta-col p.name { font-weight: 700; font-size: 10.5pt; }
+
+  h3.section-title { font-size: 12.5pt; color: #1c1712; border-left: 4pt solid #c9a35a; padding-left: 10pt; margin: 22pt 0 8pt; break-after: avoid; }
+
+  p { font-size: 9.8pt; color: #3a322a; }
+
+  ul.workscope { list-style: none; margin: 8pt 0; padding: 0; }
+  ul.workscope li { padding: 8pt 0 8pt 22pt; border-bottom: 0.5pt solid #eee2ca; position: relative; font-size: 9.8pt; }
+  ul.workscope li:before { content: "→"; position: absolute; left: 0; color: #c9a35a; font-weight: bold; }
+  ul.workscope li strong { color: #1c1712; }
+
+  table.status { width: 100%; border-collapse: collapse; margin: 8pt 0 4pt; }
+  table.status th { background: #1c1712; color: #f3ead9; text-align: left; padding: 7pt 10pt; font-size: 8.5pt; letter-spacing: 0.5pt; }
+  table.status td { padding: 8pt 10pt; border-bottom: 0.5pt solid #eee2ca; font-size: 9.3pt; vertical-align: top; }
+  table.status td.amt { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  table.status tr.current { background: #faf6ec; }
+  table.status tr.current td { font-weight: 700; }
+
+  .paid-tag { display: inline-block; background: #eaf6ea; color: #1e5c22; font-size: 7.5pt; font-weight: 700; padding: 1.5pt 7pt; border-radius: 10pt; margin-left: 6pt; }
+  .due-tag { display: inline-block; background: #fdecea; color: #b8261f; font-size: 7.5pt; font-weight: 700; padding: 1.5pt 7pt; border-radius: 10pt; margin-left: 6pt; }
+
+  .ask-box { background: #1c1712; color: #f3ead9; border-radius: 8pt; padding: 16pt 20pt; margin: 16pt 0; text-align: center; }
+  .ask-box .label { font-size: 8.5pt; letter-spacing: 1.5pt; text-transform: uppercase; color: #c9a35a; margin-bottom: 4pt; }
+  .ask-box .amount { font-size: 26pt; font-weight: 700; margin: 4pt 0; }
+  .ask-box .sub { font-size: 8.8pt; color: #cfc3a8; }
+
+  .summary table { width: 100%; border-collapse: collapse; }
+  .summary td { padding: 5pt 0; font-size: 9.5pt; border-bottom: 0.5pt solid #eee2ca; }
+  .summary td.label { color: #6a5c40; }
+  .summary td.val { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .summary tr.total td { border-top: 1.5pt solid #1c1712; border-bottom: none; font-weight: 700; font-size: 11pt; padding-top: 8pt; }
+
+  .note { font-size: 8.6pt; color: #6a5c40; font-style: italic; margin-top: 4pt; }
+</style>
+</head>
+<body>
+
+  <div class="letterhead">
+    <div class="brand-text">
+      <h1>RAGSPRO</h1>
+      <p>Digital Solutions</p>
+    </div>
+    <div class="doc-tag">
+      <h2>MILESTONE UPDATE</h2>
+      <p>Project Ref: GRAZIA-AI-AR-2026-08</p>
+    </div>
+  </div>
+
+  <div class="meta-grid">
+    <div class="meta-col">
+      <h3>Prepared For</h3>
+      <p class="name">Grazia Stones</p>
+      <p>Kanpur, Uttar Pradesh</p>
+    </div>
+    <div class="meta-col">
+      <h3>Prepared By</h3>
+      <p class="name">RAGSPRO Digital Solutions</p>
+      <p>Raghav Shah (Founder)</p>
+      <p>raghav@ragspro.com &nbsp;|&nbsp; +91 87000 48490</p>
+    </div>
+    <div class="meta-col">
+      <h3>Date</h3>
+      <p>01 September 2026</p>
+      <p>AI Smart Estimator — App</p>
+    </div>
+  </div>
+
+  <p>This note covers where the Grazia Stones AI Smart Estimator build stands right now, what's happening in the next phase, and the payment needed to move into it — as per the milestone schedule in the signed Service Agreement.</p>
+
+  <h3 class="section-title">What Happens Next</h3>
+  <p>With the foundation (backend, admin panel, AI/AR engine) already built, the next phase moves the app from a working demo to a store-ready product using your real catalogue:</p>
+  <ul class="workscope">
+    <li><strong>Real Product Listings</strong> — loading your actual stone/tile catalogue (names, categories, pricing, photos) into the Admin Panel, replacing placeholder data.</li>
+    <li><strong>AI/AR Fine-Tuning on Real Products</strong> — calibrating the AI wall visualization and AR tile placement against your actual product images and dimensions, not sample data — this is what makes the preview look right for your specific stones/tiles.</li>
+    <li><strong>Deployment</strong> — moving the fine-tuned build onto the live backend/server so it runs as a real, working product rather than a local demo.</li>
+    <li><strong>Testing</strong> — full QA pass on Android and iPhone: AI visualization accuracy, AR placement, cost estimator, PDF quote generation, and checkout.</li>
+  </ul>
+
+  <h3 class="section-title">Payment Status — Deal Locked at ₹1,40,000</h3>
+  <table class="status">
+    <tr><th>Milestone</th><th style="text-align:right;">Amount</th><th style="text-align:right;">Status</th></tr>
+    <tr>
+      <td>Milestone 1 — Advance</td>
+      <td class="amt">₹25,000</td>
+      <td class="amt"><span class="paid-tag">RECEIVED</span></td>
+    </tr>
+    <tr class="current">
+      <td>Milestone 2 — Midway (AI/AR module demo — this phase)</td>
+      <td class="amt">₹50,000</td>
+      <td class="amt"><span class="due-tag">DUE NOW</span></td>
+    </tr>
+    <tr>
+      <td>Milestone 3 — Delivery (after deployment, before store publish)</td>
+      <td class="amt">₹65,000</td>
+      <td class="amt">Not yet due</td>
+    </tr>
+  </table>
+  <p class="note">These three milestones total ₹1,40,000 exactly. No other item is included in or deducted from this figure.</p>
+
+  <div class="ask-box">
+    <div class="label">Requesting Now — Milestone 2</div>
+    <div class="amount">₹50,000</div>
+    <div class="sub">Toward core development: product listings, AI/AR fine-tuning, deployment, and testing</div>
+  </div>
+
+  <h3 class="section-title">Balance After This Payment (Core Development Only)</h3>
+  <div class="summary">
+    <table>
+      <tr><td class="label">Total Development Value (deal locked, excl. GST)</td><td class="val">₹1,40,000</td></tr>
+      <tr><td class="label">Received to date (Milestone 1)</td><td class="val">₹25,000</td></tr>
+      <tr><td class="label">This payment request (Milestone 2)</td><td class="val">₹50,000</td></tr>
+      <tr class="total"><td class="label">Balance Remaining (Milestone 3, on delivery)</td><td class="val">₹65,000</td></tr>
+    </table>
+  </div>
+  <p class="note">Payment mode: UPI (raghav@ragspro) / NEFT / RTGS. GST charged extra @ 18% if applicable.</p>
+
+  <h3 class="section-title">Third-Party &amp; Operational Costs — Separate, Not Part of ₹1,40,000</h3>
+  <p>These are platform/API costs, not RAGSPRO's development fee. Kept fully separate so the ₹1,40,000 above stays purely for development work.</p>
+  <table class="status">
+    <tr><th>Item</th><th style="text-align:right;">Cost</th><th style="text-align:right;">Status</th></tr>
+    <tr class="current">
+      <td>Google Play Console + Apple Developer Program (App Store Connect) setup <em>(one-time, both platforms, RAGSPRO handles registration)</em></td>
+      <td class="amt">₹15,000</td>
+      <td class="amt"><span class="due-tag">DUE NOW</span></td>
+    </tr>
+    <tr>
+      <td>Google Gemini API — AI Visualization usage <em>(billed directly to your own Google account, not collected by RAGSPRO)</em></td>
+      <td class="amt">₹3,000–₹7,000<br>/ month</td>
+      <td class="amt">Starts once app is live</td>
+    </tr>
+  </table>
+  <p class="note">Gemini cost is usage-based (you pay only for what customers actually use) and is separate from both the ₹1,40,000 development fee and the ₹15,000 console setup — Google bills your account directly.</p>
+
+  <div class="ask-box">
+    <div class="label">Total to Send Now</div>
+    <div class="amount">₹65,000</div>
+    <div class="sub">₹50,000 Milestone 2 (development) + ₹15,000 console setup (separate, not counted against the ₹1,40,000)</div>
+  </div>
+
+  <h3 class="section-title">Optional Add-Ons — Available on Request</h3>
+  <p>Not part of the ₹1,40,000 core build. These are proven upgrades other clients ask for once the base app is live — happy to scope any of these separately, only if you want them:</p>
+  <ul class="workscope">
+    <li><strong>Multi-Language Support (Hindi + regional)</strong> — Wider reach for customers who prefer browsing/estimating in their own language. <em>~₹8,000–₹12,000</em></li>
+    <li><strong>WhatsApp Auto Lead Follow-Up</strong> — Every new lead automatically gets a WhatsApp message with their quote, no manual follow-up needed. <em>~₹10,000–₹15,000</em></li>
+    <li><strong>Web Version of the AI Estimator</strong> — Same visualizer usable from a browser link, no app install, great for sharing with dealers/architects. <em>~₹20,000–₹30,000</em></li>
+    <li><strong>Sales Analytics Dashboard</strong> — See which designs get viewed/quoted most, dealer-wise performance, conversion trends. <em>~₹12,000–₹18,000</em></li>
+    <li><strong>Loyalty &amp; Push Notification Campaigns</strong> — Repeat-customer rewards plus targeted push offers for new designs/sales. <em>~₹10,000–₹15,000</em></li>
+  </ul>
+
+</body>
+</html>

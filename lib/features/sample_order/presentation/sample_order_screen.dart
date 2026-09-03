@@ -90,10 +90,16 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
     HapticFeedback.mediumImpact();
 
     try {
-      final orderRepo = ref.read(orderRepositoryProvider);
-      
+      // Sample requests go to the `sample_requests` table — the same
+      // table the Admin Samples dashboard reads. (They previously
+      // went to `orders` with is_sample=true, which admin never saw.)
+      final sampleRepo = ref.read(sampleOrderRepositoryProvider);
+
+      // Resolve names so the admin dashboard and notification show the
+      // actual product, not a generic fallback label.
       for (final stoneId in _selectedStones) {
-        await orderRepo.requestSample(
+        final stone = _stones.where((s) => s.id == stoneId).firstOrNull;
+        await sampleRepo.requestSample(
           stoneId: stoneId,
           name: _nameController.text,
           phone: _phoneController.text,
@@ -101,6 +107,7 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
           city: _cityController.text,
           pincode: _pincodeController.text,
           notes: _notesController.text.isNotEmpty ? _notesController.text : null,
+          stoneName: stone?.name,
         );
       }
       

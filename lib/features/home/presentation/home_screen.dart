@@ -17,6 +17,7 @@ import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 import 'package:grazia_stones/shared/widgets/grazia_logo.dart';
 import 'package:grazia_stones/features/cart/presentation/cart_screen.dart';
 import 'package:grazia_stones/features/wishlist/providers/wishlist_provider.dart';
+import 'package:grazia_stones/core/repositories/notification_repository.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -1754,15 +1755,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _showNotificationsSheet(BuildContext context, LuxuryPalette palette) {
-    final notifications = [
-      {'title': 'Welcome to Grazia Stones', 'subtitle': 'Discover our luxury natural stone surfaces & 3D panels', 'time': 'Just now', 'icon': Icons.diamond_outlined, 'category': 'General'},
-      {'title': 'New Collection Arrived', 'subtitle': 'Explore the Royal Heritage Marble Series catalogue', 'time': '2h ago', 'icon': Icons.auto_awesome_outlined, 'category': 'Collection'},
-      {'title': 'Sample Order Confirmed', 'subtitle': 'Your swatch sample box #GS-8821 is being prepared', 'time': '1d ago', 'icon': Icons.inventory_2_outlined, 'category': 'Orders'},
-      {'title': 'Exclusive Architectural Discount', 'subtitle': 'Get 12% off on orders above 500 sqft this month', 'time': '2d ago', 'icon': Icons.local_offer_outlined, 'category': 'Offers'},
-      {'title': 'AI Studio Visualization Ready', 'subtitle': 'Your living room wall design rendering is ready to view', 'time': '3d ago', 'icon': Icons.auto_awesome_rounded, 'category': 'AI'},
-      {'title': 'Kanpur Headquarters Opening', 'subtitle': 'Visit our experience showroom in Kanpur today', 'time': '5d ago', 'icon': Icons.storefront_outlined, 'category': 'General'},
-    ];
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1813,20 +1805,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         color: palette.textPrimary,
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: GLuxuryPalettes.gold.primary.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '${notifications.length} New',
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: GLuxuryPalettes.gold.primary,
-                        ),
-                      ),
+                    FutureBuilder<int>(
+                      future: notificationRepositoryProvider.getUnreadCount(),
+                      builder: (context, snapshot) {
+                        final unread = snapshot.data ?? 0;
+                        if (unread == 0) return const SizedBox.shrink();
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: GLuxuryPalettes.gold.primary.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '$unread New',
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: GLuxuryPalettes.gold.primary,
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -1834,73 +1833,118 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               const SizedBox(height: 14),
               const Divider(height: 1),
 
-              // Notification List View
+              // Real notifications from Supabase — never fabricated
               Expanded(
-                child: ListView.builder(
-                  controller: scrollController,
-                  padding: const EdgeInsets.all(18),
-                  itemCount: notifications.length,
-                  itemBuilder: (context, index) {
-                    final n = notifications[index];
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: palette.surface,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: palette.border, width: 0.8),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: GLuxuryPalettes.gold.primary.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(12),
+                child: FutureBuilder<List<AppNotification>>(
+                  future: notificationRepositoryProvider.getNotifications(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    final notifications = snapshot.data ?? [];
+                    if (notifications.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.notifications_none_rounded,
+                                size: 44, color: palette.textTertiary),
+                            const SizedBox(height: 12),
+                            Text(
+                              'No notifications yet',
+                              style: GLuxuryTypography.bodyMedium.copyWith(
+                                color: palette.textPrimary,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
-                            child: Icon(n['icon'] as IconData, color: GLuxuryPalettes.gold.primary, size: 20),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Order, quote and sample updates will appear here.',
+                              style: GLuxuryTypography.bodySmall.copyWith(
+                                color: palette.textSecondary,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    return ListView.builder(
+                      controller: scrollController,
+                      padding: const EdgeInsets.all(18),
+                      itemCount: notifications.length,
+                      itemBuilder: (context, index) {
+                        final n = notifications[index];
+                        final icon = switch (n.type) {
+                          'order' => Icons.inventory_2_outlined,
+                          'quote' => Icons.request_quote_outlined,
+                          'sample' => Icons.inventory_outlined,
+                          'success' => Icons.check_circle_outline,
+                          'warning' => Icons.warning_amber_outlined,
+                          _ => Icons.diamond_outlined,
+                        };
+                        final timeLabel = _formatNotificationTime(n.createdAt);
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: palette.surface,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: palette.border, width: 0.8),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: GLuxuryPalettes.gold.primary.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Icon(icon, color: GLuxuryPalettes.gold.primary, size: 20),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Expanded(
-                                      child: Text(
-                                        n['title'] as String,
-                                        style: GLuxuryTypography.bodyMedium.copyWith(
-                                          color: palette.textPrimary,
-                                          fontWeight: FontWeight.w700,
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            n.title,
+                                            style: GLuxuryTypography.bodyMedium.copyWith(
+                                              color: palette.textPrimary,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
                                         ),
-                                      ),
+                                        Text(
+                                          timeLabel,
+                                          style: GoogleFonts.inter(
+                                            fontSize: 10.5,
+                                            color: palette.textTertiary,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
                                     ),
+                                    const SizedBox(height: 4),
                                     Text(
-                                      n['time'] as String,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 10.5,
-                                        color: palette.textTertiary,
-                                        fontWeight: FontWeight.w500,
+                                      n.body,
+                                      style: GLuxuryTypography.bodySmall.copyWith(
+                                        color: palette.textSecondary,
+                                        height: 1.3,
                                       ),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  n['subtitle'] as String,
-                                  style: GLuxuryTypography.bodySmall.copyWith(
-                                    color: palette.textSecondary,
-                                    height: 1.3,
-                                  ),
-                                ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        );
+                      },
                     );
                   },
                 ),
@@ -1910,6 +1954,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
       ),
     );
+  }
+
+  String _formatNotificationTime(DateTime createdAt) {
+    final diff = DateTime.now().difference(createdAt);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    return '${createdAt.day}/${createdAt.month}/${createdAt.year}';
   }
 }
 

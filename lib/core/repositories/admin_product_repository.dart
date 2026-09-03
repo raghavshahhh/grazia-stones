@@ -353,6 +353,41 @@ class AdminProductRepository {
   // ANALYTICS
   // ═══════════════════════════════════════════════════════════════════════
 
+  /// Get ALL products for the admin CMS — including archived
+  /// (active=false) rows. The public catalogue filters active-only;
+  /// admins must still see archived products so they can restore or
+  /// permanently delete them. RLS "Admins can manage stones" (FOR ALL)
+  /// authorizes admin sessions to read every row.
+  Future<List<Stone>> getAllProductsAdmin({String? search}) async {
+    _verifyAdmin();
+
+    return await _executeWithRetry(() async {
+      var query = _sb.client
+          .from('stones')
+          .select('*, collections(name, slug)');
+      if (search != null && search.isNotEmpty) {
+        query = query.or(
+            'name.ilike.%$search%,product_code.ilike.%$search%');
+      }
+      final data =
+          await query.order('updated_at', ascending: false).limit(1000);
+      return data.map((j) => _stoneFromRow(j as Map<String, dynamic>)).toList();
+    });
+  }
+
+  /// Restore a soft-deleted (archived) product to the live catalogue.
+  Future<void> restoreProduct(String stoneId) async {
+    _verifyAdmin();
+
+    await _executeWithRetry(() async {
+      await _sb.client
+          .from('stones')
+          .update({'active': true, 'updated_at': DateTime.now().toIso8601String()})
+          .eq('id', stoneId);
+      debugPrint('✅ Product restored: $stoneId');
+    });
+  }
+
   /// Get product count
   Future<int> getProductCount({bool activeOnly = false}) async {
     return await _executeWithRetry(() async {

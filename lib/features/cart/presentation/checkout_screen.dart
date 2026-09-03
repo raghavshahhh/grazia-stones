@@ -4,8 +4,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/di.dart';
-import 'package:grazia_stones/core/services/payment_service.dart';
-import 'package:grazia_stones/core/services/supabase_service.dart';
 import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
@@ -34,7 +32,8 @@ class CheckoutScreen extends ConsumerStatefulWidget {
 
 class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   int _selectedAddressIndex = 0;
-  String _selectedPaymentMethod = 'razorpay';
+  // Online payment is disabled for this client — orders are settled offline.
+  String _selectedPaymentMethod = 'cod';
   final _couponController = TextEditingController();
   bool _isApplyingCoupon = false;
   bool _isProcessing = false;
@@ -159,9 +158,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
       final addr = _addresses[_selectedAddressIndex.clamp(0, _addresses.length - 1)];
 
-      // Compute the exact amounts the UI is showing (and Razorpay will
-      // charge) once, from one source of truth, so the persisted order
-      // can never diverge from the charged total.
+      // Compute the exact amounts the UI is showing once, from one source of
+      // truth, so the persisted order can never diverge from what the customer
+      // was quoted.
       final calcSubtotal = currentItems.fold<double>(0.0, (s, i) => s + i.price * i.quantity);
       final calcGst = calcSubtotal * 0.18;
       final calcShipping = calcSubtotal > 10000 ? 0.0 : (calcSubtotal > 0 ? 500.0 : 0.0);
@@ -189,62 +188,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         total: effectiveTotal,
       );
 
-      if (_selectedPaymentMethod == 'razorpay') {
-        final paymentResult = await orderRepo.initiatePayment(
-          orderId: order.id,
-          paymentMethod: 'razorpay',
-        );
-
-        final paymentService = PaymentService.instance;
-
-        await paymentService.openCheckout(
-          amount: effectiveTotal,
-          orderId: paymentResult['razorpay_order_id'] ?? order.id,
-          name: addr['name']?.toString() ?? 'Client',
-          description: 'Grazia Stones Order Payment',
-          email: SupabaseService.instance.currentUser?.email ?? 'guest@graziastones.com',
-          contact: addr['phone']?.toString() ?? '',
-          onSuccess: (response) async {
-            try {
-              await orderRepo.verifyPayment(
-                orderId: order.id,
-                paymentId: response.paymentId ?? '',
-                signature: response.signature ?? '',
-              );
-
-              if (mounted) {
-                setState(() => _isProcessing = false);
-                cartNotifier.clear();
-                _showSuccessDialog(order.id);
-              }
-            } catch (e) {
-              if (mounted) {
-                setState(() => _isProcessing = false);
-                showErrorSnackbar(context, Exception('Payment verification failed'));
-              }
-            }
-          },
-          onError: (response) async {
-            await orderRepo.paymentFailed(
-              orderId: order.id,
-              reason: response.message ?? 'Payment failed',
-            );
-
-            if (mounted) {
-              setState(() => _isProcessing = false);
-              showErrorSnackbar(
-                context,
-                Exception('Payment failed: ${response.message}'),
-              );
-            }
-          },
-        );
-      } else {
-        if (mounted) {
-          setState(() => _isProcessing = false);
-          cartNotifier.clear();
-          _showSuccessDialog(order.id);
-        }
+      // No online payment gateway for this client — the order is recorded and
+      // settled offline after site verification.
+      if (mounted) {
+        setState(() => _isProcessing = false);
+        cartNotifier.clear();
+        _showSuccessDialog(order.id);
       }
     } catch (e) {
       if (mounted) {
@@ -374,7 +323,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                     child: ElevatedButton(
                       onPressed: () {
                         Navigator.pop(context);
-                        context.go('/');
+                        // '/' is the splash route — go to home directly so the
+                        // brand animation isn't replayed after every order.
+                        context.go('/home');
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: palette.primary,
@@ -555,11 +506,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
             const SizedBox(height: 24),
 
-            // Payment Method
+            // Payment Method — online payment (Razorpay) is intentionally not
+            // offered: the client settles offline after site verification.
             _buildSectionTitle('PAYMENT SELECTION', palette),
             const SizedBox(height: 10),
-            _buildPaymentMethod(palette, 'razorpay', 'Razorpay (UPI, NetBanking, Cards)', Icons.account_balance_wallet_outlined),
-            _buildPaymentMethod(palette, 'cod', 'Cash on Delivery (Site Verification)', Icons.payments_outlined),
+            _buildPaymentMethod(palette, 'cod', 'Pay on Site (after verification)', Icons.payments_outlined),
 
             const SizedBox(height: 24),
 

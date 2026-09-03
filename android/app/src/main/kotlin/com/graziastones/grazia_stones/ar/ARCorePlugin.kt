@@ -1,8 +1,6 @@
 package com.graziastones.grazia_stones.ar
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.util.Log
 import androidx.annotation.NonNull
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -17,7 +15,6 @@ import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.StandardMessageCodec
 import io.flutter.plugin.platform.PlatformView
 import io.flutter.plugin.platform.PlatformViewFactory
-import io.flutter.view.FlutterView
 
 /**
  * ARCore Flutter Plugin - Handles method channel and platform view for ARCore
@@ -29,8 +26,6 @@ class ARCorePlugin : FlutterPlugin, MethodCallHandler, StreamHandler {
     private var eventSink: EventSink? = null
     private var context: Context? = null
     private var arCoreManager: ARCoreManager? = null
-    private var sceneView: com.google.ar.sceneform.SceneView? = null
-    private var previewView: androidx.camera.view.PreviewView? = null
 
     override fun onAttachedToEngine(@NonNull binding: FlutterPlugin.FlutterPluginBinding) {
         context = binding.applicationContext
@@ -239,7 +234,13 @@ class ARCoreViewFactory(private val binaryMessenger: BinaryMessenger) : Platform
 }
 
 /**
- * ARCore Platform View - wraps SceneView and PreviewView
+ * ARCore Platform View — placeholder container.
+ *
+ * Native Android AR rendering is not implemented (see ARCoreManager for
+ * the honest capability report); the Flutter side routes Android to its
+ * real web-camera AR engine instead of embedding this view. The factory
+ * stays registered so the view type resolves without crashing if it is
+ * ever requested.
  */
 class ARCorePlatformView(
     private val context: Context,
@@ -248,40 +249,19 @@ class ARCorePlatformView(
 ) : PlatformView {
 
     private val frameLayout = android.widget.FrameLayout(context)
-    private val sceneView = com.google.ar.sceneform.SceneView(context)
-    private val previewView = androidx.camera.view.PreviewView(context)
-    private val arCoreManager = ARCoreManager.getInstance(context)
 
     init {
-        // Setup layout
         frameLayout.layoutParams = android.widget.FrameLayout.LayoutParams(
             android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
             android.widget.FrameLayout.LayoutParams.MATCH_PARENT
         )
-
-        previewView.layoutParams = android.widget.FrameLayout.LayoutParams(
-            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-            android.widget.FrameLayout.LayoutParams.MATCH_PARENT
-        )
-        previewView.scaleType = androidx.camera.view.PreviewView.ScaleType.FILL_CENTER
-
-        sceneView.layoutParams = android.widget.FrameLayout.LayoutParams(
-            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-            android.widget.FrameLayout.LayoutParams.MATCH_PARENT
-        )
-
-        frameLayout.addView(previewView)
-        frameLayout.addView(sceneView)
-
-        // Initialize ARCore
-        arCoreManager.initialize(previewView, sceneView)
     }
 
-    override fun view(): android.view.View {
+    override fun getView(): android.view.View? {
         return frameLayout
     }
 
     override fun dispose() {
-        arCoreManager.destroy()
+        // Nothing to tear down — no native session is ever started.
     }
 }

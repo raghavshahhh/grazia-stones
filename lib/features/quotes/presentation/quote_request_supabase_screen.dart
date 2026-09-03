@@ -9,6 +9,7 @@ import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
+import 'package:grazia_stones/features/quotes/presentation/quotes_screen.dart' show quotesProvider;
 
 /// Comprehensive quote request screen with Supabase backend persistence
 /// 
@@ -199,6 +200,9 @@ Additional Notes: ${_notesController.text.trim()}
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context); // Close dialog
+              // Refresh the real quotes list so this request appears
+              // immediately on the Quotes screen.
+              ref.read(quotesProvider.notifier).load();
               context.pop(); // Close quote screen
             },
             style: ElevatedButton.styleFrom(

@@ -70,19 +70,13 @@ PODS:
     - libwebp/sharpyuv
   - package_info_plus (0.4.5):
     - Flutter
-  - permission_handler_apple (9.1.1):
+  - permission_handler_apple (9.4.8):
     - Flutter
   - printing (1.0.0):
     - Flutter
   - PromisesObjC (2.4.1)
   - PromisesSwift (2.4.1):
     - PromisesObjC (= 2.4.1)
-  - razorpay-core-pod (1.0.9)
-  - razorpay-pod (1.5.8):
-    - razorpay-core-pod (= 1.0.9)
-  - razorpay_flutter (1.1.10):
-    - Flutter
-    - razorpay-pod
   - RecaptchaInterop (101.0.0)
   - SDWebImage (5.21.7):
     - SDWebImage/Core (= 5.21.7)
@@ -100,6 +94,9 @@ PODS:
     - FlutterMacOS
   - url_launcher_ios (0.0.1):
     - Flutter
+  - video_player_avfoundation (0.0.1):
+    - Flutter
+    - FlutterMacOS
 
 DEPENDENCIES:
   - app_links (from `.symlinks/plugins/app_links/ios`)
@@ -114,11 +111,11 @@ DEPENDENCIES:
   - package_info_plus (from `.symlinks/plugins/package_info_plus/ios`)
   - permission_handler_apple (from `.symlinks/plugins/permission_handler_apple/ios`)
   - printing (from `.symlinks/plugins/printing/ios`)
-  - razorpay_flutter (from `.symlinks/plugins/razorpay_flutter/ios`)
   - share_plus (from `.symlinks/plugins/share_plus/ios`)
   - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
   - sqflite_darwin (from `.symlinks/plugins/sqflite_darwin/darwin`)
   - url_launcher_ios (from `.symlinks/plugins/url_launcher_ios/ios`)
+  - video_player_avfoundation (from `.symlinks/plugins/video_player_avfoundation/darwin`)
 
 SPEC REPOS:
   trunk:
@@ -131,8 +128,6 @@ SPEC REPOS:
     - libwebp
     - PromisesObjC
     - PromisesSwift
-    - razorpay-core-pod
-    - razorpay-pod
     - RecaptchaInterop
     - SDWebImage
     - SDWebImageWebPCoder
@@ -162,8 +157,6 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/permission_handler_apple/ios"
   printing:
     :path: ".symlinks/plugins/printing/ios"
-  razorpay_flutter:
-    :path: ".symlinks/plugins/razorpay_flutter/ios"
   share_plus:
     :path: ".symlinks/plugins/share_plus/ios"
   shared_preferences_foundation:
@@ -172,6 +165,8 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/sqflite_darwin/darwin"
   url_launcher_ios:
     :path: ".symlinks/plugins/url_launcher_ios/ios"
+  video_player_avfoundation:
+    :path: ".symlinks/plugins/video_player_avfoundation/darwin"
 
 SPEC CHECKSUMS:
   app_links: a754cbec3c255bd4bbb4d236ecc06f28cd9a7ce8
@@ -191,13 +186,10 @@ SPEC CHECKSUMS:
   integration_test: 4a889634ef21a45d28d50d622cf412dc6d9f586e
   libwebp: af5937a13536ef73f3784d69cc342b98961acf33
   package_info_plus: af8e2ca6888548050f16fa2f1938db7b5a5df499
-  permission_handler_apple: 3787117e48f80715ff04a3830ca039283d6a4f29
+  permission_handler_apple: 92d754bbaa7361d436db2d6c3c1c2a0fdcec462e
   printing: a8960104e6c1a2b4bd3483a2f79c69be60830d08
   PromisesObjC: 752c3227f599e3467650e47ea36f433eeb10c273
   PromisesSwift: 217dea0fd5d2ad65222a109c48698add13cc1c5b
-  razorpay-core-pod: 7ecea8ed3c47751e6a958f6c88126ea068f8c8fc
-  razorpay-pod: 3fc296eacb28a059c55144286ea7c04d33d894f5
-  razorpay_flutter: 0e98e4fcaae27ad50e011d85f66d85e0a008754a
   RecaptchaInterop: 11e0b637842dfb48308d242afc3f448062325aba
   SDWebImage: e9fc87c1aab89a8ab1bbd74eba378c6f53be8abf
   SDWebImageWebPCoder: 0e06e365080397465cc73a7a9b472d8a3bd0f377
@@ -205,6 +197,7 @@ SPEC CHECKSUMS:
   shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb
   sqflite_darwin: 20b2a3a3b70e43edae938624ce550a3cbf66a3d0
   url_launcher_ios: 7a95fa5b60cc718a708b8f2966718e93db0cef1b
+  video_player_avfoundation: 3453f792138786248960ca029747fcd9f318ef52
 
 PODFILE CHECKSUM: e30f02f9d1c72c47bb6344a0a748c9d268180865
 

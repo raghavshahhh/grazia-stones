@@ -8,6 +8,8 @@ import '../core/repositories/stone_repository.dart';
 import '../core/repositories/auth_repository.dart';
 import '../core/repositories/cart_repository.dart';
 import '../core/repositories/order_repository.dart';
+import '../core/repositories/sample_order_repository.dart';
+import '../core/repositories/quote_repository.dart';
 import '../core/repositories/user_repository.dart';
 
 import '../core/repositories/dealer_repository.dart';
@@ -79,6 +81,14 @@ final cartRepositoryProvider = Provider<CartRepository>((ref) {
 
 final orderRepositoryProvider = Provider<OrderRepository>((ref) {
   return OrderRepository();
+});
+
+final sampleOrderRepositoryProvider = Provider<SampleOrderRepository>((ref) {
+  return SampleOrderRepository();
+});
+
+final quoteRepositoryProvider = Provider<QuoteRepository>((ref) {
+  return QuoteRepository();
 });
 
 final userRepositoryProvider = Provider<UserRepository>((ref) {

@@ -173,6 +173,29 @@ class _AdminProductEditScreenState extends ConsumerState<AdminProductEditScreen>
         uploadedUrl = client.storage.from('stones').getPublicUrl(fileName);
       }
 
+      // 2. Preserve the existing gallery — only replace/add the primary
+      // image. Previously saving an edit wiped the whole images[] down
+      // to a single photo, destroying multi-image products.
+      List<String> gallery = [];
+      if (widget.stone?.images.isNotEmpty == true) {
+        gallery = [...widget.stone!.images];
+      } else if (widget.stoneId != null && widget.stoneId != 'add') {
+        try {
+          final existing = await client
+              .from('stones')
+              .select('images')
+              .eq('id', widget.stoneId!)
+              .single();
+          gallery = List<String>.from(existing['images'] ?? []);
+        } catch (_) {}
+      }
+      if (uploadedUrl != null) {
+        if (gallery.contains(uploadedUrl)) {
+          gallery.remove(uploadedUrl);
+        }
+        gallery.insert(0, uploadedUrl);
+      }
+
       final slug = _slugController.text.trim().isNotEmpty
           ? _slugController.text.trim().toLowerCase().replaceAll(' ', '-')
           : _nameController.text.trim().toLowerCase().replaceAll(' ', '-');
@@ -198,7 +221,7 @@ class _AdminProductEditScreenState extends ConsumerState<AdminProductEditScreen>
         'featured': _featured,
         'active': _active,
         'thumbnail_url': uploadedUrl,
-        'images': uploadedUrl != null ? [uploadedUrl] : [],
+        'images': gallery,
       };
 
       if (widget.stoneId != null && widget.stoneId != 'add') {

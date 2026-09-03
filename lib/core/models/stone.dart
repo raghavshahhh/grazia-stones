@@ -38,6 +38,9 @@ class Stone {
   final bool isFeatured;
   final bool inStock;
   final int stockQuantity;
+  /// Backend `active` flag — false means archived/hidden from the
+  /// public catalogue. Admin CMS needs this to show restore actions.
+  final bool isActive;
   
   // Related
   final List<String> relatedProductIds;
@@ -73,6 +76,7 @@ class Stone {
     this.isNewArrival = false,
     this.isFeatured = false,
     this.inStock = true,
+    this.isActive = true,
     this.stockQuantity = 0,
     this.relatedProductIds = const [],
     this.weight,
@@ -109,6 +113,7 @@ class Stone {
     'isNewArrival': isNewArrival,
     'isFeatured': isFeatured,
     'inStock': inStock,
+    'isActive': isActive,
     'stockQuantity': stockQuantity,
     'relatedProductIds': relatedProductIds,
     'weight': weight,
@@ -220,6 +225,7 @@ class Stone {
       isNewArrival: (map['is_new_arrival'] == true) || (map['isNewArrival'] == true),
       isFeatured: (map['featured'] == true) || (map['isFeatured'] == true),
       inStock: map['stock_status'] == 'in_stock' || (map['inStock'] ?? true),
+      isActive: (map['active'] as bool?) ?? (map['isActive'] as bool?) ?? true,
       stockQuantity: map['stock_quantity'] ?? map['stockQuantity'] ?? 0,
       relatedProductIds: List<String>.from(map['related_product_ids'] ?? map['relatedProductIds'] ?? []),
       weight: map['weight_kg']?.toString() ?? map['weight'],
@@ -256,6 +262,7 @@ class Stone {
     bool? isNewArrival,
     bool? isFeatured,
     bool? inStock,
+    bool? isActive,
     int? stockQuantity,
     List<String>? relatedProductIds,
     String? weight,
@@ -289,6 +296,7 @@ class Stone {
     isNewArrival: isNewArrival ?? this.isNewArrival,
     isFeatured: isFeatured ?? this.isFeatured,
     inStock: inStock ?? this.inStock,
+    isActive: isActive ?? this.isActive,
     stockQuantity: stockQuantity ?? this.stockQuantity,
     relatedProductIds: relatedProductIds ?? this.relatedProductIds,
     weight: weight ?? this.weight,
