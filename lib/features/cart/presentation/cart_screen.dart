@@ -117,9 +117,9 @@ class CartNotifier extends StateNotifier<List<CartItem>> {
     }
   }
 
-  void addItem(Stone stone) {
+  void addItem(Stone stone, {int quantity = 1}) {
     final existing = state.indexWhere((i) => i.stone.id == stone.id);
-    final newQty = existing >= 0 ? state[existing].quantity + 1 : 1;
+    final newQty = existing >= 0 ? state[existing].quantity + quantity : quantity;
     _mutate(
       change: () {
         if (existing >= 0) {
@@ -131,7 +131,7 @@ class CartNotifier extends StateNotifier<List<CartItem>> {
                 state[i]
           ];
         } else {
-          state = [...state, CartItem(stone: stone)];
+          state = [...state, CartItem(stone: stone, quantity: quantity)];
         }
       },
       persist: () async {

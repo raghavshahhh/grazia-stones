@@ -145,6 +145,300 @@ class PDFService {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // 3D WALL & TILE CALCULATION SPECIFICATION PDF
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Generates a complete Architectural Wall Specification & Tile Calculation PDF
+  Future<Uint8List> generateWallSpecPDF({
+    required Stone stone,
+    required double wallWidthFt,
+    required double wallHeightFt,
+    required String unit,
+    required double wastagePercent,
+    required int boxesRequired,
+    required int totalTiles,
+    required double netAreaSqFt,
+    required double grossAreaSqFt,
+    required double estimatedCost,
+    String? projectName,
+    String? clientName,
+  }) async {
+    final pdf = pw.Document();
+
+    pw.MemoryImage? logoImage;
+    try {
+      final logoData = await rootBundle.load('assets/brand/grazia-logo-dark.png');
+      logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
+    } catch (_) {}
+
+    final subtotal = grossAreaSqFt * stone.pricePerSqFt;
+    final gst = subtotal * 0.18;
+    final grandTotal = subtotal + gst;
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(36),
+        build: (context) => [
+          // Header
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  if (logoImage != null) pw.Image(logoImage, width: 110, height: 35),
+                  pw.Text(
+                    'GRAZIA STONES',
+                    style: pw.TextStyle(
+                      fontSize: 18,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.brown800,
+                    ),
+                  ),
+                  pw.Text(
+                    'Architectural Surfaces & Cladding Studio',
+                    style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600),
+                  ),
+                  pw.SizedBox(height: 4),
+                  pw.Text('Kanpur, Uttar Pradesh | info@graziastones.com', style: _textStyle(9)),
+                ],
+              ),
+              pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.end,
+                children: [
+                  pw.Container(
+                    padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: pw.BoxDecoration(
+                      color: PdfColors.amber100,
+                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                    ),
+                    child: pw.Text(
+                      'ESTIMATION SPEC SHEET',
+                      style: pw.TextStyle(
+                        fontSize: 10,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.brown900,
+                      ),
+                    ),
+                  ),
+                  pw.SizedBox(height: 6),
+                  pw.Text('Date: ${_dateFormat.format(DateTime.now())}', style: _textStyle(9)),
+                  if (clientName != null && clientName.isNotEmpty)
+                    pw.Text('Client: $clientName', style: _textStyle(9)),
+                  if (projectName != null && projectName.isNotEmpty)
+                    pw.Text('Project: $projectName', style: _textStyle(9)),
+                ],
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 20),
+          pw.Divider(color: PdfColors.grey300),
+          pw.SizedBox(height: 14),
+
+          // Selected Material Summary Box
+          pw.Container(
+            padding: const pw.EdgeInsets.all(12),
+            decoration: pw.BoxDecoration(
+              color: PdfColors.grey100,
+              borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+              border: pw.Border.all(color: PdfColors.grey300),
+            ),
+            child: pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Expanded(
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        stone.name,
+                        style: pw.TextStyle(
+                          fontSize: 14,
+                          fontWeight: pw.FontWeight.bold,
+                          color: PdfColors.grey900,
+                        ),
+                      ),
+                      pw.SizedBox(height: 3),
+                      pw.Text(
+                        'Collection: ${stone.collection} | Code: ${stone.productCode}',
+                        style: _textStyle(9.5),
+                      ),
+                      pw.Text(
+                        'Finish: ${stone.finish} | Size: ${stone.size ?? "${stone.length} x ${stone.width}"}',
+                        style: _textStyle(9.5),
+                      ),
+                    ],
+                  ),
+                ),
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.end,
+                  children: [
+                    pw.Text(
+                      _currencyFormat.format(stone.pricePerSqFt),
+                      style: pw.TextStyle(
+                        fontSize: 14,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.brown800,
+                      ),
+                    ),
+                    pw.Text('per sq.ft', style: _textStyle(8.5)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          pw.SizedBox(height: 20),
+
+          // Technical Wall Geometry & Calculations
+          pw.Text(
+            'WALL DIMENSIONS & MATERIAL ESTIMATE',
+            style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.grey800),
+          ),
+          pw.SizedBox(height: 8),
+
+          pw.Table(
+            border: pw.TableBorder.all(color: PdfColors.grey300),
+            children: [
+              pw.TableRow(
+                decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+                children: [
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(8),
+                    child: pw.Text('Parameter', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                  ),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(8),
+                    child: pw.Text('Imperial (Feet)', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                  ),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(8),
+                    child: pw.Text('Metric', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                  ),
+                ],
+              ),
+              pw.TableRow(
+                children: [
+                  pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('Wall Width', style: _textStyle(9))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('${wallWidthFt.toStringAsFixed(2)} ft', style: _textStyle(9))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('${(wallWidthFt / 3.28084).toStringAsFixed(2)} m', style: _textStyle(9))),
+                ],
+              ),
+              pw.TableRow(
+                children: [
+                  pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('Wall Height', style: _textStyle(9))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('${wallHeightFt.toStringAsFixed(2)} ft', style: _textStyle(9))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('${(wallHeightFt / 3.28084).toStringAsFixed(2)} m', style: _textStyle(9))),
+                ],
+              ),
+              pw.TableRow(
+                children: [
+                  pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('Net Surface Area', style: _textStyle(9))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('${netAreaSqFt.toStringAsFixed(2)} sq.ft', style: _textStyle(9))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('${(netAreaSqFt / 10.764).toStringAsFixed(2)} sq.m', style: _textStyle(9))),
+                ],
+              ),
+              pw.TableRow(
+                children: [
+                  pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('Wastage & Cut Factor', style: _textStyle(9))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('${wastagePercent.toInt()}%', style: _textStyle(9))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('${wastagePercent.toInt()}%', style: _textStyle(9))),
+                ],
+              ),
+              pw.TableRow(
+                children: [
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(6),
+                    child: pw.Text('Gross Billable Area', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                  ),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(6),
+                    child: pw.Text('${grossAreaSqFt.toStringAsFixed(2)} sq.ft', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: PdfColors.brown800)),
+                  ),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(6),
+                    child: pw.Text('${(grossAreaSqFt / 10.764).toStringAsFixed(2)} sq.m', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                  ),
+                ],
+              ),
+              pw.TableRow(
+                children: [
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(6),
+                    child: pw.Text('Box Coverage / Packaging', style: _textStyle(9)),
+                  ),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(6),
+                    child: pw.Text('${stone.sqftPerBox.toStringAsFixed(2)} sq.ft/box (${stone.piecesPerBox} pcs)', style: _textStyle(9)),
+                  ),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(6),
+                    child: pw.Text('${(stone.sqftPerBox / 10.764).toStringAsFixed(2)} sq.m/box', style: _textStyle(9)),
+                  ),
+                ],
+              ),
+              pw.TableRow(
+                children: [
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(6),
+                    child: pw.Text('Total Boxes Required', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                  ),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(6),
+                    child: pw.Text('$boxesRequired Boxes', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
+                  ),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(6),
+                    child: pw.Text('~$totalTiles Individual Tiles', style: _textStyle(9)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 20),
+
+          // Financial Estimation Summary
+          pw.Align(
+            alignment: pw.Alignment.centerRight,
+            child: pw.Container(
+              width: 250,
+              padding: const pw.EdgeInsets.all(10),
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: PdfColors.grey300),
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+              ),
+              child: pw.Column(
+                children: [
+                  _buildTotalRow('Material Subtotal:', _currencyFormat.format(subtotal)),
+                  _buildTotalRow('GST (18%):', _currencyFormat.format(gst)),
+                  pw.Divider(color: PdfColors.grey300),
+                  _buildTotalRow('Est. Total (Excl. Freight):', _currencyFormat.format(grandTotal), isBold: true, fontSize: 11),
+                ],
+              ),
+            ),
+          ),
+          pw.SizedBox(height: 20),
+
+          // Architectural Notes & Installation Guidelines
+          pw.Text(
+            'INSTALLATION & GROUT SPECIFICATIONS',
+            style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.grey800),
+          ),
+          pw.SizedBox(height: 6),
+          _buildBulletPoint('Recommended Grout Line: 2mm to 4mm with epoxy or polymer-modified cementitious grout.'),
+          _buildBulletPoint('Surface Preparation: Substrate must be clean, dry, level, and structurally sound.'),
+          _buildBulletPoint('Natural Variation: Natural stones and artisanal finishes have authentic color and texture variance; blend tiles from multiple boxes during dry-laying.'),
+          _buildBulletPoint('Sealant: Apply high-penetration hydrophobic impregnating sealer post-grouting for stain protection.'),
+        ],
+        footer: (context) => _buildFooter(context.pageNumber, context.pagesCount),
+      ),
+    );
+
+    return pdf.save();
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // PDF COMPONENTS - QUOTE
   // ═══════════════════════════════════════════════════════════════════════════
 

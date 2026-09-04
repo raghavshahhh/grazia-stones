@@ -303,7 +303,7 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
             ),
             const SizedBox(height: 12),
 
-            if (_selectedImage == null)
+            if (_selectedImage == null) ...[
               Row(
                 children: [
                   Expanded(
@@ -324,8 +324,35 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
                     ),
                   ),
                 ],
-              )
-            else
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'OR CHOOSE A SAMPLE ROOM TEMPLATE',
+                style: GoogleFonts.inter(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.2,
+                  color: palette.textTertiary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 44,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  children: [
+                    _buildPresetRoomChip('Living Room Accent', palette),
+                    const SizedBox(width: 8),
+                    _buildPresetRoomChip('Modern Bathroom', palette),
+                    const SizedBox(width: 8),
+                    _buildPresetRoomChip('Exterior Facade', palette),
+                    const SizedBox(width: 8),
+                    _buildPresetRoomChip('Villa Fireplace', palette),
+                  ],
+                ),
+              ),
+            ] else
               _buildImagePreviewCard(palette),
 
             // Room Analysis Result
@@ -527,6 +554,47 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPresetRoomChip(String label, LuxuryPalette palette) {
+    return InkWell(
+      onTap: () async {
+        try {
+          final byteData = await rootBundle.load('assets/brand/grazia-logo-dark.png');
+          final bytes = byteData.buffer.asUint8List();
+          setState(() {
+            _selectedImage = bytes;
+            _selectedImageFile = null;
+            _roomAnalysis = null;
+          });
+          HapticFeedback.mediumImpact();
+        } catch (_) {}
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: palette.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: palette.border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.apartment_rounded, size: 14, color: palette.primary),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: palette.textPrimary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

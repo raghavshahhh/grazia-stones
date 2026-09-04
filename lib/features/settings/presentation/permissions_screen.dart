@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../../core/services/permission_service.dart';
-import '../../../core/widgets/permission_widgets.dart';
 
 /// Permissions management screen
 /// 
