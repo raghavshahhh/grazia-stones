@@ -180,15 +180,15 @@ class _GraziaBottomNavState extends ConsumerState<GraziaBottomNav> {
                 ),
               ],
             ),
-            child: const Icon(
-              Icons.camera_rounded,
+            child: Icon(
+              _items[index].icon,
               size: 20,
-              color: Colors.white,
+              color: Colors.black,
             ),
           ),
           const SizedBox(height: 2),
           Text(
-            'Live AR',
+            _items[index].label,
             style: TextStyle(
               fontFamily: 'Inter',
               fontSize: 9.5,
