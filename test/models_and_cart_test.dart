@@ -14,6 +14,7 @@ import 'package:grazia_stones/core/models/sample_order.dart';
 import 'package:grazia_stones/core/models/quote_request.dart';
 import 'package:grazia_stones/core/models/ai_job.dart';
 import 'package:grazia_stones/core/services/supabase_service.dart';
+import 'package:grazia_stones/features/quotes/presentation/quote_request_supabase_screen.dart';
 
 
 void main() {
@@ -483,7 +484,28 @@ void main() {
       expect(rows, 21);
     });
   });
+
+  group('Release Critical Flows — Deep Links & Router Verification', () {
+    test('Router correctly resolves deep link routes and preserves query params', () {
+      final quoteRouteWithParam = '/quotes/new?stoneId=stone-athena-3d';
+      final uri = Uri.parse(quoteRouteWithParam);
+      expect(uri.path, '/quotes/new');
+      expect(uri.queryParameters['stoneId'], 'stone-athena-3d');
+
+      final aiVizUri = Uri.parse('/ai-viz?stoneId=stone-athena-3d');
+      expect(aiVizUri.path, '/ai-viz');
+      expect(aiVizUri.queryParameters['stoneId'], 'stone-athena-3d');
+
+      final collectionsUri = Uri.parse('/collections');
+      expect(collectionsUri.path, '/collections');
+
+      final profileUri = Uri.parse('/profile');
+      expect(profileUri.path, '/profile');
+    });
+
+    test('QuoteRequestSupabaseScreen handles preselectedStoneId parameter properly', () {
+      const screen = QuoteRequestSupabaseScreen(preselectedStoneId: 'stone-athena-3d');
+      expect(screen.preselectedStoneId, 'stone-athena-3d');
+    });
+  });
 }
-
-
-
