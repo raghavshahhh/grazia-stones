@@ -218,16 +218,25 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
 
   Future<void> _initializeNativeAR() async {
     try {
-      final status = await Permission.camera.request().timeout(
-        const Duration(seconds: 4),
-        onTimeout: () => PermissionStatus.denied,
-      );
+      // No timeout here: this shows the OS permission dialog and waits for a
+      // human to tap it. A timeout would report "denied" for a user who simply
+      // took a few seconds to decide, and the AR view would never start even
+      // though permission was actually granted.
+      var status = await Permission.camera.request();
+
+      // permission_handler can report a stale value straight after the dialog,
+      // so confirm against the live status before giving up.
+      if (!status.isGranted) {
+        status = await Permission.camera.status;
+      }
 
       if (!status.isGranted) {
         if (mounted) {
           setState(() {
             _isPermissionDenied = true;
-            _error = 'Camera permission required for AR (Simulator / Camera unavailable)';
+            _error = status.isPermanentlyDenied
+                ? 'Camera access is turned off for Grazia Stones. Enable it in Settings to use Live AR.'
+                : 'Camera permission is needed to preview stones on your wall.';
           });
           widget.onError?.call();
         }
@@ -241,7 +250,7 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
 
       if (!supported) {
         if (mounted) {
-          setState(() => _error = 'AR requires physical hardware (iOS Simulator detected)');
+          setState(() => _error = 'Live AR needs a device with ARKit support.');
           widget.onError?.call();
         }
         return;
@@ -266,7 +275,7 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
 
     } catch (e) {
       if (mounted) {
-        setState(() => _error = 'AR Camera unavailable on Simulator: $e');
+        setState(() => _error = 'Could not start Live AR: $e');
         widget.onError?.call();
       }
     }
@@ -593,7 +602,7 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
             Icon(Icons.camera_alt_outlined, color: material.Colors.white.withValues(alpha: 0.5), size: 48),
             const SizedBox(height: 16),
             Text(
-              'Camera permission denied',
+              'Camera access needed',
               style: TextStyle(
                 color: material.Colors.white.withValues(alpha: 0.8),
                 fontFamily: 'Inter',
@@ -602,24 +611,53 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
               ),
             ),
             const SizedBox(height: 8),
-            Text(
-              'Enable in Settings to use AR',
-              style: TextStyle(
-                color: material.Colors.white.withValues(alpha: 0.5),
-                fontFamily: 'Inter',
-                fontSize: 12,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                _error ?? 'Enable camera access to preview stones on your wall.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: material.Colors.white.withValues(alpha: 0.5),
+                  fontFamily: 'Inter',
+                  fontSize: 12,
+                ),
               ),
             ),
             const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: () => openAppSettings(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFC8A53C),
-                foregroundColor: material.Colors.black,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              ),
-              child: const Text('Open Settings', style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w700)),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Retry matters: if the permission prompt was dismissed or the
+                // status was read before the user answered, this recovers
+                // without making them leave the screen.
+                OutlinedButton(
+                  onPressed: () {
+                    setState(() {
+                      _isPermissionDenied = false;
+                      _error = null;
+                    });
+                    _initializeNativeAR();
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: material.Colors.white,
+                    side: BorderSide(color: material.Colors.white.withValues(alpha: 0.4)),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  ),
+                  child: const Text('Try Again', style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w700)),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton(
+                  onPressed: () => openAppSettings(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFC8A53C),
+                    foregroundColor: material.Colors.black,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  ),
+                  child: const Text('Open Settings', style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w700)),
+                ),
+              ],
             ),
           ],
         ),

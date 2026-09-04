@@ -79,6 +79,12 @@ extension ARKitPlugin {
         case "pauseSession":
             arKitManager.pauseSession()
             result(nil)
+
+        // Dart calls this on teardown; without a case here the channel raised
+        // MissingPluginException every time the AR screen was closed.
+        case "stopCamera":
+            arKitManager.pauseSession()
+            result(nil)
             
         case "resumeSession":
             arKitManager.resumeSession()

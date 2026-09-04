@@ -33,11 +33,16 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
+  // Load the bundled, client-safe config. The root .env is NOT shipped in the
+  // app (it holds the Supabase service-role key and other secrets), so it is
+  // unavailable at runtime on a device — reading it here silently left every
+  // backend call unconfigured, which is why nothing loaded on the phone.
   try {
-    await dotenv.load(fileName: ".env");
-    debugPrint('✅ Environment variables loaded from .env');
+    await dotenv.load(fileName: "assets/config/app.env");
+    debugPrint('✅ Config loaded from assets/config/app.env');
   } catch (e) {
-    debugPrint('⚠️ Could not load .env file, using default configurations: $e');
+    debugPrint('❌ Could not load assets/config/app.env — backend calls will '
+        'fail. Is it listed under flutter/assets in pubspec.yaml? $e');
   }
 
   try {

@@ -143,6 +143,9 @@ flutter:
     - assets/lottie/
     - assets/catalogues/
     - assets/video/
+    # Client-safe config only. Never add the root .env here — it holds the
+    # Supabase service-role key and other secrets that must not ship in the app.
+    - assets/config/app.env
 
   # Fonts - Using Google Fonts package for Inter and other premium fonts
   # No local font files needed as google_fonts handles everything

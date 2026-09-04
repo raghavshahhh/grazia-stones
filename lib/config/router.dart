@@ -61,7 +61,7 @@ const _tabRoutes = [
   '/home',
   '/collections',
   '/live-ai',
-  '/ai-viz',
+  '/ai-studio',
   '/profile',
 ];
 
@@ -271,6 +271,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/cart',
             pageBuilder: (context, state) =>
                 _fadePage(const CartScreen(), state),
+          ),
+          // AI Studio as a bottom-nav tab: same screen as '/ai-viz' but inside
+          // the shell so the nav bar stays visible. '/ai-viz' remains a
+          // root-level immersive route for push() from home and stone detail.
+          GoRoute(
+            path: '/ai-studio',
+            pageBuilder: (context, state) => _fadePage(
+              AIVizScreen(
+                preSelectedStoneId: state.uri.queryParameters['stoneId'],
+              ),
+              state,
+            ),
           ),
           GoRoute(
             path: '/profile',
