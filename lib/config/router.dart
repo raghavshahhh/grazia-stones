@@ -21,6 +21,7 @@ import '../features/quotes/presentation/quote_request_supabase_screen.dart';
 import '../features/cart/presentation/cart_screen.dart';
 import '../features/orders/presentation/orders_screen.dart';
 import '../features/live_ai/presentation/live_ai_screen.dart';
+import '../features/studio/presentation/ai_tools_hub_screen.dart';
 import '../features/profile/presentation/profile_screen.dart';
 import '../features/wishlist/presentation/wishlist_screen.dart';
 import '../features/sample_order/presentation/sample_order_screen.dart';
@@ -60,8 +61,8 @@ final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 const _tabRoutes = [
   '/home',
   '/collections',
-  '/live-ai',
-  '/ai-studio',
+  '/tools',
+  '/cart',
   '/profile',
 ];
 
@@ -259,30 +260,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 _fadePage(const CollectionListScreen(), state),
           ),
           GoRoute(
-            path: '/live-ai',
-            pageBuilder: (context, state) => _fadePage(
-              LiveAIScreen(
-                initialStoneId: state.uri.queryParameters['stoneId'],
-              ),
-              state,
-            ),
+            path: '/tools',
+            pageBuilder: (context, state) =>
+                _fadePage(const AiToolsHubScreen(), state),
           ),
           GoRoute(
             path: '/cart',
             pageBuilder: (context, state) =>
                 _fadePage(const CartScreen(), state),
-          ),
-          // AI Studio as a bottom-nav tab: same screen as '/ai-viz' but inside
-          // the shell so the nav bar stays visible. '/ai-viz' remains a
-          // root-level immersive route for push() from home and stone detail.
-          GoRoute(
-            path: '/ai-studio',
-            pageBuilder: (context, state) => _fadePage(
-              AIVizScreen(
-                preSelectedStoneId: state.uri.queryParameters['stoneId'],
-              ),
-              state,
-            ),
           ),
           GoRoute(
             path: '/profile',
@@ -459,6 +444,40 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
 
       // --- Immersive full-screen (scale + fade, no bottom nav) ---
+      GoRoute(
+        path: '/live-ai',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => _scaleFadePage(
+          LiveAIScreen(
+            initialStoneId: state.uri.queryParameters['stoneId'],
+          ),
+          state,
+        ),
+      ),
+      GoRoute(
+        path: '/studio',
+        redirect: (context, state) => '/tools',
+      ),
+      GoRoute(
+        path: '/ai-studio',
+        redirect: (context, state) => '/ai-viz',
+      ),
+      GoRoute(
+        path: '/wall-calc',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const TileWallVisualizerScreen(), state),
+      ),
+      GoRoute(
+        path: '/samples/request',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => _slideUpPage(
+          SampleOrderScreen(
+            preSelectedStoneId: state.uri.queryParameters['stoneId'],
+          ),
+          state,
+        ),
+      ),
       GoRoute(
         path: '/ai-viz',
         parentNavigatorKey: _rootNavigatorKey,

@@ -501,6 +501,12 @@ void main() {
 
       final profileUri = Uri.parse('/profile');
       expect(profileUri.path, '/profile');
+
+      final toolsUri = Uri.parse('/tools');
+      expect(toolsUri.path, '/tools');
+
+      final cartUri = Uri.parse('/cart');
+      expect(cartUri.path, '/cart');
     });
 
     test('QuoteRequestSupabaseScreen handles preselectedStoneId parameter properly', () {

@@ -210,7 +210,13 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          onPressed: () => context.pop(),
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              context.pop();
+            } else {
+              context.go('/tools');
+            }
+          },
           icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
         ),
         title: Text(
