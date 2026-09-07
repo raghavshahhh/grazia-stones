@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/utils/validators.dart';
 import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
-import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/spacing.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/theme/typography.dart';

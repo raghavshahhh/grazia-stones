@@ -13,7 +13,6 @@ import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/utils/validators.dart';
 import 'package:grazia_stones/core/utils/user_friendly_error.dart';
 import 'package:grazia_stones/shared/widgets/grazia_logo.dart';
-import 'package:grazia_stones/features/auth/providers/auth_riverpod_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});

@@ -217,7 +217,6 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
                       for (final stone in wishlist) {
                         ref.read(cartProvider.notifier).addItem(stone);
                       }
-                      final repo = ref.read(stoneRepositoryProvider);
                       for (final s in wishlist) {
                         ref.read(wishlistProvider.notifier).removeStone(s.id);
                       }

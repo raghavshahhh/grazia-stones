@@ -4,12 +4,12 @@ library;
 
 import 'dart:async';
 import 'dart:typed_data';
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart' hide Colors;
 import 'package:flutter/services.dart' show rootBundle, HapticFeedback;
+import 'package:http/http.dart' as http;
 import 'package:permission_handler/permission_handler.dart';
-import 'package:vector_math/vector_math_64.dart' hide Colors;
 import 'package:grazia_stones/core/services/ar_native_channel.dart';
+import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 
 import 'package:flutter/material.dart' as material;
 
@@ -45,8 +45,18 @@ class ARCameraView extends StatefulWidget {
 
   static Future<void> _loadAndSendTexture(String assetPath, double opacity) async {
     try {
-      final ByteData data = await rootBundle.load(assetPath);
-      final Uint8List bytes = data.buffer.asUint8List();
+      Uint8List bytes;
+      if (assetPath.startsWith('http://') || assetPath.startsWith('https://')) {
+        final res = await http.get(Uri.parse(assetPath)).timeout(const Duration(seconds: 15));
+        if (res.statusCode == 200) {
+          bytes = res.bodyBytes;
+        } else {
+          throw Exception('Failed to download texture: HTTP ${res.statusCode}');
+        }
+      } else {
+        final ByteData data = await rootBundle.load(assetPath);
+        bytes = data.buffer.asUint8List();
+      }
       await ARNativeChannel.setTexture(bytes);
     } catch (e) {
       debugPrint('[ARCameraView] Failed to load texture: $e');
@@ -132,7 +142,7 @@ class ARCameraView extends StatefulWidget {
 
   static void setTileDimensions(double width, double height, String unit) {}
 
-  static Future<String> getWallState() async {
+  static Future<String?> getWallState() async {
     return await ARNativeChannel.getWallState();
   }
 
@@ -183,22 +193,16 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
 
   String? _displayStoneTexture;
   double _displayOpacity = 0.72;
-  double _displayScale = 1.0;
-  Offset _displayPosition = Offset.zero;
-  double _displayRotation = 0.0;
   bool _showWallBracket = false;
 
   StreamSubscription? _updateSubscription;
   StreamSubscription? _wallDetectedSubscription;
   StreamSubscription? _wallUpdatedSubscription;
   StreamSubscription? _wallRemovedSubscription;
-  StreamSubscription? _trackingStateSubscription;
-  StreamSubscription? _wallStateSubscription;
   StreamSubscription? _measurementResultSubscription;
   StreamSubscription? _errorSubscription;
 
   List<Map<String, dynamic>> _detectedWalls = [];
-  String _wallState = 'SEARCHING';
   String? _selectedWallId;
 
   @override
@@ -207,9 +211,6 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
     WidgetsBinding.instance.addObserver(this);
     _displayStoneTexture = widget.stoneImagePath;
     _displayOpacity = widget.opacity;
-    _displayScale = widget.scale;
-    _displayPosition = widget.position;
-    _displayRotation = widget.rotation;
     
     _initializeNativeAR();
     _listenToStaticUpdates();
@@ -244,7 +245,7 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
       }
 
       final supported = await ARNativeChannel.isARSupported().timeout(
-        const Duration(seconds: 3),
+        const Duration(seconds: 8),
         onTimeout: () => false,
       );
 
@@ -282,13 +283,7 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
   }
 
   Future<void> _loadAndSendTexture(String assetPath) async {
-    try {
-      final ByteData data = await rootBundle.load(assetPath);
-      final Uint8List bytes = data.buffer.asUint8List();
-      await ARNativeChannel.setTexture(bytes);
-    } catch (e) {
-      debugPrint('[ARCameraView] Failed to load texture: $e');
-    }
+    await ARCameraView._loadAndSendTexture(assetPath, _displayOpacity);
   }
 
   void _listenToStaticUpdates() {
@@ -302,9 +297,6 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
           }
         }
         if (update.opacity != null) _displayOpacity = update.opacity!;
-        if (update.scale != null) _displayScale = update.scale!;
-        if (update.position != null) _displayPosition = update.position!;
-        if (update.rotation != null) _displayRotation = update.rotation!;
         if (update.showBoundary != null) _showWallBracket = update.showBoundary!;
         if (update.stop == true) _stopNativeAR();
       });
@@ -319,9 +311,7 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
         final wasEmpty = _detectedWalls.isEmpty;
         setState(() {
           _detectedWalls.add(wallData);
-          if (_selectedWallId == null) {
-            _selectedWallId = id;
-          }
+          _selectedWallId ??= id;
         });
         if (wasEmpty) HapticFeedback.mediumImpact(); // first wall lock
       }
@@ -347,19 +337,8 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
       });
     });
 
-    _trackingStateSubscription = ARNativeChannel.onTrackingStateChanged.listen((state) {
-      if (!mounted) return;
-      setState(() => _wallState = state);
-    });
-
-    _wallStateSubscription = ARNativeChannel.onWallStateChanged.listen((state) {
-      if (!mounted) return;
-      setState(() => _wallState = state);
-    });
-
     _measurementResultSubscription = ARNativeChannel.onMeasurementResult.listen((data) {
       if (!mounted) return;
-      // Handle measurement results if needed
       debugPrint('[ARCameraView] Measurement result: $data');
     });
 
@@ -382,8 +361,6 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
     _wallDetectedSubscription?.cancel();
     _wallUpdatedSubscription?.cancel();
     _wallRemovedSubscription?.cancel();
-    _trackingStateSubscription?.cancel();
-    _wallStateSubscription?.cancel();
     _measurementResultSubscription?.cancel();
     _errorSubscription?.cancel();
     
@@ -419,9 +396,6 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
       children: [
         // Native AR view
         ARNativeChannel.getARView(),
-        
-        // Wall state overlay
-        _buildWallStateOverlay(),
         
         // Wall boundary bracket (if showing)
         if (_showWallBracket && _selectedWallId != null) _buildWallBracket(),
@@ -465,94 +439,6 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
     );
   }
 
-  Widget _buildWallStateOverlay() {
-    String label;
-    IconData icon;
-    Color stateColor;
-
-    switch (_wallState) {
-      case 'SEARCHING':
-        label = 'Point camera at a wall';
-        icon = Icons.crop_free_rounded;
-        stateColor = const Color(0xFFD4AF37);
-        break;
-      case 'DETECTING':
-        label = 'Detecting wall...';
-        icon = Icons.auto_awesome_rounded;
-        stateColor = const Color(0xFFD4AF37);
-        break;
-      case 'LOCKED':
-      case 'TRACKING':
-        label = 'Wall detected';
-        icon = Icons.check_circle_rounded;
-        stateColor = const Color(0xFF4CAF50);
-        break;
-      case 'LIMITED_INSUFFICIENT_FEATURES':
-        label = 'Move closer to a textured wall';
-        icon = Icons.zoom_in_rounded;
-        stateColor = const Color(0xFFFFB74D);
-        break;
-      case 'LIMITED_EXCESSIVE_MOTION':
-        label = 'Hold device steady';
-        icon = Icons.motion_photos_pause_rounded;
-        stateColor = const Color(0xFFFFB74D);
-        break;
-      case 'PAUSED':
-      case 'STOPPED':
-        label = 'AR paused';
-        icon = Icons.pause_circle_rounded;
-        stateColor = const Color(0xFFE57373);
-        break;
-      case 'LOST':
-        label = 'Wall lost — point back at wall';
-        icon = Icons.error_outline_rounded;
-        stateColor = const Color(0xFFE57373);
-        break;
-      default:
-        label = 'Initializing AR...';
-        icon = Icons.crop_free_rounded;
-        stateColor = const Color(0xFFD4AF37);
-    }
-
-    return Positioned(
-      top: MediaQuery.of(context).padding.top + 72,
-      left: 0,
-      right: 0,
-      child: Center(
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: BackdropFilter(
-            filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: material.Colors.black.withValues(alpha: 0.65),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: stateColor.withValues(alpha: 0.6), width: 1.0),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(icon, color: stateColor, size: 15),
-                  const SizedBox(width: 8),
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: stateColor == const Color(0xFF4CAF50) ? material.Colors.white : stateColor,
-                      letterSpacing: 0.4,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _buildWallBracket() {
     // This is drawn by native AR - we don't need to draw it in Flutter
@@ -562,8 +448,6 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
   Widget _buildTexturePreview() {
     final texturePath = _displayStoneTexture;
     if (texturePath == null || texturePath.isEmpty) return const SizedBox.shrink();
-
-    final isNetwork = texturePath.startsWith('http://') || texturePath.startsWith('https://');
 
     return Positioned(
       top: MediaQuery.of(context).padding.top + 120,
@@ -584,9 +468,10 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(12),
-          child: isNetwork
-              ? Image.network(texturePath, fit: BoxFit.cover)
-              : Image.asset(texturePath, fit: BoxFit.cover),
+          child: SmartStoneImage(
+            imageUrl: texturePath,
+            fit: BoxFit.cover,
+          ),
         ),
       ),
     );

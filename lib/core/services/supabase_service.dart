@@ -7,9 +7,18 @@ class SupabaseService {
   SupabaseService._();
   static final SupabaseService instance = SupabaseService._();
 
+  SupabaseClient? get clientOrNull {
+    try {
+      return Supabase.instance.client;
+    } catch (_) {
+      return null;
+    }
+  }
+
   SupabaseClient get client => Supabase.instance.client;
+  GoTrueClient? get authOrNull => clientOrNull?.auth;
   GoTrueClient get auth => client.auth;
-  User? get currentUser => auth.currentUser;
+  User? get currentUser => authOrNull?.currentUser;
   bool get isLoggedIn => currentUser != null;
 
   /// Initialize Supabase — call once in main()

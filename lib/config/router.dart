@@ -31,6 +31,9 @@ import '../shared/widgets/floating_glass_cart_bar.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../features/not_found/presentation/not_found_screen.dart';
 import '../shared/widgets/grazia_bottom_nav.dart';
+import '../features/ai_viz/presentation/ai_job_status_screen.dart';
+import '../features/catalogue/presentation/catalogue_screen.dart';
+import '../features/settings/presentation/permissions_screen.dart';
 
 import '../features/auth/presentation/forgot_password_screen.dart';
 import '../features/profile/presentation/edit_profile_screen.dart';
@@ -46,12 +49,12 @@ import '../features/admin/presentation/admin_dealers_screen.dart';
 import '../features/admin/presentation/admin_orders_screen.dart';
 import '../features/admin/presentation/admin_quotes_screen.dart';
 import '../features/admin/presentation/admin_samples_screen.dart';
+import '../features/admin/presentation/admin_ai_jobs_screen.dart';
 import '../features/about/presentation/about_screen.dart';
 import '../features/legal/presentation/privacy_policy_screen.dart';
 import '../features/legal/presentation/terms_of_service_screen.dart';
 import '../features/support/presentation/help_support_screen.dart';
 import '../core/di.dart';
-import '../features/auth/providers/auth_riverpod_provider.dart';
 import '../core/models/stone.dart';
 
 
@@ -266,8 +269,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/cart',
+            parentNavigatorKey: _rootNavigatorKey,
             pageBuilder: (context, state) =>
-                _fadePage(const CartScreen(), state),
+                _slideUpPage(const CartScreen(), state),
           ),
           GoRoute(
             path: '/profile',
@@ -442,6 +446,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) =>
             _slideUpPage(const AdminSamplesScreen(), state),
       ),
+      GoRoute(
+        path: '/admin/ai-jobs',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const AdminAIJobsScreen(), state),
+      ),
 
       // --- Immersive full-screen (scale + fade, no bottom nav) ---
       GoRoute(
@@ -463,10 +473,30 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         redirect: (context, state) => '/ai-viz',
       ),
       GoRoute(
-        path: '/wall-calc',
+        path: '/ai-jobs',
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
-            _slideUpPage(const TileWallVisualizerScreen(), state),
+            _slideUpPage(const AIJobStatusScreen(), state),
+      ),
+      GoRoute(
+        path: '/catalogue',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => _slideUpPage(
+          CatalogueScreen(
+            collectionId: state.uri.queryParameters['collectionId'],
+          ),
+          state,
+        ),
+      ),
+      GoRoute(
+        path: '/wall-calc',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => _slideUpPage(
+          TileWallVisualizerScreen(
+            initialStoneId: state.uri.queryParameters['stoneId'],
+          ),
+          state,
+        ),
       ),
       GoRoute(
         path: '/samples/request',
@@ -511,14 +541,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/measure/tile-visualizer',
         parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) =>
-            _slideUpPage(const TileWallVisualizerScreen(), state),
+        pageBuilder: (context, state) => _slideUpPage(
+          TileWallVisualizerScreen(
+            initialStoneId: state.uri.queryParameters['stoneId'],
+          ),
+          state,
+        ),
       ),
       GoRoute(
         path: '/settings',
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
             _slideUpPage(const SettingsScreen(), state),
+      ),
+      GoRoute(
+        path: '/settings/permissions',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const PermissionsScreen(), state),
       ),
       GoRoute(
         path: '/about',

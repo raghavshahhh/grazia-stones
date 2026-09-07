@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
-import '../error/app_exception.dart';
 
 /// Permission types used in the app
 enum AppPermission {

@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/stone.dart';
 
 import '../models/collection.dart';
+import '../services/cache_service.dart';
 import '../services/supabase_service.dart';
 import '../utils/retry.dart';
 
@@ -104,6 +105,7 @@ class AdminProductRepository {
       }).select('*, collections(name, slug)').single();
 
       debugPrint('✅ Product created: ${data['id']}');
+      await CacheService.instance.invalidateNamespace('stones');
       return _stoneFromRow(data);
     });
   }
@@ -188,6 +190,7 @@ class AdminProductRepository {
           .single();
 
       debugPrint('✅ Product updated: $stoneId');
+      await CacheService.instance.invalidateNamespace('stones');
       return _stoneFromRow(data);
     });
   }
@@ -202,6 +205,7 @@ class AdminProductRepository {
           .update({'active': false, 'updated_at': DateTime.now().toIso8601String()})
           .eq('id', stoneId);
       debugPrint('✅ Product deleted (soft): $stoneId');
+      await CacheService.instance.invalidateNamespace('stones');
     });
   }
 
@@ -212,6 +216,7 @@ class AdminProductRepository {
     await _executeWithRetry(() async {
       await _sb.client.from('stones').delete().eq('id', stoneId);
       debugPrint('✅ Product permanently deleted: $stoneId');
+      await CacheService.instance.invalidateNamespace('stones');
     });
   }
 
@@ -273,6 +278,7 @@ class AdminProductRepository {
         await _sb.client.from('stones').update(updates).eq('id', id);
       }
       debugPrint('✅ Bulk updated ${stoneIds.length} products');
+      await CacheService.instance.invalidateNamespace('stones');
     });
   }
 
@@ -302,6 +308,7 @@ class AdminProductRepository {
       }).select().single();
 
       debugPrint('✅ Collection created: ${data['id']}');
+      await CacheService.instance.invalidateNamespace('stones');
       return Collection.fromJson(data);
     });
   }
@@ -335,6 +342,7 @@ class AdminProductRepository {
           .single();
 
       debugPrint('✅ Collection updated: $collectionId');
+      await CacheService.instance.invalidateNamespace('stones');
       return Collection.fromJson(data);
     });
   }
@@ -346,6 +354,7 @@ class AdminProductRepository {
     await _executeWithRetry(() async {
       await _sb.client.from('collections').delete().eq('id', collectionId);
       debugPrint('✅ Collection deleted: $collectionId');
+      await CacheService.instance.invalidateNamespace('stones');
     });
   }
 
@@ -371,7 +380,7 @@ class AdminProductRepository {
       }
       final data =
           await query.order('updated_at', ascending: false).limit(1000);
-      return data.map((j) => _stoneFromRow(j as Map<String, dynamic>)).toList();
+      return data.map((j) => _stoneFromRow(j)).toList();
     });
   }
 
@@ -385,6 +394,7 @@ class AdminProductRepository {
           .update({'active': true, 'updated_at': DateTime.now().toIso8601String()})
           .eq('id', stoneId);
       debugPrint('✅ Product restored: $stoneId');
+      await CacheService.instance.invalidateNamespace('stones');
     });
   }
 

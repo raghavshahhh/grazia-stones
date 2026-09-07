@@ -2,9 +2,8 @@
 // Seed script for Supabase database
 // Run with: dart run scripts/seed_database.dart
 
-import 'dart:convert';
 import 'dart:io';
-import 'package:supabase/supabase.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// This script seeds the Supabase database with initial product data.
 /// It reads from the mock data and inserts into Supabase.

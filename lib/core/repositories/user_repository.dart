@@ -51,7 +51,7 @@ class UserRepository {
 
   Future<String> uploadAvatar(Uint8List bytes, String fileExtension) async {
     final fileName = '$_userId/avatar_${DateTime.now().millisecondsSinceEpoch}.$fileExtension';
-    final path = await _sb.client.storage
+    await _sb.client.storage
         .from('avatars')
         .uploadBinary(fileName, bytes);
     final publicUrl = _sb.client.storage.from('avatars').getPublicUrl(fileName);

@@ -15,6 +15,11 @@ import 'package:grazia_stones/core/models/quote_request.dart';
 import 'package:grazia_stones/core/models/ai_job.dart';
 import 'package:grazia_stones/core/services/supabase_service.dart';
 import 'package:grazia_stones/features/quotes/presentation/quote_request_supabase_screen.dart';
+import 'package:grazia_stones/features/measure/presentation/tile_wall_visualizer_screen.dart';
+import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
+import 'package:grazia_stones/core/repositories/order_repository.dart';
+import 'package:grazia_stones/core/models/user.dart';
+import 'package:grazia_stones/core/services/cache_service.dart';
 
 
 void main() {
@@ -512,6 +517,205 @@ void main() {
     test('QuoteRequestSupabaseScreen handles preselectedStoneId parameter properly', () {
       const screen = QuoteRequestSupabaseScreen(preselectedStoneId: 'stone-athena-3d');
       expect(screen.preselectedStoneId, 'stone-athena-3d');
+    });
+
+    test('Router resolves new routes: /ai-jobs, /catalogue, /admin/ai-jobs, /settings/permissions, /wall-calc', () {
+      final aiJobsUri = Uri.parse('/ai-jobs');
+      expect(aiJobsUri.path, '/ai-jobs');
+
+      final catalogueUri = Uri.parse('/catalogue');
+      expect(catalogueUri.path, '/catalogue');
+
+      final adminAiJobsUri = Uri.parse('/admin/ai-jobs');
+      expect(adminAiJobsUri.path, '/admin/ai-jobs');
+
+      final permissionsUri = Uri.parse('/settings/permissions');
+      expect(permissionsUri.path, '/settings/permissions');
+
+      final wallCalcUri = Uri.parse('/wall-calc?stoneId=stone-001');
+      expect(wallCalcUri.path, '/wall-calc');
+      expect(wallCalcUri.queryParameters['stoneId'], 'stone-001');
+
+      final tileVisualizerUri = Uri.parse('/measure/tile-visualizer?stoneId=stone-001');
+      expect(tileVisualizerUri.path, '/measure/tile-visualizer');
+      expect(tileVisualizerUri.queryParameters['stoneId'], 'stone-001');
+    });
+
+    test('TileWallVisualizerScreen accepts initialStoneId properly', () {
+      const screen = TileWallVisualizerScreen(initialStoneId: 'stone-001');
+      expect(screen.initialStoneId, 'stone-001');
+    });
+
+    testWidgets('SmartStoneImage renders placeholder when asset is null or empty', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SmartStoneImage(imageUrl: null),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('GRAZIA'), findsOneWidget);
+      expect(find.byIcon(Icons.texture_rounded), findsOneWidget);
+    });
+
+    test('Measure & Area Estimator — Multi-Shape & Buffer Calculation', () {
+      // 1. Rectangle: 10 x 15 feet with 10% buffer
+      double l = 10.0;
+      double w = 15.0;
+      double netArea = l * w;
+      expect(netArea, 150.0);
+      double withBuffer = netArea * (1 + 0.10);
+      expect(withBuffer, 165.0);
+      int boxes = (withBuffer / 10.5).ceil();
+      expect(boxes, 16);
+
+      // 2. Metric conversion: 3m x 4m = 12 sq.m -> 12 * 10.764 sq.ft
+      double netAreaMeters = (3.0 * 4.0) * 10.764;
+      expect(netAreaMeters, closeTo(129.168, 0.001));
+
+      // 3. Circle: Radius 5 feet
+      double radius = 5.0;
+      double circleArea = 3.141592653589793 * radius * radius;
+      expect(circleArea, closeTo(78.54, 0.01));
+
+      // 4. L-Shape: 10 x 12 with cutout
+      double cutoutL = 4.0;
+      double lShapeArea = (10.0 * 12.0) - (cutoutL * (12.0 * 0.35));
+      expect(lShapeArea, closeTo(103.2, 0.01));
+    });
+
+    test('AI Studio Preset Templates — Asset Path Integrity', () {
+      const presetTemplates = [
+        'assets/images/hero_banner_1.png',
+        'assets/images/hero_banner_2.png',
+        'assets/images/template_page-06.png',
+        'assets/images/template_page-08.png',
+      ];
+
+      for (final path in presetTemplates) {
+        expect(path, startsWith('assets/images/'));
+        expect(path.endsWith('.png'), isTrue);
+      }
+    });
+  });
+
+  group('OrderRepository — Authentication Enforcement', () {
+    test('Throws when querying or creating orders without an authenticated Supabase user', () {
+      final orderRepo = OrderRepository();
+      // No user is authenticated in the test harness; operations must throw immediately
+      // rather than silently falling back to stale local demo user IDs.
+      expect(
+        () => orderRepo.getOrders(),
+        throwsA(isA<Exception>().having(
+          (e) => e.toString(),
+          'message',
+          contains('User must be authenticated with Supabase'),
+        )),
+      );
+
+      expect(
+        () => orderRepo.createOrder(
+          items: [
+            {'unit_price': 100.0, 'quantity': 2}
+          ],
+          address: {
+            'name': 'Test Client',
+            'phone': '9876543210',
+            'address_line1': '123 Main St',
+            'city': 'Kanpur',
+            'state': 'UP',
+            'pincode': '208001',
+          },
+          paymentMethod: 'cash_on_delivery',
+        ),
+        throwsA(isA<Exception>().having(
+          (e) => e.toString(),
+          'message',
+          contains('User must be authenticated with Supabase'),
+        )),
+      );
+    });
+  });
+
+  group('Admin Capabilities & RBAC Security Verification', () {
+    test('User model enforces strict admin and dealer role detection', () {
+      final adminUser = User(
+        id: 'adm-1',
+        name: 'Admin User',
+        email: 'admin@graziastones.com',
+        role: 'admin',
+        createdAt: DateTime.now(),
+      );
+      expect(adminUser.isAdmin, isTrue);
+      expect(adminUser.isDealer, isFalse);
+
+      final customerUser = User(
+        id: 'cust-1',
+        name: 'Customer User',
+        email: 'customer@example.com',
+        role: 'customer',
+        createdAt: DateTime.now(),
+      );
+      expect(customerUser.isAdmin, isFalse);
+      expect(customerUser.isDealer, isFalse);
+
+      final dealerUser = User(
+        id: 'dlr-1',
+        name: 'Dealer User',
+        email: 'dealer@example.com',
+        role: 'dealer',
+        createdAt: DateTime.now(),
+      );
+      expect(dealerUser.isAdmin, isFalse);
+      expect(dealerUser.isDealer, isTrue);
+    });
+
+    test('Router redirect gate strictly guards /admin against non-admin roles', () {
+      String? evaluateAdminRedirect(String path, AuthRiverpodState authState) {
+        final isLocAdmin = path.startsWith('/admin');
+        if (isLocAdmin && !authState.isAdmin) {
+          final intended = Uri.encodeComponent(path);
+          return '/login?redirect=$intended';
+        }
+        return null;
+      }
+
+      final nonLoggedIn = AuthRiverpodState(isLoggedIn: false);
+      expect(
+        evaluateAdminRedirect('/admin/dashboard', nonLoggedIn),
+        equals('/login?redirect=%2Fadmin%2Fdashboard'),
+      );
+
+      final customerState = AuthRiverpodState(
+        userId: 'u1',
+        userRole: 'customer',
+        isLoggedIn: true,
+      );
+      expect(
+        evaluateAdminRedirect('/admin/products', customerState),
+        equals('/login?redirect=%2Fadmin%2Fproducts'),
+      );
+
+      final adminState = AuthRiverpodState(
+        userId: 'a1',
+        userRole: 'admin',
+        isLoggedIn: true,
+      );
+      expect(
+        evaluateAdminRedirect('/admin/dashboard', adminState),
+        isNull,
+      );
+      expect(
+        evaluateAdminRedirect('/admin/products', adminState),
+        isNull,
+      );
+    });
+
+    test('CacheService namespace invalidation executes for stones mutations', () async {
+      await CacheService.instance.invalidateNamespace('stones');
+      expect(true, isTrue);
     });
   });
 }

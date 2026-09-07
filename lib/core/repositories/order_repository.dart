@@ -2,8 +2,6 @@ import 'dart:developer';
 
 import '../models/order.dart';
 import '../services/supabase_service.dart';
-import '../services/storage_service.dart';
-import '../config/env_config.dart';
 
 /// Order repository backed by Supabase `orders` + `order_items` tables.
 class OrderRepository {
@@ -11,24 +9,16 @@ class OrderRepository {
 
   String get _userId {
     final id = _sb.currentUser?.id;
-    if (id != null) return id;
-
-    final savedUser = StorageService.instance.getUser();
-    final localId = savedUser?['id']?.toString();
-    if (localId != null && localId.isNotEmpty) {
-      return localId;
-    }
-
-    throw Exception('Please sign in to complete your order.');
+    if (id != null && id.isNotEmpty) return id;
+    throw Exception('User must be authenticated with Supabase to place or view orders.');
   }
 
-  String get _apiBaseUrl => EnvConfig().apiBaseUrl;
-
   Future<List<Order>> getOrders({int page = 1, int limit = 20, String? status}) async {
+    final uid = _userId;
     var query = _sb.client
         .from('orders')
         .select('*, order_items(*)')
-        .eq('user_id', _userId);
+        .eq('user_id', uid);
 
     if (status != null && status != 'all') {
       query = query.eq('status', status);
@@ -42,10 +32,12 @@ class OrderRepository {
   }
 
   Future<Order> getOrderById(String id) async {
+    final uid = _userId;
     final data = await _sb.client
         .from('orders')
         .select('*, order_items(*)')
         .eq('id', id)
+        .eq('user_id', uid)
         .single();
     return Order.fromJson(data);
   }
@@ -60,6 +52,7 @@ class OrderRepository {
     double? discount,
     double? total,
   }) async {
+    final uid = _userId;
     // Generate order number
     final now = DateTime.now();
     final orderNum = 'GS-${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}-${now.millisecondsSinceEpoch.toString().substring(8)}';
@@ -78,7 +71,7 @@ class OrderRepository {
     final effectiveTotal = total ?? (subtotal + effectiveTax + effectiveShipping - effectiveDiscount);
 
     final orderData = {
-      'user_id': _userId,
+      'user_id': uid,
       'order_number': orderNum,
       'status': 'pending',
       'subtotal': subtotal,

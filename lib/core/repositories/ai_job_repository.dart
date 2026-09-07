@@ -296,7 +296,7 @@ class AIJobRepository {
         .eq('id', jobId)
         .listen((data) {
           if (data.isNotEmpty) {
-            final job = AIJob.fromJson(data.first as Map<String, dynamic>);
+            final job = AIJob.fromJson(data.first);
             controller.add(job);
           }
         });

@@ -80,6 +80,9 @@ class CrashReportingService {
     }
   }
 
+  /// Get current user ID
+  String? get userId => _userId;
+
   /// Set user context data
   void setUserContext(Map<String, dynamic> context) {
     _userContext.addAll(context);
@@ -101,6 +104,13 @@ class CrashReportingService {
   }) {
     if (!_isEnabled) return;
 
+    // Build full context
+    final fullContext = {
+      ..._userContext,
+      if (context != null) ...context,
+      'breadcrumbs': _breadcrumbs.map((b) => b.toJson()).toList(),
+    };
+
     // Log to console in debug mode
     if (kDebugMode) {
       debugPrint('🛡️ Exception reported (${severity.name}):');
@@ -109,17 +119,10 @@ class CrashReportingService {
         debugPrint('   Stack trace:');
         debugPrint('   $stackTrace');
       }
-      if (context != null) {
-        debugPrint('   Context: $context');
+      if (fullContext.isNotEmpty) {
+        debugPrint('   Context: $fullContext');
       }
     }
-
-    // Build full context
-    final fullContext = {
-      ..._userContext,
-      if (context != null) ...context,
-      'breadcrumbs': _breadcrumbs.map((b) => b.toJson()).toList(),
-    };
 
     // Report to Sentry
     _sentryReporter?.call(exception, stackTrace, severity);

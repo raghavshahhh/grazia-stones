@@ -72,7 +72,7 @@ class _FloatingGlassCartBarState extends ConsumerState<FloatingGlassCartBar>
               child: InkWell(
                 onTap: () {
                   HapticFeedback.heavyImpact();
-                  context.push('/checkout');
+                  context.push('/cart');
                 },
                 borderRadius: BorderRadius.circular(32),
                 child: ClipRRect(
@@ -177,40 +177,46 @@ class _FloatingGlassCartBarState extends ConsumerState<FloatingGlassCartBar>
                           const SizedBox(width: 14),
 
                           // Direct Checkout Action Pill
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFFD4AF37), Color(0xFFF3E5AB)],
-                              ),
-                              borderRadius: BorderRadius.circular(20),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFFD4AF37).withValues(alpha: 0.5),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 2),
+                          GestureDetector(
+                            onTap: () {
+                              HapticFeedback.heavyImpact();
+                              context.push('/checkout');
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFFD4AF37), Color(0xFFF3E5AB)],
                                 ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'Checkout',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.black,
-                                    letterSpacing: 0.3,
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFFD4AF37).withValues(alpha: 0.5),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 2),
                                   ),
-                                ),
-                                const SizedBox(width: 4),
-                                const Icon(
-                                  Icons.arrow_forward_rounded,
-                                  size: 13,
-                                  color: Colors.black,
-                                ),
-                              ],
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'Checkout',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.black,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  const Icon(
+                                    Icons.arrow_forward_rounded,
+                                    size: 13,
+                                    color: Colors.black,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ],

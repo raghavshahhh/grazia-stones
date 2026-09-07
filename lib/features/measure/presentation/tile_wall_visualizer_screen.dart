@@ -10,6 +10,7 @@ import 'package:grazia_stones/core/providers/stone_providers.dart';
 import 'package:grazia_stones/core/services/pdf_service.dart';
 import 'package:grazia_stones/features/cart/presentation/cart_screen.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
+import 'package:grazia_stones/shared/widgets/luxury_toast.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 
 /// Next-Generation Proportional 2D/3D Wall Visualizer & Tile Estimation Engine.
@@ -74,13 +75,11 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
     HapticFeedback.selectionClick();
   }
 
-  Future<void> _exportPdfSpecSheet(double widthFt, double heightFt, double netArea, double grossArea, int boxes, int totalTiles, double cost) async {
+  Future<void> _exportPdfSpecSheet(double widthFt, double heightFt, double netArea, double grossArea, int? boxes, int? totalTiles, double cost) async {
     if (_selectedStone == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a stone material first to export specification sheet.'),
-          behavior: SnackBarBehavior.floating,
-        ),
+      LuxuryToast.show(
+        context,
+        message: 'Please select a stone material first to export specification sheet.',
       );
       return;
     }
@@ -95,8 +94,8 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
         wallHeightFt: heightFt,
         unit: _unit,
         wastagePercent: _wastagePercent,
-        boxesRequired: boxes,
-        totalTiles: totalTiles,
+        boxesRequired: boxes ?? 0,
+        totalTiles: totalTiles ?? 0,
         netAreaSqFt: netArea,
         grossAreaSqFt: grossArea,
         estimatedCost: cost,
@@ -109,12 +108,10 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Unable to generate PDF: $e'),
-          backgroundColor: Colors.red.shade800,
-          behavior: SnackBarBehavior.floating,
-        ),
+      LuxuryToast.show(
+        context,
+        message: 'Unable to generate PDF: $e',
+        isError: true,
       );
     } finally {
       if (mounted) setState(() => _isExportingPdf = false);
@@ -126,17 +123,11 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
     ref.read(cartProvider.notifier).addItem(_selectedStone!, quantity: grossArea.ceil());
     HapticFeedback.heavyImpact();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Added ${grossArea.toStringAsFixed(0)} sq.ft of ${_selectedStone!.name} to Project Cart!'),
-        backgroundColor: const Color(0xFF10B981),
-        behavior: SnackBarBehavior.floating,
-        action: SnackBarAction(
-          label: 'View Cart',
-          textColor: Colors.white,
-          onPressed: () => context.push('/cart'),
-        ),
-      ),
+    LuxuryToast.show(
+      context,
+      message: 'Added ${grossArea.toStringAsFixed(0)} sq.ft of ${_selectedStone!.name} to Project Cart!',
+      actionLabel: 'View Cart',
+      onAction: () => context.push('/cart'),
     );
   }
 
@@ -153,20 +144,33 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
     final netAreaSqFt = validDimensions ? widthFt * heightFt : 0.0;
     final grossAreaSqFt = netAreaSqFt * (1 + _wastagePercent / 100);
 
-    int boxesRequired = 0;
-    int totalTiles = 0;
+    int? boxesRequired;
+    int? totalTiles;
     double estimatedCost = 0.0;
 
     if (_selectedStone != null && validDimensions) {
-      final coverage = _selectedStone!.sqftPerBox > 0 ? _selectedStone!.sqftPerBox : 4.5;
-      boxesRequired = (grossAreaSqFt / coverage).ceil();
-      final tileW = (_selectedStone!.lengthCm ?? 60.0) / 30.48;
-      final tileH = (_selectedStone!.widthCm ?? 30.0) / 30.48;
-      final cols = (widthFt / tileW).ceil();
-      final rows = (heightFt / tileH).ceil();
-      totalTiles = (cols * rows * (1 + _wastagePercent / 100)).ceil();
+      if (_selectedStone!.sqftPerBox > 0) {
+        boxesRequired = (grossAreaSqFt / _selectedStone!.sqftPerBox).ceil();
+      } else {
+        boxesRequired = null;
+      }
+
+      final lenCm = _selectedStone!.lengthCm;
+      final widCm = _selectedStone!.widthCm;
+      if (lenCm != null && widCm != null && lenCm > 0 && widCm > 0) {
+        final tileW = lenCm / 30.48;
+        final tileH = widCm / 30.48;
+        final cols = (widthFt / tileW).ceil();
+        final rows = (heightFt / tileH).ceil();
+        totalTiles = (cols * rows * (1 + _wastagePercent / 100)).ceil();
+      } else {
+        totalTiles = null;
+      }
+
       estimatedCost = grossAreaSqFt * _selectedStone!.pricePerSqFt;
     }
+
+    final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
 
     return Scaffold(
       backgroundColor: palette.background,
@@ -182,156 +186,181 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '3D Wall & Tile Calculator',
+              'Wall & Tile Visualizer',
               style: GoogleFonts.playfairDisplay(
-                fontSize: 18,
+                fontSize: 16,
                 fontWeight: FontWeight.w700,
                 color: palette.textPrimary,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
             Text(
-              'Precision Proportional Geometry',
+              'Proportional 3D Geometry',
               style: GoogleFonts.inter(
                 fontSize: 10,
                 color: palette.textSecondary,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
         actions: [
           // 2D / 3D Toggle
           Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ActionChip(
-              avatar: Icon(
-                _is3DView ? Icons.view_in_ar_rounded : Icons.crop_square_rounded,
-                size: 14,
-                color: palette.primary,
-              ),
-              label: Text(
-                _is3DView ? '3D View' : '2D Plan',
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: palette.primary,
-                ),
-              ),
-              backgroundColor: palette.primary.withValues(alpha: 0.12),
-              side: BorderSide(color: palette.primary.withValues(alpha: 0.3)),
-              onPressed: () {
+            padding: const EdgeInsets.only(right: 4),
+            child: GestureDetector(
+              onTap: () {
                 HapticFeedback.selectionClick();
                 setState(() => _is3DView = !_is3DView);
               },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: palette.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: palette.primary.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _is3DView ? Icons.view_in_ar_rounded : Icons.crop_square_rounded,
+                      size: 13,
+                      color: palette.primary,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _is3DView ? '3D' : '2D',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: palette.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
           IconButton(
-            icon: Icon(Icons.restart_alt_rounded, color: palette.textSecondary, size: 20),
+            icon: Icon(Icons.restart_alt_rounded, color: palette.textSecondary, size: 19),
             tooltip: 'Reset Zoom',
             onPressed: _resetView,
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Dimension Controls & Wastage Header
-          _buildDimensionControls(palette, isDark),
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: Column(
+          children: [
+            // Dimension Controls & Wastage Header
+            _buildDimensionControls(palette, isDark),
 
-          // Interactive Proportional Wall Canvas Viewport
-          Expanded(
-            child: Stack(
-              children: [
-                Container(
-                  color: isDark ? const Color(0xFF141416) : const Color(0xFFF1EFEA),
-                  child: !validDimensions
-                      ? Center(
-                          child: Text(
-                            'Enter wall dimensions above to visualize tiling.',
-                            style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 13),
-                          ),
-                        )
-                      : InteractiveViewer(
-                          transformationController: _viewerController,
-                          minScale: 0.4,
-                          maxScale: 6.0,
-                          child: Center(
-                            child: _buildProportionalWall(
-                              widthFt: widthFt,
-                              heightFt: heightFt,
-                              palette: palette,
-                              isDark: isDark,
+            // Interactive Proportional Wall Canvas Viewport
+            Expanded(
+              child: Stack(
+                children: [
+                  Container(
+                    color: isDark ? const Color(0xFF141416) : const Color(0xFFF1EFEA),
+                    child: !validDimensions
+                        ? Center(
+                            child: Text(
+                              'Enter wall dimensions above to visualize tiling.',
+                              style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 13),
+                            ),
+                          )
+                        : InteractiveViewer(
+                            transformationController: _viewerController,
+                            minScale: 0.4,
+                            maxScale: 6.0,
+                            child: Center(
+                              child: _buildProportionalWall(
+                                widthFt: widthFt,
+                                heightFt: heightFt,
+                                palette: palette,
+                                isDark: isDark,
+                              ),
                             ),
                           ),
-                        ),
-                ),
+                  ),
 
-                // Pattern Switcher Overlay (Bottom Left of Canvas)
-                Positioned(
-                  left: 14,
-                  bottom: 14,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? const Color(0xFF1E1E1E).withValues(alpha: 0.9)
-                          : Colors.white.withValues(alpha: 0.92),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: palette.border),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.1),
-                          blurRadius: 8,
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _buildPatternChip('Stacked', 'stacked', palette),
-                        const SizedBox(width: 4),
-                        _buildPatternChip('Brick Bond', 'brick', palette),
-                        const SizedBox(width: 4),
-                        _buildPatternChip('Vertical', 'vertical', palette),
-                      ],
+                  // Pattern Switcher Overlay (Bottom Left of Canvas)
+                  Positioned(
+                    left: 14,
+                    bottom: 14,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? const Color(0xFF1E1E1E).withValues(alpha: 0.9)
+                            : Colors.white.withValues(alpha: 0.92),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: palette.border),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.1),
+                            blurRadius: 8,
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildPatternChip('Stacked', 'stacked', palette),
+                          const SizedBox(width: 4),
+                          _buildPatternChip('Brick Bond', 'brick', palette),
+                          const SizedBox(width: 4),
+                          _buildPatternChip('Vertical', 'vertical', palette),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
-
-          // Instant Calculations Summary Card
-          if (validDimensions)
-            _buildCalculationSummary(
-              palette: palette,
-              isDark: isDark,
-              widthFt: widthFt,
-              heightFt: heightFt,
-              netAreaSqFt: netAreaSqFt,
-              grossAreaSqFt: grossAreaSqFt,
-              boxesRequired: boxesRequired,
-              totalTiles: totalTiles,
-              estimatedCost: estimatedCost,
+                ],
+              ),
             ),
 
-          // Material Stone Carousel Strip
-          stonesAsync.when(
-            data: (stones) {
-              if (_selectedStone == null && stones.isNotEmpty) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted && _selectedStone == null) {
-                    setState(() => _selectedStone = stones.first);
+            // Instant Calculations Summary Card
+            if (validDimensions)
+              _buildCalculationSummary(
+                palette: palette,
+                isDark: isDark,
+                widthFt: widthFt,
+                heightFt: heightFt,
+                netAreaSqFt: netAreaSqFt,
+                grossAreaSqFt: grossAreaSqFt,
+                boxesRequired: boxesRequired,
+                totalTiles: totalTiles,
+                estimatedCost: estimatedCost,
+              ),
+
+            // Material Stone Carousel Strip (hidden when keyboard is open to preserve canvas height)
+            if (!isKeyboardOpen)
+              stonesAsync.when(
+                data: (stones) {
+                  if (_selectedStone == null && stones.isNotEmpty) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted && _selectedStone == null) {
+                        Stone? match;
+                        if (widget.initialStoneId != null) {
+                          match = stones.where((s) => s.id == widget.initialStoneId).firstOrNull;
+                        }
+                        setState(() => _selectedStone = match ?? stones.first);
+                      }
+                    });
                   }
-                });
-              }
-              return _buildProductStrip(stones, palette, isDark);
-            },
-            loading: () => const SizedBox(
-              height: 100,
-              child: Center(child: CircularProgressIndicator()),
-            ),
-            error: (_, __) => const SizedBox.shrink(),
-          ),
-        ],
+                  return _buildProductStrip(stones, palette, isDark);
+                },
+                loading: () => const SizedBox(
+                  height: 100,
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+                error: (_, __) => const SizedBox.shrink(),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -352,6 +381,7 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                 child: TextField(
                   controller: _widthController,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  textInputAction: TextInputAction.next,
                   style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: palette.textPrimary),
                   decoration: InputDecoration(
                     labelText: 'Wall Width',
@@ -371,6 +401,8 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                 child: TextField(
                   controller: _heightController,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => FocusScope.of(context).unfocus(),
                   style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: palette.textPrimary),
                   decoration: InputDecoration(
                     labelText: 'Wall Height',
@@ -484,11 +516,21 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
     final renderWidth = aspect >= 1 ? maxRenderSize : maxRenderSize * aspect;
     final renderHeight = aspect >= 1 ? maxRenderSize / aspect : maxRenderSize;
 
-    final tileWFt = (_selectedStone?.lengthCm ?? 60.0) / 30.48;
-    final tileHFt = (_selectedStone?.widthCm ?? 30.0) / 30.48;
+    final lenCm = _selectedStone?.lengthCm;
+    final widCm = _selectedStone?.widthCm;
+    final hasRealDimensions = lenCm != null && widCm != null && lenCm > 0 && widCm > 0;
 
-    final columns = (widthFt / tileWFt).ceil().clamp(1, 150);
-    final rows = (heightFt / tileHFt).ceil().clamp(1, 150);
+    final int? columns;
+    final int? rows;
+    if (hasRealDimensions) {
+      final tileWFt = lenCm / 30.48;
+      final tileHFt = widCm / 30.48;
+      columns = (widthFt / tileWFt).ceil().clamp(1, 150);
+      rows = (heightFt / tileHFt).ceil().clamp(1, 150);
+    } else {
+      columns = null;
+      rows = null;
+    }
 
     return Transform(
       transform: _is3DView
@@ -527,13 +569,19 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                     ),
                   ),
                 )
-              : _buildTiledPattern(
-                  imageUrl: _selectedStone!.arTextureUrl ?? _selectedStone!.imageUrl,
-                  columns: columns,
-                  rows: rows,
-                  renderWidth: renderWidth,
-                  renderHeight: renderHeight,
-                ),
+              : (columns != null && rows != null)
+                  ? _buildTiledPattern(
+                      imageUrl: _selectedStone!.arTextureUrl ?? _selectedStone!.imageUrl,
+                      columns: columns,
+                      rows: rows,
+                      renderWidth: renderWidth,
+                      renderHeight: renderHeight,
+                    )
+                  : SmartStoneImage(
+                      imageUrl: _selectedStone!.arTextureUrl ?? _selectedStone!.imageUrl,
+                      fit: BoxFit.cover,
+                      fallbackColor: const Color(0xFFC4B5A5),
+                    ),
         ),
       ),
     );
@@ -571,10 +619,10 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                     width: 0.6,
                   ),
                 ),
-                child: Image.network(
-                  imageUrl,
+                child: SmartStoneImage(
+                  imageUrl: imageUrl,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(color: const Color(0xFFC4B5A5)),
+                  fallbackColor: const Color(0xFFC4B5A5),
                 ),
               );
             }),
@@ -591,8 +639,8 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
     required double heightFt,
     required double netAreaSqFt,
     required double grossAreaSqFt,
-    required int boxesRequired,
-    required int totalTiles,
+    required int? boxesRequired,
+    required int? totalTiles,
     required double estimatedCost,
   }) {
     return Container(
@@ -616,13 +664,18 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
             children: [
               _buildStatMetric('Net Area', '${netAreaSqFt.toStringAsFixed(1)} sq.ft', palette),
               _buildStatMetric('With Wastage', '${grossAreaSqFt.toStringAsFixed(1)} sq.ft', palette),
-              _buildStatMetric('Boxes Needed', '$boxesRequired boxes', palette, isHighlight: true),
+              _buildStatMetric(
+                'Boxes Needed',
+                boxesRequired != null ? '$boxesRequired boxes' : 'Coverage unavailable',
+                palette,
+                isHighlight: boxesRequired != null,
+              ),
               _buildStatMetric('Est. Value', '₹${estimatedCost.toStringAsFixed(0)}', palette, isGold: true),
             ],
           ),
           const SizedBox(height: 12),
 
-          // Action Buttons: PDF Export, Add to Cart, Get Quote
+          // Action Buttons: PDF Export, Add to Cart (if packaging known), Request Quote
           Row(
             children: [
               // PDF Export Button
@@ -645,46 +698,82 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                           height: 14,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.picture_as_pdf_rounded, size: 16),
+                      : const Icon(Icons.picture_as_pdf_rounded, size: 15),
                   label: Text(
                     'Export PDF',
-                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700),
+                    style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                 ),
               ),
               const SizedBox(width: 8),
 
-              // Add to Cart Button
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () => _addBoxesToCart(grossAreaSqFt),
-                  icon: const Icon(Icons.shopping_bag_rounded, size: 16, color: Colors.black),
+              // Add to Cart Button (Only if real packaging is available)
+              if (boxesRequired != null) ...[
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _addBoxesToCart(grossAreaSqFt),
+                    icon: const Icon(Icons.shopping_bag_rounded, size: 15, color: Colors.black),
+                    label: Text(
+                      'Add to Cart',
+                      style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.black),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: palette.primary,
+                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+
+                // Get Factory Quote
+                OutlinedButton.icon(
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    context.push('/quotes/new?stoneId=${_selectedStone?.id ?? ''}');
+                  },
+                  icon: Icon(Icons.request_quote_rounded, size: 15, color: palette.primary),
                   label: Text(
-                    'Add to Cart',
-                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.black),
+                    'Quote',
+                    style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: palette.primary),
                   ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: palette.primary,
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: palette.primary.withValues(alpha: 0.5)),
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-
-              // Get Factory Quote
-              IconButton.filledTonal(
-                onPressed: () {
-                  HapticFeedback.lightImpact();
-                  context.push('/quotes/new?stoneId=${_selectedStone?.id ?? ''}');
-                },
-                icon: const Icon(Icons.request_quote_rounded, size: 18),
-                tooltip: 'Get Factory Quote',
-              ),
+              ] else ...[
+                // Packaging metadata missing: promote "Request Quote" as primary CTA
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      HapticFeedback.heavyImpact();
+                      context.push('/quotes/new?stoneId=${_selectedStone?.id ?? ''}');
+                    },
+                    icon: const Icon(Icons.request_quote_rounded, size: 15, color: Colors.black),
+                    label: Text(
+                      'Request Quote',
+                      style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.black),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: palette.primary,
+                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ],

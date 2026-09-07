@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/services/supabase_service.dart';
+import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 
@@ -114,9 +115,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           ),
         ],
       ),
-      body: _isLoading
-          ? Center(child: CircularProgressIndicator(color: palette.primary))
-          : RefreshIndicator(
+      body: _error != null
+          ? ErrorHandlerWidget(error: Exception(_error), onRetry: _loadMetrics)
+          : _isLoading
+              ? Center(child: CircularProgressIndicator(color: palette.primary))
+              : RefreshIndicator(
               color: palette.primary,
               backgroundColor: palette.surface,
               onRefresh: _loadMetrics,
@@ -208,7 +211,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                         ),
                         _MetricCard(
                           title: 'Total Orders',
-                          value: '$_totalOrders (${_pendingOrders} pending)',
+                          value: '$_totalOrders ($_pendingOrders pending)',
                           icon: Icons.inventory_2_outlined,
                           palette: palette,
                         ),
@@ -234,6 +237,12 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                           title: 'Showrooms / Dealers',
                           value: '$_totalDealers',
                           icon: Icons.storefront_outlined,
+                          palette: palette,
+                        ),
+                        _MetricCard(
+                          title: 'Registered Clients',
+                          value: '$_totalUsers',
+                          icon: Icons.people_outline_rounded,
                           palette: palette,
                         ),
                       ],
@@ -294,6 +303,13 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                       icon: Icons.location_city_outlined,
                       palette: palette,
                       onTap: () => context.push('/admin/dealers'),
+                    ),
+                    _AdminNavTile(
+                      title: 'AI Studio & Render Jobs',
+                      subtitle: 'Monitor photorealistic rendering queue and analytics',
+                      icon: Icons.auto_awesome_rounded,
+                      palette: palette,
+                      onTap: () => context.push('/admin/ai-jobs'),
                     ),
 
                     const SizedBox(height: 48),

@@ -256,22 +256,58 @@ import MetalKit
     /// and returns the resulting world-space point. This is the ONLY supported way to
     /// place a measurement point — it always resolves to a real ARKit world anchor,
     /// never a raw screen coordinate.
-    @objc public func hitTestWallAtScreenPoint(_ screenPoint: CGPoint) -> [String: Any]? {
-        let results = arSceneView.hitTest(screenPoint, types: [.existingPlaneUsingGeometry, .existingPlaneUsingExtent])
+    /// Resolves a screen tap to a world-space point on a vertical surface.
+    ///
+    /// Uses ARKit raycasting rather than the deprecated `hitTest(_:types:)`. On a
+    /// LiDAR device this matters: raycasting consults the reconstructed scene
+    /// geometry and depth data, so a tap lands correctly on a wall that ARKit has
+    /// not yet promoted to a full ARPlaneAnchor. `.existingPlaneGeometry` is tried
+    /// first (most precise), then `.estimatedPlane` (depth-driven, works early).
+    /// The legacy hit-test remains as a last resort so behaviour never regresses
+    /// on non-LiDAR hardware.
+    private func verticalWorldPoint(at screenPoint: CGPoint) -> simd_float3? {
+        let targets: [ARRaycastQuery.Target] = [.existingPlaneGeometry, .estimatedPlane]
 
-        // Prefer a hit on the currently selected wall; fall back to any vertical plane hit.
-        let preferred = results.first { result in
+        for target in targets {
+            guard let query = arSceneView.raycastQuery(
+                from: screenPoint,
+                allowing: target,
+                alignment: .vertical
+            ) else { continue }
+
+            let results = arSceneView.session.raycast(query)
+            guard !results.isEmpty else { continue }
+
+            // Prefer a hit on the wall the user already selected, so measuring
+            // stays on one surface even when several walls overlap under the tap.
+            let preferred = results.first { result in
+                guard let id = (result.anchor as? ARPlaneAnchor)?.identifier else { return false }
+                return id == selectedWallId
+            }
+
+            if let hit = preferred ?? results.first {
+                let t = hit.worldTransform
+                return simd_float3(t.columns.3.x, t.columns.3.y, t.columns.3.z)
+            }
+        }
+
+        // Fallback: devices/sessions where raycasting yields nothing.
+        let legacy = arSceneView.hitTest(screenPoint, types: [.existingPlaneUsingGeometry, .existingPlaneUsingExtent])
+        let legacyPreferred = legacy.first { result in
             guard let planeAnchor = result.anchor as? ARPlaneAnchor,
                   planeAnchor.alignment == .vertical else { return false }
             return selectedWallId == nil || planeAnchor.identifier == selectedWallId
         }
-
-        guard let hit = preferred ?? results.first(where: { ($0.anchor as? ARPlaneAnchor)?.alignment == .vertical }) else {
+        guard let hit = legacyPreferred ?? legacy.first(where: { ($0.anchor as? ARPlaneAnchor)?.alignment == .vertical }) else {
             return nil
         }
+        let t = hit.worldTransform
+        return simd_float3(t.columns.3.x, t.columns.3.y, t.columns.3.z)
+    }
 
-        let worldTransform = hit.worldTransform
-        let point = simd_float3(worldTransform.columns.3.x, worldTransform.columns.3.y, worldTransform.columns.3.z)
+    @objc public func hitTestWallAtScreenPoint(_ screenPoint: CGPoint) -> [String: Any]? {
+        guard let point = verticalWorldPoint(at: screenPoint) else { return nil }
+
         let anchorId = addMeasurementPoint(point)
         addMeasurementMarkerNode(at: point, anchorId: anchorId)
 
@@ -489,22 +525,18 @@ import MetalKit
         ]
     }
     
+    /// Distance in metres between two screen taps, resolved through ARKit world
+    /// anchors.
+    ///
+    /// Deliberately does NOT require `pixelsPerMeter`. Both points come back as
+    /// real world-space coordinates already in metres, so the pixel calibration
+    /// is irrelevant here — the old `guard pixelsPerMeter > 0` made every
+    /// measurement return nil until an unrelated calibration step had been run.
     public func measureDistance(_ screenPoint1: CGPoint, _ screenPoint2: CGPoint) -> Float? {
-        guard pixelsPerMeter > 0 else { return nil }
-        
-        // Hit test both points against wall planes
-        let hit1 = arSceneView.hitTest(screenPoint1, types: [.existingPlaneUsingGeometry, .existingPlaneUsingExtent])
-            .first(where: { ($0.anchor as? ARPlaneAnchor)?.alignment == .vertical })
-        let hit2 = arSceneView.hitTest(screenPoint2, types: [.existingPlaneUsingGeometry, .existingPlaneUsingExtent])
-            .first(where: { ($0.anchor as? ARPlaneAnchor)?.alignment == .vertical })
-        
-        guard let h1 = hit1, let h2 = hit2 else { return nil }
-        
-        let p1 = simd_float3(h1.worldTransform.columns.3.x, h1.worldTransform.columns.3.y, h1.worldTransform.columns.3.z)
-        let p2 = simd_float3(h2.worldTransform.columns.3.x, h2.worldTransform.columns.3.y, h2.worldTransform.columns.3.z)
-        
-        let worldDistance = simd_distance(p1, p2)
-        return worldDistance
+        guard let p1 = verticalWorldPoint(at: screenPoint1),
+              let p2 = verticalWorldPoint(at: screenPoint2) else { return nil }
+
+        return simd_distance(p1, p2)
     }
     
     // MARK: - Tile Quantity Calculation

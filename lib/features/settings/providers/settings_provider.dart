@@ -149,7 +149,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
   Future<void> _loadSettings() async {
     try {
       final data = _storage.getData(_settingsKey);
-      if (data != null && data is Map<String, dynamic>) {
+      if (data != null) {
         state = SettingsState.fromJson(data);
         debugPrint('✅ Settings loaded: ${state.measurementUnit.displayName}');
       }

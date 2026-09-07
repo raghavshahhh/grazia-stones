@@ -365,7 +365,7 @@ class ShareOptionsSheet extends StatelessWidget {
             color: Colors.green,
             onTap: () async {
               try {
-                final path = await ShareService.instance.savePDFToDevice(
+                await ShareService.instance.savePDFToDevice(
                   pdfData: pdfData,
                   fileName: fileName,
                 );

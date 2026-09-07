@@ -172,32 +172,19 @@ class EnvConfig {
   // ═══════════════════════════════════════════════════════════════════════
 
   bool get enableMockData {
-    // Allow mock data in development for testing
-    return const bool.fromEnvironment(
-      'ENABLE_MOCK_DATA',
-      defaultValue: false, // Changed to false - we want real data!
-    );
+    return _getBoolEnv('ENABLE_MOCK_DATA', false);
   }
 
   bool get enableAIVisualization {
-    return const bool.fromEnvironment(
-      'ENABLE_AI_VISUALIZATION',
-      defaultValue: true,
-    );
+    return _getBoolEnv('ENABLE_AI_VISUALIZATION', true);
   }
 
   bool get enableARView {
-    return const bool.fromEnvironment(
-      'ENABLE_AR_VIEW',
-      defaultValue: true,
-    );
+    return _getBoolEnv('ENABLE_AR_VIEW', true);
   }
 
   bool get enableDebugLogs {
-    return isDevelopment || const bool.fromEnvironment(
-      'ENABLE_DEBUG_LOGS',
-      defaultValue: false,
-    );
+    return isDevelopment || _getBoolEnv('ENABLE_DEBUG_LOGS', false);
   }
 
   // ═══════════════════════════════════════════════════════════════════════

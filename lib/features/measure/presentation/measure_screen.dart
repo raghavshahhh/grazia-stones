@@ -116,10 +116,35 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
           ),
         ),
         actions: [
-          TextButton.icon(
-            onPressed: () => context.push('/measure/tile-visualizer'),
-            icon: Icon(Icons.view_in_ar_rounded, size: 18, color: palette.textPrimary),
-            label: Text('Tile Visualizer', style: TextStyle(color: palette.textPrimary)),
+          Padding(
+            padding: const EdgeInsets.only(right: 14),
+            child: InkWell(
+              onTap: () => context.push('/measure/tile-visualizer'),
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: palette.surfaceDark,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: palette.border),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.view_in_ar_rounded, size: 15, color: palette.primary),
+                    const SizedBox(width: 5),
+                    Text(
+                      'Visualizer',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: palette.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
       ),

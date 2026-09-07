@@ -31,6 +31,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   List<Collection>? _collections;
   String _selectedCategory = 'All';
   bool _isLoading = true;
+  Object? _loadError;
 
   late PageController _heroPageController;
   Timer? _heroTimer;
@@ -75,6 +76,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Future<void> _loadData() async {
     setState(() {
       _isLoading = true;
+      _loadError = null;
     });
 
     try {
@@ -99,6 +101,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       debugPrint('❌ Home screen error: $e');
       if (mounted) {
         setState(() {
+          _loadError = e;
           _isLoading = false;
         });
         showErrorSnackbar(context, e, onRetry: _loadData);
@@ -142,12 +145,55 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             icon: Icon(Icons.notifications_outlined, color: palette.textPrimary, size: 22),
             onPressed: () => _showNotificationsSheet(context, palette),
           ),
+          Consumer(
+            builder: (context, ref, _) {
+              final cart = ref.watch(cartProvider);
+              final count = cart.fold<int>(0, (sum, i) => sum + i.quantity);
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  IconButton(
+                    icon: Icon(Icons.shopping_bag_outlined, color: palette.textPrimary, size: 22),
+                    onPressed: () => context.push('/cart'),
+                  ),
+                  if (count > 0)
+                    Positioned(
+                      top: 6,
+                      right: 6,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: palette.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                        child: Text(
+                          '$count',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
           const SizedBox(width: 8),
         ],
       ),
       body: _isLoading
           ? _buildLoading(palette)
-          : RefreshIndicator(
+          : (_trendingStones == null && _collections == null)
+              ? ErrorHandlerWidget(
+                  error: _loadError ?? 'Unable to connect to catalogue service',
+                  onRetry: _loadData,
+                  palette: palette,
+                )
+              : RefreshIndicator(
               onRefresh: _loadData,
               color: palette.primary,
               backgroundColor: palette.surface,

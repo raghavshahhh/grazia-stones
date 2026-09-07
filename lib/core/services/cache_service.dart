@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
 
@@ -70,7 +69,7 @@ class CacheService {
   }
 
   /// Put in memory cache
-  void _putInMemory(String key, dynamic value, Duration ttl) {
+  void _putInMemory(String key, dynamic value, DateTime expiresAt) {
     // Evict oldest if at capacity
     if (_memoryCache.length >= _maxMemoryEntries) {
       _evictOldestMemory();
@@ -80,7 +79,7 @@ class CacheService {
       key: key,
       value: value,
       createdAt: DateTime.now(),
-      expiresAt: DateTime.now().add(ttl),
+      expiresAt: expiresAt,
       lastAccessed: DateTime.now(),
     );
   }
@@ -93,7 +92,7 @@ class CacheService {
     DateTime? oldestTime;
     
     for (final entry in _memoryCache.entries) {
-      if (oldestTime == null || entry.value.lastAccessed.isBefore(oldestTime!)) {
+      if (oldestTime == null || entry.value.lastAccessed.isBefore(oldestTime)) {
         oldestTime = entry.value.lastAccessed;
         oldestKey = entry.key;
       }
@@ -131,13 +130,13 @@ class CacheService {
   }
 
   /// Put in disk cache
-  Future<void> _putInDisk(String key, dynamic value, Duration ttl) async {
+  Future<void> _putInDisk(String key, dynamic value, DateTime expiresAt) async {
     try {
       final entry = CacheEntry(
         key: key,
         value: value,
         createdAt: DateTime.now(),
-        expiresAt: DateTime.now().add(ttl),
+        expiresAt: expiresAt,
         lastAccessed: DateTime.now(),
       );
       
@@ -226,8 +225,13 @@ class CacheService {
     final diskEntry = await _getFromDisk(cacheKey);
     if (diskEntry != null) {
       debugPrint('💾 Cache HIT (disk): $namespace/$key');
-      // Promote to memory
-      _putInMemory(cacheKey, diskEntry.value, diskEntry.ttl);
+      // Promote to memory without resetting/extending expiration
+      final now = DateTime.now();
+      final remaining = diskEntry.expiresAt.difference(now);
+      if (remaining > Duration.zero) {
+        final memExpiresAt = remaining < _memoryTTL ? diskEntry.expiresAt : now.add(_memoryTTL);
+        _putInMemory(cacheKey, diskEntry.value, memExpiresAt);
+      }
       return diskEntry.value as T;
     }
     
@@ -236,17 +240,26 @@ class CacheService {
   }
 
   /// Put value in cache (both memory and disk)
-  Future<void> set<T>(String namespace, String key, T value, {Duration? ttl}) async {
+  Future<void> set<T>(
+    String namespace,
+    String key,
+    T value, {
+    Duration? ttl,
+    Duration? memoryTtl,
+    Duration? diskTtl,
+  }) async {
     if (!_initialized) await init();
     
     final cacheKey = _generateKey(namespace, key);
-    final effectiveTtl = ttl ?? _memoryTTL;
+    final now = DateTime.now();
+    final effectiveMemTtl = memoryTtl ?? ttl ?? _memoryTTL;
+    final effectiveDiskTtl = diskTtl ?? ttl ?? _diskTTL;
     
     // Store in both caches
-    _putInMemory(cacheKey, value, effectiveTtl);
-    await _putInDisk(cacheKey, value, effectiveTtl);
+    _putInMemory(cacheKey, value, now.add(effectiveMemTtl));
+    await _putInDisk(cacheKey, value, now.add(effectiveDiskTtl));
     
-    debugPrint('💾 Cache SET: $namespace/$key (TTL: ${effectiveTtl.inMinutes}min)');
+    debugPrint('💾 Cache SET: $namespace/$key (Mem: ${effectiveMemTtl.inMinutes}m, Disk: ${effectiveDiskTtl.inDays}d)');
   }
 
   /// Invalidate cache entry

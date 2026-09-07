@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -8,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/models/collection.dart';
+import 'package:grazia_stones/core/services/cache_service.dart';
 import 'package:grazia_stones/core/services/supabase_service.dart';
 import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
@@ -139,6 +139,7 @@ class _AdminProductEditScreenState extends ConsumerState<AdminProductEditScreen>
     _category = s.category;
     _finish = s.finish;
     _featured = s.isFeatured;
+    _active = s.inStock;
     _selectedCollectionId = s.collectionId;
     _imageUrl = s.imageUrl;
   }
@@ -229,6 +230,8 @@ class _AdminProductEditScreenState extends ConsumerState<AdminProductEditScreen>
       } else {
         await client.from('stones').insert(stoneData);
       }
+
+      await CacheService.instance.invalidateNamespace('stones');
 
       if (mounted) {
         setState(() => _isSaving = false);
@@ -436,8 +439,17 @@ class _AdminProductEditScreenState extends ConsumerState<AdminProductEditScreen>
                     SwitchListTile(
                       title: Text('Featured in Showroom', style: GoogleFonts.inter(color: palette.textPrimary, fontWeight: FontWeight.w600, fontSize: 14)),
                       value: _featured,
-                      activeColor: palette.primary,
+                      activeTrackColor: palette.primary,
+                      activeThumbColor: palette.primary,
                       onChanged: (v) => setState(() => _featured = v),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    SwitchListTile(
+                      title: Text('Active / Published in Catalogue', style: GoogleFonts.inter(color: palette.textPrimary, fontWeight: FontWeight.w600, fontSize: 14)),
+                      value: _active,
+                      activeTrackColor: palette.primary,
+                      activeThumbColor: palette.primary,
+                      onChanged: (v) => setState(() => _active = v),
                       contentPadding: EdgeInsets.zero,
                     ),
 

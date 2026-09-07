@@ -184,13 +184,10 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                         ? Stack(
                             fit: StackFit.expand,
                             children: [
-                              Image.network(
-                                _selectedCollection!.imageUrl!,
+                              SmartStoneImage(
+                                imageUrl: _selectedCollection!.imageUrl,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(
-                                  color: palette.primary.withValues(alpha: 0.2),
-                                  child: Icon(Icons.collections_outlined, size: 64, color: palette.primary),
-                                ),
+                                palette: palette,
                               ),
                               Container(
                                 decoration: BoxDecoration(

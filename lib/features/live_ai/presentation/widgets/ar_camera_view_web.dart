@@ -11,6 +11,7 @@ import 'dart:ui_web' as ui_web;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:web/web.dart' as web;
 
 @JS('eval')
@@ -52,8 +53,18 @@ dynamic _jsEval(String expr) {
 
 Future<String?> _assetToDataUrl(String assetPath) async {
   try {
-    final data = await rootBundle.load(assetPath);
-    final bytes = data.buffer.asUint8List();
+    Uint8List bytes;
+    if (assetPath.startsWith('http://') || assetPath.startsWith('https://')) {
+      final res = await http.get(Uri.parse(assetPath)).timeout(const Duration(seconds: 15));
+      if (res.statusCode == 200) {
+        bytes = res.bodyBytes;
+      } else {
+        throw Exception('HTTP error ${res.statusCode}');
+      }
+    } else {
+      final data = await rootBundle.load(assetPath);
+      bytes = data.buffer.asUint8List();
+    }
     final base64Str = base64Encode(bytes);
     return 'data:image/png;base64,$base64Str';
   } catch (e) {
@@ -199,15 +210,15 @@ class ARCameraView extends StatefulWidget {
 
   // ── New Enhanced API ─────────────────────────────────────────────────────
 
-/// Get current wall tracking state
-  static String? getWallState() {
+  /// Get current wall tracking state
+  static Future<String?> getWallState() async {
     final raw = _jsEval('GraziaAR.getWallState ? GraziaAR.getWallState() : null');
     if (raw == null) return null;
     return raw.toString();
   }
 
   /// Get all detected walls with their corners, confidence, and area
-  static List<Map<String, dynamic>>? getWalls() {
+  static Future<List<Map<String, dynamic>>?> getWalls() async {
     final raw = _jsEval('GraziaAR.getWalls()');
     if (raw == null) return null;
     final List<dynamic> decoded = jsonDecode(raw.toString()) as List<dynamic>;
@@ -225,43 +236,43 @@ class ARCameraView extends StatefulWidget {
   }
   
   /// Get current calibration info
-  static Map<String, dynamic>? getCalibration() {
+  static Future<Map<String, dynamic>?> getCalibration() async {
     final raw = _jsEval('GraziaAR.getCalibration()');
     if (raw == null) return null;
     return jsonDecode(raw.toString()) as Map<String, dynamic>;
   }
 
   /// Select a specific wall by ID for texturing
-  static bool selectWall(String wallId) {
+  static Future<bool> selectWall(String wallId) async {
     final raw = _jsEval('GraziaAR.selectWall("$wallId")');
     return raw == true;
   }
 
   /// Start calibration mode
-  static void startCalibration({String unit = 'ft'}) {
+  static Future<void> startCalibration({String unit = 'ft'}) async {
     _jsEval('GraziaAR.startCalibration("$unit")');
   }
 
   /// Finish calibration with known real-world length
-  static bool finishCalibration(double realLength) {
+  static Future<bool> finishCalibration(double realLength) async {
     final raw = _jsEval('GraziaAR.finishCalibration($realLength)');
     return raw == true;
   }
 
   /// Measure distance between two points (requires calibration)
-  static double? measureDistance(Offset p1, Offset p2) {
+  static Future<double?> measureDistance(Offset p1, Offset p2) async {
     final raw = _jsEval('GraziaAR.measureDistance(${p1.dx}, ${p1.dy}, ${p2.dx}, ${p2.dy})');
     if (raw == null) return null;
     return (raw as num).toDouble();
   }
 
   /// Calculate tile quantity for the selected wall
-  static Map<String, dynamic>? calculateTileQuantity({
+  static Future<Map<String, dynamic>?> calculateTileQuantity({
     required double tileWidth,
     required double tileHeight,
     String tileUnit = 'ft',
     double wastagePercent = 10.0,
-  }) {
+  }) async {
     final raw = _jsEval(
       'GraziaAR.calculateTileQuantity($tileWidth, $tileHeight, "$tileUnit", $wastagePercent)'
     );

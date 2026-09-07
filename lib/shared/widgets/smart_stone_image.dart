@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 
@@ -36,30 +37,18 @@ class SmartStoneImage extends StatelessWidget {
     }
 
     if (effectiveAsset.startsWith('http://') || effectiveAsset.startsWith('https://')) {
-      return Image.network(
-        effectiveAsset,
+      return CachedNetworkImage(
+        imageUrl: effectiveAsset,
         fit: fit,
         alignment: alignment,
         width: width,
         height: height,
-        cacheWidth: width != null && width! > 0 ? (width! * 2).toInt() : null,
-        cacheHeight: height != null && height! > 0 ? (height! * 2).toInt() : null,
-        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-          if (wasSynchronouslyLoaded || frame != null) {
-            return AnimatedOpacity(
-              opacity: frame != null ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 280),
-              curve: Curves.easeOutCubic,
-              child: child,
-            );
-          }
-          return _buildPlaceholder(activePalette);
-        },
-        errorBuilder: (_, _, _) => _buildPlaceholder(activePalette),
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return _buildPlaceholder(activePalette);
-        },
+        memCacheWidth: width != null && width! > 0 ? (width! * 2).toInt() : null,
+        memCacheHeight: height != null && height! > 0 ? (height! * 2).toInt() : null,
+        fadeInDuration: const Duration(milliseconds: 280),
+        fadeInCurve: Curves.easeOutCubic,
+        placeholder: (context, url) => _buildPlaceholder(activePalette),
+        errorWidget: (context, url, error) => _buildPlaceholder(activePalette),
       );
     }
 

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -45,8 +44,6 @@ class CartNotifier extends StateNotifier<List<CartItem>> {
       return null;
     }
   }
-
-  bool get _isLoggedIn => _clientOrNull?.auth.currentUser?.id != null;
 
   String? get _userId => _clientOrNull?.auth.currentUser?.id;
 
@@ -268,6 +265,12 @@ class CartScreen extends ConsumerWidget {
             elevation: 0,
             scrolledUnderElevation: 0,
             automaticallyImplyLeading: false,
+            leading: Navigator.of(context).canPop()
+                ? IconButton(
+                    icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 20),
+                    onPressed: () => Navigator.of(context).pop(),
+                  )
+                : null,
             title: Row(
               children: [
                 Text(
@@ -439,7 +442,7 @@ class CartScreen extends ConsumerWidget {
                 left: 18,
                 right: 18,
                 top: 14,
-                bottom: MediaQuery.of(context).padding.bottom + 84,
+                bottom: MediaQuery.of(context).padding.bottom + (Navigator.of(context).canPop() ? 10 : 80),
               ),
               decoration: BoxDecoration(
                 color: palette.surface,

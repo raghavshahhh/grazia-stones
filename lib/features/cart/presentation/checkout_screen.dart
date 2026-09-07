@@ -47,7 +47,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     _loadAddresses();
   }
 
-  Future<void> _loadAddresses() async {
+  Future<void> _loadAddresses({String? selectAddressId}) async {
     try {
       final userRepo = ref.read(userRepositoryProvider);
       final list = await userRepo.getAddresses();
@@ -55,6 +55,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         setState(() {
           _addresses = list;
           _isLoadingAddresses = false;
+          if (selectAddressId != null) {
+            final idx = list.indexWhere((a) => a['id'] == selectAddressId);
+            if (idx >= 0) _selectedAddressIndex = idx;
+          } else if (_selectedAddressIndex >= list.length) {
+            _selectedAddressIndex = list.isNotEmpty ? 0 : 0;
+          }
         });
       }
     } catch (_) {
@@ -396,9 +402,44 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             if (_isLoadingAddresses)
               Center(child: Padding(padding: const EdgeInsets.all(20), child: CircularProgressIndicator(color: palette.primary)))
             else if (_addresses.isEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Text('No delivery addresses found. Please add one below.', style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 13)),
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: palette.surface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: palette.border),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: palette.primary.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.location_on_outlined, color: palette.primary, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'No Delivery Destination',
+                            style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: palette.textPrimary),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Please add a site address for dispatch.',
+                            style: GoogleFonts.inter(fontSize: 11, color: palette.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               )
             else
               ..._addresses.asMap().entries.map((entry) {
@@ -408,9 +449,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               }),
             const SizedBox(height: 8),
             OutlinedButton.icon(
-              onPressed: () => context.push('/addresses').then((_) => _loadAddresses()),
+              onPressed: () async {
+                final newAddressId = await context.push<String?>('/addresses');
+                _loadAddresses(selectAddressId: newAddressId);
+              },
               icon: const Icon(Icons.add_location_alt_outlined, size: 18),
-              label: const Text('Manage Delivery Addresses'),
+              label: Text(_addresses.isEmpty ? 'Add Delivery Address' : 'Manage Delivery Addresses'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: palette.primary,
                 side: BorderSide(color: palette.border),
@@ -587,11 +631,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       ),
                     ),
                     SizedBox(width: 12),
-                    Text('Processing Payment...', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                    Text('Placing Order...', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
                   ],
                 )
               : Text(
-                  'Authorize Payment • ₹${effectiveTotal.toInt()}',
+                  _selectedPaymentMethod == 'cod'
+                      ? 'Confirm & Place Order • ₹${effectiveTotal.toInt()}'
+                      : 'Place Order • ₹${effectiveTotal.toInt()}',
                   style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700),
                 ),
         ),

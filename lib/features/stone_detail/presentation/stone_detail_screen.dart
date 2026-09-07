@@ -10,6 +10,7 @@ import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 import 'package:grazia_stones/features/cart/presentation/cart_screen.dart';
 import 'package:grazia_stones/features/wishlist/providers/wishlist_provider.dart';
+import 'package:grazia_stones/shared/widgets/luxury_toast.dart';
 
 class StoneDetailScreen extends ConsumerStatefulWidget {
   final String stoneId;
@@ -155,8 +156,7 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
 
     // Calculation values
     final totalAreaWithWastage = _areaSqFt * (1 + _wastagePercent);
-    final slabSizeSqFt = (stone.sqftPerBox > 0) ? stone.sqftPerBox : 45.0;
-    final slabsNeeded = (totalAreaWithWastage / slabSizeSqFt).ceil();
+    final int? boxesNeeded = stone.sqftPerBox > 0 ? (totalAreaWithWastage / stone.sqftPerBox).ceil() : null;
     final totalEstimatedCost = totalAreaWithWastage * stone.pricePerSqFt;
 
     return Scaffold(
@@ -194,7 +194,18 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
                   IconButton(
                     onPressed: () {
                       HapticFeedback.lightImpact();
+                      final isCurrentlyWishlisted = ref.read(wishlistProvider).contains(stone.id);
                       ref.read(wishlistProvider.notifier).toggleStone(stone.id);
+                      LuxuryToast.show(
+                        context,
+                        message: isCurrentlyWishlisted
+                            ? 'Removed from Wishlist'
+                            : '${stone.name} saved to Wishlist',
+                        icon: isCurrentlyWishlisted
+                            ? Icons.favorite_border_rounded
+                            : Icons.favorite_rounded,
+                        iconColor: isCurrentlyWishlisted ? Colors.white60 : const Color(0xFFD4AF37),
+                      );
                     },
                     icon: Container(
                       width: 36,
@@ -395,35 +406,51 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
 
                       const SizedBox(height: 20),
 
-                      // 3. Dual Visualizer CTA Bar
+                      // 3. Triple Visualizer CTA Bar
                       Row(
                         children: [
                           Expanded(
                             child: ElevatedButton.icon(
                               onPressed: () => context.push('/live-ai?stoneId=${stone.id}'),
-                              icon: const Icon(Icons.view_in_ar_outlined, size: 18),
-                              label: const Text('Live AR View'),
+                              icon: const Icon(Icons.view_in_ar_outlined, size: 16),
+                              label: const Text('Live AR', style: TextStyle(fontSize: 12)),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: palette.primary,
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 4),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                 elevation: 0,
                               ),
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: OutlinedButton.icon(
                               onPressed: () => context.push('/ai-viz?stoneId=${stone.id}'),
-                              icon: Icon(Icons.auto_awesome_outlined, color: palette.primary, size: 18),
+                              icon: Icon(Icons.auto_awesome_outlined, color: palette.primary, size: 16),
                               label: Text(
-                                'AI Room Studio',
-                                style: GoogleFonts.inter(color: palette.textPrimary, fontWeight: FontWeight.w600),
+                                'AI Studio',
+                                style: GoogleFonts.inter(color: palette.textPrimary, fontWeight: FontWeight.w600, fontSize: 12),
                               ),
                               style: OutlinedButton.styleFrom(
                                 side: BorderSide(color: palette.border, width: 1.2),
-                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 4),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => context.push('/measure/tile-visualizer?stoneId=${stone.id}'),
+                              icon: Icon(Icons.grid_on_rounded, color: palette.primary, size: 16),
+                              label: Text(
+                                '3D Wall',
+                                style: GoogleFonts.inter(color: palette.textPrimary, fontWeight: FontWeight.w600, fontSize: 12),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                side: BorderSide(color: palette.border, width: 1.2),
+                                padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 4),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               ),
                             ),
@@ -572,8 +599,16 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text('Estimated Slabs Needed:', style: GoogleFonts.inter(fontSize: 13, color: palette.textSecondary)),
-                                Text('$slabsNeeded slabs', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: palette.textPrimary)),
+                                Text(
+                                  stone.sqftPerBox > 0
+                                      ? 'Estimated Boxes (${stone.sqftPerBox.toStringAsFixed(1)} sq.ft/box):'
+                                      : 'Coverage / Packaging:',
+                                  style: GoogleFonts.inter(fontSize: 13, color: palette.textSecondary),
+                                ),
+                                Text(
+                                  boxesNeeded != null ? '$boxesNeeded boxes' : 'Coverage unavailable',
+                                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: palette.textPrimary),
+                                ),
                               ],
                             ),
                             const SizedBox(height: 6),
@@ -675,20 +710,11 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
                       onPressed: () {
                         HapticFeedback.mediumImpact();
                         ref.read(cartProvider.notifier).addItem(stone);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('${stone.name} added to cart', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
-                            backgroundColor: palette.primary,
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            margin: const EdgeInsets.only(bottom: 90, left: 24, right: 24),
-                            duration: const Duration(seconds: 2),
-                            action: SnackBarAction(
-                              label: 'Checkout →',
-                              textColor: const Color(0xFFD4AF37),
-                              onPressed: () => context.push('/checkout'),
-                            ),
-                          ),
+                        LuxuryToast.show(
+                          context,
+                          message: '${stone.name} added to Project',
+                          actionLabel: 'View Cart',
+                          onAction: () => context.push('/cart'),
                         );
                       },
                       style: ElevatedButton.styleFrom(

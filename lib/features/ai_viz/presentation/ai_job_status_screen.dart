@@ -7,7 +7,6 @@ import 'package:grazia_stones/core/models/ai_job.dart';
 import 'package:grazia_stones/features/ai_viz/providers/ai_job_provider.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
-import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 /// Screen for viewing all AI jobs with status tracking

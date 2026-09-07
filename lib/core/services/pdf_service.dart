@@ -1,9 +1,7 @@
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
 import 'package:grazia_stones/core/models/stone.dart';
 
@@ -266,7 +264,7 @@ class PDFService {
                         style: _textStyle(9.5),
                       ),
                       pw.Text(
-                        'Finish: ${stone.finish} | Size: ${stone.size ?? "${stone.length} x ${stone.width}"}',
+                        'Finish: ${stone.finish} | Size: ${stone.size.isNotEmpty ? stone.size : "${stone.length} x ${stone.width}"}',
                         style: _textStyle(9.5),
                       ),
                     ],
@@ -370,11 +368,21 @@ class PDFService {
                   ),
                   pw.Padding(
                     padding: const pw.EdgeInsets.all(6),
-                    child: pw.Text('${stone.sqftPerBox.toStringAsFixed(2)} sq.ft/box (${stone.piecesPerBox} pcs)', style: _textStyle(9)),
+                    child: pw.Text(
+                      stone.sqftPerBox > 0
+                          ? '${stone.sqftPerBox.toStringAsFixed(2)} sq.ft/box (${stone.piecesPerBox} pcs)'
+                          : 'Coverage Unavailable (Quote Required)',
+                      style: _textStyle(9),
+                    ),
                   ),
                   pw.Padding(
                     padding: const pw.EdgeInsets.all(6),
-                    child: pw.Text('${(stone.sqftPerBox / 10.764).toStringAsFixed(2)} sq.m/box', style: _textStyle(9)),
+                    child: pw.Text(
+                      stone.sqftPerBox > 0
+                          ? '${(stone.sqftPerBox / 10.764).toStringAsFixed(2)} sq.m/box'
+                          : '-',
+                      style: _textStyle(9),
+                    ),
                   ),
                 ],
               ),
@@ -386,11 +394,17 @@ class PDFService {
                   ),
                   pw.Padding(
                     padding: const pw.EdgeInsets.all(6),
-                    child: pw.Text('$boxesRequired Boxes', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
+                    child: pw.Text(
+                      boxesRequired > 0 ? '$boxesRequired Boxes' : 'Quote Required',
+                      style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800),
+                    ),
                   ),
                   pw.Padding(
                     padding: const pw.EdgeInsets.all(6),
-                    child: pw.Text('~$totalTiles Individual Tiles', style: _textStyle(9)),
+                    child: pw.Text(
+                      totalTiles > 0 ? '~$totalTiles Individual Tiles' : 'Custom Sizing',
+                      style: _textStyle(9),
+                    ),
                   ),
                 ],
               ),

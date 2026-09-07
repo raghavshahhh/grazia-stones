@@ -274,6 +274,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             'English (India)',
             () {},
           ),
+          _buildTile(
+            palette,
+            Icons.security_outlined,
+            'System Permissions',
+            'Camera, Photos & Storage',
+            () => context.push('/settings/permissions'),
+          ),
           
           const SizedBox(height: 24),
           
