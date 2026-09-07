@@ -2,8 +2,9 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:grazia_stones/app.dart';
 import 'package:grazia_stones/core/config/env_config.dart';
 import 'package:grazia_stones/core/services/storage_service.dart';
@@ -12,6 +13,13 @@ import 'package:grazia_stones/core/widgets/error_boundary.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Web defaults to hash-based routing (`/#/admin/dashboard`), so a plain
+  // path URL like `/admin/dashboard` has no fragment and go_router reads it
+  // as `/` — landing on the splash screen, which then discards the intended
+  // path entirely. Path-based routing keeps the real URL intact through
+  // startup, refresh, and back/forward.
+  usePathUrlStrategy();
 
   // Global Exception & Flutter Error Boundary
   FlutterError.onError = (FlutterErrorDetails details) {

@@ -200,16 +200,31 @@ class _ShellWithNavState extends State<_ShellWithNav> {
   }
 }
 
+/// Bridges Riverpod auth-state changes to GoRouter's [redirect] without
+/// recreating the router itself. `appRouterProvider` used to `ref.watch`
+/// auth state directly, which built a brand-new `GoRouter` — reset to
+/// `initialLocation: '/'` — on every login/logout. That silently discarded
+/// whatever route (e.g. a deep-linked `/admin/dashboard`) was in progress.
+/// `refreshListenable` re-runs `redirect` on the *current* location instead.
+class _AuthRefreshNotifier extends ChangeNotifier {
+  _AuthRefreshNotifier(Ref ref) {
+    ref.listen(authRiverpodProvider, (_, _) => notifyListeners());
+  }
+}
+
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authRiverpodProvider);
+  final refresh = _AuthRefreshNotifier(ref);
+  ref.onDispose(refresh.dispose);
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/',
+    refreshListenable: refresh,
     redirect: (context, state) {
       // Admin routes require a genuinely authenticated session whose
       // role is 'admin' in the backend profiles table. Non-admins are
       // sent to login with a return-to path — never auto-elevated.
+      final authState = ref.read(authRiverpodProvider);
       final isLocAdmin = state.uri.path.startsWith('/admin');
       if (isLocAdmin && !authState.isAdmin) {
         final intended = Uri.encodeComponent(state.uri.toString());
