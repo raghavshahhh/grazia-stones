@@ -389,14 +389,13 @@ final createBatchProvider = Provider<
   };
 });
 
-/// Live view of the 4 jobs in a batch, reusing the same realtime
-/// subscription as [activeJobsStreamProvider] rather than opening a new one.
+/// Live view of the 4 jobs in a batch.
 /// Keeps only the newest job per variant slot, so retrying a variant
 /// replaces its tile instead of adding a duplicate.
 final batchTrackingProvider =
     StreamProvider.family<List<AIJob>, String>((ref, batchId) {
   final repository = ref.watch(aiJobRepositoryProvider);
-  return repository.subscribeToUserJobs().map((jobs) {
+  return repository.subscribeToBatchJobs(batchId).map((jobs) {
     final byVariant = <int, AIJob>{};
     for (final job in jobs.where((j) => j.batchId == batchId)) {
       final existing = byVariant[job.variantIndex];

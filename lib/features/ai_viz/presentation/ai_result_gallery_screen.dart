@@ -43,6 +43,11 @@ class _AIResultGalleryScreenState extends ConsumerState<AIResultGalleryScreen> {
         ),
         title: Text('AI Concepts', style: TextStyle(color: palette.textPrimary)),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh',
+            onPressed: () => ref.refresh(batchTrackingProvider(widget.batchId)),
+          ),
           TextButton.icon(
             icon: const Icon(Icons.request_quote_outlined, size: 18),
             label: const Text('Get Quote'),
@@ -53,36 +58,127 @@ class _AIResultGalleryScreenState extends ConsumerState<AIResultGalleryScreen> {
           ),
         ],
       ),
-      body: jobsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text('Could not load results: $e', style: TextStyle(color: palette.textSecondary)),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1080),
+          child: jobsAsync.when(
+            loading: () => Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Generating luxury marble concepts...',
+                    style: TextStyle(
+                      color: palette.textPrimary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Gemini AI is crafting 4 photorealistic architectural variations.',
+                    style: TextStyle(color: palette.textSecondary, fontSize: 13),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+            error: (e, _) => Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.auto_awesome, color: Colors.amber, size: 36),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'AI Concepts in Progress',
+                      style: TextStyle(
+                        color: palette.textPrimary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Rendering marble variations in background. Tap retry to check status.',
+                      style: TextStyle(color: palette.textSecondary, fontSize: 14),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: () => ref.refresh(batchTrackingProvider(widget.batchId)),
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Check Status / Retry'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            data: (jobs) {
+              if (jobs.isEmpty) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(),
+                        const SizedBox(height: 20),
+                        Text(
+                          'Starting AI Generation...',
+                          style: TextStyle(
+                            color: palette.textPrimary,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'This usually takes 5-15 seconds. Please wait.',
+                          style: TextStyle(color: palette.textSecondary, fontSize: 13),
+                        ),
+                        const SizedBox(height: 20),
+                        TextButton.icon(
+                          onPressed: () => ref.refresh(batchTrackingProvider(widget.batchId)),
+                          icon: const Icon(Icons.refresh, size: 16),
+                          label: const Text('Refresh'),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+              if (_fullscreenVariant != null) {
+                final job = jobs.where((j) => j.variantIndex == _fullscreenVariant).firstOrNull;
+                if (job != null) {
+                  return _FullscreenViewer(
+                    job: job,
+                    allJobs: jobs,
+                    onClose: () => setState(() => _fullscreenVariant = null),
+                    onSelectVariant: (i) => setState(() => _fullscreenVariant = i),
+                  );
+                }
+              }
+              return _VariantGrid(
+                jobs: jobs,
+                onTapVariant: (i) => setState(() => _fullscreenVariant = i),
+              );
+            },
           ),
         ),
-        data: (jobs) {
-          if (jobs.isEmpty) {
-            return Center(
-              child: Text('No variants yet — this can take a few seconds.', style: TextStyle(color: palette.textSecondary)),
-            );
-          }
-          if (_fullscreenVariant != null) {
-            final job = jobs.where((j) => j.variantIndex == _fullscreenVariant).firstOrNull;
-            if (job != null) {
-              return _FullscreenViewer(
-                job: job,
-                allJobs: jobs,
-                onClose: () => setState(() => _fullscreenVariant = null),
-                onSelectVariant: (i) => setState(() => _fullscreenVariant = i),
-              );
-            }
-          }
-          return _VariantGrid(
-            jobs: jobs,
-            onTapVariant: (i) => setState(() => _fullscreenVariant = i),
-          );
-        },
       ),
     );
   }
@@ -96,23 +192,26 @@ class _VariantGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Always render 4 slots, even if some jobs haven't arrived yet — the
-    // batch insert is 4 parallel writes, so a slot can briefly be empty.
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 0.85,
-      ),
-      itemCount: 4,
-      itemBuilder: (context, index) {
-        final job = jobs.where((j) => j.variantIndex == index).firstOrNull;
-        return _VariantTile(
-          variantIndex: index,
-          job: job,
-          onTap: job != null && job.isSuccessful ? () => onTapVariant(index) : null,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth > 700;
+        return GridView.builder(
+          padding: const EdgeInsets.all(20),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: isWide ? 4 : 2,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            childAspectRatio: isWide ? 0.9 : 0.85,
+          ),
+          itemCount: 4,
+          itemBuilder: (context, index) {
+            final job = jobs.where((j) => j.variantIndex == index).firstOrNull;
+            return _VariantTile(
+              variantIndex: index,
+              job: job,
+              onTap: job != null && job.isSuccessful ? () => onTapVariant(index) : null,
+            );
+          },
         );
       },
     );
@@ -144,7 +243,7 @@ class _VariantTile extends StatelessWidget {
                   errorBuilder: (_, _, _) => const _TileError(message: 'Image failed to load'),
                 )
               else if (job == null || job!.isActive)
-                const _TileLoading()
+                _TileLoading(status: job?.status)
               else if (job!.status == 'failed')
                 _TileError(message: job!.errorMessage ?? 'Generation failed')
               else
@@ -173,15 +272,26 @@ class _VariantTile extends StatelessWidget {
 }
 
 class _TileLoading extends StatelessWidget {
-  const _TileLoading();
+  final String? status;
+  const _TileLoading({this.status});
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: SizedBox(
-        width: 28,
-        height: 28,
-        child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white70),
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 30,
+            height: 30,
+            child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.amber),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            status == 'processing' ? 'Rendering...' : 'In queue...',
+            style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500),
+          ),
+        ],
       ),
     );
   }

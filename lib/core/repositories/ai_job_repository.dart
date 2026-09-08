@@ -276,55 +276,225 @@ class AIJobRepository {
     }
   }
 
-  /// Subscribe to job updates via Supabase real-time
-  /// 
-  /// Returns a stream of job updates for real-time UI
+  /// Subscribe to job updates via Supabase real-time with automatic polling fallback
   Stream<AIJob> subscribeToJob(String jobId) {
-    final controller = StreamController<AIJob>();
+    late StreamController<AIJob> controller;
+    Timer? pollingTimer;
+    StreamSubscription? subscription;
+    bool isRealtimeActive = false;
 
-    // Initial fetch
-    getJobById(jobId).then((job) {
-      if (job != null) {
-        controller.add(job);
+    Future<void> fetchOnce() async {
+      try {
+        final job = await getJobById(jobId);
+        if (job != null && !controller.isClosed) {
+          controller.add(job);
+          if (job.isTerminal) {
+            pollingTimer?.cancel();
+            pollingTimer = null;
+          }
+        }
+      } catch (e) {
+        debugPrint('⚠️ Error fetching job $jobId: $e');
       }
-    });
+    }
 
-    // Subscribe to changes
-    final subscription = _client
-        .from('ai_jobs')
-        .stream(primaryKey: ['id'])
-        .eq('id', jobId)
-        .listen((data) {
-          if (data.isNotEmpty) {
-            final job = AIJob.fromJson(data.first);
-            controller.add(job);
+    void startPollingFallback() {
+      if (pollingTimer != null) return;
+      debugPrint('🔄 Using polling fallback for AI job $jobId');
+      fetchOnce();
+      pollingTimer = Timer.periodic(const Duration(milliseconds: 2000), (_) {
+        if (!controller.isClosed) {
+          fetchOnce();
+        }
+      });
+    }
+
+    controller = StreamController<AIJob>(
+      onListen: () {
+        fetchOnce();
+
+        try {
+          subscription = _client
+              .from('ai_jobs')
+              .stream(primaryKey: ['id'])
+              .eq('id', jobId)
+              .listen(
+                (data) {
+                  if (data.isNotEmpty) {
+                    isRealtimeActive = true;
+                    pollingTimer?.cancel();
+                    pollingTimer = null;
+                    if (!controller.isClosed) {
+                      final job = AIJob.fromJson(data.first);
+                      controller.add(job);
+                    }
+                  }
+                },
+                onError: (error) {
+                  debugPrint('⚠️ Realtime error for job $jobId: $error. Falling back to polling.');
+                  startPollingFallback();
+                },
+                cancelOnError: false,
+              );
+        } catch (e) {
+          debugPrint('⚠️ Realtime stream setup error for job $jobId: $e');
+          startPollingFallback();
+        }
+
+        Future.delayed(const Duration(seconds: 3), () {
+          if (!isRealtimeActive && !controller.isClosed) {
+            startPollingFallback();
           }
         });
-
-    controller.onCancel = () {
-      subscription.cancel();
-    };
+      },
+      onCancel: () {
+        subscription?.cancel();
+        pollingTimer?.cancel();
+      },
+    );
 
     return controller.stream;
   }
 
-  /// Subscribe to all user jobs for real-time updates
+  /// Subscribe to all user jobs with automatic REST polling fallback if Realtime fails
   Stream<List<AIJob>> subscribeToUserJobs() {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) {
       return Stream.value([]);
     }
 
-    return _client
-        .from('ai_jobs')
-        .stream(primaryKey: ['id'])
-        .eq('user_id', userId)
-        .order('created_at', ascending: false)
-        .map((data) => 
-          (data as List)
-              .map((json) => AIJob.fromJson(json as Map<String, dynamic>))
-              .toList()
-        );
+    late StreamController<List<AIJob>> controller;
+    Timer? pollingTimer;
+    StreamSubscription? streamSub;
+    bool isRealtimeActive = false;
+
+    Future<void> fetchOnce() async {
+      try {
+        final jobs = await getJobs(limit: 50);
+        if (!controller.isClosed) {
+          controller.add(jobs);
+        }
+      } catch (e) {
+        debugPrint('⚠️ Error in fetchOnce for AI jobs: $e');
+      }
+    }
+
+    void startPollingFallback() {
+      if (pollingTimer != null) return;
+      debugPrint('🔄 Realtime unavailable for ai_jobs. Using REST polling fallback.');
+      fetchOnce();
+      pollingTimer = Timer.periodic(const Duration(milliseconds: 2500), (_) {
+        if (!controller.isClosed) {
+          fetchOnce();
+        }
+      });
+    }
+
+    controller = StreamController<List<AIJob>>(
+      onListen: () {
+        // Immediate fetch so UI has data right away
+        fetchOnce();
+
+        try {
+          streamSub = _client
+              .from('ai_jobs')
+              .stream(primaryKey: ['id'])
+              .eq('user_id', userId)
+              .order('created_at', ascending: false)
+              .listen(
+                (data) {
+                  isRealtimeActive = true;
+                  pollingTimer?.cancel();
+                  pollingTimer = null;
+                  if (!controller.isClosed) {
+                    final jobs = (data as List)
+                        .map((json) => AIJob.fromJson(json as Map<String, dynamic>))
+                        .toList();
+                    controller.add(jobs);
+                  }
+                },
+                onError: (error) {
+                  debugPrint('⚠️ Realtime subscription error on ai_jobs: $error. Falling back to REST polling.');
+                  startPollingFallback();
+                },
+                cancelOnError: false,
+              );
+        } catch (e) {
+          debugPrint('⚠️ Exception creating stream: $e. Falling back to REST polling.');
+          startPollingFallback();
+        }
+
+        // Safety fallback: if realtime never emits within 3s, start polling
+        Future.delayed(const Duration(seconds: 3), () {
+          if (!isRealtimeActive && !controller.isClosed) {
+            startPollingFallback();
+          }
+        });
+      },
+      onCancel: () {
+        streamSub?.cancel();
+        pollingTimer?.cancel();
+      },
+    );
+
+    return controller.stream;
+  }
+
+  /// Subscribe specifically to all jobs belonging to a generation batch
+  Stream<List<AIJob>> subscribeToBatchJobs(String batchId) {
+    late StreamController<List<AIJob>> controller;
+    Timer? pollingTimer;
+    StreamSubscription? streamSub;
+
+    Future<void> fetchBatch() async {
+      try {
+        final jobs = await getJobsByBatch(batchId);
+        if (!controller.isClosed && jobs.isNotEmpty) {
+          controller.add(jobs);
+          // If all 4 are in terminal state (completed or failed), stop polling
+          if (jobs.length >= 4 && jobs.every((j) => j.isTerminal)) {
+            pollingTimer?.cancel();
+            pollingTimer = null;
+          }
+        }
+      } catch (e) {
+        debugPrint('⚠️ Error fetching batch $batchId: $e');
+      }
+    }
+
+    controller = StreamController<List<AIJob>>(
+      onListen: () {
+        // Immediate fetch
+        fetchBatch();
+
+        // Poll every 2 seconds while jobs are processing
+        pollingTimer = Timer.periodic(const Duration(milliseconds: 2000), (_) {
+          if (!controller.isClosed) {
+            fetchBatch();
+          }
+        });
+
+        // Also listen to user jobs stream if possible
+        try {
+          streamSub = subscribeToUserJobs().listen((allJobs) {
+            final batchJobs = allJobs.where((j) => j.batchId == batchId).toList();
+            if (batchJobs.isNotEmpty && !controller.isClosed) {
+              controller.add(batchJobs);
+              if (batchJobs.length >= 4 && batchJobs.every((j) => j.isTerminal)) {
+                pollingTimer?.cancel();
+                pollingTimer = null;
+              }
+            }
+          }, onError: (_) {});
+        } catch (_) {}
+      },
+      onCancel: () {
+        streamSub?.cancel();
+        pollingTimer?.cancel();
+      },
+    );
+
+    return controller.stream;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -438,13 +608,27 @@ class AIJobRepository {
 
   /// All jobs belonging to one generation batch, for the result gallery.
   Future<List<AIJob>> getJobsByBatch(String batchId) async {
-    final response = await _client
-        .from('ai_jobs')
-        .select()
-        .contains('metadata', {'batch_id': batchId}).order('created_at');
-    return (response as List)
-        .map((json) => AIJob.fromJson(json as Map<String, dynamic>))
-        .toList();
+    try {
+      final response = await _client
+          .from('ai_jobs')
+          .select()
+          .contains('metadata', {'batch_id': batchId}).order('created_at');
+      final jobs = (response as List)
+          .map((json) => AIJob.fromJson(json as Map<String, dynamic>))
+          .toList();
+      if (jobs.isNotEmpty) return jobs;
+    } catch (e) {
+      debugPrint('⚠️ Error querying jobs by metadata contains: $e');
+    }
+
+    // Resilient fallback: fetch recent jobs and filter locally
+    try {
+      final allUserJobs = await getJobs(limit: 50);
+      return allUserJobs.where((j) => j.batchId == batchId).toList();
+    } catch (e) {
+      debugPrint('⚠️ Fallback getJobsByBatch failed: $e');
+      return [];
+    }
   }
 
   /// Trigger room analysis via Edge Function
