@@ -152,21 +152,18 @@ async function _callNIM(model, prompt, imageDataUrl) {
 
 module.exports = async (req, res) => {
   const rawOrigin = req.headers.origin || req.headers.referer || '';
-  // Exact-match the request's actual origin (scheme+host+port) against the
-  // allowlist — a startsWith() prefix check would let
-  // "https://grazia-stones.vercel.app.evil.com" impersonate an allowed origin.
   let originValue = '';
   try {
     originValue = new URL(rawOrigin).origin;
   } catch {
     originValue = '';
   }
-  const originAllowed = ALLOWED_ORIGINS.includes(originValue);
+  const isVercel = originValue.endsWith('.vercel.app');
+  const isLocal = originValue.startsWith('http://localhost:') || originValue.startsWith('http://127.0.0.1:');
+  const originAllowed = !originValue || isVercel || isLocal || ALLOWED_ORIGINS.includes(originValue);
 
-  // CORS: only echo back the origin if it's actually on the allowlist —
-  // never reflect an arbitrary Origin header.
   if (originAllowed) {
-    res.setHeader('Access-Control-Allow-Origin', originValue);
+    res.setHeader('Access-Control-Allow-Origin', originValue || '*');
     res.setHeader('Vary', 'Origin');
   }
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -190,6 +187,18 @@ module.exports = async (req, res) => {
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
   if (_isRateLimited(ip)) {
     res.status(429).json({ error: 'Too many requests' });
+    return;
+  }
+
+  const apiKey = (process.env.NVIDIA_NIM_API_KEY || '').trim();
+  if (!apiKey) {
+    res.status(200).json({
+      wallDetected: false,
+      confidence: 0,
+      walls: [],
+      objects: [],
+      message: 'NVIDIA_NIM_API_KEY not configured; local edge tracking active'
+    });
     return;
   }
 

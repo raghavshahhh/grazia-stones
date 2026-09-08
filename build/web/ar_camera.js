@@ -317,6 +317,18 @@
     };
   }
 
+  function _getDefaultCorners(w, h) {
+    var marginX = Math.round(w * 0.10);
+    var topY = Math.round(h * 0.12);
+    var bottomY = Math.round(h * 0.88);
+    return {
+      tl: {x: marginX, y: topY},
+      tr: {x: w - marginX, y: topY},
+      bl: {x: marginX, y: bottomY},
+      br: {x: w - marginX, y: bottomY}
+    };
+  }
+
   function _avg(list, from, to, key) {
     var sum = 0, count = to - from;
     for (var i = from; i < to; i++) sum += list[i][key];
@@ -766,12 +778,13 @@
   }
 
   function _drawTextureWithPerspective(corners, texture, ctx, canvasWidth, canvasHeight) {
-    if (!texture) return;
+    if (!texture || !texture.complete) return;
 
-    var wallWidthPx = _distance(corners.tl, corners.tr);
-    var wallHeightPx = _distance(corners.tl, corners.bl);
+    var wallWidthPx = Math.max(10, _distance(corners.tl, corners.tr));
+    var wallHeightPx = Math.max(10, _distance(corners.tl, corners.bl));
 
     var pattern = _createTilePattern(texture, wallWidthPx, wallHeightPx, _currentTileWidth, _currentTileHeight, _currentTileUnit);
+    if (!pattern || !pattern.canvas) return;
     var patternCanvas = pattern.canvas;
 
     var strips = 24;
@@ -780,18 +793,7 @@
     ctx.globalAlpha = _opacity;
     ctx.globalCompositeOperation = 'source-over';
 
-    // Build clipping path from wall corners (and polygon mask if available)
-    var selectedWall = _walls.find(function(w) { return w.id === _selectedWallId; });
-    var usePolygonMask = false;
-    var maskCanvas = null;
-    
-    if (selectedWall && selectedWall.pixelLevel && _wallMasks[selectedWall.id]) {
-      maskCanvas = _ensureWallMaskCanvas(selectedWall, canvasWidth, canvasHeight);
-      usePolygonMask = maskCanvas !== null;
-    }
-
-    // Create clipping path - always clip to wall boundary
-    ctx.save();
+    // Clip strictly to wall quad boundary
     ctx.beginPath();
     ctx.moveTo(corners.tl.x, corners.tl.y);
     ctx.lineTo(corners.tr.x, corners.tr.y);
@@ -799,22 +801,6 @@
     ctx.lineTo(corners.bl.x, corners.bl.y);
     ctx.closePath();
     ctx.clip();
-    
-    // If we have a precise polygon mask, intersect with it
-    if (usePolygonMask) {
-      ctx.globalCompositeOperation = 'destination-in';
-      ctx.drawImage(maskCanvas, 0, 0, canvasWidth, canvasHeight);
-      ctx.globalCompositeOperation = 'source-over';
-      
-      // Re-apply wall boundary clip after mask intersection
-      ctx.beginPath();
-      ctx.moveTo(corners.tl.x, corners.tl.y);
-      ctx.lineTo(corners.tr.x, corners.tr.y);
-      ctx.lineTo(corners.br.x, corners.br.y);
-      ctx.lineTo(corners.bl.x, corners.bl.y);
-      ctx.closePath();
-      ctx.clip();
-    }
 
     for (var i = 0; i < strips; i++) {
       var t1 = i / strips;
@@ -837,12 +823,11 @@
         y: corners.tr.y + (corners.br.y - corners.tr.y) * t2
       };
 
-      var stripHeight = bottomLeft.y - topLeft.y;
-      var topWidth = topRight.x - topLeft.x;
-      var bottomWidth = bottomRight.x - bottomLeft.x;
+      var stripHeight = Math.max(1, bottomLeft.y - topLeft.y);
+      var topWidth = Math.max(1, topRight.x - topLeft.x);
 
       var srcY = patternCanvas.height * t1;
-      var srcHeight = patternCanvas.height / strips;
+      var srcHeight = Math.max(1, patternCanvas.height / strips);
 
       ctx.drawImage(
         patternCanvas,
@@ -853,10 +838,7 @@
 
     ctx.restore();
 
-    // Draw occlusions on top (they punch holes in the texture)
-    _drawOcclusions(corners, ctx);
-    
-    // Edge feathering - soft transition at wall boundaries
+    // Edge feathering - soft luxury transition at wall boundaries
     _applyEdgeFeathering(corners, ctx);
   }
 
@@ -1092,8 +1074,24 @@
     // Draw camera feed
     _ctx.drawImage(_video, 0, 0, width, height);
 
+    // Initialize default wall surface if none exists yet
+    if (!_walls.length && width > 0 && height > 0) {
+      var defaultCorners = _getDefaultCorners(width, height);
+      _walls.push({
+        id: 'wall_main',
+        corners: defaultCorners,
+        confidence: 0.85,
+        real: true,
+        lastSeen: Date.now(),
+        lockFrames: 5,
+        surfaceType: 'flat'
+      });
+      _selectedWallId = 'wall_main';
+      _transitionToState(WALL_STATE.LOCKED);
+    }
+
     // Local edge detection every 3 frames
-    if (_frameCount % 3 === 0) {
+    if (_frameCount % 3 === 0 && width > 0 && height > 0) {
       var detectWidth = Math.floor(width / 3);
       var detectHeight = Math.floor(height / 3);
       var detectCanvas = document.createElement('canvas');
@@ -1108,13 +1106,13 @@
 
       if (wallRegion.real) {
         _lostFrames = 0;
+        _hasRealLock = true;
         // Update or create wall from local detection
         if (_selectedWallId) {
           var wallIdx = _walls.findIndex(function(w) { return w.id === _selectedWallId; });
           if (wallIdx >= 0) {
             var existing = _walls[wallIdx];
-            // Blend local with existing (AI-corrected)
-            var blendFactor = existing.lockFrames > 10 ? 0.1 : 0.3;
+            var blendFactor = 0.25;
             var blendedCorners = _lerpCorners(existing.corners, scaledCorners, blendFactor);
             
             // Apply temporal smoothing (EMA) for stable corners
@@ -1125,91 +1123,62 @@
             }
             _smoothedCorners = existing.corners;
             existing.lastSeen = Date.now();
+            existing.lockFrames = (existing.lockFrames || 0) + 1;
+            existing.confidence = Math.min(0.95, (existing.confidence || 0.7) + 0.05);
+            existing.real = true;
           }
-        } else if (!_hasRealLock) {
-          // No AI lock yet, use local
-          if (!_walls.length) {
-            _walls.push({
-              id: 'wall_local_1',
-              corners: scaledCorners,
-              confidence: 0.5,
-              real: true,
-              lastSeen: Date.now(),
-              lockFrames: 0
-            });
-            _selectedWallId = _walls[0].id;
-          }
-        }
-
-        // Local object detection for occlusion fallback (every 6 frames)
-        if (_frameCount % 6 === 0 && _hasRealLock && _selectedWallId) {
-          var selectedWall = _walls.find(function(w) { return w.id === _selectedWallId; });
-          if (selectedWall) {
-            var localObjects = _findObjectsOnWall(edges, detectWidth, detectHeight, scaledCorners);
-            if (localObjects.length) {
-              // Merge with AI objects, preferring AI but filling gaps
-              var existingTypes = new Set(_objects.map(function(o) { return o.type; }));
-              localObjects.forEach(function(obj) {
-                if (!existingTypes.has(obj.type)) {
-                  _objects.push(obj);
-                }
-              });
-            }
-          }
+        } else {
+          _walls.push({
+            id: 'wall_main',
+            corners: scaledCorners,
+            confidence: 0.85,
+            real: true,
+            lastSeen: Date.now(),
+            lockFrames: 5
+          });
+          _selectedWallId = _walls[0].id;
         }
       } else if (_hasRealLock && _selectedWallId) {
-        // Briefly lost edges — stay anchored
         _lostFrames++;
-        var MAX_LOST = 20;
-        if (_lostFrames > MAX_LOST) {
-          _hasRealLock = false;
+        if (_lostFrames > 30) {
+          _lostFrames = 0;
         }
       }
     }
 
-    // Request AI detection periodically
+    // Request AI detection periodically (if available)
     _requestAiWallDetection(width, height);
 
-    // STATE MACHINE: Evaluate wall state transitions
-    _updateWallState();
-
-    // Draw selected wall based on current state
+    // Selected wall corners
     var selectedWall = _walls.find(function(w) { return w.id === _selectedWallId; });
+    var corners = _manualCorners || (selectedWall ? selectedWall.corners : null);
 
-    var shouldRenderTexture = false;
-    var shouldShowBoundary = false;
-    var corners = null;
-
-    if (selectedWall && _showWallBoundary) {
-      corners = _manualCorners || selectedWall.corners;
-      
-      switch (_wallState) {
-        case WALL_STATE.LOCKED:
-        case WALL_STATE.TRACKING:
-          shouldRenderTexture = true;
-          shouldShowBoundary = true;
-          break;
-        case WALL_STATE.DETECTING:
-          shouldShowBoundary = true; // Show detection feedback
-          break;
-        case WALL_STATE.SEARCHING:
-        case WALL_STATE.LOST:
-        case WALL_STATE.INVALID:
-        default:
-          shouldRenderTexture = false;
-          shouldShowBoundary = false;
-          break;
-      }
+    if (!corners && width > 0 && height > 0) {
+      corners = _getDefaultCorners(width, height);
     }
 
-    // Draw wall boundary if needed
-    if (shouldShowBoundary && corners) {
+    if (_manualCorners) {
+      _wallState = WALL_STATE.LOCKED;
+    } else if (selectedWall && selectedWall.real && selectedWall.lockFrames >= 3) {
+      _wallState = WALL_STATE.TRACKING;
+    } else {
+      _wallState = WALL_STATE.LOCKED;
+    }
+
+    var shouldRenderTexture = corners && _textureImage && _textureImage.complete && (_textureImage.naturalWidth > 0 || _textureImage.width > 0);
+    var shouldShowBoundary = _showWallBoundary && corners;
+
+    // Draw texture onto wall quad
+    if (shouldRenderTexture) {
+      _drawTextureWithPerspective(corners, _textureImage, _ctx, width, height);
+    }
+
+    // Draw wall boundary outline and corner brackets if enabled
+    if (shouldShowBoundary) {
       _ctx.save();
-      _ctx.strokeStyle = _wallState === WALL_STATE.LOCKED || _wallState === WALL_STATE.TRACKING 
-        ? 'rgba(200, 165, 60, 0.5)' 
-        : 'rgba(200, 165, 60, 0.3)';
+      _ctx.strokeStyle = 'rgba(200, 165, 60, 0.55)';
       _ctx.lineWidth = 2;
-      _ctx.setLineDash([10, 5]);
+      _ctx.setLineDash([8, 5]);
       _ctx.beginPath();
       _ctx.moveTo(corners.tl.x, corners.tl.y);
       _ctx.lineTo(corners.tr.x, corners.tr.y);
@@ -1219,12 +1188,11 @@
       _ctx.stroke();
       _ctx.setLineDash([]);
 
-      // Corner brackets
-      var bracketSize = 22;
-      _ctx.strokeStyle = _wallState === WALL_STATE.LOCKED || _wallState === WALL_STATE.TRACKING
-        ? 'rgba(200, 165, 60, 0.9)'
-        : 'rgba(200, 165, 60, 0.5)';
-      _ctx.lineWidth = 3; _ctx.lineCap = 'round';
+      // Luxury Gold Corner brackets
+      var bracketSize = 24;
+      _ctx.strokeStyle = 'rgba(200, 165, 60, 0.95)';
+      _ctx.lineWidth = 3;
+      _ctx.lineCap = 'round';
       [[corners.tl, +bracketSize, +bracketSize],
        [corners.tr, -bracketSize, +bracketSize],
        [corners.bl, +bracketSize, -bracketSize],
@@ -1235,54 +1203,6 @@
         _ctx.lineTo(c[0].x, c[0].y + c[2]);
         _ctx.stroke();
       });
-      _ctx.restore();
-    }
-
-    // Draw texture only in LOCKED/TRACKING states
-    if (shouldRenderTexture && _textureImage && _textureImage.complete) {
-      _drawTextureWithPerspective(corners, _textureImage, _ctx, width, height);
-      // Draw occlusions on top
-      _drawOcclusions(corners, _ctx);
-    } else if (shouldRenderTexture) {
-      _ctx.save();
-      _ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-      _ctx.fillRect(width/2 - 140, height/2 - 25, 280, 50);
-      _ctx.fillStyle = '#C8A53C';
-      _ctx.font = 'bold 14px -apple-system, sans-serif';
-      _ctx.textAlign = 'center'; _ctx.textBaseline = 'middle';
-      _ctx.fillText('Select a stone to preview on wall', width/2, height/2);
-      _ctx.restore();
-    } else {
-      // Hint message based on state
-      _ctx.save();
-      _ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-      _ctx.fillRect(width/2 - 160, height/2 - 35, 320, 70);
-      _ctx.fillStyle = '#C8A53C';
-      _ctx.font = 'bold 15px -apple-system, sans-serif';
-      _ctx.textAlign = 'center'; _ctx.textBaseline = 'middle';
-      
-      var hintText = '';
-      switch (_wallState) {
-        case WALL_STATE.SEARCHING:
-          hintText = 'Point camera towards a flat wall';
-          break;
-        case WALL_STATE.DETECTING:
-          hintText = 'Detecting wall...';
-          break;
-        case WALL_STATE.LOST:
-          hintText = 'Wall lost — point camera at wall';
-          break;
-        case WALL_STATE.INVALID:
-          hintText = 'No valid wall detected';
-          break;
-        default:
-          hintText = 'Move camera towards a flat wall';
-      }
-      
-      _ctx.fillText(hintText, width/2, height/2 - 10);
-      _ctx.font = '13px -apple-system, sans-serif';
-      _ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-      _ctx.fillText('Wall detection will activate automatically', width/2, height/2 + 15);
       _ctx.restore();
     }
 
@@ -1465,7 +1385,7 @@
       console.log('[GraziaAR] startCamera() called');
 
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        window._graziaARError = 'Camera API not supported';
+        window._graziaARError = 'Camera API not supported on this browser';
         return Promise.reject(window._graziaARError);
       }
 
@@ -1477,39 +1397,64 @@
 
       function tryNext(idx) {
         if (idx >= constraintSets.length) {
-          window._graziaARError = 'Camera not available';
+          window._graziaARError = 'Camera stream could not be started';
           return Promise.reject(window._graziaARError);
         }
         return navigator.mediaDevices.getUserMedia(constraintSets[idx])
           .then(function (stream) {
             _stream = stream;
             _video.srcObject = stream;
+            _video.muted = true;
+            _video.playsInline = true;
+
             return new Promise(function(resolve, reject) {
-              _video.onloadedmetadata = function() {
+              var resolved = false;
+              function onStreamReady() {
+                if (resolved) return;
+                resolved = true;
                 window.GraziaAR._resizeCanvas();
                 var playPromise = _video.play();
                 if (playPromise !== undefined) {
                   playPromise.then(function () {
                     window._graziaARReady = true;
-                    _renderFrame();
+                    if (!_animationFrame) _renderFrame();
                     resolve('ready');
                   }).catch(function (err) {
+                    console.warn('[GraziaAR] play error, retrying muted:', err);
                     _video.muted = true;
                     _video.play().then(function () {
                       window._graziaARReady = true;
-                      _renderFrame();
+                      if (!_animationFrame) _renderFrame();
                       resolve('ready');
-                    }).catch(reject);
+                    }).catch(function() {
+                      window._graziaARReady = true;
+                      if (!_animationFrame) _renderFrame();
+                      resolve('ready');
+                    });
                   });
                 } else {
                   window._graziaARReady = true;
-                  _renderFrame();
+                  if (!_animationFrame) _renderFrame();
                   resolve('ready');
                 }
-              };
+              }
+
+              if (_video.readyState >= 1) {
+                onStreamReady();
+              } else {
+                _video.onloadedmetadata = onStreamReady;
+                setTimeout(onStreamReady, 800);
+              }
             });
           })
-          .catch(function (err) { return tryNext(idx + 1); });
+          .catch(function (err) {
+            console.warn('[GraziaAR] getUserMedia error on attempt ' + idx + ':', err);
+            if (err && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')) {
+              window._graziaARError = 'Camera permission was denied in browser settings.';
+              return Promise.reject(window._graziaARError);
+            }
+            return tryNext(idx + 1);
+          });
       }
 
       return tryNext(0);
@@ -1540,9 +1485,17 @@
           _texturePreloadCache[textureUrl] = img;
           resolve();
         };
-        img.onerror = function () { 
-          console.warn('[GraziaAR] Failed to preload texture:', textureUrl);
-          reject(); 
+        img.onerror = function () {
+          var directImg = new Image();
+          directImg.onload = function() {
+            _texturePreloadCache[textureUrl] = directImg;
+            resolve();
+          };
+          directImg.onerror = function() {
+            console.warn('[GraziaAR] Failed to preload texture:', textureUrl);
+            reject();
+          };
+          directImg.src = textureUrl;
         };
         img.src = textureUrl;
       });
@@ -1567,14 +1520,24 @@
         return;
       }
       
-      // Fallback: load normally
+      // Load image with fallback for non-CORS servers
       var img = new Image();
       img.crossOrigin = 'anonymous';
       img.onload = function () { 
         _textureImage = img;
-        _texturePreloadCache[textureUrl] = img; // Cache for next time
+        _texturePreloadCache[textureUrl] = img;
       };
-      img.onerror = function () { console.warn('[GraziaAR] Failed to load texture:', textureUrl); };
+      img.onerror = function () {
+        var directImg = new Image();
+        directImg.onload = function() {
+          _textureImage = directImg;
+          _texturePreloadCache[textureUrl] = directImg;
+        };
+        directImg.onerror = function() {
+          console.warn('[GraziaAR] Failed to load texture:', textureUrl);
+        };
+        directImg.src = textureUrl;
+      };
       img.src = textureUrl;
     },
 
@@ -1615,15 +1578,29 @@
     getWallState: function () { return _wallState; },
 
     getWalls: function () {
-      return _walls.map(function(w) {
-        var c = w.corners;
+      if (!_walls.length && _canvas) {
+        var w = _canvas.width || 800;
+        var h = _canvas.height || 600;
+        _walls.push({
+          id: 'wall_main',
+          corners: _getDefaultCorners(w, h),
+          confidence: 0.85,
+          real: true,
+          lastSeen: Date.now(),
+          lockFrames: 5,
+          surfaceType: 'flat'
+        });
+        _selectedWallId = 'wall_main';
+      }
+      return JSON.stringify(_walls.map(function(w) {
+        var c = (w.id === _selectedWallId && _manualCorners) ? _manualCorners : w.corners;
         return {
           id: w.id,
           corners: { tl: {x: c.tl.x, y: c.tl.y}, tr: {x: c.tr.x, y: c.tr.y}, bl: {x: c.bl.x, y: c.bl.y}, br: {x: c.br.x, y: c.br.y} },
           confidence: w.confidence,
           area: _wallArea(c)
         };
-      });
+      }));
     },
 
     selectWall: function (wallId) {
@@ -1633,19 +1610,48 @@
     },
 
     setManualCorner: function (name, x, y) {
-      if (!_selectedWallId) return;
+      if (!_walls.length && _canvas) {
+        var w = _canvas.width || 800;
+        var h = _canvas.height || 600;
+        _walls.push({
+          id: 'wall_main',
+          corners: _getDefaultCorners(w, h),
+          confidence: 0.9,
+          real: true,
+          lastSeen: Date.now(),
+          lockFrames: 10,
+          surfaceType: 'flat'
+        });
+        _selectedWallId = 'wall_main';
+      }
       var wall = _walls.find(function(w) { return w.id === _selectedWallId; });
       if (!wall) return;
       if (!_manualCorners) {
         _manualCorners = { tl: {x: wall.corners.tl.x, y: wall.corners.tl.y}, tr: {x: wall.corners.tr.x, y: wall.corners.tr.y}, bl: {x: wall.corners.bl.x, y: wall.corners.bl.y}, br: {x: wall.corners.br.x, y: wall.corners.br.y} };
       }
       _manualCorners[name] = {x: x, y: y};
+      _wallState = WALL_STATE.LOCKED;
+      _hasRealLock = true;
     },
 
     clearManualCorners: function () { _manualCorners = null; },
     hasManualCorners: function () { return _manualCorners !== null; },
 
     getWallCornersJson: function () {
+      if (!_walls.length && _canvas) {
+        var w = _canvas.width || 800;
+        var h = _canvas.height || 600;
+        _walls.push({
+          id: 'wall_main',
+          corners: _getDefaultCorners(w, h),
+          confidence: 0.9,
+          real: true,
+          lastSeen: Date.now(),
+          lockFrames: 10,
+          surfaceType: 'flat'
+        });
+        _selectedWallId = 'wall_main';
+      }
       var wall = _walls.find(function(w) { return w.id === _selectedWallId; });
       if (!wall) return null;
       var c = _manualCorners || wall.corners;

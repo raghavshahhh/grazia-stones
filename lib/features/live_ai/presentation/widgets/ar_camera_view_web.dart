@@ -42,7 +42,8 @@ void _registerContainer(String id, String viewType) {
 
 dynamic _jsEval(String expr) {
   try {
-    return _jsEvalRaw(expr);
+    final raw = _jsEvalRaw(expr);
+    return raw.dartify();
   } catch (e) {
     if (kDebugMode) debugPrint('[GraziaAR] JS error: $e');
     return null;
@@ -78,6 +79,12 @@ Future<String?> _assetToDataUrl(String assetPath) async {
 final Map<String, String> _textureCache = {};
 
 Future<void> _loadAndSetTexture(String assetPath, double opacity) async {
+  if (assetPath.startsWith('http://') || assetPath.startsWith('https://')) {
+    final safeUrl = assetPath.replaceAll("'", "\\'");
+    _jsEval("GraziaAR.setTexture('$safeUrl')");
+    _jsEval('GraziaAR.setOpacity($opacity)');
+    return;
+  }
   if (_textureCache.containsKey(assetPath)) {
     final cached = _textureCache[assetPath]!;
     _jsEval('GraziaAR.setTexture("$cached")');

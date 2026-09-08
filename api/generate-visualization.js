@@ -58,10 +58,12 @@ module.exports = async (req, res) => {
   } catch {
     originValue = '';
   }
-  const originAllowed = ALLOWED_ORIGINS.includes(originValue);
+  const isVercel = originValue.endsWith('.vercel.app');
+  const isLocal = originValue.startsWith('http://localhost:') || originValue.startsWith('http://127.0.0.1:');
+  const originAllowed = !originValue || isVercel || isLocal || ALLOWED_ORIGINS.includes(originValue);
 
   if (originAllowed) {
-    res.setHeader('Access-Control-Allow-Origin', originValue);
+    res.setHeader('Access-Control-Allow-Origin', originValue || '*');
     res.setHeader('Vary', 'Origin');
   }
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
