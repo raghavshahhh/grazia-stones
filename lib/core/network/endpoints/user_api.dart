@@ -31,11 +31,11 @@ class UserApi {
     final response = await _api.put<Map<String, dynamic>>(
       '/user/profile',
       data: {
-        if (name != null) 'name': name,
-        if (email != null) 'email': email,
-        if (phone != null) 'phone': phone,
-        if (companyName != null) 'company_name': companyName,
-        if (isArchitect != null) 'is_architect': isArchitect,
+        'name': ?name,
+        'email': ?email,
+        'phone': ?phone,
+        'company_name': ?companyName,
+        'is_architect': ?isArchitect,
       },
     );
     
@@ -181,7 +181,7 @@ class UserApi {
     final queryParams = <String, dynamic>{
       'page': page,
       'limit': limit,
-      if (unreadOnly != null) 'unread_only': unreadOnly,
+      'unread_only': ?unreadOnly,
     };
 
     final response = await _api.get<Map<String, dynamic>>(

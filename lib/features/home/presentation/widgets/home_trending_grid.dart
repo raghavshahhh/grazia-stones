@@ -180,7 +180,7 @@ class _HomeTrendingGridState extends ConsumerState<HomeTrendingGrid> {
           childAspectRatio: 0.68,
         ),
         itemCount: 6,
-        itemBuilder: (_, __) => const LoadingSkeleton(
+        itemBuilder: (_, _) => const LoadingSkeleton(
           width: double.infinity,
           height: double.infinity,
           borderRadius: 16,

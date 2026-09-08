@@ -357,7 +357,7 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                   height: 100,
                   child: Center(child: CircularProgressIndicator()),
                 ),
-                error: (_, __) => const SizedBox.shrink(),
+                error: (_, _) => const SizedBox.shrink(),
               ),
           ],
         ),
@@ -813,7 +813,7 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
         padding: const EdgeInsets.symmetric(horizontal: 14),
         scrollDirection: Axis.horizontal,
         itemCount: stones.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        separatorBuilder: (_, _) => const SizedBox(width: 10),
         itemBuilder: (context, index) {
           final stone = stones[index];
           final isSelected = _selectedStone?.id == stone.id;

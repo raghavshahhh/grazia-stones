@@ -48,11 +48,11 @@ class AIJobRepository {
         'job_type': AIJobType.visualization.value,
         'status': AIJobStatus.queued.value,
         'input_image_url': inputImageUrl,
-        if (stoneId != null) 'stone_id': stoneId,
-        if (stoneName != null) 'stone_name': stoneName,
-        if (color != null) 'color': color,
-        if (finish != null) 'finish': finish,
-        if (metadata != null) 'metadata': metadata,
+        'stone_id': ?stoneId,
+        'stone_name': ?stoneName,
+        'color': ?color,
+        'finish': ?finish,
+        'metadata': ?metadata,
       };
 
       final response = await _client
@@ -89,7 +89,7 @@ class AIJobRepository {
         'job_type': AIJobType.roomAnalysis.value,
         'status': AIJobStatus.queued.value,
         'input_image_url': inputImageUrl,
-        if (metadata != null) 'metadata': metadata,
+        'metadata': ?metadata,
       };
 
       final response = await _client
@@ -459,7 +459,7 @@ class AIJobRepository {
         'analyze-room',
         body: {
           'imageUrl': imageUrl,
-          if (imageBase64 != null) 'imageBase64': imageBase64,
+          'imageBase64': ?imageBase64,
         },
       );
 

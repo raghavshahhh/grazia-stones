@@ -27,7 +27,7 @@ abstract class AppException implements Exception {
 
   String toDetailedString() {
     final buffer = StringBuffer();
-    buffer.writeln('${runtimeType}: $message');
+    buffer.writeln('$runtimeType: $message');
     if (code != null) buffer.writeln('Code: $code');
     if (technicalMessage != null) buffer.writeln('Technical: $technicalMessage');
     if (stackTrace != null) buffer.writeln('StackTrace: $stackTrace');

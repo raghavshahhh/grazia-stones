@@ -67,8 +67,7 @@ class GLuxuryAppBar extends StatelessWidget implements PreferredSizeWidget {
                         padding: const EdgeInsets.symmetric(horizontal: GTokens.space3),
                       ),
                     )
-                  else if (leading != null)
-                    leading!,
+                  else ?leading,
                   if (title != null)
                     Expanded(
                       child: Text(

@@ -34,7 +34,7 @@ class CartApi {
         'stone_id': stoneId,
         'quantity': quantity,
         'finish': finish,
-        if (colorHex != null) 'color_hex': colorHex,
+        'color_hex': ?colorHex,
       },
     );
     
@@ -112,7 +112,7 @@ class CartApi {
       data: {
         'address_id': addressId,
         'payment_method': paymentMethod,
-        if (notes != null) 'notes': notes,
+        'notes': ?notes,
       },
     );
     

@@ -18,7 +18,7 @@ class OrderApi {
     final queryParams = <String, dynamic>{
       'page': page,
       'limit': limit,
-      if (status != null) 'status': status,
+      'status': ?status,
     };
 
     final response = await _api.get<Map<String, dynamic>>(
@@ -59,8 +59,8 @@ class OrderApi {
         'items': items,
         'address_id': addressId,
         'payment_method': paymentMethod,
-        if (couponCode != null) 'coupon_code': couponCode,
-        if (notes != null) 'notes': notes,
+        'coupon_code': ?couponCode,
+        'notes': ?notes,
       },
     );
     
@@ -76,7 +76,7 @@ class OrderApi {
     final response = await _api.post(
       '/orders/$orderId/cancel',
       data: {
-        if (reason != null) 'reason': reason,
+        'reason': ?reason,
       },
     );
     
@@ -120,7 +120,7 @@ class OrderApi {
       data: {
         'stone_id': stoneId,
         'address_id': addressId,
-        if (notes != null) 'notes': notes,
+        'notes': ?notes,
       },
     );
     

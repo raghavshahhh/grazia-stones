@@ -176,7 +176,7 @@ class AnalyticsService {
 
     final parameters = {
       'screen_name': screenName,
-      if (screenClass != null) 'screen_class': screenClass,
+      'screen_class': ?screenClass,
     };
 
     if (kDebugMode) {
@@ -203,14 +203,14 @@ class AnalyticsService {
     logEvent(AnalyticsEvent.productViewed, parameters: {
       'product_id': productId,
       'product_name': productName,
-      if (category != null) 'category': category,
+      'category': ?category,
     });
   }
 
   void logProductSearch(String query, {int? resultCount}) {
     logEvent(AnalyticsEvent.productSearch, parameters: {
       'search_query': query,
-      if (resultCount != null) 'result_count': resultCount,
+      'result_count': ?resultCount,
     });
   }
 
@@ -245,7 +245,7 @@ class AnalyticsService {
       'order_id': orderId,
       'amount': amount,
       'currency': currency,
-      if (itemCount != null) 'item_count': itemCount,
+      'item_count': ?itemCount,
     });
   }
 
@@ -277,7 +277,7 @@ class AnalyticsService {
     
     logEvent(event, parameters: {
       'stone_id': stoneId,
-      if (processingTimeMs != null) 'processing_time_ms': processingTimeMs,
+      'processing_time_ms': ?processingTimeMs,
     });
   }
 
@@ -298,8 +298,8 @@ class AnalyticsService {
     int? resultCount,
   }) {
     logEvent(AnalyticsEvent.dealerSearched, parameters: {
-      if (location != null) 'location': location,
-      if (resultCount != null) 'result_count': resultCount,
+      'location': ?location,
+      'result_count': ?resultCount,
     });
   }
 

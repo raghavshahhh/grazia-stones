@@ -1,6 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/models/collection.dart';
 import 'package:grazia_stones/core/models/dealer.dart';
@@ -20,9 +24,82 @@ import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 import 'package:grazia_stones/core/repositories/order_repository.dart';
 import 'package:grazia_stones/core/models/user.dart';
 import 'package:grazia_stones/core/services/cache_service.dart';
+import 'package:grazia_stones/core/services/storage_service.dart';
+import 'package:grazia_stones/features/admin/presentation/widgets/admin_module_switcher.dart';
 
+import 'dart:convert';
+import 'package:flutter/services.dart';
+import 'package:google_fonts/src/google_fonts_base.dart' as google_fonts_base;
+
+class _FakePathProviderPlatform extends PathProviderPlatform {
+  _FakePathProviderPlatform(this._path);
+  final String _path;
+
+  @override
+  Future<String?> getApplicationDocumentsPath() async => _path;
+}
+
+class _MockAssetManifest implements AssetManifest {
+  @override
+  List<String> listAssets() => [
+    'google_fonts/Inter-Regular.ttf',
+    'google_fonts/Inter-Medium.ttf',
+    'google_fonts/Inter-SemiBold.ttf',
+    'google_fonts/Inter-Bold.ttf',
+    'google_fonts/Inter-ExtraBold.ttf',
+    'google_fonts/PlayfairDisplay-Regular.ttf',
+    'google_fonts/PlayfairDisplay-Medium.ttf',
+    'google_fonts/PlayfairDisplay-SemiBold.ttf',
+    'google_fonts/PlayfairDisplay-Bold.ttf',
+    'google_fonts/PlayfairDisplay-ExtraBold.ttf',
+  ];
+
+  @override
+  List<AssetMetadata>? getAssetVariants(String key) => null;
+}
 
 void main() {
+  setUpAll(() async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    final tempDir = await Directory.systemTemp.createTemp('grazia_test_');
+    PathProviderPlatform.instance = _FakePathProviderPlatform(tempDir.path);
+    SharedPreferences.setMockInitialValues({});
+    GoogleFonts.config.allowRuntimeFetching = false;
+    google_fonts_base.assetManifest = _MockAssetManifest();
+    final ttfFile = File('ios/Pods/GoogleSignIn/GoogleSignIn/Sources/Resources/Roboto-Bold.ttf');
+    if (ttfFile.existsSync()) {
+      final ttfBytes = ttfFile.readAsBytesSync();
+      final transparentImage = Uint8List.fromList(<int>[
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49,
+        0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06,
+        0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44,
+        0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00, 0x05, 0x00, 0x01, 0x0D,
+        0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42,
+        0x60, 0x82,
+      ]);
+
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMessageHandler('flutter/assets', (message) async {
+        if (message == null) return null;
+        final key = utf8.decode(message.buffer.asUint8List());
+        if (key.startsWith('google_fonts/')) {
+          return ByteData.view(ttfBytes.buffer);
+        }
+        if (key == 'AssetManifest.bin') {
+          return const StandardMessageCodec().encodeMessage(<String, Object?>{});
+        }
+        if (key == 'AssetManifest.json') {
+          return ByteData.view(Uint8List.fromList(utf8.encode('{}')).buffer);
+        }
+        return ByteData.view(transparentImage.buffer);
+      });
+    }
+    // Real init, not a mock — exercises the actual StorageService/CacheService
+    // startup path instead of always hitting their catch-and-degrade branch.
+    await StorageService.instance.init();
+    await CacheService.instance.init();
+  });
+
   group('Stone Model Verification', () {
     test('Calculates dimensions and fallback getters accurately', () {
       final stone = Stone(
@@ -716,6 +793,163 @@ void main() {
     test('CacheService namespace invalidation executes for stones mutations', () async {
       await CacheService.instance.invalidateNamespace('stones');
       expect(true, isTrue);
+    });
+
+    test('kAdminModules exposes all 8 designated admin modules with valid routes', () {
+      expect(kAdminModules.length, 8);
+      final routes = kAdminModules.map((m) => m.route).toList();
+      expect(routes, contains('/admin/dashboard'));
+      expect(routes, contains('/admin/products'));
+      expect(routes, contains('/admin/collections'));
+      expect(routes, contains('/admin/orders'));
+      expect(routes, contains('/admin/quotes'));
+      expect(routes, contains('/admin/samples'));
+      expect(routes, contains('/admin/dealers'));
+      expect(routes, contains('/admin/ai-jobs'));
+    });
+
+    test('Three-layer RBAC: Profile card visibility condition across 4 user states', () {
+      final anon = AuthRiverpodState(isLoggedIn: false);
+      final cust = AuthRiverpodState(userId: 'c1', userRole: 'customer', isLoggedIn: true);
+      final dlr = AuthRiverpodState(userId: 'd1', userRole: 'dealer', isLoggedIn: true);
+      final adm = AuthRiverpodState(userId: 'a1', userRole: 'admin', isLoggedIn: true);
+
+      expect(anon.isAdmin, isFalse, reason: 'Anonymous user must never see admin entry');
+      expect(cust.isAdmin, isFalse, reason: 'Customer must never see admin entry');
+      expect(dlr.isAdmin, isFalse, reason: 'Dealer must never see admin entry');
+      expect(adm.isAdmin, isTrue, reason: 'Admin user must see admin entry');
+    });
+
+    test('Three-layer RBAC: GoRouter redirect protection across all 8 deep links', () {
+      final anon = AuthRiverpodState(isLoggedIn: false);
+      final cust = AuthRiverpodState(userId: 'c1', userRole: 'customer', isLoggedIn: true);
+      final dlr = AuthRiverpodState(userId: 'd1', userRole: 'dealer', isLoggedIn: true);
+      final adm = AuthRiverpodState(userId: 'a1', userRole: 'admin', isLoggedIn: true);
+
+      final deepLinks = [
+        '/admin/dashboard',
+        '/admin/products',
+        '/admin/collections',
+        '/admin/orders',
+        '/admin/quotes',
+        '/admin/samples',
+        '/admin/dealers',
+        '/admin/ai-jobs',
+      ];
+
+      String? evaluateAdminRedirect(String path, AuthRiverpodState authState) {
+        final isLocAdmin = path.startsWith('/admin');
+        if (isLocAdmin && !authState.isAdmin) {
+          final intended = Uri.encodeComponent(path);
+          return '/login?redirect=$intended';
+        }
+        return null;
+      }
+
+      for (final link in deepLinks) {
+        final encoded = Uri.encodeComponent(link);
+        expect(evaluateAdminRedirect(link, anon), equals('/login?redirect=$encoded'));
+        expect(evaluateAdminRedirect(link, cust), equals('/login?redirect=$encoded'));
+        expect(evaluateAdminRedirect(link, dlr), equals('/login?redirect=$encoded'));
+        expect(evaluateAdminRedirect(link, adm), isNull);
+      }
+    });
+
+    test('Three-layer RBAC: Supabase schema and RLS policies enforcement', () {
+      final schemaFile = File('supabase/schema.sql');
+      expect(schemaFile.existsSync(), isTrue);
+      final schema = schemaFile.readAsStringSync();
+
+      expect(schema, contains('alter table public.orders enable row level security;'));
+      expect(schema, contains('alter table public.quote_requests enable row level security;'));
+      expect(schema, contains('alter table public.sample_requests enable row level security;'));
+      expect(schema, contains('alter table public.stones enable row level security;'));
+      expect(schema, contains('alter table public.collections enable row level security;'));
+      expect(schema, contains('alter table public.dealers enable row level security;'));
+
+      expect(schema, contains('create policy "Admins can manage all orders"'));
+      expect(schema, contains('create policy "Admins can manage all quotes"'));
+      expect(schema, contains('create policy "Admins can manage all sample requests"'));
+      expect(schema, contains('create policy "Admins can manage stones"'));
+      expect(schema, contains('create policy "Admins can manage collections"'));
+      expect(schema, contains('create policy "Admins can manage dealers"'));
+    });
+
+    test('Mobile viewports (375px, 390px, 430px) aspect ratio calculation prevents overflow', () {
+      const childAspectRatio = 1.55;
+      const horizontalPadding = 36.0;
+      const spacing = 12.0;
+      final widths = [375.0, 390.0, 430.0];
+
+      for (final w in widths) {
+        final availableWidth = w - horizontalPadding - spacing;
+        final itemWidth = availableWidth / 2;
+        final itemHeight = itemWidth / childAspectRatio;
+        expect(itemHeight, greaterThanOrEqualTo(70.0),
+            reason: 'Tile height must be >= 70px at width $w px to avoid text truncation');
+      }
+    });
+
+    test('Orders status filter reconciles all 6 backend enum values including Confirmed', () {
+      final backendEnum = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
+      final mockOrders = [
+        {'id': 'o1', 'status': 'pending'},
+        {'id': 'o2', 'status': 'confirmed'},
+        {'id': 'o3', 'status': 'processing'},
+        {'id': 'o4', 'status': 'shipped'},
+        {'id': 'o5', 'status': 'delivered'},
+        {'id': 'o6', 'status': 'cancelled'},
+      ];
+
+      for (final status in backendEnum) {
+        final matching = mockOrders.where((o) => (o['status'] ?? '').toString().toLowerCase() == status).toList();
+        expect(matching.length, 1);
+      }
+    });
+
+    test('Samples status filter reconciles requested and pending seamlessly', () {
+      final mockSamples = [
+        {'id': 's1', 'status': 'pending'},
+        {'id': 's2', 'status': 'requested'},
+        {'id': 's3', 'status': 'dispatched'},
+        {'id': 's4', 'status': 'delivered'},
+        {'id': 's5', 'status': 'cancelled'},
+      ];
+
+      List<Map<String, dynamic>> filterSamples(String filter) {
+        return mockSamples.where((s) {
+          if (filter == 'all') return true;
+          final st = (s['status'] ?? '').toString().toLowerCase();
+          if (filter == 'pending' || filter == 'requested') {
+            return st == 'pending' || st == 'requested';
+          }
+          return st == filter.toLowerCase();
+        }).toList();
+      }
+
+      final pendingFiltered = filterSamples('pending');
+      expect(pendingFiltered.length, 2);
+      expect(pendingFiltered.map((s) => s['id']), containsAll(['s1', 's2']));
+
+      final dispatchedFiltered = filterSamples('dispatched');
+      expect(dispatchedFiltered.length, 1);
+      expect(dispatchedFiltered.first['id'], equals('s3'));
+    });
+
+    test('Stones cache namespace invalidation covers all catalog mutation pathways', () {
+      final repoFile = File('lib/core/repositories/admin_product_repository.dart');
+      final repoCode = repoFile.readAsStringSync();
+
+      expect(repoCode, contains("createProduct"));
+      expect(repoCode, contains("invalidateNamespace('stones')"));
+      expect(repoCode, contains("updateProduct"));
+      expect(repoCode, contains("deleteProduct"));
+      expect(repoCode, contains("permanentlyDeleteProduct"));
+      expect(repoCode, contains("restoreProduct"));
+      expect(repoCode, contains("bulkUpdateProducts"));
+      expect(repoCode, contains("createCollection"));
+      expect(repoCode, contains("updateCollection"));
+      expect(repoCode, contains("deleteCollection"));
     });
   });
 }

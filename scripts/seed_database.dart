@@ -1,4 +1,5 @@
 #!/usr/bin/env dart
+// ignore_for_file: avoid_print
 // Seed script for Supabase database
 // Run with: dart run scripts/seed_database.dart
 

@@ -351,7 +351,7 @@ class _SavedDesignsScreenState extends ConsumerState<SavedDesignsScreen> {
                     child: Image.network(
                       design.generatedImageUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
+                      errorBuilder: (_, _, _) => Container(
                         color: palette.surfaceDark,
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,

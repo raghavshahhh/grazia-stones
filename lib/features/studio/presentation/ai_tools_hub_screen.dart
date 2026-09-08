@@ -289,7 +289,7 @@ class AiToolsHubScreen extends ConsumerWidget {
                       scrollDirection: Axis.horizontal,
                       physics: const BouncingScrollPhysics(),
                       itemCount: stones.take(6).length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 14),
+                      separatorBuilder: (_, _) => const SizedBox(width: 14),
                       itemBuilder: (context, index) {
                         final stone = stones[index];
                         return _buildStoneQuickLaunchCard(

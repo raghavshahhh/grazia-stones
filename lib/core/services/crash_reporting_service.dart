@@ -107,7 +107,7 @@ class CrashReportingService {
     // Build full context
     final fullContext = {
       ..._userContext,
-      if (context != null) ...context,
+      ...?context,
       'breadcrumbs': _breadcrumbs.map((b) => b.toJson()).toList(),
     };
 

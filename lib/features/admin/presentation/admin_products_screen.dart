@@ -6,8 +6,10 @@ import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
+import 'package:grazia_stones/features/admin/presentation/widgets/admin_module_switcher.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
+import 'package:grazia_stones/shared/widgets/luxury_toast.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 
 class AdminProductsScreen extends ConsumerStatefulWidget {
@@ -22,6 +24,7 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
   String? _error;
   List<Stone> _stones = [];
   String _searchQuery = '';
+  String _statusFilter = 'all'; // 'all', 'active', 'archived'
 
   @override
   void initState() {
@@ -70,12 +73,15 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
       }
 
       if (mounted) {
-        showSuccessSnackbar(context, permanent ? 'Stone permanently deleted' : 'Stone marked as inactive');
+        LuxuryToast.show(
+          context,
+          message: permanent ? 'Stone permanently deleted' : 'Stone moved to archive',
+        );
         _loadStones();
       }
     } catch (e) {
       if (mounted) {
-        showErrorSnackbar(context, e);
+        LuxuryToast.show(context, message: e.toString(), isError: true);
       }
     }
   }
@@ -103,11 +109,11 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
                 try {
                   await ref.read(adminProductRepositoryProvider).restoreProduct(stone.id);
                   if (mounted) {
-                    showSuccessSnackbar(context, '${stone.name} restored to the catalogue');
+                    LuxuryToast.show(context, message: '${stone.name} restored to catalogue');
                     _loadStones();
                   }
                 } catch (e) {
-                  if (mounted) showErrorSnackbar(context, e);
+                  if (mounted) LuxuryToast.show(context, message: e.toString(), isError: true);
                 }
               },
               child: const Text('Restore'),
@@ -173,7 +179,12 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
   @override
   Widget build(BuildContext context) {
     final palette = ref.watch(themePaletteProvider);
+    final activeCount = _stones.where((s) => s.isActive).length;
+    final archivedCount = _stones.where((s) => !s.isActive).length;
+
     final filteredStones = _stones.where((s) {
+      if (_statusFilter == 'active' && !s.isActive) return false;
+      if (_statusFilter == 'archived' && s.isActive) return false;
       if (_searchQuery.isEmpty) return true;
       return s.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           s.collection.toLowerCase().contains(_searchQuery.toLowerCase()) ||
@@ -198,6 +209,21 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
             color: palette.textPrimary,
           ),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh Products',
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              _loadStones();
+            },
+            icon: Icon(Icons.refresh_rounded, color: palette.primary),
+          ),
+          AdminQuickNavButton(
+            currentRoute: '/admin/products',
+            palette: palette,
+          ),
+          const SizedBox(width: 6),
+        ],
       ),
       body: _error != null
           ? ErrorHandlerWidget(error: Exception(_error), onRetry: _loadStones)
@@ -234,20 +260,60 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
                       ),
                     ),
 
+                    // Filter chips: All, Active, Archived
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+                      child: Row(
+                        children: [
+                          _buildFilterChip('All (${_stones.length})', 'all', palette),
+                          const SizedBox(width: 8),
+                          _buildFilterChip('Active ($activeCount)', 'active', palette),
+                          const SizedBox(width: 8),
+                          _buildFilterChip('Archived ($archivedCount)', 'archived', palette),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+
                     Expanded(
                       child: RefreshIndicator(
                         color: palette.primary,
                         backgroundColor: palette.surface,
                         onRefresh: _loadStones,
-                        child: ListView.builder(
-                          physics: const BouncingScrollPhysics(),
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                          itemCount: filteredStones.length,
-                          itemBuilder: (context, i) {
-                            final stone = filteredStones[i];
-                            return _buildProductTile(palette, stone);
-                          },
-                        ),
+                        child: filteredStones.isEmpty
+                            ? Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(24),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.diamond_outlined, size: 48, color: palette.textTertiary),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        _searchQuery.isNotEmpty
+                                            ? 'No matching stones found'
+                                            : _statusFilter == 'archived'
+                                                ? 'No archived stones'
+                                                : 'No stones in catalog',
+                                        style: GoogleFonts.playfairDisplay(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
+                                          color: palette.textPrimary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              )
+                            : ListView.builder(
+                                physics: const BouncingScrollPhysics(),
+                                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                                itemCount: filteredStones.length,
+                                itemBuilder: (context, i) {
+                                  final stone = filteredStones[i];
+                                  return _buildProductTile(palette, stone);
+                                },
+                              ),
                       ),
                     ),
                   ],
@@ -267,101 +333,152 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
     );
   }
 
+  Widget _buildFilterChip(String label, String value, LuxuryPalette palette) {
+    final isSelected = _statusFilter == value;
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        setState(() => _statusFilter = value);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? palette.primary : palette.surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? palette.primary : palette.border,
+          ),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            color: isSelected ? Colors.white : palette.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildProductTile(LuxuryPalette palette, Stone stone) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: palette.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: palette.border),
       ),
-      child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: SizedBox(
-              width: 64,
-              height: 64,
-              child: SmartStoneImage(
-                localAsset: stone.images.isNotEmpty ? stone.images.first : null,
-                imageUrl: stone.imageUrl,
-                width: 64,
-                height: 64,
-                palette: palette,
-              ),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () async {
+            HapticFeedback.lightImpact();
+            final result = await context.push('/admin/products/edit/${stone.id}', extra: stone);
+            if (result == true) {
+              _loadStones();
+            }
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: SizedBox(
+                    width: 64,
+                    height: 64,
+                    child: SmartStoneImage(
+                      localAsset: stone.images.isNotEmpty ? stone.images.first : null,
+                      imageUrl: stone.imageUrl,
+                      width: 64,
+                      height: 64,
+                      palette: palette,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Text(
-                          stone.name,
-                          style: GoogleFonts.playfairDisplay(
-                            color: stone.isActive
-                                ? palette.textPrimary
-                                : palette.textTertiary,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (!stone.isActive) ...[
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.shade700.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.orange.shade700.withValues(alpha: 0.4)),
-                          ),
-                          child: Text(
-                            'ARCHIVED',
-                            style: GoogleFonts.inter(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.orange.shade700,
-                              letterSpacing: 0.5,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              stone.name,
+                              style: GoogleFonts.playfairDisplay(
+                                color: stone.isActive
+                                    ? palette.textPrimary
+                                    : palette.textTertiary,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                        ),
-                      ],
+                          if (!stone.isActive) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.shade700.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.orange.shade700.withValues(alpha: 0.4)),
+                              ),
+                              child: Text(
+                                'ARCHIVED',
+                                style: GoogleFonts.inter(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.orange.shade700,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${stone.collection} • ${stone.category}',
+                        style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 11),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '₹${stone.pricePerSqFt.toInt()}/sqft • ${stone.finish}',
+                        style: GoogleFonts.inter(color: palette.primary, fontSize: 12, fontWeight: FontWeight.w700),
+                      ),
                     ],
                   ),
-                const SizedBox(height: 2),
-                Text(
-                  '${stone.collection} • ${stone.category}',
-                  style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 11),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '₹${stone.pricePerSqFt.toInt()}/sqft • ${stone.finish}',
-                  style: GoogleFonts.inter(color: palette.primary, fontSize: 12, fontWeight: FontWeight.w700),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.edit_outlined, color: palette.primary, size: 18),
+                      tooltip: 'Edit Stone',
+                      onPressed: () async {
+                        final result = await context.push('/admin/products/edit/${stone.id}', extra: stone);
+                        if (result == true) {
+                          _loadStones();
+                        }
+                      },
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                      tooltip: 'Delete / Archive Stone',
+                      onPressed: () => _showDeleteDialog(stone, palette),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-          IconButton(
-            icon: Icon(Icons.edit_outlined, color: palette.primary, size: 18),
-            onPressed: () async {
-              final result = await context.push('/admin/products/edit/${stone.id}', extra: stone);
-              if (result == true) {
-                _loadStones();
-              }
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
-            onPressed: () => _showDeleteDialog(stone, palette),
-          ),
-        ],
+        ),
       ),
     );
   }

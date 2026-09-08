@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:grazia_stones/app.dart';
 import 'package:grazia_stones/core/config/env_config.dart';
+import 'package:grazia_stones/core/services/cache_service.dart';
 import 'package:grazia_stones/core/services/storage_service.dart';
 import 'package:grazia_stones/core/services/supabase_service.dart';
 import 'package:grazia_stones/core/widgets/error_boundary.dart';
@@ -61,6 +62,12 @@ void main() async {
   } catch (e) {
     debugPrint('❌ Storage initialization error: $e');
   }
+
+  // CacheService.init() was never called anywhere — every disk-cache read/write
+  // silently hit an uninitialized `late Directory _diskCacheDir` and fell back
+  // to memory-only caching for the whole app lifetime. init() has its own
+  // try/catch (path_provider has no disk on web, degrades to memory there too).
+  await CacheService.instance.init();
 
   // Render the first frame now. Supabase init includes a network round-trip
   // (session refresh + connectivity check) and must NEVER gate app startup —

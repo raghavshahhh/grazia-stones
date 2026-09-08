@@ -91,9 +91,9 @@ class PaginatedResponse<T> extends ApiResponse<List<T>> {
   final bool hasPreviousPage;
 
   PaginatedResponse({
-    required List<T> data,
-    String? message,
-    required int statusCode,
+    required List<T> super.data,
+    super.message,
+    required super.statusCode,
     required this.currentPage,
     required this.totalPages,
     required this.totalItems,
@@ -101,9 +101,6 @@ class PaginatedResponse<T> extends ApiResponse<List<T>> {
     required this.hasNextPage,
     required this.hasPreviousPage,
   }) : super(
-          data: data,
-          message: message,
-          statusCode: statusCode,
           success: true,
         );
 

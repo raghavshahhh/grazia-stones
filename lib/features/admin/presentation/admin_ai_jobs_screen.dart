@@ -61,7 +61,7 @@ class _AdminAIJobsScreenState extends ConsumerState<AdminAIJobsScreen> {
           statsAsync.when(
             data: (stats) => _buildStatisticsCards(palette, stats),
             loading: () => const SizedBox(height: 80, child: Center(child: CircularProgressIndicator())),
-            error: (_, __) => const SizedBox.shrink(),
+            error: (_, _) => const SizedBox.shrink(),
           ),
 
           const SizedBox(height: 16),
@@ -70,7 +70,7 @@ class _AdminAIJobsScreenState extends ConsumerState<AdminAIJobsScreen> {
           allJobsAsync.when(
             data: (jobs) => _buildFilterChips(palette, jobs),
             loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
+            error: (_, _) => const SizedBox.shrink(),
           ),
 
           // Jobs list
@@ -691,7 +691,7 @@ class _AdminJobDetailsSheet extends ConsumerWidget {
                   height: 200,
                   width: double.infinity,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
+                  errorBuilder: (_, _, _) => Container(
                     height: 200,
                     color: palette.border,
                     child: const Center(

@@ -3,6 +3,10 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- "optional" (not "required"): devices without ARCore/Play Services for
+         AR must still be able to install the app — they fall back to the
+         web-camera AR engine. isARSupported() does the real runtime check. -->
+    <uses-feature android:name="android.hardware.camera.ar" android:required="false" />
     <application
         android:label="grazia_stones"
         android:name="${applicationName}"
@@ -34,6 +38,10 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- "optional": ARCore is used when available (isARSupported() checks
+             ArCoreApk.checkAvailability() at runtime) but is not required to
+             install or run the app. -->
+        <meta-data android:name="com.google.ar.core" android:value="optional" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

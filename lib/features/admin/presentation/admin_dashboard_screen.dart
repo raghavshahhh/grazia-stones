@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/services/supabase_service.dart';
 import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
+import 'package:grazia_stones/features/admin/presentation/widgets/admin_module_switcher.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 
@@ -107,12 +108,18 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         ),
         actions: [
           IconButton(
+            tooltip: 'Refresh Metrics',
             onPressed: () {
               HapticFeedback.lightImpact();
               _loadMetrics();
             },
             icon: Icon(Icons.refresh_rounded, color: palette.primary),
           ),
+          AdminQuickNavButton(
+            currentRoute: '/admin/dashboard',
+            palette: palette,
+          ),
+          const SizedBox(width: 6),
         ],
       ),
       body: _error != null
@@ -201,7 +208,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                       mainAxisSpacing: 12,
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      childAspectRatio: 1.5,
+                      childAspectRatio: 1.55,
                       children: [
                         _MetricCard(
                           title: 'Total Revenue',
@@ -211,8 +218,14 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                         ),
                         _MetricCard(
                           title: 'Total Orders',
-                          value: '$_totalOrders ($_pendingOrders pending)',
+                          value: '$_totalOrders',
                           icon: Icons.inventory_2_outlined,
+                          palette: palette,
+                        ),
+                        _MetricCard(
+                          title: 'Pending Orders',
+                          value: '$_pendingOrders',
+                          icon: Icons.pending_actions_rounded,
                           palette: palette,
                         ),
                         _MetricCard(

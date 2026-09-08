@@ -106,6 +106,7 @@ dependencies:
   timeago: ^3.7.0
   video_player: ^2.9.2  # splash brand animation
 
+  flutter_cache_manager: any
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -125,6 +126,7 @@ dev_dependencies:
   mockito: ^5.4.4
   integration_test:
     sdk: flutter
+  path_provider_platform_interface: ^2.1.2
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

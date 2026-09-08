@@ -15,6 +15,7 @@ import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.StandardMessageCodec
 import io.flutter.plugin.platform.PlatformView
 import io.flutter.plugin.platform.PlatformViewFactory
+import io.github.sceneview.ar.ARSceneView
 
 /**
  * ARCore Flutter Plugin - Handles method channel and platform view for ARCore
@@ -216,6 +217,19 @@ class ARCorePlugin : FlutterPlugin, MethodCallHandler, StreamHandler {
                 arCoreManager?.preloadTexture(textureUrl)
                 result.success(null)
             }
+            "hitTestWallAtScreenPoint" -> {
+                val screenX = call.argument<Double>("screenX")?.toFloat()
+                val screenY = call.argument<Double>("screenY")?.toFloat()
+                if (screenX != null && screenY != null) {
+                    result.success(arCoreManager?.hitTestWallAtScreenPoint(screenX, screenY))
+                } else {
+                    result.error("INVALID_ARGS", "Missing screen coordinates", null)
+                }
+            }
+            "stopCamera" -> {
+                arCoreManager?.pauseSession()
+                result.success(null)
+            }
             else -> {
                 result.notImplemented()
             }
@@ -224,7 +238,7 @@ class ARCorePlugin : FlutterPlugin, MethodCallHandler, StreamHandler {
 }
 
 /**
- * ARCore Platform View Factory for embedding SceneView in Flutter
+ * ARCore Platform View Factory for embedding a real ARSceneView in Flutter.
  */
 class ARCoreViewFactory(private val binaryMessenger: BinaryMessenger) : PlatformViewFactory(StandardMessageCodec.INSTANCE) {
 
@@ -234,13 +248,9 @@ class ARCoreViewFactory(private val binaryMessenger: BinaryMessenger) : Platform
 }
 
 /**
- * ARCore Platform View — placeholder container.
- *
- * Native Android AR rendering is not implemented (see ARCoreManager for
- * the honest capability report); the Flutter side routes Android to its
- * real web-camera AR engine instead of embedding this view. The factory
- * stays registered so the view type resolves without crashing if it is
- * ever requested.
+ * ARCore Platform View — hosts a real [io.github.sceneview.ar.ARSceneView]
+ * (ARCore + Filament) and hands it to [ARCoreManager], which drives session
+ * control, plane detection, texture mapping and measurement.
  */
 class ARCorePlatformView(
     private val context: Context,
@@ -248,20 +258,17 @@ class ARCorePlatformView(
     private val binaryMessenger: BinaryMessenger
 ) : PlatformView {
 
-    private val frameLayout = android.widget.FrameLayout(context)
+    private val arCoreManager = ARCoreManager.getInstance(context)
+    private val sceneView = ARSceneView(context)
 
     init {
-        frameLayout.layoutParams = android.widget.FrameLayout.LayoutParams(
-            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-            android.widget.FrameLayout.LayoutParams.MATCH_PARENT
-        )
+        arCoreManager.attachSceneView(sceneView)
     }
 
-    override fun getView(): android.view.View? {
-        return frameLayout
-    }
+    override fun getView(): android.view.View = sceneView
 
     override fun dispose() {
-        // Nothing to tear down — no native session is ever started.
+        arCoreManager.detachSceneView(sceneView)
+        sceneView.destroy()
     }
 }

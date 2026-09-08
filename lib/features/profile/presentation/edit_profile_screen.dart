@@ -210,7 +210,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                                               child: Image.network(
                                                 _avatarUrl!,
                                                 fit: BoxFit.cover,
-                                                errorBuilder: (_, __, ___) => Center(
+                                                errorBuilder: (_, _, _) => Center(
                                                   child: Text(
                                                     _nameController.text.isNotEmpty
                                                         ? _nameController.text.substring(0, 1).toUpperCase()

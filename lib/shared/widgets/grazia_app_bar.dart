@@ -49,8 +49,7 @@ class GraziaAppBar extends StatelessWidget implements PreferredSizeWidget {
                 children: [
                   if (showBack)
                     _buildBackButton(context)
-                  else if (leading != null)
-                    leading!,
+                  else ?leading,
                   const Spacer(),
                   _buildTitle(),
                   const Spacer(),

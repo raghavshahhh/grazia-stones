@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -340,12 +339,11 @@ class ARNativeChannel {
   
   /// Get the AR scene view for embedding in Flutter
   static Widget getARView() {
-    // iOS has a real, working ARKit implementation (ARKitManager.swift).
-    // Android's native ARCore layer was never in a compiling state, so
-    // Android uses the real web-camera AR engine instead of a broken
-    // platform view — users get the same visualization experience.
     if (defaultTargetPlatform == TargetPlatform.iOS) {
       return const _ARKitView();
+    }
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      return const _ARCoreView();
     }
     return const SizedBox.shrink();
   }
@@ -395,7 +393,7 @@ class ARNativeChannel {
 /// iOS ARKit Platform View
 class _ARKitView extends StatelessWidget {
   const _ARKitView();
-  
+
   @override
   Widget build(BuildContext context) {
     if (defaultTargetPlatform == TargetPlatform.iOS) {
@@ -404,6 +402,24 @@ class _ARKitView extends StatelessWidget {
         layoutDirection: TextDirection.ltr,
         creationParams: <String, dynamic>{},
         creationParamsCodec: const StandardMessageCodec(),
+      );
+    }
+    return const SizedBox.shrink();
+  }
+}
+
+/// Android ARCore Platform View (SceneView-backed, see ARCorePlatformView.kt)
+class _ARCoreView extends StatelessWidget {
+  const _ARCoreView();
+
+  @override
+  Widget build(BuildContext context) {
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      return const AndroidView(
+        viewType: 'com.graziastones.ar/arcore_view',
+        layoutDirection: TextDirection.ltr,
+        creationParams: <String, dynamic>{},
+        creationParamsCodec: StandardMessageCodec(),
       );
     }
     return const SizedBox.shrink();

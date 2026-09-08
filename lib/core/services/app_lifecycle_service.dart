@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'analytics_service.dart';
 import 'connectivity_service.dart';
 

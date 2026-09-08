@@ -415,7 +415,7 @@ final activeJobsCountProvider = Provider<int>((ref) {
   return activeJobsAsync.when(
     data: (jobs) => jobs.length,
     loading: () => 0,
-    error: (_, __) => 0,
+    error: (_, _) => 0,
   );
 });
 

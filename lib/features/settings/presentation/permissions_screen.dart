@@ -465,7 +465,7 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
         permission: permission,
       );
 
-      if (mounted) {
+      if (context.mounted) {
         setState(() {});
         
         if (granted) {

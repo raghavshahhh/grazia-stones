@@ -9,9 +9,9 @@ import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/models/collection.dart';
 import 'package:grazia_stones/core/services/cache_service.dart';
 import 'package:grazia_stones/core/services/supabase_service.dart';
-import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
+import 'package:grazia_stones/shared/widgets/luxury_toast.dart';
 
 class AdminProductEditScreen extends ConsumerStatefulWidget {
   final String? stoneId;
@@ -235,13 +235,13 @@ class _AdminProductEditScreenState extends ConsumerState<AdminProductEditScreen>
 
       if (mounted) {
         setState(() => _isSaving = false);
-        showSuccessSnackbar(context, 'Product saved successfully!');
+        LuxuryToast.show(context, message: 'Product saved successfully!');
         context.pop(true);
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isSaving = false);
-        showErrorSnackbar(context, e);
+        LuxuryToast.show(context, message: e.toString(), isError: true);
       }
     }
   }

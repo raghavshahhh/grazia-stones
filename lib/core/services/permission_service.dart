@@ -90,6 +90,7 @@ class PermissionService {
 
     // Check if permanently denied
     if (await isPermanentlyDenied(permission)) {
+      if (!context.mounted) return false;
       return await _showPermanentlyDeniedDialog(
         context: context,
         permission: permission,
@@ -98,6 +99,7 @@ class PermissionService {
       );
     }
 
+    if (!context.mounted) return false;
     // Show rationale dialog
     final shouldRequest = await _showRationaleDialog(
       context: context,

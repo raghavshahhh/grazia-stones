@@ -41,7 +41,7 @@ class CacheService {
       await _cleanExpiredDiskCache();
       
       _initialized = true;
-      debugPrint('✅ Cache service initialized (memory: ${_maxMemoryEntries} entries, disk: ${_maxDiskSizeMB}MB)');
+      debugPrint('✅ Cache service initialized (memory: $_maxMemoryEntries entries, disk: ${_maxDiskSizeMB}MB)');
     } catch (e) {
       debugPrint('❌ Cache initialization failed: $e');
     }

@@ -84,10 +84,10 @@ class AuthRepository {
   /// Update profile
   Future<void> updateProfile({String? name, String? email, String? phone, String? avatarUrl}) async {
     await _sb.updateProfile({
-      if (name != null) 'full_name': name,
-      if (email != null) 'email': email,
-      if (phone != null) 'phone': phone,
-      if (avatarUrl != null) 'avatar_url': avatarUrl,
+      'full_name': ?name,
+      'email': ?email,
+      'phone': ?phone,
+      'avatar_url': ?avatarUrl,
     });
   }
 

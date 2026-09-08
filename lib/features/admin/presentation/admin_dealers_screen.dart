@@ -7,8 +7,10 @@ import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/models/dealer.dart';
 import 'package:grazia_stones/core/services/supabase_service.dart';
 import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
+import 'package:grazia_stones/features/admin/presentation/widgets/admin_module_switcher.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
+import 'package:grazia_stones/shared/widgets/luxury_toast.dart';
 
 class AdminDealersScreen extends ConsumerStatefulWidget {
   const AdminDealersScreen({super.key});
@@ -68,7 +70,7 @@ class _AdminDealersScreenState extends ConsumerState<AdminDealersScreen> {
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
+        builder: (dContext, setDialogState) => AlertDialog(
           backgroundColor: palette.surface,
           title: Text(
             dealer != null ? 'Edit Dealer / Showroom' : 'New Dealer',
@@ -179,11 +181,11 @@ class _AdminDealersScreenState extends ConsumerState<AdminDealersScreen> {
                   }
 
                   if (mounted) {
-                    showSuccessSnackbar(context, 'Dealer saved successfully');
+                    LuxuryToast.show(context, message: 'Dealer saved successfully');
                     _loadDealers();
                   }
                 } catch (e) {
-                  if (mounted) showErrorSnackbar(context, e);
+                  if (mounted) LuxuryToast.show(context, message: e.toString(), isError: true);
                 }
               },
               child: const Text('Save'),
@@ -194,17 +196,51 @@ class _AdminDealersScreenState extends ConsumerState<AdminDealersScreen> {
     );
   }
 
+  void _confirmDeleteDealer(Dealer dealer, LuxuryPalette palette) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: palette.surface,
+        title: Text(
+          'Delete Dealer',
+          style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: palette.textPrimary),
+        ),
+        content: Text(
+          'Are you sure you want to remove "${dealer.name}" from authorized dealers?',
+          style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: TextStyle(color: palette.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade600,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _deleteDealer(dealer.id);
+            },
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _deleteDealer(String id) async {
     try {
       final client = SupabaseService.instance.client;
       await client.from('dealers').delete().eq('id', id);
 
       if (mounted) {
-        showSuccessSnackbar(context, 'Dealer removed');
+        LuxuryToast.show(context, message: 'Dealer removed');
         _loadDealers();
       }
     } catch (e) {
-      if (mounted) showErrorSnackbar(context, e);
+      if (mounted) LuxuryToast.show(context, message: e.toString(), isError: true);
     }
   }
 
@@ -230,80 +266,116 @@ class _AdminDealersScreenState extends ConsumerState<AdminDealersScreen> {
             color: palette.textPrimary,
           ),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh Dealers',
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              _loadDealers();
+            },
+            icon: Icon(Icons.refresh_rounded, color: palette.primary),
+          ),
+          AdminQuickNavButton(
+            currentRoute: '/admin/dealers',
+            palette: palette,
+          ),
+          const SizedBox(width: 6),
+        ],
       ),
       body: _error != null
           ? ErrorHandlerWidget(error: Exception(_error), onRetry: _loadDealers)
           : _isLoading
               ? Center(child: CircularProgressIndicator(color: palette.primary))
-              : RefreshIndicator(
-                  color: palette.primary,
-                  backgroundColor: palette.surface,
-                  onRefresh: _loadDealers,
-                  child: ListView.builder(
-                    physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                    itemCount: _dealers.length,
-                    itemBuilder: (context, i) {
-                      final d = _dealers[i];
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: palette.surface,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: palette.border),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                color: palette.primary.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(12),
+              : _dealers.isEmpty
+                  ? Center(
+                      child: Text('No dealers registered yet', style: GoogleFonts.inter(color: palette.textSecondary)),
+                    )
+                  : RefreshIndicator(
+                      color: palette.primary,
+                      backgroundColor: palette.surface,
+                      onRefresh: _loadDealers,
+                      child: ListView.builder(
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                        itemCount: _dealers.length,
+                        itemBuilder: (context, i) {
+                          final d = _dealers[i];
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
+                              color: palette.surface,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: palette.border),
+                            ),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(16),
+                                onTap: () => _showDealerDialog(dealer: d, palette: palette),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(14),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 44,
+                                        height: 44,
+                                        decoration: BoxDecoration(
+                                          color: palette.primary.withValues(alpha: 0.12),
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: Icon(Icons.storefront_outlined, color: palette.primary),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              d.name,
+                                              style: GoogleFonts.playfairDisplay(
+                                                color: palette.textPrimary,
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 15,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              '${d.city}, ${d.state} • ${d.phone}',
+                                              style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 11),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              '★ ${d.rating} • ${d.isExclusive ? "Exclusive Experience Center" : "Partner Store"}',
+                                              style: GoogleFonts.inter(color: palette.primary, fontSize: 11, fontWeight: FontWeight.w600),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      IconButton(
+                                        icon: Icon(Icons.edit_outlined, color: palette.primary, size: 18),
+                                        tooltip: 'Edit Dealer',
+                                        onPressed: () => _showDealerDialog(dealer: d, palette: palette),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                                        tooltip: 'Delete Dealer',
+                                        onPressed: () => _confirmDeleteDealer(d, palette),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
-                              child: Icon(Icons.storefront_outlined, color: palette.primary),
                             ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    d.name,
-                                    style: GoogleFonts.playfairDisplay(
-                                      color: palette.textPrimary,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 15,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '${d.city}, ${d.state} • ${d.phone}',
-                                    style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 12),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '★ ${d.rating} • ${d.isExclusive ? "Exclusive Experience Center" : "Partner Store"}',
-                                    style: GoogleFonts.inter(color: palette.primary, fontSize: 11, fontWeight: FontWeight.w600),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            IconButton(
-                              icon: Icon(Icons.edit_outlined, color: palette.primary, size: 18),
-                              onPressed: () => _showDealerDialog(dealer: d, palette: palette),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
-                              onPressed: () => _deleteDealer(d.id),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                ),
+                          );
+                        },
+                      ),
+                    ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showDealerDialog(palette: palette),
         backgroundColor: palette.primary,

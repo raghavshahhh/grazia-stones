@@ -25,13 +25,13 @@ class StoneApi {
     final queryParams = <String, dynamic>{
       'page': page,
       'limit': limit,
-      if (search != null) 'search': search,
-      if (collection != null) 'collection': collection,
-      if (finish != null) 'finish': finish,
-      if (minPrice != null) 'min_price': minPrice,
-      if (maxPrice != null) 'max_price': maxPrice,
-      if (sortBy != null) 'sort_by': sortBy,
-      if (sortOrder != null) 'sort_order': sortOrder,
+      'search': ?search,
+      'collection': ?collection,
+      'finish': ?finish,
+      'min_price': ?minPrice,
+      'max_price': ?maxPrice,
+      'sort_by': ?sortBy,
+      'sort_order': ?sortOrder,
     };
 
     final response = await _api.get('/stones', queryParameters: queryParams);
@@ -229,7 +229,7 @@ class StoneApi {
       data: {
         'rating': rating,
         'comment': comment,
-        if (images != null) 'images': images,
+        'images': ?images,
       },
     );
     

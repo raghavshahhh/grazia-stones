@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -39,9 +38,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   // Filters
   String _searchQuery = '';
-  Set<String> _selectedCollections = {};
-  Set<String> _selectedCategories = {};
-  Set<String> _selectedFinishes = {};
+  final Set<String> _selectedCollections = {};
+  final Set<String> _selectedCategories = {};
+  final Set<String> _selectedFinishes = {};
   double _minPrice = 0;
   double _maxPrice = 10000;
   String _sortBy = 'name'; // name, price_asc, price_desc, newest, popular

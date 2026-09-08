@@ -5,8 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/services/supabase_service.dart';
 import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
+import 'package:grazia_stones/features/admin/presentation/widgets/admin_module_switcher.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
+import 'package:grazia_stones/shared/widgets/luxury_toast.dart';
 
 class AdminOrdersScreen extends ConsumerStatefulWidget {
   const AdminOrdersScreen({super.key});
@@ -19,6 +21,7 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
   bool _isLoading = true;
   String? _error;
   List<Map<String, dynamic>> _orders = [];
+  String _statusFilter = 'all';
 
   @override
   void initState() {
@@ -64,17 +67,51 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
       }).eq('id', orderId);
 
       if (mounted) {
-        showSuccessSnackbar(context, 'Order status updated to $newStatus');
+        LuxuryToast.show(context, message: 'Order status updated to ${newStatus.toUpperCase()}');
         _loadOrders();
       }
     } catch (e) {
-      if (mounted) showErrorSnackbar(context, e);
+      if (mounted) LuxuryToast.show(context, message: e.toString(), isError: true);
     }
+  }
+
+  Widget _buildFilterChip(String label, String value, LuxuryPalette palette) {
+    final isSelected = _statusFilter == value;
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        setState(() => _statusFilter = value);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? palette.primary : palette.surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? palette.primary : palette.border,
+          ),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            color: isSelected ? Colors.white : palette.textSecondary,
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final palette = ref.watch(themePaletteProvider);
+
+    final filteredOrders = _orders.where((o) {
+      if (_statusFilter == 'all') return true;
+      return (o['status'] ?? '').toString().toLowerCase() == _statusFilter.toLowerCase();
+    }).toList();
 
     return Scaffold(
       backgroundColor: palette.background,
@@ -94,29 +131,103 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
             color: palette.textPrimary,
           ),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh Orders',
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              _loadOrders();
+            },
+            icon: Icon(Icons.refresh_rounded, color: palette.primary),
+          ),
+          AdminQuickNavButton(
+            currentRoute: '/admin/orders',
+            palette: palette,
+          ),
+          const SizedBox(width: 6),
+        ],
       ),
       body: _error != null
           ? ErrorHandlerWidget(error: Exception(_error), onRetry: _loadOrders)
           : _isLoading
               ? Center(child: CircularProgressIndicator(color: palette.primary))
-              : _orders.isEmpty
-                  ? Center(
-                      child: Text('No orders found in database', style: GoogleFonts.inter(color: palette.textSecondary)),
-                    )
-                  : RefreshIndicator(
-                      color: palette.primary,
-                      backgroundColor: palette.surface,
-                      onRefresh: _loadOrders,
-                      child: ListView.builder(
-                        physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                        itemCount: _orders.length,
-                        itemBuilder: (context, i) {
-                          final o = _orders[i];
-                          return _buildOrderCard(palette, o);
-                        },
+              : Column(
+                  children: [
+                    // Horizontal status filter chips
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                      child: Row(
+                        children: [
+                          _buildFilterChip('All (${_orders.length})', 'all', palette),
+                          const SizedBox(width: 8),
+                          _buildFilterChip(
+                            'Pending (${_orders.where((o) => (o['status'] ?? '').toString().toLowerCase() == 'pending').length})',
+                            'pending',
+                            palette,
+                          ),
+                          const SizedBox(width: 8),
+                          _buildFilterChip(
+                            'Confirmed (${_orders.where((o) => (o['status'] ?? '').toString().toLowerCase() == 'confirmed').length})',
+                            'confirmed',
+                            palette,
+                          ),
+                          const SizedBox(width: 8),
+                          _buildFilterChip(
+                            'Processing (${_orders.where((o) => (o['status'] ?? '').toString().toLowerCase() == 'processing').length})',
+                            'processing',
+                            palette,
+                          ),
+                          const SizedBox(width: 8),
+                          _buildFilterChip(
+                            'Shipped (${_orders.where((o) => (o['status'] ?? '').toString().toLowerCase() == 'shipped').length})',
+                            'shipped',
+                            palette,
+                          ),
+                          const SizedBox(width: 8),
+                          _buildFilterChip(
+                            'Delivered (${_orders.where((o) => (o['status'] ?? '').toString().toLowerCase() == 'delivered').length})',
+                            'delivered',
+                            palette,
+                          ),
+                          const SizedBox(width: 8),
+                          _buildFilterChip(
+                            'Cancelled (${_orders.where((o) => (o['status'] ?? '').toString().toLowerCase() == 'cancelled').length})',
+                            'cancelled',
+                            palette,
+                          ),
+                        ],
                       ),
                     ),
+
+                    Expanded(
+                      child: filteredOrders.isEmpty
+                          ? Center(
+                              child: Text(
+                                _statusFilter == 'all'
+                                    ? 'No orders found in database'
+                                    : 'No orders with status "$_statusFilter"',
+                                style: GoogleFonts.inter(color: palette.textSecondary),
+                              ),
+                            )
+                          : RefreshIndicator(
+                              color: palette.primary,
+                              backgroundColor: palette.surface,
+                              onRefresh: _loadOrders,
+                              child: ListView.builder(
+                                physics: const BouncingScrollPhysics(),
+                                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                                itemCount: filteredOrders.length,
+                                itemBuilder: (context, i) {
+                                  final o = filteredOrders[i];
+                                  return _buildOrderCard(palette, o);
+                                },
+                              ),
+                            ),
+                    ),
+                  ],
+                ),
     );
   }
 
@@ -189,10 +300,19 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('• ${it['stone_name'] ?? 'Stone'} (Qty: ${it['quantity']})',
-                          style: GoogleFonts.inter(color: palette.textPrimary, fontSize: 12)),
-                      Text('₹${((it['price_per_unit'] ?? 0) * (it['quantity'] ?? 1)).toInt()}',
-                          style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 12)),
+                      Expanded(
+                        child: Text(
+                          '• ${it['stone_name'] ?? 'Stone'} (Qty: ${it['quantity']})',
+                          style: GoogleFonts.inter(color: palette.textPrimary, fontSize: 12),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '₹${((it['price_per_unit'] ?? 0) * (it['quantity'] ?? 1)).toInt()}',
+                        style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
                     ],
                   ),
                 )),

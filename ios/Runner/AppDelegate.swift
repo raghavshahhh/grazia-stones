@@ -16,9 +16,11 @@ import ARKit
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    let result = super.application(application, didFinishLaunchingWithOptions: launchOptions)
-    registerARPlugin(with: self)
-    return result
+    // ARKitPlugin registration happens once, in didInitializeImplicitFlutterEngine
+    // below — that's where GeneratedPluginRegistrant also registers. Calling
+    // registerARPlugin(with: self) here too hit the same underlying registry a
+    // second time and crashed every launch with "Duplicate plugin key: ARKitPlugin".
+    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
   
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {

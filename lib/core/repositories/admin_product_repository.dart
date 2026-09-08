@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/stone.dart';
@@ -226,7 +225,7 @@ class AdminProductRepository {
 
     return await _executeWithRetry(() async {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final path = 'products/$timestamp\_$fileName';
+      final path = 'products/${timestamp}_$fileName';
       
       await _sb.client.storage.from('stones').uploadBinary(path, bytes);
       
@@ -257,7 +256,7 @@ class AdminProductRepository {
 
     return await _executeWithRetry(() async {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final path = '3d-models/$timestamp\_$fileName';
+      final path = '3d-models/${timestamp}_$fileName';
       
       await _sb.client.storage.from('stones').uploadBinary(path, bytes);
       

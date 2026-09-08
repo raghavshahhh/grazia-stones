@@ -82,7 +82,7 @@ class _AIJobStatusScreenState extends ConsumerState<AIJobStatusScreen> {
               );
             },
             loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
+            error: (_, _) => const SizedBox.shrink(),
           ),
         ],
       ),
@@ -670,7 +670,7 @@ class AIJobDetailsSheet extends ConsumerWidget {
                   height: 200,
                   width: double.infinity,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
+                  errorBuilder: (_, _, _) => Container(
                     height: 200,
                     color: palette.border,
                     child: const Center(
