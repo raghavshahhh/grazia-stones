@@ -130,208 +130,287 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               color: palette.primary,
               backgroundColor: palette.surface,
               onRefresh: _loadMetrics,
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Header Banner
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        gradient: palette.primaryGradient,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: palette.primary.withValues(alpha: 0.25),
-                            blurRadius: 18,
-                            offset: const Offset(0, 6),
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1080),
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Header Banner
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                          decoration: BoxDecoration(
+                            gradient: palette.primaryGradient,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: palette.primary.withValues(alpha: 0.2),
+                                blurRadius: 16,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: const Icon(Icons.admin_panel_settings_outlined, color: Colors.white, size: 28),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Grazia Operations',
-                                  style: GoogleFonts.playfairDisplay(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                  ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
-                                const SizedBox(height: 3),
-                                Text(
-                                  'Real-time Supabase database control & inventory',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    color: Colors.white.withValues(alpha: 0.85),
-                                  ),
+                                child: const Icon(Icons.admin_panel_settings_outlined, color: Colors.white, size: 24),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Grazia Operations',
+                                      style: GoogleFonts.playfairDisplay(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Real-time Supabase database control & inventory',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        color: Colors.white.withValues(alpha: 0.85),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 22),
+
+                        // Metrics Grid
+                        Text(
+                          'DATABASE OVERVIEW',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.6,
+                            color: palette.textTertiary,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final width = constraints.maxWidth;
+                            final int crossAxisCount;
+                            final double mainAxisExtent;
+                            if (width >= 860) {
+                              crossAxisCount = 4;
+                              mainAxisExtent = 76;
+                            } else if (width >= 560) {
+                              crossAxisCount = 4;
+                              mainAxisExtent = 76;
+                            } else if (width >= 360) {
+                              crossAxisCount = 2;
+                              mainAxisExtent = 72;
+                            } else {
+                              crossAxisCount = 1;
+                              mainAxisExtent = 68;
+                            }
+
+                            return GridView.count(
+                              crossAxisCount: crossAxisCount,
+                              crossAxisSpacing: 10,
+                              mainAxisSpacing: 10,
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              mainAxisExtent: mainAxisExtent,
+                              children: [
+                                _MetricCard(
+                                  title: 'Total Revenue',
+                                  value: '₹${_totalRevenue.toInt()}',
+                                  icon: Icons.currency_rupee_rounded,
+                                  palette: palette,
+                                ),
+                                _MetricCard(
+                                  title: 'Total Orders',
+                                  value: '$_totalOrders',
+                                  icon: Icons.inventory_2_outlined,
+                                  palette: palette,
+                                ),
+                                _MetricCard(
+                                  title: 'Pending Orders',
+                                  value: '$_pendingOrders',
+                                  icon: Icons.pending_actions_rounded,
+                                  palette: palette,
+                                ),
+                                _MetricCard(
+                                  title: 'Catalog Stones',
+                                  value: '$_totalProducts',
+                                  icon: Icons.diamond_outlined,
+                                  palette: palette,
+                                ),
+                                _MetricCard(
+                                  title: 'Collections',
+                                  value: '$_totalCollections',
+                                  icon: Icons.grid_view_rounded,
+                                  palette: palette,
+                                ),
+                                _MetricCard(
+                                  title: 'Quote Inquiries',
+                                  value: '$_totalQuotes',
+                                  icon: Icons.request_quote_outlined,
+                                  palette: palette,
+                                ),
+                                _MetricCard(
+                                  title: 'Showrooms / Dealers',
+                                  value: '$_totalDealers',
+                                  icon: Icons.storefront_outlined,
+                                  palette: palette,
+                                ),
+                                _MetricCard(
+                                  title: 'Registered Clients',
+                                  value: '$_totalUsers',
+                                  icon: Icons.people_outline_rounded,
+                                  palette: palette,
                                 ),
                               ],
-                            ),
+                            );
+                          },
+                        ),
+
+                        const SizedBox(height: 26),
+
+                        // Management Sections
+                        Text(
+                          'MANAGEMENT MODULES',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.6,
+                            color: palette.textTertiary,
                           ),
-                        ],
-                      ),
-                    ),
+                        ),
+                        const SizedBox(height: 12),
 
-                    const SizedBox(height: 24),
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final width = constraints.maxWidth;
+                            final isWide = width >= 680;
+                            final modules = [
+                              _NavModuleData(
+                                title: 'Product Catalog Management',
+                                subtitle: 'Add, edit, price, stock & image upload for stones',
+                                icon: Icons.diamond_outlined,
+                                route: '/admin/products',
+                              ),
+                              _NavModuleData(
+                                title: 'Curated Collections',
+                                subtitle: 'Organize stone categories, slugs and banners',
+                                icon: Icons.category_outlined,
+                                route: '/admin/collections',
+                              ),
+                              _NavModuleData(
+                                title: 'Orders & Fulfillment',
+                                subtitle: 'Inspect orders, update status, view items & addresses',
+                                icon: Icons.local_shipping_outlined,
+                                route: '/admin/orders',
+                              ),
+                              _NavModuleData(
+                                title: 'Architectural Quotes',
+                                subtitle: 'Review incoming quote requests, square footage & notes',
+                                icon: Icons.request_quote_outlined,
+                                route: '/admin/quotes',
+                              ),
+                              _NavModuleData(
+                                title: 'Sample Dispatch Requests',
+                                subtitle: 'Manage sample order boxes & studio deliveries',
+                                icon: Icons.layers_outlined,
+                                route: '/admin/samples',
+                              ),
+                              _NavModuleData(
+                                title: 'Authorized Dealers & Showrooms',
+                                subtitle: 'Manage dealer list, locations, phones and ratings',
+                                icon: Icons.location_city_outlined,
+                                route: '/admin/dealers',
+                              ),
+                              _NavModuleData(
+                                title: 'AI Studio & Render Jobs',
+                                subtitle: 'Monitor photorealistic rendering queue and analytics',
+                                icon: Icons.auto_awesome_rounded,
+                                route: '/admin/ai-jobs',
+                              ),
+                            ];
 
-                    // Metrics Grid
-                    Text(
-                      'DATABASE OVERVIEW',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.6,
-                        color: palette.textTertiary,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
+                            if (isWide) {
+                              return GridView.builder(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemCount: modules.length,
+                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  crossAxisSpacing: 10,
+                                  mainAxisSpacing: 10,
+                                  mainAxisExtent: 72,
+                                ),
+                                itemBuilder: (context, index) {
+                                  final m = modules[index];
+                                  return _AdminNavTile(
+                                    title: m.title,
+                                    subtitle: m.subtitle,
+                                    icon: m.icon,
+                                    palette: palette,
+                                    onTap: () => context.push(m.route),
+                                  );
+                                },
+                              );
+                            }
 
-                    GridView.count(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      childAspectRatio: 1.55,
-                      children: [
-                        _MetricCard(
-                          title: 'Total Revenue',
-                          value: '₹${_totalRevenue.toInt()}',
-                          icon: Icons.currency_rupee_rounded,
-                          palette: palette,
+                            return Column(
+                              children: modules.map((m) => Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: _AdminNavTile(
+                                  title: m.title,
+                                  subtitle: m.subtitle,
+                                  icon: m.icon,
+                                  palette: palette,
+                                  onTap: () => context.push(m.route),
+                                ),
+                              )).toList(),
+                            );
+                          },
                         ),
-                        _MetricCard(
-                          title: 'Total Orders',
-                          value: '$_totalOrders',
-                          icon: Icons.inventory_2_outlined,
-                          palette: palette,
-                        ),
-                        _MetricCard(
-                          title: 'Pending Orders',
-                          value: '$_pendingOrders',
-                          icon: Icons.pending_actions_rounded,
-                          palette: palette,
-                        ),
-                        _MetricCard(
-                          title: 'Catalog Stones',
-                          value: '$_totalProducts',
-                          icon: Icons.diamond_outlined,
-                          palette: palette,
-                        ),
-                        _MetricCard(
-                          title: 'Collections',
-                          value: '$_totalCollections',
-                          icon: Icons.grid_view_rounded,
-                          palette: palette,
-                        ),
-                        _MetricCard(
-                          title: 'Quote Inquiries',
-                          value: '$_totalQuotes',
-                          icon: Icons.request_quote_outlined,
-                          palette: palette,
-                        ),
-                        _MetricCard(
-                          title: 'Showrooms / Dealers',
-                          value: '$_totalDealers',
-                          icon: Icons.storefront_outlined,
-                          palette: palette,
-                        ),
-                        _MetricCard(
-                          title: 'Registered Clients',
-                          value: '$_totalUsers',
-                          icon: Icons.people_outline_rounded,
-                          palette: palette,
-                        ),
+
+                        const SizedBox(height: 48),
                       ],
                     ),
-
-                    const SizedBox(height: 28),
-
-                    // Management Sections
-                    Text(
-                      'MANAGEMENT MODULES',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.6,
-                        color: palette.textTertiary,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    _AdminNavTile(
-                      title: 'Product Catalog Management',
-                      subtitle: 'Add, edit, price, stock & image upload for stones',
-                      icon: Icons.diamond_outlined,
-                      palette: palette,
-                      onTap: () => context.push('/admin/products'),
-                    ),
-                    _AdminNavTile(
-                      title: 'Curated Collections',
-                      subtitle: 'Organize stone categories, slugs and banners',
-                      icon: Icons.category_outlined,
-                      palette: palette,
-                      onTap: () => context.push('/admin/collections'),
-                    ),
-                    _AdminNavTile(
-                      title: 'Orders & Fulfillment',
-                      subtitle: 'Inspect orders, update status, view items & addresses',
-                      icon: Icons.local_shipping_outlined,
-                      palette: palette,
-                      onTap: () => context.push('/admin/orders'),
-                    ),
-                    _AdminNavTile(
-                      title: 'Architectural Quotes',
-                      subtitle: 'Review incoming quote requests, square footage & notes',
-                      icon: Icons.request_quote_outlined,
-                      palette: palette,
-                      onTap: () => context.push('/admin/quotes'),
-                    ),
-                    _AdminNavTile(
-                      title: 'Sample Dispatch Requests',
-                      subtitle: 'Manage sample order boxes & studio deliveries',
-                      icon: Icons.layers_outlined,
-                      palette: palette,
-                      onTap: () => context.push('/admin/samples'),
-                    ),
-                    _AdminNavTile(
-                      title: 'Authorized Dealers & Showrooms',
-                      subtitle: 'Manage dealer list, locations, phones and ratings',
-                      icon: Icons.location_city_outlined,
-                      palette: palette,
-                      onTap: () => context.push('/admin/dealers'),
-                    ),
-                    _AdminNavTile(
-                      title: 'AI Studio & Render Jobs',
-                      subtitle: 'Monitor photorealistic rendering queue and analytics',
-                      icon: Icons.auto_awesome_rounded,
-                      palette: palette,
-                      onTap: () => context.push('/admin/ai-jobs'),
-                    ),
-
-                    const SizedBox(height: 48),
-                  ],
+                  ),
                 ),
               ),
             ),
     );
   }
+}
+
+class _NavModuleData {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final String route;
+
+  const _NavModuleData({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.route,
+  });
 }
 
 class _MetricCard extends StatelessWidget {
@@ -350,43 +429,53 @@ class _MetricCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: palette.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: palette.border),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: palette.border.withValues(alpha: 0.7)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Icon(icon, color: palette.primary, size: 18),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: palette.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: palette.primary, size: 20),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  value,
+                  style: GoogleFonts.inter(
+                    color: palette.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.2,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
                   title,
                   style: GoogleFonts.inter(
                     color: palette.textSecondary,
                     fontSize: 11,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w500,
                   ),
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: GoogleFonts.inter(
-              color: palette.textPrimary,
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
+              ],
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -411,60 +500,63 @@ class _AdminNavTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            HapticFeedback.lightImpact();
-            onTap();
-          },
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: palette.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: palette.border),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: palette.primary.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(icon, color: palette.primary, size: 20),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap();
+        },
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: palette.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: palette.border.withValues(alpha: 0.7)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: palette.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: GoogleFonts.inter(
-                          color: palette.textPrimary,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
+                child: Icon(icon, color: palette.primary, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.inter(
+                        color: palette.textPrimary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: GoogleFonts.inter(
-                          color: palette.textSecondary,
-                          fontSize: 11,
-                        ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: GoogleFonts.inter(
+                        color: palette.textSecondary,
+                        fontSize: 11,
                       ),
-                    ],
-                  ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
-                Icon(Icons.arrow_forward_ios_rounded, size: 14, color: palette.textTertiary),
-              ],
-            ),
+              ),
+              Icon(Icons.arrow_forward_ios_rounded, size: 12, color: palette.textTertiary),
+            ],
           ),
         ),
       ),

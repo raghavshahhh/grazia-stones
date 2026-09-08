@@ -166,7 +166,11 @@ class _AdminQuotesScreenState extends ConsumerState<AdminQuotesScreen> {
           ? ErrorHandlerWidget(error: Exception(_error), onRetry: _loadQuotes)
           : _isLoading
               ? Center(child: CircularProgressIndicator(color: palette.primary))
-              : Column(
+              : Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1080),
+                    child: Column(
                   children: [
                     // Horizontal status filter chips
                     SingleChildScrollView(
@@ -357,6 +361,8 @@ class _AdminQuotesScreenState extends ConsumerState<AdminQuotesScreen> {
                     ),
                   ],
                 ),
+              ),
+            ),
     );
   }
 }

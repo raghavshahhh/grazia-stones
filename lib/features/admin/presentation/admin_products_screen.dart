@@ -229,7 +229,11 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
           ? ErrorHandlerWidget(error: Exception(_error), onRetry: _loadStones)
           : _isLoading
               ? Center(child: CircularProgressIndicator(color: palette.primary))
-              : Column(
+              : Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1080),
+                    child: Column(
                   children: [
                     // Search bar
                     Padding(
@@ -318,6 +322,8 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
                     ),
                   ],
                 ),
+              ),
+            ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
           final result = await context.push('/admin/products/add');

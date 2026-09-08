@@ -151,82 +151,88 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
           ? ErrorHandlerWidget(error: Exception(_error), onRetry: _loadOrders)
           : _isLoading
               ? Center(child: CircularProgressIndicator(color: palette.primary))
-              : Column(
-                  children: [
-                    // Horizontal status filter chips
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                      child: Row(
-                        children: [
-                          _buildFilterChip('All (${_orders.length})', 'all', palette),
-                          const SizedBox(width: 8),
-                          _buildFilterChip(
-                            'Pending (${_orders.where((o) => (o['status'] ?? '').toString().toLowerCase() == 'pending').length})',
-                            'pending',
-                            palette,
+              : Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1080),
+                    child: Column(
+                      children: [
+                        // Horizontal status filter chips
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          physics: const BouncingScrollPhysics(),
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                          child: Row(
+                            children: [
+                              _buildFilterChip('All (${_orders.length})', 'all', palette),
+                              const SizedBox(width: 8),
+                              _buildFilterChip(
+                                'Pending (${_orders.where((o) => (o['status'] ?? '').toString().toLowerCase() == 'pending').length})',
+                                'pending',
+                                palette,
+                              ),
+                              const SizedBox(width: 8),
+                              _buildFilterChip(
+                                'Confirmed (${_orders.where((o) => (o['status'] ?? '').toString().toLowerCase() == 'confirmed').length})',
+                                'confirmed',
+                                palette,
+                              ),
+                              const SizedBox(width: 8),
+                              _buildFilterChip(
+                                'Processing (${_orders.where((o) => (o['status'] ?? '').toString().toLowerCase() == 'processing').length})',
+                                'processing',
+                                palette,
+                              ),
+                              const SizedBox(width: 8),
+                              _buildFilterChip(
+                                'Shipped (${_orders.where((o) => (o['status'] ?? '').toString().toLowerCase() == 'shipped').length})',
+                                'shipped',
+                                palette,
+                              ),
+                              const SizedBox(width: 8),
+                              _buildFilterChip(
+                                'Delivered (${_orders.where((o) => (o['status'] ?? '').toString().toLowerCase() == 'delivered').length})',
+                                'delivered',
+                                palette,
+                              ),
+                              const SizedBox(width: 8),
+                              _buildFilterChip(
+                                'Cancelled (${_orders.where((o) => (o['status'] ?? '').toString().toLowerCase() == 'cancelled').length})',
+                                'cancelled',
+                                palette,
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 8),
-                          _buildFilterChip(
-                            'Confirmed (${_orders.where((o) => (o['status'] ?? '').toString().toLowerCase() == 'confirmed').length})',
-                            'confirmed',
-                            palette,
-                          ),
-                          const SizedBox(width: 8),
-                          _buildFilterChip(
-                            'Processing (${_orders.where((o) => (o['status'] ?? '').toString().toLowerCase() == 'processing').length})',
-                            'processing',
-                            palette,
-                          ),
-                          const SizedBox(width: 8),
-                          _buildFilterChip(
-                            'Shipped (${_orders.where((o) => (o['status'] ?? '').toString().toLowerCase() == 'shipped').length})',
-                            'shipped',
-                            palette,
-                          ),
-                          const SizedBox(width: 8),
-                          _buildFilterChip(
-                            'Delivered (${_orders.where((o) => (o['status'] ?? '').toString().toLowerCase() == 'delivered').length})',
-                            'delivered',
-                            palette,
-                          ),
-                          const SizedBox(width: 8),
-                          _buildFilterChip(
-                            'Cancelled (${_orders.where((o) => (o['status'] ?? '').toString().toLowerCase() == 'cancelled').length})',
-                            'cancelled',
-                            palette,
-                          ),
-                        ],
-                      ),
-                    ),
+                        ),
 
-                    Expanded(
-                      child: filteredOrders.isEmpty
-                          ? Center(
-                              child: Text(
-                                _statusFilter == 'all'
-                                    ? 'No orders found in database'
-                                    : 'No orders with status "$_statusFilter"',
-                                style: GoogleFonts.inter(color: palette.textSecondary),
-                              ),
-                            )
-                          : RefreshIndicator(
-                              color: palette.primary,
-                              backgroundColor: palette.surface,
-                              onRefresh: _loadOrders,
-                              child: ListView.builder(
-                                physics: const BouncingScrollPhysics(),
-                                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                                itemCount: filteredOrders.length,
-                                itemBuilder: (context, i) {
-                                  final o = filteredOrders[i];
-                                  return _buildOrderCard(palette, o);
-                                },
-                              ),
-                            ),
+                        Expanded(
+                          child: filteredOrders.isEmpty
+                              ? Center(
+                                  child: Text(
+                                    _statusFilter == 'all'
+                                        ? 'No orders found in database'
+                                        : 'No orders with status "$_statusFilter"',
+                                    style: GoogleFonts.inter(color: palette.textSecondary),
+                                  ),
+                                )
+                              : RefreshIndicator(
+                                  color: palette.primary,
+                                  backgroundColor: palette.surface,
+                                  onRefresh: _loadOrders,
+                                  child: ListView.builder(
+                                    physics: const BouncingScrollPhysics(),
+                                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                                    itemCount: filteredOrders.length,
+                                    itemBuilder: (context, i) {
+                                      final o = filteredOrders[i];
+                                      return _buildOrderCard(palette, o);
+                                    },
+                                  ),
+                                ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
     );
   }

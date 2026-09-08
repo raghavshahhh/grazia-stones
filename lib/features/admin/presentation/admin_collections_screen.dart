@@ -261,77 +261,83 @@ class _AdminCollectionsScreenState extends ConsumerState<AdminCollectionsScreen>
                       color: palette.primary,
                       backgroundColor: palette.surface,
                       onRefresh: _loadCollections,
-                      child: ListView.builder(
-                        physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                        itemCount: _collections.length,
-                        itemBuilder: (context, i) {
-                          final c = _collections[i];
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            decoration: BoxDecoration(
-                              color: palette.surface,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: palette.border),
-                            ),
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(16),
-                                onTap: () => _showCollectionDialog(collection: c, palette: palette),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(14),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 44,
-                                        height: 44,
-                                        decoration: BoxDecoration(
-                                          color: palette.primary.withValues(alpha: 0.12),
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: Icon(Icons.category_outlined, color: palette.primary),
-                                      ),
-                                      const SizedBox(width: 14),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              c.name,
-                                              style: GoogleFonts.playfairDisplay(
-                                                color: palette.textPrimary,
-                                                fontWeight: FontWeight.w700,
-                                                fontSize: 15,
-                                              ),
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1080),
+                          child: ListView.builder(
+                            physics: const BouncingScrollPhysics(),
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                            itemCount: _collections.length,
+                            itemBuilder: (context, i) {
+                              final c = _collections[i];
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                decoration: BoxDecoration(
+                                  color: palette.surface,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: palette.border),
+                                ),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(16),
+                                    onTap: () => _showCollectionDialog(collection: c, palette: palette),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(14),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 44,
+                                            height: 44,
+                                            decoration: BoxDecoration(
+                                              color: palette.primary.withValues(alpha: 0.12),
+                                              borderRadius: BorderRadius.circular(12),
                                             ),
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              c.description.isNotEmpty ? c.description : 'No description',
-                                              style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 12),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
+                                            child: Icon(Icons.category_outlined, color: palette.primary),
+                                          ),
+                                          const SizedBox(width: 14),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  c.name,
+                                                  style: GoogleFonts.playfairDisplay(
+                                                    color: palette.textPrimary,
+                                                    fontWeight: FontWeight.w700,
+                                                    fontSize: 15,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  c.description.isNotEmpty ? c.description : 'No description',
+                                                  style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 12),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ],
                                             ),
-                                          ],
-                                        ),
+                                          ),
+                                          IconButton(
+                                            icon: Icon(Icons.edit_outlined, color: palette.primary, size: 18),
+                                            tooltip: 'Edit Collection',
+                                            onPressed: () => _showCollectionDialog(collection: c, palette: palette),
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                                            tooltip: 'Delete Collection',
+                                            onPressed: () => _confirmDeleteCollection(c, palette),
+                                          ),
+                                        ],
                                       ),
-                                      IconButton(
-                                        icon: Icon(Icons.edit_outlined, color: palette.primary, size: 18),
-                                        tooltip: 'Edit Collection',
-                                        onPressed: () => _showCollectionDialog(collection: c, palette: palette),
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
-                                        tooltip: 'Delete Collection',
-                                        onPressed: () => _confirmDeleteCollection(c, palette),
-                                      ),
-                                    ],
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ),
-                          );
-                        },
+                              );
+                            },
+                          ),
+                        ),
                       ),
                     ),
       floatingActionButton: FloatingActionButton.extended(

@@ -55,68 +55,74 @@ class _AdminAIJobsScreenState extends ConsumerState<AdminAIJobsScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Statistics cards
-          statsAsync.when(
-            data: (stats) => _buildStatisticsCards(palette, stats),
-            loading: () => const SizedBox(height: 80, child: Center(child: CircularProgressIndicator())),
-            error: (_, _) => const SizedBox.shrink(),
-          ),
+      body: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1080),
+          child: Column(
+            children: [
+              // Statistics cards
+              statsAsync.when(
+                data: (stats) => _buildStatisticsCards(palette, stats),
+                loading: () => const SizedBox(height: 80, child: Center(child: CircularProgressIndicator())),
+                error: (_, _) => const SizedBox.shrink(),
+              ),
 
-          const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-          // Filter chips
-          allJobsAsync.when(
-            data: (jobs) => _buildFilterChips(palette, jobs),
-            loading: () => const SizedBox.shrink(),
-            error: (_, _) => const SizedBox.shrink(),
-          ),
+              // Filter chips
+              allJobsAsync.when(
+                data: (jobs) => _buildFilterChips(palette, jobs),
+                loading: () => const SizedBox.shrink(),
+                error: (_, _) => const SizedBox.shrink(),
+              ),
 
-          // Jobs list
-          Expanded(
-            child: allJobsAsync.when(
-              data: (jobs) => _buildJobsList(palette, jobs),
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, stack) => Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.error_outline_rounded, size: 48, color: palette.textTertiary),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Failed to load jobs',
-                        style: GoogleFonts.inter(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: palette.textPrimary,
-                        ),
+              // Jobs list
+              Expanded(
+                child: allJobsAsync.when(
+                  data: (jobs) => _buildJobsList(palette, jobs),
+                  loading: () => const Center(child: CircularProgressIndicator()),
+                  error: (error, stack) => Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.error_outline_rounded, size: 48, color: palette.textTertiary),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Failed to load jobs',
+                            style: GoogleFonts.playfairDisplay(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: palette.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            error.toString(),
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: palette.textSecondary,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 20),
+                          ElevatedButton(
+                            onPressed: () {
+                              ref.invalidate(adminAllJobsProvider);
+                            },
+                            child: const Text('Retry'),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        error.toString(),
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          color: palette.textSecondary,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 20),
-                      ElevatedButton(
-                        onPressed: () {
-                          ref.invalidate(adminAllJobsProvider);
-                        },
-                        child: const Text('Retry'),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

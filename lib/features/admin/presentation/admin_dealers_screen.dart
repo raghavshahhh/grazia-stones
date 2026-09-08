@@ -294,11 +294,15 @@ class _AdminDealersScreenState extends ConsumerState<AdminDealersScreen> {
                       color: palette.primary,
                       backgroundColor: palette.surface,
                       onRefresh: _loadDealers,
-                      child: ListView.builder(
-                        physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                        itemCount: _dealers.length,
-                        itemBuilder: (context, i) {
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1080),
+                          child: ListView.builder(
+                            physics: const BouncingScrollPhysics(),
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                            itemCount: _dealers.length,
+                            itemBuilder: (context, i) {
                           final d = _dealers[i];
                           return Container(
                             margin: const EdgeInsets.only(bottom: 12),
@@ -376,6 +380,8 @@ class _AdminDealersScreenState extends ConsumerState<AdminDealersScreen> {
                         },
                       ),
                     ),
+                  ),
+                ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showDealerDialog(palette: palette),
         backgroundColor: palette.primary,
