@@ -42,9 +42,7 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
   void _removeSelected() {
     if (_selectedIds.isEmpty) return;
     HapticFeedback.mediumImpact();
-    for (final id in _selectedIds) {
-      ref.read(wishlistProvider.notifier).removeStone(id);
-    }
+    ref.read(wishlistProvider.notifier).removeMultiple(_selectedIds.toList());
     _selectedIds.clear();
     _isSelectionMode = false;
     ref.invalidate(wishlistStonesProvider);
@@ -65,6 +63,7 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
 
   void _clearAll() {
     HapticFeedback.mediumImpact();
+    ref.read(wishlistProvider.notifier).clear();
     ref.invalidate(wishlistStonesProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Wishlist cleared'), behavior: SnackBarBehavior.floating),

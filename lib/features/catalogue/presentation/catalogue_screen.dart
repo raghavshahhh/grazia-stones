@@ -11,6 +11,7 @@ import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 import 'package:grazia_stones/features/wishlist/providers/wishlist_provider.dart';
+import 'package:grazia_stones/features/cart/presentation/cart_screen.dart';
 
 /// Catalogue screen with collection-based browsing
 /// 
@@ -368,17 +369,23 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
           color: palette.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: palette.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-                  child: SizedBox(
-                    height: 160,
-                    width: double.infinity,
+            Expanded(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
                     child: SmartStoneImage(
                       localAsset: stone.images.isNotEmpty ? stone.images.first : null,
                       imageUrl: stone.imageUrl,
@@ -386,51 +393,131 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                       palette: palette,
                     ),
                   ),
-                ),
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: GestureDetector(
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      ref.read(wishlistProvider.notifier).toggleStone(stone.id);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.5),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        isWishlisted ? Icons.favorite : Icons.favorite_border,
-                        color: isWishlisted ? Colors.red.shade400 : Colors.white,
-                        size: 18,
-                      ),
-                    ),
-                  ),
-                ),
-                if (stone.isFeatured)
                   Positioned(
                     top: 8,
-                    left: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFD4AF37).withValues(alpha: 0.95),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        'FEATURED',
-                        style: GoogleFonts.inter(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.black,
-                          letterSpacing: 0.5,
+                    right: 8,
+                    child: GestureDetector(
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        ref.read(wishlistProvider.notifier).toggleStone(stone.id);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.5),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          isWishlisted ? Icons.favorite : Icons.favorite_border,
+                          color: isWishlisted ? Colors.red.shade400 : Colors.white,
+                          size: 17,
                         ),
                       ),
                     ),
                   ),
-              ],
+                  if (stone.isFeatured)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFD4AF37).withValues(alpha: 0.95),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'FEATURED',
+                          style: GoogleFonts.inter(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.black,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  // Bottom-Right: 1-Tap Quick Add to Cart
+                  Positioned(
+                    bottom: 8,
+                    right: 8,
+                    child: GestureDetector(
+                      onTap: () {
+                        HapticFeedback.mediumImpact();
+                        ref.read(cartProvider.notifier).addItem(stone);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('${stone.name} added to cart'),
+                            duration: const Duration(seconds: 1),
+                            behavior: SnackBarBehavior.floating,
+                            backgroundColor: palette.primary,
+                          ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFD4AF37),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.2),
+                              blurRadius: 6,
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.add_shopping_cart_rounded, size: 12, color: Colors.black),
+                            const SizedBox(width: 3),
+                            Text(
+                              '+ Add',
+                              style: GoogleFonts.inter(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Bottom-Left: AR Badge
+                  Positioned(
+                    bottom: 8,
+                    left: 8,
+                    child: GestureDetector(
+                      onTap: () => context.push('/live-ai?stoneId=${stone.id}'),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.72),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: const Color(0xFFD4AF37).withValues(alpha: 0.6),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.view_in_ar_rounded, size: 11, color: Color(0xFFD4AF37)),
+                            const SizedBox(width: 3),
+                            Text(
+                              'AR',
+                              style: GoogleFonts.inter(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
             Padding(
               padding: const EdgeInsets.all(12),

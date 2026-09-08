@@ -18,6 +18,7 @@ import 'package:grazia_stones/shared/widgets/grazia_logo.dart';
 import 'package:grazia_stones/features/cart/presentation/cart_screen.dart';
 import 'package:grazia_stones/features/wishlist/providers/wishlist_provider.dart';
 import 'package:grazia_stones/core/repositories/notification_repository.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -71,6 +72,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         curve: Curves.easeInOutCubic,
       );
     });
+  }
+
+  Future<void> _launchUrl(String urlString) async {
+    try {
+      final uri = Uri.parse(urlString);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      debugPrint('Could not launch url: $urlString, error: $e');
+    }
   }
 
   Future<void> _loadData() async {
@@ -1134,6 +1146,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   // ── 4B. Full Architectural Product Grid with 1-Tap Quick Add ──
   Widget _buildAllProductsHeader(LuxuryPalette palette) {
+    final allStones = _trendingStones ?? [];
+    final stones = _selectedCategory == 'All'
+        ? allStones
+        : allStones.where((s) {
+            final cat = _selectedCategory.toLowerCase();
+            return s.collection.toLowerCase().contains(cat) ||
+                s.name.toLowerCase().contains(cat) ||
+                s.category.toLowerCase().contains(cat) ||
+                s.description.toLowerCase().contains(cat);
+          }).toList();
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
@@ -1162,7 +1185,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
-                    '${_trendingStones?.length ?? 0} Products',
+                    _selectedCategory == 'All'
+                        ? '${allStones.length} Products'
+                        : '${stones.length} of ${allStones.length} Products',
                     style: GoogleFonts.inter(
                       fontSize: 9.5,
                       fontWeight: FontWeight.w700,
@@ -1196,8 +1221,84 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildAllProductsGrid(LuxuryPalette palette) {
-    final stones = _trendingStones ?? [];
-    if (stones.isEmpty) return const SizedBox.shrink();
+    final allStones = _trendingStones ?? [];
+    if (allStones.isEmpty) return const SizedBox.shrink();
+
+    final stones = _selectedCategory == 'All'
+        ? allStones
+        : allStones.where((s) {
+            final cat = _selectedCategory.toLowerCase();
+            return s.collection.toLowerCase().contains(cat) ||
+                s.name.toLowerCase().contains(cat) ||
+                s.category.toLowerCase().contains(cat) ||
+                s.description.toLowerCase().contains(cat);
+          }).toList();
+
+    if (stones.isEmpty) {
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        decoration: BoxDecoration(
+          color: palette.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: palette.border),
+        ),
+        child: Column(
+          children: [
+            Icon(Icons.filter_alt_off_outlined, size: 42, color: palette.textTertiary),
+            const SizedBox(height: 12),
+            Text(
+              'No surfaces found under "$_selectedCategory"',
+              style: GoogleFonts.playfairDisplay(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: palette.textPrimary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Try selecting another category or view our complete architectural collection.',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: palette.textSecondary,
+                height: 1.4,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ApplePressable(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                setState(() => _selectedCategory = 'All');
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                decoration: BoxDecoration(
+                  gradient: palette.primaryGradient,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: palette.primary.withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  'Show All Products',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1207,7 +1308,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             : (width >= 640
                 ? 3
                 : 2);
-        final double childAspectRatio = width >= 640 ? 0.76 : 0.72;
+        final double childAspectRatio = width >= 640 ? 0.76 : 0.70;
 
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1223,130 +1324,197 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             itemBuilder: (context, index) {
               final stone = stones[index];
-            return ApplePressable(
+              final isWishlisted = ref.watch(
+                wishlistProvider.select((w) => w.contains(stone.id)),
+              );
+
+              return ApplePressable(
                 onTap: () => context.push('/stones/${stone.id}'),
-            child: Container(
-              decoration: BoxDecoration(
-                color: palette.surface,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: palette.border, width: 0.8),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: palette.surface,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: palette.border, width: 0.8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        ClipRRect(
-                          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-                          child: SmartStoneImage(
-                            imageUrl: stone.imageUrl,
-                            fit: BoxFit.cover,
-                            alignment: Alignment.topCenter,
-                            palette: palette,
-                          ),
-                        ),
-                        // Quick 1-Tap Add to Cart Button
-                        Positioned(
-                          bottom: 8,
-                          right: 8,
-                          child: ApplePressable(
-                            onTap: () {
-                              HapticFeedback.mediumImpact();
-                              ref.read(cartProvider.notifier).addItem(stone);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('${stone.name} added to Project Cart'),
-                                  duration: const Duration(seconds: 1),
-                                  behavior: SnackBarBehavior.floating,
-                                  backgroundColor: GLuxuryPalettes.gold.primary,
-                                ),
-                              );
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: GLuxuryPalettes.gold.primary,
-                                borderRadius: BorderRadius.circular(14),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: GLuxuryPalettes.gold.primary.withValues(alpha: 0.4),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.add_shopping_cart_rounded, size: 13, color: Colors.black),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    '+ Add',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w800,
-                                      color: Colors.black,
-                                    ),
-                                  ),
-                                ],
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            ClipRRect(
+                              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                              child: SmartStoneImage(
+                                imageUrl: stone.imageUrl,
+                                fit: BoxFit.cover,
+                                alignment: Alignment.topCenter,
+                                palette: palette,
                               ),
                             ),
-                          ),
+                            // Top-Right: Quick Wishlist Toggle
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: ApplePressable(
+                                onTap: () {
+                                  HapticFeedback.lightImpact();
+                                  ref.read(wishlistProvider.notifier).toggleStone(stone.id);
+                                },
+                                child: Container(
+                                  width: 30,
+                                  height: 30,
+                                  decoration: BoxDecoration(
+                                    color: palette.surface.withValues(alpha: 0.94),
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.12),
+                                        blurRadius: 6,
+                                      ),
+                                    ],
+                                  ),
+                                  child: Icon(
+                                    isWishlisted ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                                    size: 15,
+                                    color: isWishlisted ? palette.primary : palette.textSecondary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            // Bottom-Left: AR View Badge Button
+                            Positioned(
+                              bottom: 8,
+                              left: 8,
+                              child: ApplePressable(
+                                onTap: () => context.push('/live-ai?stoneId=${stone.id}'),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.72),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: const Color(0xFFD4AF37).withValues(alpha: 0.6),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.view_in_ar_rounded, size: 12, color: Color(0xFFD4AF37)),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        'AR',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            // Bottom-Right: Quick 1-Tap Add to Cart Button
+                            Positioned(
+                              bottom: 8,
+                              right: 8,
+                              child: ApplePressable(
+                                onTap: () {
+                                  HapticFeedback.mediumImpact();
+                                  ref.read(cartProvider.notifier).addItem(stone);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('${stone.name} added to Project Cart'),
+                                      duration: const Duration(seconds: 1),
+                                      behavior: SnackBarBehavior.floating,
+                                      backgroundColor: GLuxuryPalettes.gold.primary,
+                                    ),
+                                  );
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: GLuxuryPalettes.gold.primary,
+                                    borderRadius: BorderRadius.circular(14),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: GLuxuryPalettes.gold.primary.withValues(alpha: 0.4),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.add_shopping_cart_rounded, size: 13, color: Colors.black),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '+ Add',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.black,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              stone.name,
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: palette.textPrimary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              stone.collection,
+                              style: GoogleFonts.inter(
+                                fontSize: 10.5,
+                                color: palette.textSecondary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              '₹${stone.pricePerSqFt.toInt()}/sqft',
+                              style: GoogleFonts.playfairDisplay(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: palette.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          stone.name,
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: palette.textPrimary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          stone.collection,
-                          style: GoogleFonts.inter(
-                            fontSize: 10.5,
-                            color: palette.textSecondary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          '₹${stone.pricePerSqFt.toInt()}/sqft',
-                          style: GoogleFonts.playfairDisplay(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            color: palette.primary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
+                ),
+              );
+            },
           ),
         );
       },
@@ -1494,7 +1662,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             builder: (context, constraints) {
               final width = constraints.maxWidth;
               final int crossAxisCount = width >= 900 ? 4 : (width >= 600 ? 3 : 2);
-              final double childAspectRatio = width >= 900 ? 1.35 : (width >= 600 ? 1.15 : 0.95);
+              final double childAspectRatio = width >= 900 ? 1.35 : (width >= 600 ? 1.15 : 0.88);
 
               return GridView.builder(
                 shrinkWrap: true,
@@ -1682,51 +1850,117 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const SizedBox(height: 14),
           Divider(color: palette.border, thickness: 0.8),
           const SizedBox(height: 14),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.location_on_outlined, size: 16, color: palette.primary),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Head Office: 123/477, Kalpi Road, Fazalganj, Kanpur, Uttar Pradesh',
-                  style: GoogleFonts.inter(
-                    fontSize: 11.5,
-                    color: palette.textSecondary,
-                    height: 1.4,
+          // Interactive Head Office Address
+          ApplePressable(
+            onTap: () => _launchUrl('https://maps.google.com/?q=Fazalganj+Kanpur+123/477+Kalpi+Road'),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.location_on_outlined, size: 16, color: palette.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Head Office: 123/477, Kalpi Road, Fazalganj, Kanpur, Uttar Pradesh',
+                    style: GoogleFonts.inter(
+                      fontSize: 11.5,
+                      color: palette.textSecondary,
+                      height: 1.4,
+                      decoration: TextDecoration.underline,
+                      decorationColor: palette.primary.withValues(alpha: 0.35),
+                    ),
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 4),
+                Icon(Icons.open_in_new_rounded, size: 12, color: palette.primary),
+              ],
+            ),
           ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Icon(Icons.phone_outlined, size: 16, color: palette.primary),
-              const SizedBox(width: 8),
-              Text(
-                '+91 9839846105 / 7518102550',
-                style: GoogleFonts.inter(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w600,
-                  color: palette.textPrimary,
+          const SizedBox(height: 10),
+          // Interactive Phone Contact
+          ApplePressable(
+            onTap: () => _launchUrl('tel:+919839846105'),
+            child: Row(
+              children: [
+                Icon(Icons.phone_outlined, size: 16, color: palette.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '+91 9839846105 / 7518102550',
+                    style: GoogleFonts.inter(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: palette.textPrimary,
+                    ),
+                  ),
                 ),
-              ),
-            ],
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                  decoration: BoxDecoration(
+                    color: palette.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.call, size: 10, color: palette.primary),
+                      const SizedBox(width: 3),
+                      Text(
+                        'Call',
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: palette.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Icon(Icons.mail_outline_rounded, size: 16, color: palette.primary),
-              const SizedBox(width: 8),
-              Text(
-                'hello@graziastones.com',
-                style: GoogleFonts.inter(
-                  fontSize: 11.5,
-                  color: palette.textSecondary,
+          const SizedBox(height: 10),
+          // Interactive Email Contact
+          ApplePressable(
+            onTap: () => _launchUrl('mailto:hello@graziastones.com'),
+            child: Row(
+              children: [
+                Icon(Icons.mail_outline_rounded, size: 16, color: palette.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'hello@graziastones.com',
+                    style: GoogleFonts.inter(
+                      fontSize: 11.5,
+                      color: palette.textSecondary,
+                      decoration: TextDecoration.underline,
+                      decorationColor: palette.primary.withValues(alpha: 0.35),
+                    ),
+                  ),
                 ),
-              ),
-            ],
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                  decoration: BoxDecoration(
+                    color: palette.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.mail, size: 10, color: palette.primary),
+                      const SizedBox(width: 3),
+                      Text(
+                        'Email',
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: palette.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 14),
           Wrap(
