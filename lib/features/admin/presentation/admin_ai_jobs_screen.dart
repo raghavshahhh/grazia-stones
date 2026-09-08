@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/models/ai_job.dart';
+import 'package:grazia_stones/features/admin/presentation/widgets/admin_module_switcher.dart';
 import 'package:grazia_stones/features/ai_viz/providers/ai_job_provider.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
@@ -20,6 +21,7 @@ class AdminAIJobsScreen extends ConsumerStatefulWidget {
 
 class _AdminAIJobsScreenState extends ConsumerState<AdminAIJobsScreen> {
   String _selectedFilter = 'all';
+  String _searchQuery = '';
 
   @override
   Widget build(BuildContext context) {
@@ -53,12 +55,18 @@ class _AdminAIJobsScreenState extends ConsumerState<AdminAIJobsScreen> {
         ),
         actions: [
           IconButton(
+            tooltip: 'Refresh AI Jobs',
             icon: Icon(Icons.refresh_rounded, color: palette.textPrimary),
             onPressed: () {
               ref.invalidate(adminAllJobsProvider);
               ref.invalidate(adminJobStatisticsProvider);
             },
           ),
+          AdminQuickNavButton(
+            currentRoute: '/admin/ai-jobs',
+            palette: palette,
+          ),
+          const SizedBox(width: 6),
         ],
       ),
       body: Align(
@@ -67,6 +75,41 @@ class _AdminAIJobsScreenState extends ConsumerState<AdminAIJobsScreen> {
           constraints: const BoxConstraints(maxWidth: 1080),
           child: Column(
             children: [
+              // Search Bar
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 10, 18, 10),
+                child: TextField(
+                  onChanged: (val) => setState(() => _searchQuery = val),
+                  style: GoogleFonts.inter(color: palette.textPrimary, fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: 'Search AI jobs by prompt, stone, or job ID...',
+                    hintStyle: GoogleFonts.inter(color: palette.textTertiary, fontSize: 13),
+                    prefixIcon: Icon(Icons.search_rounded, color: palette.textSecondary, size: 20),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: Icon(Icons.clear_rounded, color: palette.textSecondary, size: 18),
+                            onPressed: () => setState(() => _searchQuery = ''),
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: palette.surface,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: palette.border),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: palette.border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: palette.primary, width: 1.5),
+                    ),
+                  ),
+                ),
+              ),
+
               // Statistics cards
               statsAsync.when(
                 data: (stats) => _buildStatisticsCards(palette, stats),
@@ -74,7 +117,7 @@ class _AdminAIJobsScreenState extends ConsumerState<AdminAIJobsScreen> {
                 error: (_, _) => const SizedBox.shrink(),
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
 
               // Filter chips
               allJobsAsync.when(
@@ -236,10 +279,22 @@ class _AdminAIJobsScreenState extends ConsumerState<AdminAIJobsScreen> {
   }
 
   Widget _buildJobsList(LuxuryPalette palette, List<AIJob> allJobs) {
-    // Filter jobs
+    final query = _searchQuery.trim().toLowerCase();
+
+    // Filter jobs by status and search query
     var filteredJobs = allJobs;
     if (_selectedFilter != 'all') {
-      filteredJobs = allJobs.where((job) => job.status == _selectedFilter).toList();
+      filteredJobs = filteredJobs.where((job) => job.status == _selectedFilter).toList();
+    }
+    if (query.isNotEmpty) {
+      filteredJobs = filteredJobs.where((job) {
+        return job.id.toLowerCase().contains(query) ||
+            (job.stoneName?.toLowerCase().contains(query) ?? false) ||
+            (job.stoneId?.toLowerCase().contains(query) ?? false) ||
+            (job.color?.toLowerCase().contains(query) ?? false) ||
+            (job.finish?.toLowerCase().contains(query) ?? false) ||
+            (job.errorMessage?.toLowerCase().contains(query) ?? false);
+      }).toList();
     }
 
     if (filteredJobs.isEmpty) {
@@ -252,7 +307,7 @@ class _AdminAIJobsScreenState extends ConsumerState<AdminAIJobsScreen> {
               Icon(Icons.inbox_outlined, size: 48, color: palette.textTertiary),
               const SizedBox(height: 16),
               Text(
-                'No jobs found',
+                _searchQuery.isNotEmpty ? 'No jobs matching "$_searchQuery"' : 'No jobs found',
                 style: GoogleFonts.inter(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,

@@ -23,6 +23,7 @@ class _AdminCollectionsScreenState extends ConsumerState<AdminCollectionsScreen>
   bool _isLoading = true;
   String? _error;
   List<Collection> _collections = [];
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -214,6 +215,14 @@ class _AdminCollectionsScreenState extends ConsumerState<AdminCollectionsScreen>
   @override
   Widget build(BuildContext context) {
     final palette = ref.watch(themePaletteProvider);
+    final query = _searchQuery.trim().toLowerCase();
+
+    final filteredCollections = _collections.where((c) {
+      if (query.isEmpty) return true;
+      return c.name.toLowerCase().contains(query) ||
+          c.id.toLowerCase().contains(query) ||
+          c.description.toLowerCase().contains(query);
+    }).toList();
 
     return Scaffold(
       backgroundColor: palette.background,
@@ -259,93 +268,194 @@ class _AdminCollectionsScreenState extends ConsumerState<AdminCollectionsScreen>
           ? ErrorHandlerWidget(error: Exception(_error), onRetry: _loadCollections)
           : _isLoading
               ? Center(child: CircularProgressIndicator(color: palette.primary))
-              : _collections.isEmpty
-                  ? Center(
-                      child: Text('No collections created yet', style: GoogleFonts.inter(color: palette.textSecondary)),
-                    )
-                  : RefreshIndicator(
-                      color: palette.primary,
-                      backgroundColor: palette.surface,
-                      onRefresh: _loadCollections,
-                      child: Align(
-                        alignment: Alignment.topCenter,
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 1080),
-                          child: ListView.builder(
-                            physics: const BouncingScrollPhysics(),
-                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                            itemCount: _collections.length,
-                            itemBuilder: (context, i) {
-                              final c = _collections[i];
-                              return Container(
-                                margin: const EdgeInsets.only(bottom: 12),
-                                decoration: BoxDecoration(
-                                  color: palette.surface,
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: palette.border),
-                                ),
-                                child: Material(
-                                  color: Colors.transparent,
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(16),
-                                    onTap: () => _showCollectionDialog(collection: c, palette: palette),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(14),
-                                      child: Row(
-                                        children: [
-                                          Container(
-                                            width: 44,
-                                            height: 44,
-                                            decoration: BoxDecoration(
-                                              color: palette.primary.withValues(alpha: 0.12),
-                                              borderRadius: BorderRadius.circular(12),
-                                            ),
-                                            child: Icon(Icons.category_outlined, color: palette.primary),
-                                          ),
-                                          const SizedBox(width: 14),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  c.name,
-                                                  style: GoogleFonts.playfairDisplay(
-                                                    color: palette.textPrimary,
-                                                    fontWeight: FontWeight.w700,
-                                                    fontSize: 15,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 2),
-                                                Text(
-                                                  c.description.isNotEmpty ? c.description : 'No description',
-                                                  style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 12),
-                                                  maxLines: 1,
-                                                  overflow: TextOverflow.ellipsis,
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          IconButton(
-                                            icon: Icon(Icons.edit_outlined, color: palette.primary, size: 18),
-                                            tooltip: 'Edit Collection',
-                                            onPressed: () => _showCollectionDialog(collection: c, palette: palette),
-                                          ),
-                                          IconButton(
-                                            icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
-                                            tooltip: 'Delete Collection',
-                                            onPressed: () => _confirmDeleteCollection(c, palette),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
+              : Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1080),
+                    child: Column(
+                      children: [
+                        // Search Bar
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(18, 12, 18, 8),
+                          child: TextField(
+                            onChanged: (val) => setState(() => _searchQuery = val),
+                            style: GoogleFonts.inter(color: palette.textPrimary, fontSize: 13),
+                            decoration: InputDecoration(
+                              hintText: 'Search collections by name, slug, or description...',
+                              hintStyle: GoogleFonts.inter(color: palette.textTertiary, fontSize: 13),
+                              prefixIcon: Icon(Icons.search_rounded, color: palette.textSecondary, size: 20),
+                              suffixIcon: _searchQuery.isNotEmpty
+                                  ? IconButton(
+                                      icon: Icon(Icons.clear_rounded, color: palette.textSecondary, size: 18),
+                                      onPressed: () => setState(() => _searchQuery = ''),
+                                    )
+                                  : null,
+                              filled: true,
+                              fillColor: palette.surface,
+                              contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: BorderSide(color: palette.border),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: BorderSide(color: palette.border),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: BorderSide(color: palette.primary, width: 1.5),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+
+                        Expanded(
+                          child: filteredCollections.isEmpty
+                              ? Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.category_outlined, color: palette.textTertiary, size: 48),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        _searchQuery.isNotEmpty
+                                            ? 'No collections matching "$_searchQuery"'
+                                            : 'No collections created yet',
+                                        style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 13),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : RefreshIndicator(
+                                  color: palette.primary,
+                                  backgroundColor: palette.surface,
+                                  onRefresh: _loadCollections,
+                                  child: ListView.builder(
+                                    physics: const BouncingScrollPhysics(),
+                                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                                    itemCount: filteredCollections.length,
+                                    itemBuilder: (context, i) {
+                                      final c = filteredCollections[i];
+                                      final hasImage = c.imageUrl != null && c.imageUrl!.isNotEmpty;
+
+                                      return Container(
+                                        margin: const EdgeInsets.only(bottom: 12),
+                                        decoration: BoxDecoration(
+                                          color: palette.surface,
+                                          borderRadius: BorderRadius.circular(16),
+                                          border: Border.all(color: palette.border),
+                                        ),
+                                        child: Material(
+                                          color: Colors.transparent,
+                                          child: InkWell(
+                                            borderRadius: BorderRadius.circular(16),
+                                            onTap: () => _showCollectionDialog(collection: c, palette: palette),
+                                            child: Padding(
+                                              padding: const EdgeInsets.all(14),
+                                              child: Row(
+                                                children: [
+                                                  ClipRRect(
+                                                    borderRadius: BorderRadius.circular(10),
+                                                    child: hasImage
+                                                        ? Image.network(
+                                                            c.imageUrl!,
+                                                            width: 48,
+                                                            height: 48,
+                                                            fit: BoxFit.cover,
+                                                            errorBuilder: (ctx, err, stack) => Container(
+                                                              width: 48,
+                                                              height: 48,
+                                                              decoration: BoxDecoration(
+                                                                color: palette.primary.withValues(alpha: 0.12),
+                                                                borderRadius: BorderRadius.circular(10),
+                                                              ),
+                                                              child: Icon(Icons.category_outlined, color: palette.primary),
+                                                            ),
+                                                          )
+                                                        : Container(
+                                                            width: 48,
+                                                            height: 48,
+                                                            decoration: BoxDecoration(
+                                                              color: palette.primary.withValues(alpha: 0.12),
+                                                              borderRadius: BorderRadius.circular(10),
+                                                            ),
+                                                            child: Icon(Icons.category_outlined, color: palette.primary),
+                                                          ),
+                                                  ),
+                                                  const SizedBox(width: 14),
+                                                  Expanded(
+                                                    child: Column(
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        Row(
+                                                          children: [
+                                                            Expanded(
+                                                              child: Text(
+                                                                c.name,
+                                                                style: GoogleFonts.playfairDisplay(
+                                                                  color: palette.textPrimary,
+                                                                  fontWeight: FontWeight.w700,
+                                                                  fontSize: 16,
+                                                                ),
+                                                                maxLines: 1,
+                                                                overflow: TextOverflow.ellipsis,
+                                                              ),
+                                                            ),
+                                                            Container(
+                                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                              decoration: BoxDecoration(
+                                                                color: palette.background,
+                                                                borderRadius: BorderRadius.circular(6),
+                                                                border: Border.all(color: palette.border),
+                                                              ),
+                                                              child: Text(
+                                                                c.id,
+                                                                style: GoogleFonts.inter(
+                                                                  fontSize: 10,
+                                                                  fontWeight: FontWeight.w500,
+                                                                  color: palette.textTertiary,
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                        const SizedBox(height: 3),
+                                                        Text(
+                                                          c.description.isNotEmpty ? c.description : 'No description provided',
+                                                          style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 12),
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow.ellipsis,
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  IconButton(
+                                                    icon: Icon(Icons.edit_outlined, color: palette.primary, size: 18),
+                                                    tooltip: 'Edit Collection',
+                                                    visualDensity: VisualDensity.compact,
+                                                    onPressed: () => _showCollectionDialog(collection: c, palette: palette),
+                                                  ),
+                                                  IconButton(
+                                                    icon: Icon(Icons.delete_outline_rounded, color: Colors.red.shade400, size: 18),
+                                                    tooltip: 'Delete Collection',
+                                                    visualDensity: VisualDensity.compact,
+                                                    onPressed: () => _confirmDeleteCollection(c, palette),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                        ),
+                      ],
                     ),
+                  ),
+                ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showCollectionDialog(palette: palette),
         backgroundColor: palette.primary,

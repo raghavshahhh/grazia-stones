@@ -9,6 +9,7 @@ import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/models/collection.dart';
 import 'package:grazia_stones/core/services/cache_service.dart';
 import 'package:grazia_stones/core/services/supabase_service.dart';
+import 'package:grazia_stones/features/admin/presentation/widgets/admin_module_switcher.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/luxury_toast.dart';
@@ -275,15 +276,26 @@ class _AdminProductEditScreenState extends ConsumerState<AdminProductEditScreen>
             color: palette.textPrimary,
           ),
         ),
+        actions: [
+          AdminQuickNavButton(
+            currentRoute: '/admin/products',
+            palette: palette,
+          ),
+          const SizedBox(width: 6),
+        ],
       ),
       body: _isLoading
           ? Center(child: CircularProgressIndicator(color: palette.primary))
-          : SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-              child: Form(
-                key: _formKey,
-                child: Column(
+          : Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 860),
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Image picker card
@@ -464,6 +476,8 @@ class _AdminProductEditScreenState extends ConsumerState<AdminProductEditScreen>
                 ),
               ),
             ),
+          ),
+        ),
       bottomNavigationBar: Container(
         padding: EdgeInsets.only(
           left: 18,
@@ -475,18 +489,27 @@ class _AdminProductEditScreenState extends ConsumerState<AdminProductEditScreen>
           color: palette.surface,
           border: Border(top: BorderSide(color: palette.border)),
         ),
-        child: ElevatedButton.icon(
-          onPressed: _isSaving ? null : _saveProduct,
-          icon: _isSaving
-              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : const Icon(Icons.check_circle_outline, size: 18),
-          label: Text(_isSaving ? 'Saving to Database...' : 'Save Stone to Catalog'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: palette.primary,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            elevation: 0,
+        child: Align(
+          alignment: Alignment.center,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 860),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _isSaving ? null : _saveProduct,
+                icon: _isSaving
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.check_circle_outline, size: 18),
+                label: Text(_isSaving ? 'Saving to Database...' : 'Save Stone to Catalog'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: palette.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  elevation: 0,
+                ),
+              ),
+            ),
           ),
         ),
       ),
