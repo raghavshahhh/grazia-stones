@@ -27,35 +27,12 @@ import 'package:grazia_stones/core/services/cache_service.dart';
 import 'package:grazia_stones/core/services/storage_service.dart';
 import 'package:grazia_stones/features/admin/presentation/widgets/admin_module_switcher.dart';
 
-import 'dart:convert';
-import 'package:flutter/services.dart';
-import 'package:google_fonts/src/google_fonts_base.dart' as google_fonts_base;
-
 class _FakePathProviderPlatform extends PathProviderPlatform {
   _FakePathProviderPlatform(this._path);
   final String _path;
 
   @override
   Future<String?> getApplicationDocumentsPath() async => _path;
-}
-
-class _MockAssetManifest implements AssetManifest {
-  @override
-  List<String> listAssets() => [
-    'google_fonts/Inter-Regular.ttf',
-    'google_fonts/Inter-Medium.ttf',
-    'google_fonts/Inter-SemiBold.ttf',
-    'google_fonts/Inter-Bold.ttf',
-    'google_fonts/Inter-ExtraBold.ttf',
-    'google_fonts/PlayfairDisplay-Regular.ttf',
-    'google_fonts/PlayfairDisplay-Medium.ttf',
-    'google_fonts/PlayfairDisplay-SemiBold.ttf',
-    'google_fonts/PlayfairDisplay-Bold.ttf',
-    'google_fonts/PlayfairDisplay-ExtraBold.ttf',
-  ];
-
-  @override
-  List<AssetMetadata>? getAssetVariants(String key) => null;
 }
 
 void main() {
@@ -65,35 +42,6 @@ void main() {
     PathProviderPlatform.instance = _FakePathProviderPlatform(tempDir.path);
     SharedPreferences.setMockInitialValues({});
     GoogleFonts.config.allowRuntimeFetching = false;
-    google_fonts_base.assetManifest = _MockAssetManifest();
-    final ttfFile = File('ios/Pods/GoogleSignIn/GoogleSignIn/Sources/Resources/Roboto-Bold.ttf');
-    if (ttfFile.existsSync()) {
-      final ttfBytes = ttfFile.readAsBytesSync();
-      final transparentImage = Uint8List.fromList(<int>[
-        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49,
-        0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06,
-        0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44,
-        0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00, 0x05, 0x00, 0x01, 0x0D,
-        0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42,
-        0x60, 0x82,
-      ]);
-
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMessageHandler('flutter/assets', (message) async {
-        if (message == null) return null;
-        final key = utf8.decode(message.buffer.asUint8List());
-        if (key.startsWith('google_fonts/')) {
-          return ByteData.view(ttfBytes.buffer);
-        }
-        if (key == 'AssetManifest.bin') {
-          return const StandardMessageCodec().encodeMessage(<String, Object?>{});
-        }
-        if (key == 'AssetManifest.json') {
-          return ByteData.view(Uint8List.fromList(utf8.encode('{}')).buffer);
-        }
-        return ByteData.view(transparentImage.buffer);
-      });
-    }
     // Real init, not a mock — exercises the actual StorageService/CacheService
     // startup path instead of always hitting their catch-and-degrade branch.
     await StorageService.instance.init();
