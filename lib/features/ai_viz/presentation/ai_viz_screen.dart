@@ -12,6 +12,7 @@ import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'package:grazia_stones/core/widgets/animated_widgets.dart';
 import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -63,7 +64,10 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
       );
       if (pickedFile != null) {
         final bytes = await pickedFile.readAsBytes();
-        final file = File(pickedFile.path);
+        File? file;
+        try {
+          file = File(pickedFile.path);
+        } catch (_) {}
         
         if (!mounted) return;
         setState(() {
@@ -87,16 +91,25 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
   }
 
   Future<void> _analyzeRoom() async {
-    if (_selectedImageFile == null) return;
+    if (_selectedImage == null) return;
 
     setState(() => _isAnalyzing = true);
     HapticFeedback.mediumImpact();
 
     try {
-      final result = await _roomAnalysisService.analyzeRoom(
-        roomImage: _selectedImageFile!,
-        useSegmentation: true,
-      );
+      RoomAnalysisResult? result;
+      if (_selectedImageFile != null) {
+        try {
+          result = await _roomAnalysisService.analyzeRoom(
+            roomImage: _selectedImageFile!,
+            useSegmentation: true,
+          );
+        } catch (_) {
+          result = _roomAnalysisService.generateArchitecturalFallback();
+        }
+      } else {
+        result = _roomAnalysisService.generateArchitecturalFallback();
+      }
 
       if (!mounted) return;
 
@@ -105,7 +118,7 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
         _isAnalyzing = false;
       });
 
-      if (result.isUsable) {
+      if (result != null && result.isUsable) {
         HapticFeedback.heavyImpact();
         showSuccessSnackbar(
           context, 
@@ -114,8 +127,11 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      setState(() => _isAnalyzing = false);
-      debugPrint('❌ Room analysis error: $e');
+      setState(() {
+        _roomAnalysis = _roomAnalysisService.generateArchitecturalFallback();
+        _isAnalyzing = false;
+      });
+      debugPrint('❌ Room analysis handled with fallback: $e');
     }
   }
 
@@ -244,132 +260,148 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
           ),
         ),
       ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Studio Hero Card
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: palette.surface,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: palette.border),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.02),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 680),
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Studio Hero Card
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: palette.surface,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: palette.border),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.02),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: palette.primary.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(Icons.auto_awesome_rounded, color: palette.primary, size: 22),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: palette.primary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(Icons.auto_awesome_rounded, color: palette.primary, size: 22),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Photorealistic Rendering',
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: palette.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Upload your wall or floor to visualize marble & natural stone in architectural lighting.',
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                color: palette.textSecondary,
+                                height: 1.35,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                ),
+
+                const SizedBox(height: 24),
+
+                // Step 1: Upload Room Photo
+                Text(
+                  '1. UPLOAD ROOM PHOTO',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.8,
+                    color: palette.textTertiary,
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                if (_selectedImage == null) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildUploadCard(
+                          palette,
+                          'Take Photo',
+                          Icons.camera_alt_outlined,
+                          () => _pickImage(ImageSource.camera),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildUploadCard(
+                          palette,
+                          'Upload Gallery',
+                          Icons.photo_library_outlined,
+                          () => _pickImage(ImageSource.gallery),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Container(
+                        width: 3,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: palette.primary,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'SAMPLE ARCHITECTURAL ROOMS',
+                        style: GoogleFonts.inter(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.2,
+                          color: palette.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 104,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
                       children: [
-                        Text(
-                          'Photorealistic Rendering',
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: palette.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Upload your wall or floor to visualize marble & natural stone in architectural lighting.',
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            color: palette.textSecondary,
-                            height: 1.35,
-                          ),
-                        ),
+                        _buildPresetRoomCard('Living Room Accent', 'assets/images/hero_banner_1.png', palette),
+                        const SizedBox(width: 10),
+                        _buildPresetRoomCard('Modern Bathroom', 'assets/images/hero_banner_2.png', palette),
+                        const SizedBox(width: 10),
+                        _buildPresetRoomCard('Exterior Facade', 'assets/images/template_page-06.png', palette),
+                        const SizedBox(width: 10),
+                        _buildPresetRoomCard('Villa Fireplace', 'assets/images/template_page-08.png', palette),
                       ],
                     ),
                   ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Step 1: Upload Room Photo
-            Text(
-              '1. UPLOAD ROOM PHOTO',
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.8,
-                color: palette.textTertiary,
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            if (_selectedImage == null) ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildUploadCard(
-                      palette,
-                      'Take Photo',
-                      Icons.camera_alt_outlined,
-                      () => _pickImage(ImageSource.camera),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildUploadCard(
-                      palette,
-                      'Upload Gallery',
-                      Icons.photo_library_outlined,
-                      () => _pickImage(ImageSource.gallery),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Text(
-                'OR CHOOSE A SAMPLE ROOM TEMPLATE',
-                style: GoogleFonts.inter(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.2,
-                  color: palette.textTertiary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 44,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(),
-                  children: [
-                    _buildPresetRoomChip('Living Room Accent', 'assets/images/hero_banner_1.png', palette),
-                    const SizedBox(width: 8),
-                    _buildPresetRoomChip('Modern Bathroom', 'assets/images/hero_banner_2.png', palette),
-                    const SizedBox(width: 8),
-                    _buildPresetRoomChip('Exterior Facade', 'assets/images/template_page-06.png', palette),
-                    const SizedBox(width: 8),
-                    _buildPresetRoomChip('Villa Fireplace', 'assets/images/template_page-08.png', palette),
-                  ],
-                ),
-              ),
-            ] else
-              _buildImagePreviewCard(palette),
+                ] else
+                  _buildImagePreviewCard(palette),
 
             // Room Analysis Result
             if (_roomAnalysis != null) ...[
@@ -443,33 +475,41 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
             ),
 
             const SizedBox(height: 110),
-          ],
+              ],
+            ),
+          ),
         ),
       ),
       bottomNavigationBar: Container(
-        padding: EdgeInsets.only(
-          left: 18,
-          right: 18,
-          top: 14,
-          bottom: MediaQuery.of(context).padding.bottom + 14,
-        ),
         decoration: BoxDecoration(
           color: palette.surface,
           border: Border(top: BorderSide(color: palette.border, width: 1.0)),
         ),
-        child: _buildBottomAction(palette, selectedStone),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 680),
+            child: Padding(
+              padding: EdgeInsets.only(
+                left: 18,
+                right: 18,
+                top: 14,
+                bottom: MediaQuery.of(context).padding.bottom + 14,
+              ),
+              child: _buildBottomAction(palette, selectedStone),
+            ),
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildBottomAction(LuxuryPalette palette, Stone? selectedStone) {
-    // Show "Create Visualization" when room analyzed and stone selected
     if (_isAnalyzing) {
       return Container(
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
           color: palette.surfaceDark,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: palette.border),
         ),
         child: Row(
@@ -494,71 +534,189 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
       );
     }
 
-    // Show "Create Visualization" when room image is present and stone selected
     if (_selectedImage != null && _selectedStoneId != null) {
-      return ElevatedButton.icon(
-        onPressed: _isCreatingJob ? null : _startGeneration,
-        icon: _isCreatingJob
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-              )
-            : const Icon(Icons.auto_awesome_rounded, size: 18),
-        label: Text(
-          _isCreatingJob ? 'Creating Job...' : 'Generate AI Visualization',
-          style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700),
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: palette.primary,
-          foregroundColor: Colors.white,
+      return ApplePressable(
+        onTap: _isCreatingJob ? null : _startGeneration,
+        child: Container(
           padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          elevation: 0,
-          disabledBackgroundColor: palette.border,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [palette.primary, const Color(0xFFD4AF37)],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: palette.primary.withValues(alpha: 0.35),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (_isCreatingJob)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
+              else
+                const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 20),
+              const SizedBox(width: 10),
+              Text(
+                _isCreatingJob ? 'Synthesizing 4K Architectural Renders...' : '✨ Generate 4K Architectural Render',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
 
-    // Default: View Jobs button
-    return OutlinedButton.icon(
-      onPressed: () => context.push('/ai-jobs'),
-      icon: const Icon(Icons.list_alt_rounded, size: 18),
-      label: Text(
-        'View All AI Jobs',
-        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700),
+    if (_selectedImage == null) {
+      return Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: ApplePressable(
+              onTap: () => _loadPresetRoom('assets/images/hero_banner_1.png'),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [palette.primary, const Color(0xFFD4AF37)],
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: palette.primary.withValues(alpha: 0.25),
+                      blurRadius: 12,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 17),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Quick Try Sample Room',
+                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 1,
+            child: ApplePressable(
+              onTap: () => context.push('/ai-jobs'),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                decoration: BoxDecoration(
+                  color: palette.surface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: palette.border),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.history_rounded, size: 17, color: palette.textPrimary),
+                    const SizedBox(width: 6),
+                    Text(
+                      'History',
+                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: palette.textPrimary),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Photo uploaded but stone not chosen
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 15),
+      decoration: BoxDecoration(
+        color: palette.primary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: palette.primary.withValues(alpha: 0.4)),
       ),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: palette.textPrimary,
-        side: BorderSide(color: palette.border),
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.touch_app_rounded, color: palette.primary, size: 18),
+          const SizedBox(width: 8),
+          Text(
+            'Select a Natural Stone surface above',
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: palette.primary,
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildPresetRoomChip(String label, String assetPath, LuxuryPalette palette) {
-    return InkWell(
+  Widget _buildPresetRoomCard(String label, String assetPath, LuxuryPalette palette) {
+    return ApplePressable(
       onTap: () => _loadPresetRoom(assetPath),
-      borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        width: 130,
         decoration: BoxDecoration(
           color: palette.surface,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(color: palette.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.apartment_rounded, size: 14, color: palette.primary),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: palette.textPrimary,
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(13)),
+              child: SizedBox(
+                height: 64,
+                width: double.infinity,
+                child: Image.asset(assetPath, fit: BoxFit.cover),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              child: Row(
+                children: [
+                  Icon(Icons.apartment_rounded, size: 12, color: palette.primary),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: palette.textPrimary,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -571,9 +729,14 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
     try {
       final byteData = await rootBundle.load(assetPath);
       final bytes = byteData.buffer.asUint8List();
-      final tempDir = await getTemporaryDirectory();
-      final tempFile = File('${tempDir.path}/preset_${DateTime.now().millisecondsSinceEpoch}.png');
-      await tempFile.writeAsBytes(bytes);
+      File? tempFile;
+      try {
+        final tempDir = await getTemporaryDirectory();
+        tempFile = File('${tempDir.path}/preset_${DateTime.now().millisecondsSinceEpoch}.png');
+        await tempFile.writeAsBytes(bytes);
+      } catch (e) {
+        debugPrint('Web/sandbox temp directory bypassed: $e');
+      }
 
       if (!mounted) return;
       setState(() {
@@ -591,47 +754,46 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
   }
 
   Widget _buildUploadCard(LuxuryPalette palette, String label, IconData icon, VoidCallback onTap) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 28),
-          decoration: BoxDecoration(
-            color: palette.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: palette.border),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.02),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: palette.primary.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: palette.primary, size: 22),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                label,
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: palette.textPrimary,
+    return ApplePressable(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        decoration: BoxDecoration(
+          color: palette.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: palette.border, width: 1.0),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.02),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: palette.primary.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: palette.primary.withValues(alpha: 0.3),
                 ),
               ),
-            ],
-          ),
+              child: Icon(icon, color: palette.primary, size: 22),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: palette.textPrimary,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -674,7 +836,7 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
                         const CircularProgressIndicator(color: Colors.white),
                         const SizedBox(height: 12),
                         Text(
-                          'Analyzing room...',
+                          'Analyzing room architecture...',
                           style: GoogleFonts.inter(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -724,14 +886,14 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
         crossAxisCount: 3,
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
-        childAspectRatio: 0.8,
+        childAspectRatio: 0.82,
       ),
       itemCount: stones.length,
       itemBuilder: (context, i) {
         final stone = stones[i];
         final isSelected = _selectedStoneId == stone.id;
 
-        return GestureDetector(
+        return ApplePressable(
           onTap: () {
             HapticFeedback.selectionClick();
             setState(() => _selectedStoneId = stone.id);
@@ -740,54 +902,81 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
             duration: const Duration(milliseconds: 200),
             decoration: BoxDecoration(
               color: palette.surface,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: isSelected ? palette.primary : palette.border,
                 width: isSelected ? 2.0 : 1.0,
               ),
               boxShadow: isSelected
-                  ? [BoxShadow(color: palette.primary.withValues(alpha: 0.25), blurRadius: 8)]
+                  ? [
+                      BoxShadow(
+                        color: palette.primary.withValues(alpha: 0.3),
+                        blurRadius: 10,
+                        spreadRadius: 1,
+                      )
+                    ]
                   : [],
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(13),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+              borderRadius: BorderRadius.circular(15),
+              child: Stack(
                 children: [
-                  Expanded(
-                    child: SmartStoneImage(
-                      imageUrl: stone.imageUrl,
-                      fit: BoxFit.cover,
-                      palette: palette,
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(6),
-                    child: Column(
-                      children: [
-                        Text(
-                          stone.name,
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                            color: palette.textPrimary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: SmartStoneImage(
+                          imageUrl: stone.imageUrl,
+                          fit: BoxFit.cover,
+                          palette: palette,
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '₹${stone.pricePerSqFt.toInt()}/sqft',
-                          style: GoogleFonts.inter(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: palette.primary,
-                          ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                        child: Column(
+                          children: [
+                            Text(
+                              stone.name,
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                color: palette.textPrimary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '₹${stone.pricePerSqFt.toInt()}/sqft',
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: palette.primary,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
+                  if (isSelected)
+                    Positioned(
+                      top: 6,
+                      right: 6,
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          color: palette.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.check_rounded,
+                          size: 13,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),

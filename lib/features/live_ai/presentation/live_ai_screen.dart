@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/providers/stone_providers.dart';
+import 'package:grazia_stones/core/widgets/animated_widgets.dart';
 import 'package:grazia_stones/shared/widgets/luxury_toast.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 import 'widgets/ar_camera_view.dart';
@@ -1043,196 +1044,201 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
       left: 0,
       right: 0,
       bottom: bottomInset,
-      child: Container(
-        height: 140,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.black.withValues(alpha: 0.0),
-              Colors.black.withValues(alpha: 0.9),
-              Colors.black.withValues(alpha: 0.98),
-            ],
-            stops: const [0.0, 0.3, 1.0],
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Product carousel
-            SizedBox(
-              height: 90,
-              child: PageView.builder(
-                controller: _stonePageController,
-                scrollDirection: Axis.horizontal,
-                itemCount: _filteredStones.length,
-                onPageChanged: (index) => _selectStone(index),
-                itemBuilder: (context, index) {
-                  final item = _filteredStones[index];
-                  final isSelected = index == _selectedStoneIndex;
-                  final thumbPath = item.images.isNotEmpty
-                      ? item.images.first
-                      : 'assets/images/placeholder_stone.png';
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 640),
+          child: Container(
+            height: 140,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withValues(alpha: 0.0),
+                  Colors.black.withValues(alpha: 0.88),
+                  Colors.black.withValues(alpha: 0.98),
+                ],
+                stops: const [0.0, 0.3, 1.0],
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Product carousel
+                SizedBox(
+                  height: 90,
+                  child: PageView.builder(
+                    controller: _stonePageController,
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _filteredStones.length,
+                    onPageChanged: (index) => _selectStone(index),
+                    itemBuilder: (context, index) {
+                      final item = _filteredStones[index];
+                      final isSelected = index == _selectedStoneIndex;
+                      final thumbPath = item.images.isNotEmpty
+                          ? item.images.first
+                          : 'assets/images/placeholder_stone.png';
 
-                  return Center(
-                    child: GestureDetector(
-                      onTap: () {
-                        _stonePageController.animateToPage(
-                          index,
-                          duration: const Duration(milliseconds: 350),
-                          curve: Curves.easeOutCubic,
-                        );
-                        _selectStone(index);
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 300),
-                        margin: EdgeInsets.symmetric(
-                          horizontal: isSelected ? 8 : 16,
-                          vertical: 8,
-                        ),
-                        width: isSelected ? 120 : 100,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          gradient: isSelected
-                              ? const LinearGradient(
-                                  colors: [
-                                    AppColors.goldWarm,
-                                    AppColors.goldLight,
-                                    AppColors.goldWarm,
-                                  ],
-                                )
-                              : null,
-                          color: isSelected
-                              ? null
-                              : Colors.black.withValues(alpha: 0.4),
-                          border: !isSelected
-                              ? Border.all(
-                                  color: Colors.white.withValues(alpha: 0.2),
-                                  width: 1,
-                                )
-                              : null,
-                          boxShadow: isSelected
-                              ? [
-                                  BoxShadow(
-                                    color: AppColors.goldWarm.withValues(alpha: 0.4),
-                                    blurRadius: 20,
-                                    spreadRadius: 2,
+                      return Center(
+                        child: GestureDetector(
+                          onTap: () {
+                            _stonePageController.animateToPage(
+                              index,
+                              duration: const Duration(milliseconds: 350),
+                              curve: Curves.easeOutCubic,
+                            );
+                            _selectStone(index);
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 300),
+                            margin: EdgeInsets.symmetric(
+                              horizontal: isSelected ? 8 : 16,
+                              vertical: 8,
+                            ),
+                            width: isSelected ? 120 : 100,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              gradient: isSelected
+                                  ? const LinearGradient(
+                                      colors: [
+                                        AppColors.goldWarm,
+                                        AppColors.goldLight,
+                                        AppColors.goldWarm,
+                                      ],
+                                    )
+                                  : null,
+                              color: isSelected
+                                  ? null
+                                  : Colors.black.withValues(alpha: 0.4),
+                              border: !isSelected
+                                  ? Border.all(
+                                      color: Colors.white.withValues(alpha: 0.2),
+                                      width: 1,
+                                    )
+                                  : null,
+                              boxShadow: isSelected
+                                  ? [
+                                      BoxShadow(
+                                        color: AppColors.goldWarm.withValues(alpha: 0.4),
+                                        blurRadius: 20,
+                                        spreadRadius: 2,
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  SmartStoneImage(
+                                    imageUrl: thumbPath,
+                                    fit: BoxFit.cover,
                                   ),
-                                ]
-                              : null,
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              SmartStoneImage(
-                                imageUrl: thumbPath,
-                                fit: BoxFit.cover,
-                              ),
-                              if (isSelected)
-                                Positioned(
-                                  bottom: 0,
-                                  left: 0,
-                                  right: 0,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        begin: Alignment.bottomCenter,
-                                        end: Alignment.topCenter,
-                                        colors: [
-                                          Colors.black.withValues(alpha: 0.9),
-                                          Colors.transparent,
-                                        ],
+                                  if (isSelected)
+                                    Positioned(
+                                      bottom: 0,
+                                      left: 0,
+                                      right: 0,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            begin: Alignment.bottomCenter,
+                                            end: Alignment.topCenter,
+                                            colors: [
+                                              Colors.black.withValues(alpha: 0.9),
+                                              Colors.transparent,
+                                            ],
+                                          ),
+                                        ),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              item.productCode.isNotEmpty
+                                                  ? item.productCode
+                                                  : item.name.split(' ').first,
+                                              style: const TextStyle(
+                                                fontFamily: 'Inter',
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w700,
+                                                color: Colors.white,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            if (item.size.isNotEmpty)
+                                              Text(
+                                                item.size,
+                                                style: TextStyle(
+                                                  fontFamily: 'Inter',
+                                                  fontSize: 9,
+                                                  color: Colors.white.withValues(alpha: 0.7),
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                          ],
+                                        ),
                                       ),
                                     ),
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          item.productCode.isNotEmpty
-                                              ? item.productCode
-                                              : item.name.split(' ').first,
-                                          style: const TextStyle(
-                                            fontFamily: 'Inter',
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w700,
-                                            color: Colors.white,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        if (item.size.isNotEmpty)
-                                          Text(
-                                            item.size,
-                                            style: TextStyle(
-                                              fontFamily: 'Inter',
-                                              fontSize: 9,
-                                              color: Colors.white.withValues(alpha: 0.7),
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                            ],
+                                ],
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-
-            // CTAs Row
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
-                child: Row(
-                  children: [
-                    _buildCtaButton(
-                      icon: Icons.arrow_forward_rounded,
-                      label: 'View Product',
-                      onTap: _navigateToProduct,
-                      isPrimary: true,
-                    ),
-                    const SizedBox(width: 8),
-                    _buildCtaButton(
-                      icon: Icons.straighten_rounded,
-                      label: 'Measure Wall',
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        _startCalibration();
-                      },
-                      isPrimary: false,
-                    ),
-                    const SizedBox(width: 8),
-                    _buildCtaButton(
-                      icon: Icons.bookmark_add_rounded,
-                      label: 'Save Design',
-                      onTap: _saveDesign,
-                      isPrimary: false,
-                    ),
-                    const SizedBox(width: 8),
-                    _buildCtaButton(
-                      icon: Icons.request_quote_rounded,
-                      label: 'Get Quote',
-                      onTap: _requestQuote,
-                      isPrimary: false,
-                    ),
-                  ],
+                      );
+                    },
+                  ),
                 ),
-              ),
+
+                // CTAs Row
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    child: Row(
+                      children: [
+                        _buildCtaButton(
+                          icon: Icons.arrow_forward_rounded,
+                          label: 'View Product',
+                          onTap: _navigateToProduct,
+                          isPrimary: true,
+                        ),
+                        const SizedBox(width: 8),
+                        _buildCtaButton(
+                          icon: Icons.straighten_rounded,
+                          label: 'Measure Wall',
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            _startCalibration();
+                          },
+                          isPrimary: false,
+                        ),
+                        const SizedBox(width: 8),
+                        _buildCtaButton(
+                          icon: Icons.bookmark_add_rounded,
+                          label: 'Save Design',
+                          onTap: _saveDesign,
+                          isPrimary: false,
+                        ),
+                        const SizedBox(width: 8),
+                        _buildCtaButton(
+                          icon: Icons.request_quote_rounded,
+                          label: 'Get Quote',
+                          onTap: _requestQuote,
+                          isPrimary: false,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -1244,46 +1250,51 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     required VoidCallback onTap,
     required bool isPrimary,
   }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
-          decoration: BoxDecoration(
+    return ApplePressable(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+        decoration: BoxDecoration(
+          color: isPrimary
+              ? AppColors.goldWarm
+              : const Color(0xFF1E1E1E).withValues(alpha: 0.85),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
             color: isPrimary
                 ? AppColors.goldWarm
-                : Colors.white.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isPrimary
-                  ? AppColors.goldWarm
-                  : Colors.white.withValues(alpha: 0.2),
-              width: 1,
-            ),
+                : Colors.white.withValues(alpha: 0.18),
+            width: 1,
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: 16,
+          boxShadow: isPrimary
+              ? [
+                  BoxShadow(
+                    color: AppColors.goldWarm.withValues(alpha: 0.35),
+                    blurRadius: 12,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 15,
+              color: isPrimary ? Colors.black : Colors.white,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 12,
+                fontWeight: isPrimary ? FontWeight.w700 : FontWeight.w600,
                 color: isPrimary ? Colors.black : Colors.white,
               ),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: isPrimary ? Colors.black : Colors.white,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

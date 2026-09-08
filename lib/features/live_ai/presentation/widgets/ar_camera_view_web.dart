@@ -518,81 +518,112 @@ class _ARCameraViewState extends State<ARCameraView>
 
     return Container(
       color: Colors.black.withValues(alpha: 0.88),
-      child: Align(
-        alignment: const Alignment(0, -0.35),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color(0xFFC8A53C).withValues(alpha: 0.15),
-                  border: Border.all(
-                    color: const Color(0xFFC8A53C).withValues(alpha: 0.4),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 34),
+              decoration: BoxDecoration(
+                color: const Color(0xFF141414).withValues(alpha: 0.85),
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  width: 1.0,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.5),
+                    blurRadius: 32,
+                    offset: const Offset(0, 12),
                   ),
-                ),
-                child: Icon(
-                  isPermissionDenied
-                      ? Icons.videocam_off_rounded
-                      : Icons.camera_alt_rounded,
-                  color: const Color(0xFFC8A53C),
-                  size: 42,
-                ),
+                ],
               ),
-              const SizedBox(height: 20),
-              Text(
-                isPermissionDenied
-                    ? 'Camera Permission Required'
-                    : 'Enable Live AR Camera',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  fontFamily: 'Inter',
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                isPermissionDenied
-                    ? 'Camera access was blocked.\nPlease allow camera permissions in your browser settings and tap below.'
-                    : (_errorMsg ?? 'Tap below to launch real-time camera view.'),
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.7),
-                  fontSize: 13,
-                  height: 1.5,
-                  fontFamily: 'Inter',
-                ),
-              ),
-              const SizedBox(height: 28),
-              ElevatedButton.icon(
-                onPressed: _onUserTapStart,
-                icon: const Icon(Icons.videocam_rounded, size: 20),
-                label: Text(
-                  isPermissionDenied ? 'Grant Access & Retry' : 'Tap to Start Camera',
-                  style: const TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFFC8A53C).withValues(alpha: 0.15),
+                      border: Border.all(
+                        color: const Color(0xFFC8A53C).withValues(alpha: 0.4),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFC8A53C).withValues(alpha: 0.25),
+                          blurRadius: 20,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      isPermissionDenied
+                          ? Icons.videocam_off_rounded
+                          : Icons.camera_alt_rounded,
+                      color: const Color(0xFFC8A53C),
+                      size: 38,
+                    ),
                   ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFC8A53C),
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 28,
-                    vertical: 14,
+                  const SizedBox(height: 20),
+                  Text(
+                    isPermissionDenied
+                        ? 'Camera Permission Required'
+                        : 'Enable Live AR Camera',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      fontFamily: 'Inter',
+                    ),
                   ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(28),
+                  const SizedBox(height: 10),
+                  Text(
+                    isPermissionDenied
+                        ? 'Camera access was blocked.\nPlease allow camera permissions in your browser settings and tap below.'
+                        : (_errorMsg ?? 'Tap below to launch real-time camera view.'),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.72),
+                      fontSize: 13,
+                      height: 1.5,
+                      fontFamily: 'Inter',
+                    ),
                   ),
-                  elevation: 6,
-                ),
+                  const SizedBox(height: 26),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 260),
+                    child: ElevatedButton.icon(
+                      onPressed: _onUserTapStart,
+                      icon: const Icon(Icons.videocam_rounded, size: 20),
+                      label: Text(
+                        isPermissionDenied ? 'Grant Access & Retry' : 'Tap to Start Camera',
+                        style: const TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFC8A53C),
+                        foregroundColor: Colors.black,
+                        minimumSize: const Size(200, 48),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 22,
+                          vertical: 13,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(28),
+                        ),
+                        elevation: 4,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
