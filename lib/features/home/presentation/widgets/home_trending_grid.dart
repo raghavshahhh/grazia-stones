@@ -140,26 +140,34 @@ class _HomeTrendingGridState extends ConsumerState<HomeTrendingGrid> {
         ),
         const SizedBox(height: 12),
         // ── Grid ──
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 0.68,
-          ),
-          itemCount: stones.length,
-          itemBuilder: (context, index) {
-            final s = stones[index];
-            return StoneGridTile(
-              stone: s,
-              onTap: () {
-                HapticFeedback.lightImpact();
-                context.push('/stones/${s.id}');
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final int crossAxisCount = width >= 900 ? 4 : (width >= 600 ? 3 : 2);
+            final double childAspectRatio = width >= 900 ? 0.76 : 0.68;
+
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: childAspectRatio,
+              ),
+              itemCount: stones.length,
+              itemBuilder: (context, index) {
+                final s = stones[index];
+                return StoneGridTile(
+                  stone: s,
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    context.push('/stones/${s.id}');
+                  },
+                  onWishlist: () {},
+                );
               },
-              onWishlist: () {},
             );
           },
         ),
@@ -168,24 +176,32 @@ class _HomeTrendingGridState extends ConsumerState<HomeTrendingGrid> {
   }
 
   Widget _buildLoading() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          childAspectRatio: 0.68,
-        ),
-        itemCount: 6,
-        itemBuilder: (_, _) => const LoadingSkeleton(
-          width: double.infinity,
-          height: double.infinity,
-          borderRadius: 16,
-        ),
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final int crossAxisCount = width >= 900 ? 4 : (width >= 600 ? 3 : 2);
+        final double childAspectRatio = width >= 900 ? 0.76 : 0.68;
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxisCount,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: childAspectRatio,
+            ),
+            itemCount: 6,
+            itemBuilder: (_, _) => const LoadingSkeleton(
+              width: double.infinity,
+              height: double.infinity,
+              borderRadius: 16,
+            ),
+          ),
+        );
+      },
     );
   }
 

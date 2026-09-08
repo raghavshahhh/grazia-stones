@@ -13,7 +13,8 @@ import 'package:grazia_stones/shared/widgets/luxury_toast.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 
 class AdminProductsScreen extends ConsumerStatefulWidget {
-  const AdminProductsScreen({super.key});
+  final String? initialStatus;
+  const AdminProductsScreen({super.key, this.initialStatus});
 
   @override
   ConsumerState<AdminProductsScreen> createState() => _AdminProductsScreenState();
@@ -29,6 +30,7 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
   @override
   void initState() {
     super.initState();
+    _statusFilter = widget.initialStatus ?? 'all';
     _loadStones();
   }
 
@@ -198,7 +200,13 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          onPressed: () => context.pop(),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/admin/dashboard');
+            }
+          },
           icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
         ),
         title: Text(

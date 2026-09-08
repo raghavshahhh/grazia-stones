@@ -412,7 +412,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/admin/products',
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
-            _slideUpPage(const AdminProductsScreen(), state),
+            _slideUpPage(AdminProductsScreen(initialStatus: state.uri.queryParameters['status']), state),
       ),
       GoRoute(
         path: '/admin/products/add',
@@ -447,19 +447,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/admin/orders',
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
-            _slideUpPage(const AdminOrdersScreen(), state),
+            _slideUpPage(AdminOrdersScreen(initialStatus: state.uri.queryParameters['status']), state),
       ),
       GoRoute(
         path: '/admin/quotes',
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
-            _slideUpPage(const AdminQuotesScreen(), state),
+            _slideUpPage(AdminQuotesScreen(initialStatus: state.uri.queryParameters['status']), state),
       ),
       GoRoute(
         path: '/admin/samples',
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
-            _slideUpPage(const AdminSamplesScreen(), state),
+            _slideUpPage(AdminSamplesScreen(initialStatus: state.uri.queryParameters['status']), state),
       ),
       GoRoute(
         path: '/admin/ai-jobs',

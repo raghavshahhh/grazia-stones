@@ -11,7 +11,8 @@ import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/luxury_toast.dart';
 
 class AdminQuotesScreen extends ConsumerStatefulWidget {
-  const AdminQuotesScreen({super.key});
+  final String? initialStatus;
+  const AdminQuotesScreen({super.key, this.initialStatus});
 
   @override
   ConsumerState<AdminQuotesScreen> createState() => _AdminQuotesScreenState();
@@ -26,6 +27,7 @@ class _AdminQuotesScreenState extends ConsumerState<AdminQuotesScreen> {
   @override
   void initState() {
     super.initState();
+    _statusFilter = widget.initialStatus ?? 'all';
     _loadQuotes();
   }
 
@@ -135,7 +137,13 @@ class _AdminQuotesScreenState extends ConsumerState<AdminQuotesScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          onPressed: () => context.pop(),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/admin/dashboard');
+            }
+          },
           icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
         ),
         title: Text(

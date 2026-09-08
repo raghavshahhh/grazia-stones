@@ -1199,22 +1199,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final stones = _trendingStones ?? [];
     if (stones.isEmpty) return const SizedBox.shrink();
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: stones.length,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          childAspectRatio: 0.72,
-          crossAxisSpacing: 14,
-          mainAxisSpacing: 14,
-        ),
-        itemBuilder: (context, index) {
-          final stone = stones[index];
-          return ApplePressable(
-            onTap: () => context.push('/stones/${stone.id}'),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final int crossAxisCount = width >= 1000
+            ? 4
+            : (width >= 640
+                ? 3
+                : 2);
+        final double childAspectRatio = width >= 640 ? 0.76 : 0.72;
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: stones.length,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxisCount,
+              childAspectRatio: childAspectRatio,
+              crossAxisSpacing: 14,
+              mainAxisSpacing: 14,
+            ),
+            itemBuilder: (context, index) {
+              final stone = stones[index];
+            return ApplePressable(
+                onTap: () => context.push('/stones/${stone.id}'),
             child: Container(
               decoration: BoxDecoration(
                 color: palette.surface,
@@ -1337,7 +1347,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           );
         },
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -1478,58 +1490,66 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
           const SizedBox(height: 14),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: 4,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 0.95,
-            ),
-            itemBuilder: (context, i) {
-              final p = pillars[i];
-              return Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: palette.surface,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: palette.border),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.02),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final int crossAxisCount = width >= 900 ? 4 : (width >= 600 ? 3 : 2);
+              final double childAspectRatio = width >= 900 ? 1.35 : (width >= 600 ? 1.15 : 0.95);
+
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: 4,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: childAspectRatio,
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(p['icon'] as IconData, color: palette.primary, size: 24),
-                    const SizedBox(height: 10),
-                    Text(
-                      p['title'] as String,
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: palette.textPrimary,
-                      ),
+                itemBuilder: (context, i) {
+                  final p = pillars[i];
+                  return Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: palette.surface,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: palette.border),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.02),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      p['desc'] as String,
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: palette.textSecondary,
-                        height: 1.35,
-                      ),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(p['icon'] as IconData, color: palette.primary, size: 24),
+                        const SizedBox(height: 10),
+                        Text(
+                          p['title'] as String,
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: palette.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          p['desc'] as String,
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: palette.textSecondary,
+                            height: 1.35,
+                          ),
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  );
+                },
               );
             },
           ),

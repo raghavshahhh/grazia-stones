@@ -129,8 +129,11 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
       backgroundColor: palette.background,
       body: _error != null
           ? ErrorHandlerWidget(error: Exception(_error), onRetry: _loadData)
-          : CustomScrollView(
-              physics: const BouncingScrollPhysics(),
+          : Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1080),
+                child: CustomScrollView(
+                  physics: const BouncingScrollPhysics(),
               slivers: [
                 // App bar
                 SliverAppBar(
@@ -139,7 +142,13 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                   backgroundColor: palette.surface,
                   elevation: 0,
                   leading: IconButton(
-                    onPressed: () => context.pop(),
+                    onPressed: () {
+                      if (context.canPop()) {
+                        context.pop();
+                      } else {
+                        context.go('/');
+                      }
+                    },
                     icon: Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
@@ -324,9 +333,13 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                         : SliverPadding(
                             padding: const EdgeInsets.all(16),
                             sliver: SliverGrid(
-                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2,
-                                childAspectRatio: 0.7,
+                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: MediaQuery.of(context).size.width >= 1000
+                                    ? 4
+                                    : (MediaQuery.of(context).size.width >= 640
+                                        ? 3
+                                        : 2),
+                                childAspectRatio: MediaQuery.of(context).size.width >= 640 ? 0.76 : 0.70,
                                 crossAxisSpacing: 14,
                                 mainAxisSpacing: 14,
                               ),
@@ -340,6 +353,8 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                 const SliverToBoxAdapter(child: SizedBox(height: 100)),
               ],
             ),
+          ),
+        ),
     );
   }
 
