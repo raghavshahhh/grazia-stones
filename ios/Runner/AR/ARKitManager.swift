@@ -266,43 +266,40 @@ import MetalKit
     /// The legacy hit-test remains as a last resort so behaviour never regresses
     /// on non-LiDAR hardware.
     private func verticalWorldPoint(at screenPoint: CGPoint) -> simd_float3? {
+        let alignments: [ARRaycastQuery.TargetAlignment] = [.vertical, .any]
         let targets: [ARRaycastQuery.Target] = [.existingPlaneGeometry, .estimatedPlane]
 
-        for target in targets {
-            guard let query = arSceneView.raycastQuery(
-                from: screenPoint,
-                allowing: target,
-                alignment: .vertical
-            ) else { continue }
+        for alignment in alignments {
+            for target in targets {
+                guard let query = arSceneView.raycastQuery(
+                    from: screenPoint,
+                    allowing: target,
+                    alignment: alignment
+                ) else { continue }
 
-            let results = arSceneView.session.raycast(query)
-            guard !results.isEmpty else { continue }
+                let results = arSceneView.session.raycast(query)
+                guard !results.isEmpty else { continue }
 
-            // Prefer a hit on the wall the user already selected, so measuring
-            // stays on one surface even when several walls overlap under the tap.
-            let preferred = results.first { result in
-                guard let id = (result.anchor as? ARPlaneAnchor)?.identifier else { return false }
-                return id == selectedWallId
+                // Prefer a hit on the wall the user already selected if vertical
+                let preferred = results.first { result in
+                    guard let id = (result.anchor as? ARPlaneAnchor)?.identifier else { return false }
+                    return id == selectedWallId
+                }
+
+                if let hit = preferred ?? results.first {
+                    let t = hit.worldTransform
+                    return simd_float3(t.columns.3.x, t.columns.3.y, t.columns.3.z)
+                }
             }
-
-            if let hit = preferred ?? results.first {
-                let t = hit.worldTransform
-                return simd_float3(t.columns.3.x, t.columns.3.y, t.columns.3.z)
-            }
         }
 
-        // Fallback: devices/sessions where raycasting yields nothing.
-        let legacy = arSceneView.hitTest(screenPoint, types: [.existingPlaneUsingGeometry, .existingPlaneUsingExtent])
-        let legacyPreferred = legacy.first { result in
-            guard let planeAnchor = result.anchor as? ARPlaneAnchor,
-                  planeAnchor.alignment == .vertical else { return false }
-            return selectedWallId == nil || planeAnchor.identifier == selectedWallId
+        // Fallback: devices/sessions where raycasting yields nothing
+        let legacy = arSceneView.hitTest(screenPoint, types: [.existingPlaneUsingGeometry, .existingPlaneUsingExtent, .featurePoint])
+        if let hit = legacy.first {
+            let t = hit.worldTransform
+            return simd_float3(t.columns.3.x, t.columns.3.y, t.columns.3.z)
         }
-        guard let hit = legacyPreferred ?? legacy.first(where: { ($0.anchor as? ARPlaneAnchor)?.alignment == .vertical }) else {
-            return nil
-        }
-        let t = hit.worldTransform
-        return simd_float3(t.columns.3.x, t.columns.3.y, t.columns.3.z)
+        return nil
     }
 
     @objc public func hitTestWallAtScreenPoint(_ screenPoint: CGPoint) -> [String: Any]? {
@@ -323,8 +320,8 @@ import MetalKit
         guard let uuid = UUID(uuidString: anchorId) else { return }
 
         let sphere = SCNSphere(radius: 0.012)
-        sphere.firstMaterial?.diffuse.contents = UIColor.systemYellow
-        sphere.firstMaterial?.emission.contents = UIColor.systemYellow.withAlphaComponent(0.6)
+        sphere.firstMaterial?.diffuse.contents = UIColor.white
+        sphere.firstMaterial?.emission.contents = UIColor.white.withAlphaComponent(0.4)
         let node = SCNNode(geometry: sphere)
         node.position = SCNVector3(point.x, point.y, point.z)
 
@@ -341,7 +338,8 @@ import MetalKit
         measurementLineNode?.removeFromParentNode()
 
         let lineGeometry = SCNCylinder(radius: 0.003, height: CGFloat(distance(start, end)))
-        lineGeometry.firstMaterial?.diffuse.contents = UIColor.systemYellow
+        lineGeometry.firstMaterial?.diffuse.contents = UIColor.white
+        lineGeometry.firstMaterial?.emission.contents = UIColor.white.withAlphaComponent(0.3)
         let lineNode = SCNNode(geometry: lineGeometry)
 
         let midPoint = (start + end) / 2

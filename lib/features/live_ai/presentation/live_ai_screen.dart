@@ -425,34 +425,57 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     }
 
     return Positioned(
-      top: MediaQuery.of(context).padding.top + 72,
+      top: MediaQuery.of(context).padding.top + 70,
       left: 0,
       right: 0,
       child: Center(
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(24),
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.65),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: stateColor.withValues(alpha: 0.6), width: 1.0),
+                color: Colors.black.withValues(alpha: 0.55),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: stateColor.withValues(alpha: 0.45), width: 0.9),
+                boxShadow: [
+                  BoxShadow(
+                    color: stateColor.withValues(alpha: 0.15),
+                    blurRadius: 16,
+                    spreadRadius: 1,
+                  ),
+                ],
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(icon, color: stateColor, size: 15),
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: stateColor,
+                      boxShadow: [
+                        BoxShadow(
+                          color: stateColor.withValues(alpha: 0.8),
+                          blurRadius: 6,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(width: 8),
+                  Icon(icon, color: stateColor, size: 14),
+                  const SizedBox(width: 7),
                   Text(
                     label,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: 'Inter',
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: stateColor == const Color(0xFF4CAF50) ? Colors.white : stateColor,
-                      letterSpacing: 0.4,
+                      color: Colors.white,
+                      letterSpacing: 0.3,
                     ),
                   ),
                 ],
@@ -882,7 +905,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
       left: 0,
       right: 0,
       child: Container(
-        padding: EdgeInsets.fromLTRB(12, topPadding + 6, 12, 12),
+        padding: EdgeInsets.fromLTRB(16, topPadding + 6, 16, 16),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
@@ -896,33 +919,32 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
         child: Row(
           children: [
             // Back button
-            // Flexible is required here: Row gives non-flex children an
-            // unbounded max-width, and IconButton's min-tap-target wrapper
-            // (_InputPadding) throws on infinite width constraints once a
-            // Spacer/Expanded sibling forces that intrinsic-width query.
-            Flexible(
-              child: IconButton(
-                onPressed: () {
-                  if (context.canPop()) {
-                    context.pop();
-                  } else {
-                    context.go('/home');
-                  }
-                },
-                icon: Container(
-                  padding: const EdgeInsets.all(8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                child: Container(
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.45),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.2),
+                      color: Colors.white.withValues(alpha: 0.22),
                       width: 0.8,
                     ),
                   ),
-                  child: const Icon(
-                    Icons.arrow_back_ios_new_rounded,
-                    size: 15,
-                    color: Colors.white,
+                  child: IconButton(
+                    onPressed: () {
+                      if (context.canPop()) {
+                        context.pop();
+                      } else {
+                        context.go('/home');
+                      }
+                    },
+                    icon: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 15,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
@@ -930,34 +952,34 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
             const Spacer(),
 
-            // Title
+            // Title & Status
             Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'LIVE AI VISUALIZER',
+                  'GRAZIA AR',
                   style: TextStyle(
                     fontFamily: 'Playfair Display',
-                    fontSize: 15,
+                    fontSize: 16,
                     fontWeight: FontWeight.w700,
                     color: AppColors.goldWarm,
                     letterSpacing: 2.2,
                     shadows: [
                       Shadow(
-                        color: Colors.black.withValues(alpha: 0.5),
-                        blurRadius: 8,
+                        color: Colors.black.withValues(alpha: 0.6),
+                        blurRadius: 10,
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'REAL-TIME WALL MAPPING',
+                  'PRECISION SURFACE MAPPING',
                   style: TextStyle(
                     fontFamily: 'Inter',
-                    fontSize: 8,
+                    fontSize: 9,
                     fontWeight: FontWeight.w600,
-                    color: Colors.white.withValues(alpha: 0.7),
+                    color: Colors.white.withValues(alpha: 0.75),
                     letterSpacing: 1.4,
                   ),
                 ),
@@ -966,63 +988,84 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
             const Spacer(),
 
-            // Measure / record button — tap to measure, press-and-hold to record
-            GestureDetector(
-              onTap: () {
-                if (!_cameraReady) {
-                  LuxuryToast.show(
-                    context,
-                    message: 'Camera must be active to start wall measurement.',
-                  );
-                  return;
-                }
-                HapticFeedback.selectionClick();
-                setState(() => _measureMode = true);
-              },
-              onLongPressStart: (_) => _startRecording(),
-              onLongPressEnd: (_) => _stopRecording(),
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: _isRecording
-                      ? Colors.red.withValues(alpha: 0.55)
-                      : Colors.black.withValues(alpha: 0.45),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: _isRecording
-                        ? Colors.red
-                        : Colors.white.withValues(alpha: 0.2),
-                    width: _isRecording ? 1.4 : 0.8,
+            // Measure / ruler tool button (Tap to measure, Hold to record)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                child: GestureDetector(
+                  onLongPressStart: (_) => _startRecording(),
+                  onLongPressEnd: (_) => _stopRecording(),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: _isRecording
+                          ? Colors.red.withValues(alpha: 0.5)
+                          : _measureMode
+                              ? AppColors.goldWarm.withValues(alpha: 0.3)
+                              : Colors.black.withValues(alpha: 0.45),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: _isRecording
+                            ? Colors.red
+                            : _measureMode
+                                ? AppColors.goldWarm
+                                : Colors.white.withValues(alpha: 0.22),
+                        width: (_isRecording || _measureMode) ? 1.2 : 0.8,
+                      ),
+                    ),
+                    child: IconButton(
+                      tooltip: 'Measure Surface (Hold to Record)',
+                      onPressed: () {
+                        if (!_cameraReady) {
+                          LuxuryToast.show(
+                            context,
+                            message: 'Camera must be active to start wall measurement.',
+                          );
+                          return;
+                        }
+                        HapticFeedback.selectionClick();
+                        setState(() => _measureMode = true);
+                      },
+                      icon: Icon(
+                        _isRecording
+                            ? Icons.fiber_manual_record_rounded
+                            : Icons.straighten_rounded,
+                        size: 17,
+                        color: _isRecording
+                            ? Colors.white
+                            : _measureMode
+                                ? AppColors.goldWarm
+                                : Colors.white,
+                      ),
+                    ),
                   ),
-                ),
-                child: Icon(
-                  _isRecording
-                      ? Icons.fiber_manual_record_rounded
-                      : Icons.straighten_rounded,
-                  size: 16,
-                  color: Colors.white,
                 ),
               ),
             ),
+            const SizedBox(width: 8),
 
             // Settings button
-            Flexible(
-              child: IconButton(
-                onPressed: _showSettingsSheet,
-                icon: Container(
-                  padding: const EdgeInsets.all(8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                child: Container(
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.45),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.2),
+                      color: Colors.white.withValues(alpha: 0.22),
                       width: 0.8,
                     ),
                   ),
-                  child: const Icon(
-                    Icons.tune_rounded,
-                    size: 17,
-                    color: Colors.white,
+                  child: IconButton(
+                    tooltip: 'AR Settings',
+                    onPressed: _showSettingsSheet,
+                    icon: const Icon(
+                      Icons.tune_rounded,
+                      size: 17,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
@@ -1048,7 +1091,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 640),
           child: Container(
-            height: 140,
+            padding: const EdgeInsets.only(top: 6, bottom: 6),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
@@ -1058,7 +1101,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                   Colors.black.withValues(alpha: 0.88),
                   Colors.black.withValues(alpha: 0.98),
                 ],
-                stops: const [0.0, 0.3, 1.0],
+                stops: const [0.0, 0.25, 1.0],
               ),
             ),
             child: Column(
@@ -1310,7 +1353,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
     return Positioned(
       left: 14,
-      bottom: bottomInset + 14,
+      bottom: bottomInset + 150,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
