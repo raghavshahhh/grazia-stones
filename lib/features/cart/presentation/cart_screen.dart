@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,7 @@ import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/services/storage_service.dart';
 import 'package:grazia_stones/core/services/supabase_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show SupabaseClient;
+import 'package:grazia_stones/core/widgets/animated_widgets.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
@@ -244,10 +246,59 @@ final cartProvider = StateNotifierProvider<CartNotifier, List<CartItem>>(
 class CartScreen extends ConsumerWidget {
   const CartScreen({super.key});
 
+  void _confirmClearCart(BuildContext context, WidgetRef ref, LuxuryPalette palette) {
+    HapticFeedback.mediumImpact();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: palette.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Clear Cart?',
+          style: GoogleFonts.playfairDisplay(
+            fontWeight: FontWeight.w700,
+            color: palette.textPrimary,
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to remove all stone slabs from your project cart?',
+          style: GoogleFonts.inter(fontSize: 13, color: palette.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(color: palette.textSecondary, fontWeight: FontWeight.w600),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              ref.read(cartProvider.notifier).clear();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: palette.error,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              elevation: 0,
+            ),
+            child: Text(
+              'Clear All',
+              style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(themePaletteProvider);
+    final isDark = ref.watch(themePaletteProvider.notifier).isDarkMode;
     final items = ref.watch(cartProvider);
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
 
     double subtotal = items.fold(0, (s, i) => s + i.total);
     double gst = subtotal * 0.18;
@@ -256,266 +307,412 @@ class CartScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: palette.background,
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          SliverAppBar(
-            backgroundColor: palette.background,
-            pinned: true,
-            elevation: 0,
-            scrolledUnderElevation: 0,
-            automaticallyImplyLeading: false,
-            leading: Navigator.of(context).canPop()
-                ? IconButton(
-                    icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 20),
-                    onPressed: () => Navigator.of(context).pop(),
-                  )
-                : null,
-            title: Row(
-              children: [
-                Text(
-                  'Cart & Project',
-                  style: GoogleFonts.playfairDisplay(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    color: palette.textPrimary,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                if (items.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: palette.primary,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '${items.length}',
-                      style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            actions: [
-              if (items.isNotEmpty)
-                TextButton(
-                  onPressed: () {
-                    HapticFeedback.mediumImpact();
-                    ref.read(cartProvider.notifier).clear();
-                  },
-                  child: Text(
-                    'Clear',
-                    style: GoogleFonts.inter(color: palette.error, fontSize: 13, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              const SizedBox(width: 8),
-            ],
-          ),
-
-          if (items.isEmpty)
-            SliverFillRemaining(child: _EmptyCart(palette: palette))
-          else ...[
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (ctx, i) => _CartCard(
-                    item: items[i],
-                    index: i,
-                    palette: palette,
-                    onRemove: () {
-                      HapticFeedback.mediumImpact();
-                      ref.read(cartProvider.notifier).removeItem(i);
-                      ScaffoldMessenger.of(ctx).showSnackBar(
-                        SnackBar(
-                          content: const Text('Removed from cart'),
-                          backgroundColor: palette.textPrimary,
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      body: Stack(
+        children: [
+          // Centered Responsive Scroll Area
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 680),
+              child: CustomScrollView(
+                physics: const BouncingScrollPhysics(),
+                slivers: [
+                  SliverAppBar(
+                    backgroundColor: palette.background,
+                    pinned: true,
+                    elevation: 0,
+                    scrolledUnderElevation: 0,
+                    automaticallyImplyLeading: false,
+                    leading: Navigator.of(context).canPop()
+                        ? IconButton(
+                            icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 20),
+                            onPressed: () => Navigator.of(context).pop(),
+                          )
+                        : null,
+                    title: Row(
+                      children: [
+                        Text(
+                          'Cart & Project',
+                          style: GoogleFonts.playfairDisplay(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                            color: palette.textPrimary,
+                          ),
                         ),
-                      );
-                    },
-                    onUpdateQty: (delta) {
-                      HapticFeedback.lightImpact();
-                      ref.read(cartProvider.notifier).updateQuantity(i, delta);
-                    },
-                  ),
-                  childCount: items.length,
-                ),
-              ),
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              sliver: SliverToBoxAdapter(
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: palette.surface,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: palette.border),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.02),
-                        blurRadius: 10,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Price Details',
-                        style: GoogleFonts.inter(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: palette.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      _PriceRow(label: 'Subtotal', amount: subtotal, palette: palette),
-                      const SizedBox(height: 12),
-                      _PriceRow(label: 'GST (18%)', amount: gst, palette: palette),
-                      const SizedBox(height: 12),
-                      _PriceRow(label: 'Shipping / Transit Insurance', amount: shipping, palette: palette, highlight: shipping == 0),
-                      Divider(color: palette.border, height: 28),
-                      _PriceRow(label: 'Estimated Total', amount: total, palette: palette, isTotal: true),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 180),
-              sliver: SliverToBoxAdapter(
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: palette.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: palette.primary.withValues(alpha: 0.25)),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.local_shipping_outlined, color: palette.primary),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Free Shipping on orders above ₹10,000',
+                        const SizedBox(width: 8),
+                        if (items.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [palette.primary, palette.primary.withValues(alpha: 0.85)],
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '${items.length}',
                               style: GoogleFonts.inter(
-                                fontSize: 13,
-                                color: palette.textPrimary,
-                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
-                            Text(
-                              subtotal < 10000
-                                  ? 'Add ₹${(10000 - subtotal).toInt()} more to unlock complimentary delivery'
-                                  : 'Complimentary shipping applied!',
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                color: palette.textSecondary,
+                          ),
+                      ],
+                    ),
+                    actions: [
+                      if (items.isNotEmpty)
+                        TextButton(
+                          onPressed: () => _confirmClearCart(context, ref, palette),
+                          child: Text(
+                            'Clear',
+                            style: GoogleFonts.inter(color: palette.error, fontSize: 13, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      const SizedBox(width: 8),
+                    ],
+                  ),
+
+                  if (items.isEmpty)
+                    SliverFillRemaining(child: _EmptyCart(palette: palette))
+                  else ...[
+                    // Stone Items
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (ctx, i) => FadeInStagger(
+                            index: i,
+                            child: _CartCard(
+                              item: items[i],
+                              index: i,
+                              palette: palette,
+                              onRemove: () {
+                                HapticFeedback.mediumImpact();
+                                final removedItem = items[i];
+                                ref.read(cartProvider.notifier).removeItem(i);
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                  SnackBar(
+                                    content: Text('${removedItem.stone.name} removed from cart'),
+                                    backgroundColor: palette.textPrimary,
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    action: SnackBarAction(
+                                      label: 'Undo',
+                                      textColor: palette.primary,
+                                      onPressed: () {
+                                        ref.read(cartProvider.notifier).addItem(
+                                          removedItem.stone,
+                                          quantity: removedItem.quantity,
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                );
+                              },
+                              onUpdateQty: (delta) {
+                                HapticFeedback.selectionClick();
+                                ref.read(cartProvider.notifier).updateQuantity(i, delta);
+                              },
+                            ),
+                          ),
+                          childCount: items.length,
+                        ),
+                      ),
+                    ),
+
+                    // Price Details Summary Card
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      sliver: SliverToBoxAdapter(
+                        child: Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: palette.surface,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: palette.border),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.03),
+                                blurRadius: 14,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Price Details',
+                                style: GoogleFonts.inter(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: palette.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              _PriceRow(label: 'Subtotal', amount: subtotal, palette: palette),
+                              const SizedBox(height: 12),
+                              _PriceRow(label: 'GST (18%)', amount: gst, palette: palette),
+                              const SizedBox(height: 12),
+                              _PriceRow(
+                                label: 'Shipping / Transit Insurance',
+                                amount: shipping,
+                                palette: palette,
+                                highlight: shipping == 0,
+                              ),
+                              Divider(color: palette.border, height: 28),
+                              _PriceRow(
+                                label: 'Estimated Total',
+                                amount: total,
+                                palette: palette,
+                                isTotal: true,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Free Shipping Progress Card
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      sliver: SliverToBoxAdapter(
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: palette.primary.withValues(alpha: isDark ? 0.12 : 0.08),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: palette.primary.withValues(alpha: 0.25)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.local_shipping_outlined, color: palette.primary, size: 22),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      subtotal >= 10000
+                                          ? 'Complimentary Delivery & Insurance Unlocked!'
+                                          : 'Free Delivery on orders above ₹10,000',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 13,
+                                        color: palette.textPrimary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: LinearProgressIndicator(
+                                  value: (subtotal / 10000).clamp(0.0, 1.0),
+                                  backgroundColor: palette.border,
+                                  valueColor: AlwaysStoppedAnimation<Color>(palette.primary),
+                                  minHeight: 6,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                subtotal < 10000
+                                    ? 'Add ₹${(10000 - subtotal).toInt()} more to unlock complimentary white-glove transit'
+                                    : 'Complimentary white-glove delivery & transit insurance applied ✓',
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  color: palette.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Trust Badges
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 240),
+                      sliver: SliverToBoxAdapter(
+                        child: Row(
+                          children: [
+                            Expanded(child: _buildTrustBadge(Icons.verified_outlined, '100% Genuine', 'Quarry certified', palette)),
+                            const SizedBox(width: 10),
+                            Expanded(child: _buildTrustBadge(Icons.security_outlined, 'Insured Transit', 'Zero-breakage cover', palette)),
+                            const SizedBox(width: 10),
+                            Expanded(child: _buildTrustBadge(Icons.support_agent_outlined, 'Expert Architect', 'Dedicated support', palette)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+
+          // Floating Glass Checkout Bar (Appears above GraziaBottomNav)
+          if (items.isNotEmpty)
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: (bottomPadding > 0 ? bottomPadding + 6 : 14) + 72,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(28),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? const Color(0xFF1B1917).withValues(alpha: 0.92)
+                              : Colors.white.withValues(alpha: 0.92),
+                          borderRadius: BorderRadius.circular(28),
+                          border: Border.all(
+                            color: palette.primary.withValues(alpha: 0.35),
+                            width: 1.0,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.12),
+                              blurRadius: 24,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Total Payable',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    color: palette.textSecondary,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 1),
+                                Text(
+                                  '₹${total.toInt()}',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 20,
+                                    color: palette.primary,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const Spacer(),
+                            ApplePressable(
+                              onTap: () {
+                                HapticFeedback.mediumImpact();
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => CheckoutScreen(
+                                      items: items
+                                          .map((item) => CheckoutItem(
+                                                stoneId: item.stone.id,
+                                                name: item.stone.name,
+                                                quantity: item.quantity,
+                                                price: item.stone.pricePerSqFt,
+                                              ))
+                                          .toList(),
+                                      subtotal: subtotal,
+                                      gst: gst,
+                                      shipping: shipping,
+                                      total: total,
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 13),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      palette.primary,
+                                      palette.primary.withValues(alpha: 0.85),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(20),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: palette.primary.withValues(alpha: 0.3),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'Checkout',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    const Icon(Icons.arrow_forward_rounded, size: 16, color: Colors.white),
+                                  ],
+                                ),
                               ),
                             ),
                           ],
                         ),
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ],
         ],
       ),
-      bottomNavigationBar: items.isEmpty
-          ? null
-          : Container(
-              padding: EdgeInsets.only(
-                left: 18,
-                right: 18,
-                top: 14,
-                bottom: MediaQuery.of(context).padding.bottom + (Navigator.of(context).canPop() ? 10 : 80),
-              ),
-              decoration: BoxDecoration(
-                color: palette.surface,
-                border: Border(top: BorderSide(color: palette.border, width: 1.0)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 16,
-                    offset: const Offset(0, -4),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Total Payable',
-                        style: GoogleFonts.inter(fontSize: 11, color: palette.textSecondary),
-                      ),
-                      Text(
-                        '₹${total.toInt()}',
-                        style: GoogleFonts.inter(
-                          fontSize: 20,
-                          color: palette.primary,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(width: 20),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        HapticFeedback.mediumImpact();
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => CheckoutScreen(
-                              items: items
-                                  .map((item) => CheckoutItem(
-                                        stoneId: item.stone.id,
-                                        name: item.stone.name,
-                                        quantity: item.quantity,
-                                        price: item.stone.pricePerSqFt,
-                                      ))
-                                  .toList(),
-                              subtotal: subtotal,
-                              gst: gst,
-                              shipping: shipping,
-                              total: total,
-                            ),
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: palette.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        elevation: 0,
-                      ),
-                      child: Text(
-                        'Proceed to Checkout',
-                        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+    );
+  }
+
+  Widget _buildTrustBadge(IconData icon, String title, String subtitle, LuxuryPalette palette) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: palette.border),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 20, color: palette.primary),
+          const SizedBox(height: 6),
+          Text(
+            title,
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: palette.textPrimary,
             ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            style: GoogleFonts.inter(
+              fontSize: 9,
+              color: palette.textTertiary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -527,47 +724,186 @@ class _EmptyCart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 88,
-            height: 88,
-            decoration: BoxDecoration(
-              color: palette.surfaceDark,
-              shape: BoxShape.circle,
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.only(bottom: 90, left: 24, right: 24, top: 20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Ambient glowing gold shopping bag badge
+            Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    palette.primary.withValues(alpha: 0.18),
+                    palette.surfaceDark.withValues(alpha: 0.5),
+                  ],
+                ),
+                border: Border.all(
+                  color: palette.primary.withValues(alpha: 0.35),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: palette.primary.withValues(alpha: 0.15),
+                    blurRadius: 28,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: Icon(Icons.shopping_bag_outlined, size: 44, color: palette.primary),
             ),
-            child: Icon(Icons.shopping_bag_outlined, size: 40, color: palette.textTertiary),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Your Cart is Empty',
-            style: GoogleFonts.playfairDisplay(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              color: palette.textPrimary,
+            const SizedBox(height: 24),
+            Text(
+              'Your Project Cart is Empty',
+              style: GoogleFonts.playfairDisplay(
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                color: palette.textPrimary,
+              ),
+              textAlign: TextAlign.center,
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Explore our curated collections and add\narchitectural stone slabs to your project.',
-            style: GoogleFonts.inter(fontSize: 13, color: palette.textSecondary, height: 1.4),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () => context.go('/collections'),
-            icon: const Icon(Icons.grid_view_rounded, size: 18),
-            label: const Text('Browse Curated Stones'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: palette.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              elevation: 0,
+            const SizedBox(height: 10),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 380),
+              child: Text(
+                'Explore our curated Italian marbles, granites, and rare onyx slabs to create a bespoke architectural estimate.',
+                style: GoogleFonts.inter(fontSize: 13, color: palette.textSecondary, height: 1.45),
+                textAlign: TextAlign.center,
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 28),
+            ApplePressable(
+              onTap: () {
+                HapticFeedback.mediumImpact();
+                context.go('/collections');
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 15),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      palette.primary,
+                      palette.primary.withValues(alpha: 0.85),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: palette.primary.withValues(alpha: 0.35),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.grid_view_rounded, size: 18, color: Colors.white),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Browse Curated Stones',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 36),
+
+            // Quick Studio Shortcuts
+            Text(
+              'QUICK ARCHITECTURAL TOOLS',
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: palette.textTertiary,
+                letterSpacing: 1.2,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              alignment: WrapAlignment.center,
+              children: [
+                _buildShortcutChip(
+                  context,
+                  icon: Icons.auto_awesome_rounded,
+                  label: 'AI Studio',
+                  onTap: () => context.go('/tools'),
+                  palette: palette,
+                ),
+                _buildShortcutChip(
+                  context,
+                  icon: Icons.view_in_ar_rounded,
+                  label: 'Live AR View',
+                  onTap: () => context.push('/ar-view'),
+                  palette: palette,
+                ),
+                _buildShortcutChip(
+                  context,
+                  icon: Icons.square_foot_rounded,
+                  label: 'Wall Estimator',
+                  onTap: () => context.push('/measure/tile-visualizer'),
+                  palette: palette,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildShortcutChip(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    required LuxuryPalette palette,
+  }) {
+    return ApplePressable(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: palette.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: palette.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: palette.primary),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: palette.textPrimary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -579,6 +915,7 @@ class _CartCard extends StatelessWidget {
   final LuxuryPalette palette;
   final VoidCallback onRemove;
   final ValueChanged<int> onUpdateQty;
+
   const _CartCard({
     required this.item,
     required this.index,
@@ -594,18 +931,25 @@ class _CartCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: palette.surface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: palette.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
             child: SmartStoneImage(
               localAsset: item.stone.images.isNotEmpty ? item.stone.images.first : null,
-              width: 80,
-              height: 80,
+              width: 86,
+              height: 86,
               fit: BoxFit.cover,
               fallbackColor: palette.surfaceDark,
             ),
@@ -623,46 +967,59 @@ class _CartCard extends StatelessWidget {
                         item.stone.name,
                         style: GoogleFonts.playfairDisplay(
                           color: palette.textPrimary,
-                          fontSize: 15,
+                          fontSize: 16,
                           fontWeight: FontWeight.w700,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    GestureDetector(
+                    ApplePressable(
                       onTap: onRemove,
                       child: Container(
-                        padding: const EdgeInsets.all(4),
+                        padding: const EdgeInsets.all(5),
                         decoration: BoxDecoration(
                           color: palette.surfaceDark,
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Icon(Icons.close, color: palette.textTertiary, size: 14),
+                        child: Icon(Icons.close_rounded, color: palette.textTertiary, size: 14),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 3),
-                Text(
-                  item.stone.collection,
-                  style: GoogleFonts.inter(fontSize: 11, color: palette.textSecondary),
+                Row(
+                  children: [
+                    Text(
+                      item.stone.collection,
+                      style: GoogleFonts.inter(fontSize: 11, color: palette.textSecondary),
+                    ),
+                    if (item.stone.finish.isNotEmpty) ...[
+                      Text(' • ', style: TextStyle(color: palette.textTertiary, fontSize: 10)),
+                      Text(
+                        item.stone.finish,
+                        style: GoogleFonts.inter(fontSize: 11, color: palette.textTertiary),
+                      ),
+                    ],
+                  ],
                 ),
                 const SizedBox(height: 12),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
+                    // Apple-style tactile stepper
                     Container(
                       decoration: BoxDecoration(
-                        border: Border.all(color: palette.border),
+                        color: palette.surfaceDark,
                         borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: palette.border),
                       ),
                       child: Row(
                         children: [
-                          GestureDetector(
+                          ApplePressable(
                             onTap: () => onUpdateQty(-1),
                             child: Padding(
-                              padding: const EdgeInsets.all(6),
+                              padding: const EdgeInsets.all(7),
                               child: Icon(Icons.remove, size: 14, color: palette.textPrimary),
                             ),
                           ),
@@ -677,10 +1034,10 @@ class _CartCard extends StatelessWidget {
                               ),
                             ),
                           ),
-                          GestureDetector(
+                          ApplePressable(
                             onTap: () => onUpdateQty(1),
                             child: Padding(
-                              padding: const EdgeInsets.all(6),
+                              padding: const EdgeInsets.all(7),
                               child: Icon(Icons.add, size: 14, color: palette.textPrimary),
                             ),
                           ),
@@ -695,7 +1052,7 @@ class _CartCard extends StatelessWidget {
                           style: GoogleFonts.inter(
                             color: palette.primary,
                             fontWeight: FontWeight.w800,
-                            fontSize: 15,
+                            fontSize: 16,
                           ),
                         ),
                         Text(

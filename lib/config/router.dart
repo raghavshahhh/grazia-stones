@@ -283,6 +283,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 _fadePage(const AiToolsHubScreen(), state),
           ),
           GoRoute(
+            path: '/cart',
+            pageBuilder: (context, state) =>
+                _fadePage(const CartScreen(), state),
+          ),
+          GoRoute(
             path: '/profile',
             pageBuilder: (context, state) =>
                 _fadePage(const ProfileScreen(), state),
@@ -291,12 +296,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
 
       // --- Detail screens (slide up, no bottom nav) ---
-      GoRoute(
-        path: '/cart',
-        parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) =>
-            _slideUpPage(const CartScreen(), state),
-      ),
       GoRoute(
         path: '/search',
         parentNavigatorKey: _rootNavigatorKey,
