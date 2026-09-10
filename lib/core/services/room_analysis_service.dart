@@ -20,7 +20,7 @@ class RoomAnalysisService {
 
   RoomAnalysisService._();
 
-  final _supabase = SupabaseService.instance.client;
+  SupabaseClient? get _supabase => SupabaseService.instance.clientOrNull;
 
   bool _initialized = false;
 
@@ -48,23 +48,29 @@ class RoomAnalysisService {
       final base64Image = base64Encode(bytes);
       final imageDataUrl = 'data:image/jpeg;base64,$base64Image';
 
-      // Upload to storage so the result image URL is durable (not just the
-      // data: URL), and for the caller to reference the input later.
-      final fileName = 'room_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      await _supabase.storage.from('ai-visualizations').uploadBinary(
-            'temp/$fileName',
-            bytes,
-            fileOptions: const FileOptions(
-              contentType: 'image/jpeg',
-              cacheControl: '3600',
-            ),
-          );
+      // Upload to storage if Supabase is available
+      final supabaseClient = _supabase;
+      if (supabaseClient != null) {
+        try {
+          final fileName = 'room_${DateTime.now().millisecondsSinceEpoch}.jpg';
+          await supabaseClient.storage.from('ai-visualizations').uploadBinary(
+                'temp/$fileName',
+                bytes,
+                fileOptions: const FileOptions(
+                  contentType: 'image/jpeg',
+                  cacheControl: '3600',
+                ),
+              );
 
-      final imageUrl = _supabase.storage
-          .from('ai-visualizations')
-          .getPublicUrl('temp/$fileName');
+          final imageUrl = supabaseClient.storage
+              .from('ai-visualizations')
+              .getPublicUrl('temp/$fileName');
 
-      debugPrint('📤 Image uploaded: $imageUrl');
+          debugPrint('📤 Image uploaded: $imageUrl');
+        } catch (storageErr) {
+          debugPrint('⚠️ Optional storage upload bypassed: $storageErr');
+        }
+      }
 
       final data = await AIEndpointClient.post('/api/wall-detect', {
         'image': imageDataUrl,

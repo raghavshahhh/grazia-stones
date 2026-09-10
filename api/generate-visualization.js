@@ -27,13 +27,12 @@ function _isRateLimited(ip) {
   return hit.count > RATE_LIMIT_MAX;
 }
 
-// 4 variant angles so repeated calls for the same product don't return the
-// same image — see PHASE 6 (four distinct concepts) in the product brief.
+// 4 variant angles and colorway recommendations
 const VARIANT_PROMPTS = [
-  'Render it in natural daytime lighting, straight-on perspective.',
-  'Render it in warm evening ambient lighting, slightly angled perspective.',
-  'Render it with dramatic accent lighting highlighting the stone texture.',
-  'Render it in bright, even studio-style lighting for a clean showroom look.',
+  'Palette 1 (Classic Original): Natural daylight illumination, true-to-life architectural perspective preserving original natural stone veining.',
+  'Palette 2 (Warm Champagne Gold): Warm golden hour ambient lighting with soft amber and honey undertones accentuating the stone.',
+  'Palette 3 (Noir Charcoal Dramatic): Moody, deep slate noir architectural accent lighting with high-contrast luxury drama.',
+  'Palette 4 (Cool Bianco Mist): Ultra-crisp modern showroom illumination with pure silver-white clean marble aesthetics.',
 ];
 
 function _buildPrompt({ stoneName, color, finish, variantIndex }) {
