@@ -10,7 +10,13 @@ const NIM_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
 // SAM (Segment Anything Model) for pixel-level segmentation.
 // This endpoint provides both semantic understanding AND true segmentation masks.
 const NIM_MODEL_VLM = 'meta/llama-3.2-11b-vision-instruct';
-const NIM_MODEL_SAM = 'nvidia/segformer-b5-finetuned-ade-512-512'; // SAM via NIM
+// Checked live against NIM's /v1/models catalog on 2026-09-12: this model id
+// does not exist on the account's NIM catalog (confirmed via direct API
+// call, not assumed) — every useSegmentation=true request currently fails
+// and falls back to VLM-only via the try/catch in the handler below. Left
+// as-is rather than fabricating a replacement model id that hasn't been
+// verified to exist; the existing fallback already degrades gracefully.
+const NIM_MODEL_SAM = 'nvidia/segformer-b5-finetuned-ade-512-512'; // SAM via NIM — currently unavailable, see comment above
 const MAX_IMAGE_LENGTH = 500_000; // Increased for higher-res input (640px ~80KB base64)
 const ALLOWED_ORIGINS = ['https://grazia-stones.vercel.app', 'http://localhost:3000', 'http://localhost:8080', 'https://grazia-stones-git-main-raghavshah.vercel.app'];
 
@@ -95,10 +101,14 @@ OUTPUT FORMAT — JSON ONLY:
   "confidence": 0.0-1.0
 }`;
 
+// Verified live against NIM's /v1/models catalog on 2026-09-12 with the
+// production key. 'microsoft/phi-3.5-vision-instruct' (previous value) does
+// not exist on NIM and always 404'd — silently wasting a fallback attempt
+// on every VLM failure. The correct id is phi-3-vision-128k-instruct.
 const FALLBACK_VLM_MODELS = [
   'meta/llama-3.2-11b-vision-instruct',
   'meta/llama-3.2-90b-vision-instruct',
-  'microsoft/phi-3.5-vision-instruct',
+  'microsoft/phi-3-vision-128k-instruct',
 ];
 
 async function _callNIM(model, prompt, imageDataUrl) {

@@ -115,8 +115,19 @@ class SupabaseService {
   }
 
   /// Delete account
+  ///
+  /// `auth.admin.deleteUser()` is a GoTrue *admin* API that requires the
+  /// service_role key — calling it directly from this client (which only
+  /// ever holds the anon/publishable key, by design) always failed with
+  /// 401/403. Deletion now goes through the `delete-account` edge function,
+  /// which verifies the caller's own JWT server-side and deletes exactly
+  /// that account using the service_role key kept in the function's env.
   Future<void> deleteAccount() async {
-    await auth.admin.deleteUser(currentUser!.id);
+    final response = await client.functions.invoke('delete-account');
+    if (response.status != 200) {
+      final error = (response.data is Map) ? response.data['error'] : null;
+      throw Exception(error ?? 'Failed to delete account');
+    }
   }
 
   /// Get current user profile from profiles table

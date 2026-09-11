@@ -38,7 +38,12 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    // See create-razorpay-order/index.ts: auth.getUser() with no argument
+    // reads client-side session state that a fresh server-side client never
+    // has, so this always failed regardless of token validity. Pass the
+    // token explicitly to validate it directly against GoTrue.
+    const token = authHeader.replace(/^Bearer\s+/i, "");
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Invalid token" }), {
         status: 401,

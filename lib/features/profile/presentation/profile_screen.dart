@@ -503,7 +503,15 @@ class ProfileScreen extends ConsumerWidget {
                     title: 'Sign Out',
                     subtitle: 'Safely end active architectural session',
                     isDestructive: true,
-                    onTap: () => _confirmLogout(context),
+                    onTap: () => _confirmLogout(context, ref),
+                  ),
+                  _MenuItem(
+                    palette: palette,
+                    icon: Icons.delete_outline_rounded,
+                    title: 'Delete Account',
+                    subtitle: 'Permanently remove your account and data',
+                    isDestructive: true,
+                    onTap: () => _confirmDeleteAccount(context, ref),
                   ),
 
                   const SizedBox(height: 24),
@@ -529,7 +537,7 @@ class ProfileScreen extends ConsumerWidget {
   }
 
 
-  void _confirmLogout(BuildContext context) {
+  void _confirmLogout(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
       builder: (ctx) {
@@ -543,11 +551,54 @@ class ProfileScreen extends ConsumerWidget {
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade600, foregroundColor: Colors.white, elevation: 0),
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(ctx);
-                context.go('/login');
+                // This used to just navigate to /login without ever calling
+                // the real sign-out — the Supabase session stayed fully
+                // valid, so on a shared device the next person to open the
+                // app was still authenticated as the "signed out" user.
+                await ref.read(authRiverpodProvider.notifier).logout();
+                if (context.mounted) context.go('/login');
               },
               child: const Text('Sign Out'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _confirmDeleteAccount(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: Text('Delete Account', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+          content: Text(
+            'This permanently deletes your account and all associated data — orders, wishlist, saved designs, addresses. This cannot be undone.',
+            style: GoogleFonts.inter(fontSize: 13),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade600, foregroundColor: Colors.white, elevation: 0),
+              onPressed: () async {
+                Navigator.pop(ctx);
+                try {
+                  await ref.read(authRiverpodProvider.notifier).deleteAccount();
+                  if (context.mounted) context.go('/login');
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Could not delete account: $e')),
+                    );
+                  }
+                }
+              },
+              child: const Text('Delete Account'),
             ),
           ],
         );

@@ -38,7 +38,15 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    // supabase-js's auth.getUser() with no argument reads from the client's
+    // internal session store, which is never populated just by setting a
+    // global Authorization header on a fresh server-side client — it always
+    // threw "Auth session missing!" here, meaning every request was
+    // rejected as unauthenticated regardless of how valid the caller's JWT
+    // was. Passing the token explicitly validates it directly against
+    // GoTrue instead of relying on client-side session state.
+    const token = authHeader.replace(/^Bearer\s+/i, "");
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Invalid token" }), {
         status: 401,
