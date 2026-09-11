@@ -2,6 +2,8 @@
 // generation step. Keeps GEMINI_API_KEY out of the client bundle, same
 // pattern as api/wall-detect.js (which handles room *analysis* only).
 
+const { verifyRequestAuth } = require('./_supabaseAuth');
+
 const GEMINI_URL =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent';
 const MAX_IMAGE_LENGTH = 500_000;
@@ -12,19 +14,24 @@ const ALLOWED_ORIGINS = [
   'https://grazia-stones-git-main-raghavshah.vercel.app',
 ];
 
+// Authenticated callers get the full limit; guests (intentional current
+// product behaviour — see _supabaseAuth.js) get a tighter one. Generation
+// is the heaviest/most expensive call in this app, so the guest cap here is
+// the strictest of the two AI endpoints.
 const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX = 15; // generation is heavier than analysis — tighter cap
+const RATE_LIMIT_MAX_AUTH = 15; // generation is heavier than analysis — tighter cap
+const RATE_LIMIT_MAX_GUEST = 4;
 const _rateLimitHits = new Map();
 
-function _isRateLimited(ip) {
+function _isRateLimited(key, max) {
   const now = Date.now();
-  const hit = _rateLimitHits.get(ip);
+  const hit = _rateLimitHits.get(key);
   if (!hit || now - hit.windowStart > RATE_LIMIT_WINDOW_MS) {
-    _rateLimitHits.set(ip, { windowStart: now, count: 1 });
+    _rateLimitHits.set(key, { windowStart: now, count: 1 });
     return false;
   }
   hit.count++;
-  return hit.count > RATE_LIMIT_MAX;
+  return hit.count > max;
 }
 
 // 4 variant angles and colorway recommendations
@@ -81,8 +88,16 @@ module.exports = async (req, res) => {
     return;
   }
 
+  const auth = await verifyRequestAuth(req);
+  if (auth.invalid) {
+    res.status(401).json({ error: 'Invalid or expired session' });
+    return;
+  }
+
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
-  if (_isRateLimited(ip)) {
+  const rateLimitKey = auth.authenticated ? `user:${auth.userId}` : `guest:${ip}`;
+  const rateLimitMax = auth.authenticated ? RATE_LIMIT_MAX_AUTH : RATE_LIMIT_MAX_GUEST;
+  if (_isRateLimited(rateLimitKey, rateLimitMax)) {
     res.status(429).json({ error: 'Too many requests' });
     return;
   }

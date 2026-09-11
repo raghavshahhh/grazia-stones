@@ -3,6 +3,8 @@
 // this endpoint instead of NIM directly (grazia-stones is a static SPA;
 // anything shipped to build/web is world-readable).
 
+const { verifyRequestAuth } = require('./_supabaseAuth');
+
 const NIM_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
 // Using Llama 3.2 Vision for semantic understanding + geometry.
 // SAM (Segment Anything Model) for pixel-level segmentation.
@@ -12,20 +14,24 @@ const NIM_MODEL_SAM = 'nvidia/segformer-b5-finetuned-ade-512-512'; // SAM via NI
 const MAX_IMAGE_LENGTH = 500_000; // Increased for higher-res input (640px ~80KB base64)
 const ALLOWED_ORIGINS = ['https://grazia-stones.vercel.app', 'http://localhost:3000', 'http://localhost:8080', 'https://grazia-stones-git-main-raghavshah.vercel.app'];
 
-// Rate limiting
+// Rate limiting — authenticated callers get the full limit; unauthenticated
+// (guest) callers get a much tighter one. Guest AI usage is intentional
+// current product behaviour (see _supabaseAuth.js), this just bounds how
+// much of the paid NIM quota an anonymous caller can burn per IP.
 const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX = 30;
+const RATE_LIMIT_MAX_AUTH = 30;
+const RATE_LIMIT_MAX_GUEST = 8;
 const _rateLimitHits = new Map();
 
-function _isRateLimited(ip) {
+function _isRateLimited(key, max) {
   const now = Date.now();
-  const hit = _rateLimitHits.get(ip);
+  const hit = _rateLimitHits.get(key);
   if (!hit || now - hit.windowStart > RATE_LIMIT_WINDOW_MS) {
-    _rateLimitHits.set(ip, { windowStart: now, count: 1 });
+    _rateLimitHits.set(key, { windowStart: now, count: 1 });
     return false;
   }
   hit.count++;
-  return hit.count > RATE_LIMIT_MAX;
+  return hit.count > max;
 }
 
 // Enhanced prompt for more precise geometric detection with pixel-level segmentation
@@ -184,8 +190,16 @@ module.exports = async (req, res) => {
     return;
   }
 
+  const auth = await verifyRequestAuth(req);
+  if (auth.invalid) {
+    res.status(401).json({ error: 'Invalid or expired session' });
+    return;
+  }
+
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
-  if (_isRateLimited(ip)) {
+  const rateLimitKey = auth.authenticated ? `user:${auth.userId}` : `guest:${ip}`;
+  const rateLimitMax = auth.authenticated ? RATE_LIMIT_MAX_AUTH : RATE_LIMIT_MAX_GUEST;
+  if (_isRateLimited(rateLimitKey, rateLimitMax)) {
     res.status(429).json({ error: 'Too many requests' });
     return;
   }
