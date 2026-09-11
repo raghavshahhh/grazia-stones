@@ -137,13 +137,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           children: [
             const GraziaLogo(variant: GraziaLogoVariant.emblem, height: 28),
             const SizedBox(width: 10),
-            Text(
-              'GRAZIA STONES',
-              style: GoogleFonts.playfairDisplay(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 3.5,
-                color: palette.textPrimary,
+            Flexible(
+              child: Text(
+                'GRAZIA STONES',
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 3.5,
+                  color: palette.textPrimary,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
