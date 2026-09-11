@@ -1,12 +1,57 @@
 import 'dart:async';
+import 'dart:io' show Platform;
+import 'dart:ui' as ui;
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:vector_math/vector_math_64.dart';
 
+/// Converts a Flutter logical-pixel screen point into the coordinate space a
+/// given native AR hit-test API expects.
+///
+/// ARKit's `hitTest`/raycast APIs are defined in UIKit "points", which are
+/// already the same unit as Flutter's logical pixels (both are the
+/// device-independent unit scaled by the same screen scale factor) — so iOS
+/// needs no conversion.
+///
+/// SceneView's `hitTestAR(xPx, yPx)` on Android expects raw native/physical
+/// pixels of the underlying Android View, which are `devicePixelRatio` times
+/// larger than Flutter's logical pixels. Sending logical pixels there was the
+/// bug: on a density-3.0 device a tap at the visual center would raycast at
+/// roughly 1/3 of the way into the screen instead.
+///
+/// Pulled out as a pure function (no platform channel calls) so it can be
+/// unit-tested deterministically without a device/plugin.
+@visibleForTesting
+Offset scaleLogicalPointForNativeAR(
+  Offset logicalPoint, {
+  required double devicePixelRatio,
+  required bool isAndroidNative,
+}) {
+  if (!isAndroidNative) return logicalPoint;
+  return Offset(
+    logicalPoint.dx * devicePixelRatio,
+    logicalPoint.dy * devicePixelRatio,
+  );
+}
+
 /// Platform channel for native AR (ARKit on iOS, ARCore on Android)
 class ARNativeChannel {
   static const MethodChannel _channel = MethodChannel('com.graziastones.ar/native');
+
+  /// Real device pixel ratio for the current display, used to convert
+  /// logical-pixel screen taps into native pixels for Android's SceneView
+  /// hit-test APIs. See [scaleLogicalPointForNativeAR].
+  static double get _devicePixelRatio =>
+      ui.PlatformDispatcher.instance.views.first.devicePixelRatio;
+
+  static Offset _toNativeScreenPoint(Offset logicalPoint) {
+    return scaleLogicalPointForNativeAR(
+      logicalPoint,
+      devicePixelRatio: _devicePixelRatio,
+      isAndroidNative: !kIsWeb && Platform.isAndroid,
+    );
+  }
   static const EventChannel _eventChannel = EventChannel('com.graziastones.ar/events');
   
   static final StreamController<Map<String, dynamic>> _wallDetectedController = 
@@ -201,9 +246,10 @@ class ARNativeChannel {
   /// didn't hit a tracked wall plane (never falls back to screen coordinates).
   static Future<Map<String, dynamic>?> hitTestWallAtScreenPoint(Offset screenPoint) async {
     try {
+      final nativePoint = _toNativeScreenPoint(screenPoint);
       final result = await _channel.invokeMethod('hitTestWallAtScreenPoint', {
-        'screenX': screenPoint.dx,
-        'screenY': screenPoint.dy,
+        'screenX': nativePoint.dx,
+        'screenY': nativePoint.dy,
       });
       if (result == null) return null;
       return Map<String, dynamic>.from(result as Map);
@@ -274,11 +320,13 @@ class ARNativeChannel {
   /// Measure distance between two screen points (requires calibration)
   static Future<double?> measureDistance(Offset p1, Offset p2) async {
     try {
+      final n1 = _toNativeScreenPoint(p1);
+      final n2 = _toNativeScreenPoint(p2);
       final result = await _channel.invokeMethod('measureDistance', {
-        'x1': p1.dx,
-        'y1': p1.dy,
-        'x2': p2.dx,
-        'y2': p2.dy,
+        'x1': n1.dx,
+        'y1': n1.dy,
+        'x2': n2.dx,
+        'y2': n2.dy,
       });
       return (result as num?)?.toDouble();
     } on PlatformException catch (e) {
