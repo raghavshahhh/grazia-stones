@@ -13,9 +13,9 @@ class GraziaGlobalErrorWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = GLuxuryPalettes.gold;
 
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: Scaffold(
+    return Material(
+      color: palette.background,
+      child: Scaffold(
         backgroundColor: palette.background,
         body: Center(
           child: Padding(

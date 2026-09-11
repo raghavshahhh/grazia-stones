@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/features/cart/presentation/cart_screen.dart';
-import 'package:grazia_stones/features/profile/presentation/edit_profile_screen.dart';
 import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/features/wishlist/providers/wishlist_provider.dart';
 
@@ -117,82 +116,122 @@ class ProfileScreen extends ConsumerWidget {
                           ),
                           child: Row(
                             children: [
-                              Container(
-                                width: 64,
-                                height: 64,
-                                decoration: BoxDecoration(
-                                  color: palette.primary.withValues(alpha: 0.12),
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: palette.primary.withValues(alpha: 0.3), width: 1.5),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    initials,
-                                    style: GoogleFonts.playfairDisplay(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.w800,
-                                      color: palette.primary,
-                                    ),
+                              InkWell(
+                                onTap: () => context.push('/edit-profile'),
+                                borderRadius: BorderRadius.circular(32),
+                                child: Container(
+                                  width: 64,
+                                  height: 64,
+                                  decoration: BoxDecoration(
+                                    color: palette.primary.withValues(alpha: 0.12),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: palette.primary.withValues(alpha: 0.3), width: 1.5),
+                                  ),
+                                  child: ClipOval(
+                                    child: auth.avatarUrl != null && auth.avatarUrl!.isNotEmpty
+                                        ? Image.network(
+                                            auth.avatarUrl!,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, _, _) => Center(
+                                              child: Text(
+                                                initials,
+                                                style: GoogleFonts.playfairDisplay(
+                                                  fontSize: 20,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: palette.primary,
+                                                ),
+                                              ),
+                                            ),
+                                          )
+                                        : Center(
+                                            child: Text(
+                                              initials,
+                                              style: GoogleFonts.playfairDisplay(
+                                                fontSize: 20,
+                                                fontWeight: FontWeight.w800,
+                                                color: palette.primary,
+                                              ),
+                                            ),
+                                          ),
                                   ),
                                 ),
                               ),
                               const SizedBox(width: 16),
                               Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      name,
-                                      style: GoogleFonts.playfairDisplay(
-                                        color: palette.textPrimary,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 18,
+                                child: InkWell(
+                                  onTap: () => context.push('/edit-profile'),
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Flexible(
+                                            child: Text(
+                                              name,
+                                              style: GoogleFonts.playfairDisplay(
+                                                color: palette.textPrimary,
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 18,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Icon(
+                                            Icons.verified,
+                                            size: 14,
+                                            color: palette.primary,
+                                          ),
+                                        ],
                                       ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      email,
-                                      style: GoogleFonts.inter(
-                                        color: palette.textSecondary,
-                                        fontSize: 12,
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        email,
+                                        style: GoogleFonts.inter(
+                                          color: palette.textSecondary,
+                                          fontSize: 12,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      phone,
-                                      style: GoogleFonts.inter(
-                                        color: palette.textTertiary,
-                                        fontSize: 11,
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        phone,
+                                        style: GoogleFonts.inter(
+                                          color: palette.textTertiary,
+                                          fontSize: 11,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
-                              GestureDetector(
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => const EditProfileScreen(),
+                              Tooltip(
+                                message: 'Edit Profile Details',
+                                child: InkWell(
+                                  onTap: () {
+                                    HapticFeedback.lightImpact();
+                                    context.push('/edit-profile');
+                                  },
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: palette.surface,
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(color: palette.border),
                                     ),
-                                  );
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: palette.surface,
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(color: palette.border),
+                                    child: Icon(Icons.edit_outlined, color: palette.primary, size: 16),
                                   ),
-                                   child: Icon(Icons.edit_outlined, color: palette.primary, size: 16),
-                                 ),
-                               ),
-                             ],
-                           ),
-                         );
-                       },
-                     ),
-                   ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
 
                    const SizedBox(height: 18),
 
