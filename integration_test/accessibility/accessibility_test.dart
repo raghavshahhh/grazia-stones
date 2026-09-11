@@ -6,7 +6,6 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../test_config.dart';
 import '../test_helpers.dart';
 import '../../test/helpers/test_app_wrapper.dart';
 

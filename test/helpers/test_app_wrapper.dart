@@ -3,7 +3,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:grazia_stones/main.dart' as app;
+import 'package:grazia_stones/app.dart';
 
 /// Creates a testable version of the app with mocked dependencies
 Widget createTestApp({
@@ -12,7 +12,7 @@ Widget createTestApp({
   bool mockNetwork = false,
 }) {
   return const ProviderScope(
-    child: app.MyApp(), // Use actual app for integration tests
+    child: GraziaApp(), // Use actual app for integration tests
   );
 }
 

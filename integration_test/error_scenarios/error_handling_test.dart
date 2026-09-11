@@ -275,11 +275,11 @@ void main() {
         await tester.pump();
 
         // Background app
-        await tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
         await tester.pump();
 
         // Foreground app
-        await tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
         await tester.pumpAndSettle();
 
         debugPrint('✅ App backgrounding handled');

@@ -23,10 +23,5 @@ jobs:
         run: flutter build web --release --dart-define=SUPABASE_URL=https://jrrmjtbauimrrxwjvmzh.supabase.co --dart-define=SUPABASE_ANON_KEY=sb_publishable_l0K305hiCMwZ8Mh3lON3YQ_ueSMXo4a
 
       - name: Deploy to Vercel
-        uses: amondnet/vercel-action@v25
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          vercel-args: '--prod'
-          working-directory: ./build/web
+        run: npx vercel --prod --yes --token=${{ secrets.VERCEL_TOKEN }}
+

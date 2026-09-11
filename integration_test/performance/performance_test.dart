@@ -461,12 +461,12 @@ void main() {
       await tester.pumpAndSettle();
 
       // Simulate background
-      await tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
       await tester.pump();
 
       // Resume (warm)
       PerformanceMeasure.start('warm_start');
-      await tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pumpAndSettle();
       final duration = PerformanceMeasure.end('warm_start');
 

@@ -243,9 +243,9 @@ void main() {
         await tester.pumpAndSettle();
 
         // Simulate app backgrounding and foregrounding
-        await tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
         await tester.pump();
-        await tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
         await tester.pumpAndSettle();
 
         debugPrint('✅ Navigation state persisted');

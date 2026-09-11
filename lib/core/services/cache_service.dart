@@ -20,7 +20,7 @@ class CacheService {
   final Duration _memoryTTL = const Duration(minutes: 30);
 
   // Disk cache (L2) - persistent, larger
-  late Directory _diskCacheDir;
+  Directory? _diskCacheDir;
   final int _maxDiskSizeMB = 200;
   final Duration _diskTTL = const Duration(days: 7);
 
@@ -30,11 +30,17 @@ class CacheService {
   Future<void> init() async {
     if (_initialized) return;
 
+    if (kIsWeb) {
+      _initialized = true;
+      debugPrint('✅ Cache service initialized (Web memory-only: $_maxMemoryEntries entries)');
+      return;
+    }
+
     try {
       final appDir = await getApplicationDocumentsDirectory();
       _diskCacheDir = Directory('${appDir.path}/cache');
-      if (!await _diskCacheDir.exists()) {
-        await _diskCacheDir.create(recursive: true);
+      if (!await _diskCacheDir!.exists()) {
+        await _diskCacheDir!.create(recursive: true);
       }
       
       // Clean expired entries on startup
@@ -105,8 +111,9 @@ class CacheService {
 
   /// Get from disk cache
   Future<CacheEntry?> _getFromDisk(String key) async {
+    if (kIsWeb || _diskCacheDir == null) return null;
     try {
-      final file = File('${_diskCacheDir.path}/$key.cache');
+      final file = File('${_diskCacheDir!.path}/$key.cache');
       if (!await file.exists()) return null;
       
       final content = await file.readAsString();
@@ -131,6 +138,7 @@ class CacheService {
 
   /// Put in disk cache
   Future<void> _putInDisk(String key, dynamic value, DateTime expiresAt) async {
+    if (kIsWeb || _diskCacheDir == null) return;
     try {
       final entry = CacheEntry(
         key: key,
@@ -140,7 +148,7 @@ class CacheService {
         lastAccessed: DateTime.now(),
       );
       
-      final file = File('${_diskCacheDir.path}/$key.cache');
+      final file = File('${_diskCacheDir!.path}/$key.cache');
       await file.writeAsString(jsonEncode(entry.toJson()));
       
       // Check disk size limit
@@ -152,8 +160,9 @@ class CacheService {
 
   /// Enforce disk size limit
   Future<void> _enforceDiskSizeLimit() async {
+    if (kIsWeb || _diskCacheDir == null) return;
     try {
-      final files = _diskCacheDir.listSync().whereType<File>().toList();
+      final files = _diskCacheDir!.listSync().whereType<File>().toList();
       int totalSize = 0;
       final fileInfos = <_FileInfo>[];
       
@@ -182,8 +191,9 @@ class CacheService {
 
   /// Clean expired entries from disk cache
   Future<void> _cleanExpiredDiskCache() async {
+    if (kIsWeb || _diskCacheDir == null) return;
     try {
-      final files = _diskCacheDir.listSync().whereType<File>().toList();
+      final files = _diskCacheDir!.listSync().whereType<File>().toList();
       
       for (final file in files) {
         try {
@@ -268,13 +278,15 @@ class CacheService {
     
     _memoryCache.remove(cacheKey);
     
-    try {
-      final file = File('${_diskCacheDir.path}/$cacheKey.cache');
-      if (await file.exists()) {
-        await file.delete();
+    if (!kIsWeb && _diskCacheDir != null) {
+      try {
+        final file = File('${_diskCacheDir!.path}/$cacheKey.cache');
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (e) {
+        debugPrint('Cache invalidate error: $e');
       }
-    } catch (e) {
-      debugPrint('Cache invalidate error: $e');
     }
     
     debugPrint('💾 Cache INVALIDATE: $namespace/$key');
@@ -286,17 +298,19 @@ class CacheService {
     _memoryCache.removeWhere((key, _) => key.startsWith('${sha256.convert(utf8.encode(namespace))}'));
     
     // Disk
-    try {
-      final prefix = _generateKey(namespace, '');
-      final files = _diskCacheDir.listSync().whereType<File>().toList();
-      
-      for (final file in files) {
-        if (file.path.contains(prefix)) {
-          await file.delete();
+    if (!kIsWeb && _diskCacheDir != null) {
+      try {
+        final prefix = _generateKey(namespace, '');
+        final files = _diskCacheDir!.listSync().whereType<File>().toList();
+        
+        for (final file in files) {
+          if (file.path.contains(prefix)) {
+            await file.delete();
+          }
         }
+      } catch (e) {
+        debugPrint('Cache namespace invalidate error: $e');
       }
-    } catch (e) {
-      debugPrint('Cache namespace invalidate error: $e');
     }
     
     debugPrint('💾 Cache INVALIDATE NAMESPACE: $namespace');
@@ -311,13 +325,15 @@ class CacheService {
   Future<void> clear() async {
     _memoryCache.clear();
     
-    try {
-      final files = _diskCacheDir.listSync().whereType<File>().toList();
-      for (final file in files) {
-        await file.delete();
+    if (!kIsWeb && _diskCacheDir != null) {
+      try {
+        final files = _diskCacheDir!.listSync().whereType<File>().toList();
+        for (final file in files) {
+          await file.delete();
+        }
+      } catch (e) {
+        debugPrint('Cache clear error: $e');
       }
-    } catch (e) {
-      debugPrint('Cache clear error: $e');
     }
     
     debugPrint('💾 Cache CLEARED');
@@ -329,15 +345,17 @@ class CacheService {
     int diskEntries = 0;
     int diskSizeBytes = 0;
     
-    try {
-      final files = _diskCacheDir.listSync().whereType<File>().toList();
-      diskEntries = files.length;
-      for (final file in files) {
-        final stat = await file.stat();
-        diskSizeBytes += stat.size;
+    if (!kIsWeb && _diskCacheDir != null) {
+      try {
+        final files = _diskCacheDir!.listSync().whereType<File>().toList();
+        diskEntries = files.length;
+        for (final file in files) {
+          final stat = await file.stat();
+          diskSizeBytes += stat.size;
+        }
+      } catch (e) {
+        debugPrint('Cache stats error: $e');
       }
-    } catch (e) {
-      debugPrint('Cache stats error: $e');
     }
     
     return CacheStats(

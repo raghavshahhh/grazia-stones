@@ -204,7 +204,7 @@ jobs:
             -d chrome --web-renderer html
       
       - name: Upload performance results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: performance-results
           path: test-results/
@@ -236,7 +236,7 @@ jobs:
             -d chrome --web-renderer html
       
       - name: Upload accessibility report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: accessibility-report
           path: test-results/

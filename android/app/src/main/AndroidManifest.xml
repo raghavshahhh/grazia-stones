@@ -8,7 +8,7 @@
          web-camera AR engine. isARSupported() does the real runtime check. -->
     <uses-feature android:name="android.hardware.camera.ar" android:required="false" />
     <application
-        android:label="grazia_stones"
+        android:label="Grazia Stones"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

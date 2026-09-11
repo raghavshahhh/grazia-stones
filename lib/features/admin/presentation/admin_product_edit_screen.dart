@@ -151,6 +151,7 @@ class _AdminProductEditScreenState extends ConsumerState<AdminProductEditScreen>
     if (picked != null) {
       final bytes = await picked.readAsBytes();
       final ext = picked.name.split('.').last;
+      if (!mounted) return;
       setState(() {
         _newImageBytes = bytes;
         _newImageExt = ext;
