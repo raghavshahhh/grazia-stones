@@ -1,0 +1,267 @@
+name: Automated Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  unit-tests:
+    name: Unit & Widget Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.3'
+          channel: 'stable'
+          cache: true
+      
+      - name: Get dependencies
+        run: flutter pub get
+      
+      - name: Analyze code
+        run: flutter analyze
+      
+      - name: Run unit tests
+        run: flutter test test/unit/ --coverage
+      
+      - name: Run widget tests
+        run: flutter test test/widget/ --coverage
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage/lcov.info
+          flags: unittests
+          name: codecov-umbrella
+
+  integration-tests-web:
+    name: Integration Tests (Web)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.3'
+          channel: 'stable'
+          cache: true
+      
+      - name: Get dependencies
+        run: flutter pub get
+      
+      - name: Enable web
+        run: flutter config --enable-web
+      
+      - name: Run E2E tests
+        run: |
+          flutter test integration_test/e2e/ \
+            --dart-define=FLUTTER_TEST_INTEGRATION=true \
+            -d chrome --web-renderer html
+      
+      - name: Run error scenario tests
+        run: |
+          flutter test integration_test/error_scenarios/ \
+            --dart-define=FLUTTER_TEST_INTEGRATION=true \
+            -d chrome --web-renderer html
+      
+      - name: Run responsive UI tests
+        run: |
+          flutter test integration_test/e2e/07_responsive_ui_test.dart \
+            --dart-define=FLUTTER_TEST_INTEGRATION=true \
+            -d chrome --web-renderer html
+
+  integration-tests-ios:
+    name: Integration Tests (iOS)
+    runs-on: macos-latest
+    timeout-minutes: 60
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.3'
+          channel: 'stable'
+          cache: true
+      
+      - name: Get dependencies
+        run: flutter pub get
+      
+      - name: List iOS Simulators
+        run: xcrun simctl list devices available
+      
+      - name: Boot iOS Simulator
+        run: |
+          SIMULATOR="iPhone 14 Pro"
+          xcrun simctl boot "$SIMULATOR" || true
+          sleep 10
+      
+      - name: Run iOS-specific tests
+        run: |
+          flutter test integration_test/platform/ios_specific_test.dart \
+            --dart-define=FLUTTER_TEST_INTEGRATION=true
+      
+      - name: Run E2E tests on iOS
+        run: |
+          flutter test integration_test/e2e/01_navigation_test.dart \
+            --dart-define=FLUTTER_TEST_INTEGRATION=true
+        continue-on-error: true
+
+  integration-tests-android:
+    name: Integration Tests (Android)
+    runs-on: macos-latest
+    timeout-minutes: 60
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.3'
+          channel: 'stable'
+          cache: true
+      
+      - name: Get dependencies
+        run: flutter pub get
+      
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+      
+      - name: AVD cache
+        uses: actions/cache@v3
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-33
+      
+      - name: Create AVD and generate snapshot
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          arch: x86_64
+          profile: pixel_6
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          script: echo "Generated AVD snapshot for caching."
+      
+      - name: Run Android-specific tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          arch: x86_64
+          profile: pixel_6
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: |
+            flutter test integration_test/platform/android_specific_test.dart \
+              --dart-define=FLUTTER_TEST_INTEGRATION=true
+        continue-on-error: true
+
+  performance-tests:
+    name: Performance Benchmarks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.3'
+          channel: 'stable'
+          cache: true
+      
+      - name: Get dependencies
+        run: flutter pub get
+      
+      - name: Run performance tests
+        run: |
+          flutter test integration_test/performance/ \
+            --dart-define=FLUTTER_TEST_INTEGRATION=true \
+            -d chrome --web-renderer html
+      
+      - name: Upload performance results
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-results
+          path: test-results/
+        if: always()
+
+  accessibility-tests:
+    name: Accessibility Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.3'
+          channel: 'stable'
+          cache: true
+      
+      - name: Get dependencies
+        run: flutter pub get
+      
+      - name: Run accessibility tests
+        run: |
+          flutter test integration_test/accessibility/ \
+            --dart-define=FLUTTER_TEST_INTEGRATION=true \
+            -d chrome --web-renderer html
+      
+      - name: Upload accessibility report
+        uses: actions/upload-artifact@v3
+        with:
+          name: accessibility-report
+          path: test-results/
+        if: always()
+
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests-web, integration-tests-ios, integration-tests-android, performance-tests, accessibility-tests]
+    if: always()
+    
+    steps:
+      - name: Check test results
+        run: |
+          echo "📊 Test Summary"
+          echo "==============="
+          echo "All test jobs completed!"
+          
+          if [ "${{ needs.unit-tests.result }}" != "success" ]; then
+            echo "❌ Unit tests failed"
+            exit 1
+          fi
+          
+          if [ "${{ needs.integration-tests-web.result }}" != "success" ]; then
+            echo "⚠️ Web integration tests had issues"
+          fi
+          
+          echo "✅ Test suite completed"
