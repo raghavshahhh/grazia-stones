@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/di.dart';
+import 'package:grazia_stones/core/services/location_service.dart';
 import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
@@ -81,6 +83,7 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
     String label = address?['label'] ?? 'Home';
     bool isDefault = address?['is_default'] ?? false;
     bool isSaving = false;
+    bool isDetectingLocation = false;
     String? validationError;
 
     return showModalBottomSheet<String>(
@@ -145,6 +148,126 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // Auto-detect Location Action Card
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 14),
+                            decoration: BoxDecoration(
+                              color: palette.primary.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: palette.primary.withValues(alpha: 0.3)),
+                            ),
+                            child: InkWell(
+                              onTap: isDetectingLocation
+                                  ? null
+                                  : () async {
+                                      setSheetState(() {
+                                        isDetectingLocation = true;
+                                        validationError = null;
+                                      });
+                                      HapticFeedback.lightImpact();
+
+                                      try {
+                                        final loc = await detectCurrentLocation();
+                                        if (loc != null) {
+                                          if (loc.addressLine1 != null && loc.addressLine1!.isNotEmpty) {
+                                            addr1Ctrl.text = loc.addressLine1!;
+                                          }
+                                          if (loc.addressLine2 != null && loc.addressLine2!.isNotEmpty) {
+                                            addr2Ctrl.text = loc.addressLine2!;
+                                          }
+                                          if (loc.city != null && loc.city!.isNotEmpty) {
+                                            cityCtrl.text = loc.city!;
+                                          }
+                                          if (loc.state != null && loc.state!.isNotEmpty) {
+                                            stateCtrl.text = loc.state!;
+                                          }
+                                          if (loc.pincode != null && loc.pincode!.isNotEmpty) {
+                                            pinCtrl.text = loc.pincode!;
+                                          }
+                                          final auth = ref.read(authRiverpodProvider);
+                                          if (nameCtrl.text.isEmpty && auth.userName != null && auth.userName!.isNotEmpty) {
+                                            nameCtrl.text = auth.userName!;
+                                          }
+                                          if (phoneCtrl.text.isEmpty && auth.userPhone != null && auth.userPhone!.isNotEmpty) {
+                                            phoneCtrl.text = auth.userPhone!;
+                                          }
+                                          HapticFeedback.mediumImpact();
+                                          setSheetState(() => isDetectingLocation = false);
+                                          if (sheetContext.mounted) {
+                                            ScaffoldMessenger.of(sheetContext).showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  '📍 Detected: ${loc.city ?? ""}${loc.pincode != null ? ' (${loc.pincode})' : ''}',
+                                                ),
+                                                backgroundColor: palette.primary,
+                                                behavior: SnackBarBehavior.floating,
+                                              ),
+                                            );
+                                          }
+                                        } else {
+                                          setSheetState(() {
+                                            isDetectingLocation = false;
+                                            validationError = 'Could not detect location. Please type manually.';
+                                          });
+                                        }
+                                      } catch (e) {
+                                        setSheetState(() {
+                                          isDetectingLocation = false;
+                                          validationError = 'Location detection error: $e';
+                                        });
+                                      }
+                                    },
+                              borderRadius: BorderRadius.circular(12),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: palette.primary,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: isDetectingLocation
+                                          ? const SizedBox(
+                                              width: 16,
+                                              height: 16,
+                                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                            )
+                                          : const Icon(Icons.my_location_rounded, color: Colors.white, size: 16),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            isDetectingLocation ? 'Detecting Location...' : 'Auto-Detect Current Location',
+                                            style: GoogleFonts.inter(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 13,
+                                              color: palette.textPrimary,
+                                            ),
+                                          ),
+                                          Text(
+                                            isDetectingLocation
+                                                ? 'Fetching GPS & city details...'
+                                                : 'Auto-fill street, city, state & pincode',
+                                            style: GoogleFonts.inter(
+                                              fontSize: 11,
+                                              color: palette.textSecondary,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (!isDetectingLocation)
+                                      Icon(Icons.auto_awesome_rounded, color: palette.primary, size: 18),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
                           if (validationError != null) ...[
                             Container(
                               padding: const EdgeInsets.all(10),
