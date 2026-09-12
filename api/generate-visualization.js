@@ -56,6 +56,27 @@ RULES:
 - Output a photorealistic result, not a flat texture overlay.`;
 }
 
+// Used when the user supplies an actual photo of the material/design instead
+// of picking a catalog stone by name — the two images are sent to Gemini
+// together so the *real* uploaded texture is what gets applied, not a text
+// guess at what "marble" or "granite" might look like.
+function _buildCompositePrompt() {
+  return `You are editing a photo of a real room for an architectural visualization product.
+
+You are given two images:
+1. The FIRST image is a real photo of a room, showing a wall to be re-clad.
+2. The SECOND image is a close-up photo of a real stone/tile/material sample.
+
+TASK: Apply the exact material shown in the SECOND image onto the main wall of the room in the FIRST image, as if that wall were physically re-clad with that material.
+
+RULES:
+- Use the actual pattern, color, veining, and texture visible in the second image — do not substitute a generic or different-looking material.
+- Preserve the room's architecture, perspective, camera angle, furniture, windows, doors, and all other objects from the first image exactly as they are — change ONLY the wall surface.
+- Match the room's existing lighting and shadow direction so the applied material looks physically present, not pasted on.
+- Tile/fit the material naturally across the wall's visible area (respecting joints/grain direction if visible in the sample).
+- Output a single photorealistic result — not a collage, not a flat texture overlay, not a side-by-side of the two inputs.`;
+}
+
 module.exports = async (req, res) => {
   const rawOrigin = req.headers.origin || req.headers.referer || '';
   let originValue = '';
@@ -108,7 +129,7 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const { image, stoneName, color, finish, variantIndex } = req.body || {};
+  const { image, designImage, stoneName, color, finish, variantIndex } = req.body || {};
   if (!image || typeof image !== 'string' || !image.startsWith('data:image/')) {
     res.status(400).json({ error: 'image must be a data:image/... base64 URL' });
     return;
@@ -117,8 +138,16 @@ module.exports = async (req, res) => {
     res.status(413).json({ error: 'Image too large' });
     return;
   }
-  if (!stoneName || typeof stoneName !== 'string') {
-    res.status(400).json({ error: 'stoneName is required' });
+  // Either a catalog stone name (existing flow) or an actual photo of the
+  // material (designImage — the simple "upload your own design" flow) is
+  // required. Without one of the two, Gemini has nothing to apply.
+  const hasDesignImage = typeof designImage === 'string' && designImage.startsWith('data:image/');
+  if (!hasDesignImage && (!stoneName || typeof stoneName !== 'string')) {
+    res.status(400).json({ error: 'Either stoneName or designImage is required' });
+    return;
+  }
+  if (hasDesignImage && designImage.length > MAX_IMAGE_LENGTH) {
+    res.status(413).json({ error: 'designImage too large' });
     return;
   }
   const variant = Number.isInteger(variantIndex) ? variantIndex : 0;
@@ -129,21 +158,36 @@ module.exports = async (req, res) => {
     return;
   }
 
+  let designMimeType, designBase64Data;
+  if (hasDesignImage) {
+    [, designMimeType, designBase64Data] = designImage.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/) || [];
+    if (!designBase64Data) {
+      res.status(400).json({ error: 'Malformed designImage data URL' });
+      return;
+    }
+  }
+
   try {
-    const prompt = _buildPrompt({ stoneName, color, finish, variantIndex: variant });
+    const prompt = hasDesignImage
+      ? _buildCompositePrompt()
+      : _buildPrompt({ stoneName, color, finish, variantIndex: variant });
+
+    const requestParts = hasDesignImage
+      ? [
+          { text: prompt },
+          { inline_data: { mime_type: mimeType, data: base64Data } },
+          { inline_data: { mime_type: designMimeType, data: designBase64Data } },
+        ]
+      : [
+          { text: prompt },
+          { inline_data: { mime_type: mimeType, data: base64Data } },
+        ];
 
     const geminiRes = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: prompt },
-              { inline_data: { mime_type: mimeType, data: base64Data } },
-            ],
-          },
-        ],
+        contents: [{ parts: requestParts }],
       }),
     });
 

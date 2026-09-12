@@ -38,7 +38,11 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    // auth.getUser() with no argument reads client-side session state a
+    // fresh server-side client never has — same bug fixed in the other
+    // edge functions in this project. Pass the token explicitly.
+    const token = authHeader.replace(/^Bearer\s+/i, "");
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Invalid token" }), {
         status: 401,

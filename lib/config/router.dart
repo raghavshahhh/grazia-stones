@@ -12,7 +12,7 @@ import '../features/search/presentation/search_screen.dart';
 import '../features/collections/presentation/collection_list_screen.dart';
 import '../features/collections/presentation/collection_detail_screen.dart';
 import '../features/stone_detail/presentation/stone_detail_screen.dart';
-import '../features/ai_viz/presentation/ai_viz_screen.dart';
+import '../features/ai_viz/presentation/simple_ai_studio_screen.dart';
 import '../features/ai_viz/presentation/ai_result_gallery_screen.dart';
 import '../features/ar_view/presentation/ar_view_screen.dart';
 import '../features/dealer/presentation/dealer_locator_screen.dart';
@@ -526,9 +526,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/ai-viz',
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => _scaleFadePage(
-          AIVizScreen(
-            preSelectedStoneId: state.uri.queryParameters['stoneId'],
-          ),
+          const SimpleAIStudioScreen(),
           state,
         ),
       ),
