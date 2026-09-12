@@ -1,10 +1,16 @@
 import 'dart:convert';
+import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/core/services/ai_endpoint_client.dart';
+import 'package:grazia_stones/core/di.dart';
 
 /// Simple, 2-step AI Room Studio: upload a photo of your room, upload a
 /// photo of the design/stone you want, tap Generate. No catalog browsing,
@@ -12,22 +18,67 @@ import 'package:grazia_stones/core/services/ai_endpoint_client.dart';
 /// the user actually has in mind, composited by the real generate-
 /// visualization endpoint (which now accepts an actual design image
 /// instead of only a text stone name — see api/generate-visualization.js).
-class SimpleAIStudioScreen extends StatefulWidget {
-  const SimpleAIStudioScreen({super.key});
+///
+/// [preSelectedStoneId]: when a user taps "Visualize" from a product page
+/// (stone_detail_screen.dart passes ?stoneId=...), that stone's own AR
+/// texture is pre-loaded into the "Your Design" slot automatically, so the
+/// catalog-selection entry point still leads somewhere meaningful instead
+/// of silently landing on two empty upload boxes.
+class SimpleAIStudioScreen extends ConsumerStatefulWidget {
+  final String? preSelectedStoneId;
+
+  const SimpleAIStudioScreen({super.key, this.preSelectedStoneId});
 
   @override
-  State<SimpleAIStudioScreen> createState() => _SimpleAIStudioScreenState();
+  ConsumerState<SimpleAIStudioScreen> createState() => _SimpleAIStudioScreenState();
 }
 
-class _SimpleAIStudioScreenState extends State<SimpleAIStudioScreen> {
+class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
   final ImagePicker _picker = ImagePicker();
   final palette = GLuxuryPalettes.gold;
 
   Uint8List? _roomBytes;
   Uint8List? _designBytes;
+  String? _preSelectedStoneName;
+  bool _loadingPreSelectedStone = false;
   String? _resultImage; // data URL
   bool _generating = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.preSelectedStoneId != null) {
+      _loadPreSelectedStone(widget.preSelectedStoneId!);
+    }
+  }
+
+  Future<void> _loadPreSelectedStone(String stoneId) async {
+    setState(() => _loadingPreSelectedStone = true);
+    try {
+      final stone = await ref.read(stoneRepositoryProvider).getStoneById(stoneId);
+      final imageUrl = stone.arTexture ??
+          stone.mainImageUrl ??
+          (stone.images.isNotEmpty ? stone.images.first : null);
+      if (imageUrl == null || imageUrl.isEmpty) return;
+
+      final response = await Dio().get<List<int>>(
+        imageUrl,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      final bytes = response.data;
+      if (bytes == null || !mounted) return;
+      setState(() {
+        _designBytes = Uint8List.fromList(bytes);
+        _preSelectedStoneName = stone.name;
+      });
+    } catch (_) {
+      // Best-effort — if the stone or its image can't be fetched, the user
+      // just falls back to picking a design photo manually. Not fatal.
+    } finally {
+      if (mounted) setState(() => _loadingPreSelectedStone = false);
+    }
+  }
 
   Future<void> _pick(bool isRoom) async {
     final source = await showModalBottomSheet<ImageSource>(
@@ -67,6 +118,7 @@ class _SimpleAIStudioScreenState extends State<SimpleAIStudioScreen> {
         _roomBytes = bytes;
       } else {
         _designBytes = bytes;
+        _preSelectedStoneName = null;
       }
       _resultImage = null;
       _error = null;
@@ -105,6 +157,25 @@ class _SimpleAIStudioScreenState extends State<SimpleAIStudioScreen> {
         _generating = false;
         _error = 'Something went wrong. Please check your connection and try again.';
       });
+    }
+  }
+
+  Future<void> _shareResult() async {
+    if (_resultImage == null) return;
+    try {
+      final bytes = base64Decode(_resultImage!.split(',').last);
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/grazia_ai_result_${DateTime.now().millisecondsSinceEpoch}.png');
+      await file.writeAsBytes(bytes);
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: 'My Grazia Stones AI visualization',
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not share the result.')),
+      );
     }
   }
 
@@ -148,10 +219,27 @@ class _SimpleAIStudioScreenState extends State<SimpleAIStudioScreen> {
                 onTap: () => _pick(true),
               ),
               const SizedBox(height: 16),
+              if (_loadingPreSelectedStone)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: palette.accent),
+                      ),
+                      const SizedBox(width: 10),
+                      Text('Loading selected stone…', style: GoogleFonts.inter(fontSize: 12, color: palette.textPrimary.withValues(alpha: 0.6))),
+                    ],
+                  ),
+                ),
               _ImageSlot(
                 palette: palette,
                 label: '2. Your Design',
-                subtitle: 'Photo of the stone/design you want applied',
+                subtitle: _preSelectedStoneName != null
+                    ? '$_preSelectedStoneName selected — tap to change'
+                    : 'Photo of the stone/design you want applied',
                 bytes: _designBytes,
                 onTap: () => _pick(false),
               ),
@@ -184,15 +272,25 @@ class _SimpleAIStudioScreenState extends State<SimpleAIStudioScreen> {
               ],
               if (_resultImage != null) ...[
                 const SizedBox(height: 28),
-                Text(
-                  'Result',
-                  style: GoogleFonts.playfairDisplay(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: palette.textPrimary,
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Result',
+                      style: GoogleFonts.playfairDisplay(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: palette.textPrimary,
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: _shareResult,
+                      icon: Icon(Icons.share_outlined, size: 18, color: palette.accent),
+                      label: Text('Share', style: GoogleFonts.inter(color: palette.accent, fontWeight: FontWeight.w600)),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 4),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(16),
                   child: Image.memory(

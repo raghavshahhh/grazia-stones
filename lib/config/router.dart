@@ -526,7 +526,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/ai-viz',
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => _scaleFadePage(
-          const SimpleAIStudioScreen(),
+          SimpleAIStudioScreen(
+            preSelectedStoneId: state.uri.queryParameters['stoneId'],
+          ),
           state,
         ),
       ),
