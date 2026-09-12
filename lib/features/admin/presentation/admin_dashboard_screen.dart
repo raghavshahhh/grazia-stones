@@ -46,32 +46,31 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
       final client = SupabaseService.instance.client;
 
-      // Products count
-      final productsRes = await client.from('stones').select('id');
-      _totalProducts = (productsRes as List).length;
+      // These 6 queries are independent — they were previously awaited one
+      // at a time (6 sequential round trips), which is exactly the kind of
+      // thing that makes an admin dashboard feel slow to open. Firing them
+      // together cuts load time to roughly the slowest single query instead
+      // of the sum of all six.
+      final results = await Future.wait([
+        client.from('stones').select('id'),
+        client.from('collections').select('id'),
+        client.from('dealers').select('id'),
+        client.from('orders').select('id, status, total'),
+        client.from('quote_requests').select('id'),
+        client.from('profiles').select('id'),
+      ]);
 
-      // Collections count
-      final collectionsRes = await client.from('collections').select('id');
-      _totalCollections = (collectionsRes as List).length;
+      _totalProducts = (results[0] as List).length;
+      _totalCollections = (results[1] as List).length;
+      _totalDealers = (results[2] as List).length;
 
-      // Dealers count
-      final dealersRes = await client.from('dealers').select('id');
-      _totalDealers = (dealersRes as List).length;
-
-      // Orders
-      final ordersRes = await client.from('orders').select('id, status, total');
-      final ordersList = ordersRes as List;
+      final ordersList = results[3] as List;
       _totalOrders = ordersList.length;
       _pendingOrders = ordersList.where((o) => (o['status'] ?? '').toString().toLowerCase() == 'pending').length;
       _totalRevenue = ordersList.fold(0.0, (sum, o) => sum + ((o['total'] ?? 0) as num).toDouble());
 
-      // Quotes count
-      final quotesRes = await client.from('quote_requests').select('id');
-      _totalQuotes = (quotesRes as List).length;
-
-      // Profiles count
-      final profilesRes = await client.from('profiles').select('id');
-      _totalUsers = (profilesRes as List).length;
+      _totalQuotes = (results[4] as List).length;
+      _totalUsers = (results[5] as List).length;
 
       if (mounted) {
         setState(() => _isLoading = false);
