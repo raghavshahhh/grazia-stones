@@ -42,11 +42,13 @@ class _QuoteRequestSupabaseScreenState extends ConsumerState<QuoteRequestSupabas
   final _projectNameController = TextEditingController();
   final _sqftController = TextEditingController();
   final _notesController = TextEditingController();
-  
+  final _customDesignController = TextEditingController();
+
   final Set<String> _selectedStoneIds = {};
   String _projectType = 'Residential';
   bool _isSubmitting = false;
   bool _isLoadingStones = true;
+  bool _isCustomDesign = false;
   List<Stone> _stones = [];
 
   final List<String> _projectTypes = [
@@ -83,6 +85,7 @@ class _QuoteRequestSupabaseScreenState extends ConsumerState<QuoteRequestSupabas
     _projectNameController.dispose();
     _sqftController.dispose();
     _notesController.dispose();
+    _customDesignController.dispose();
     super.dispose();
   }
 
@@ -106,8 +109,13 @@ class _QuoteRequestSupabaseScreenState extends ConsumerState<QuoteRequestSupabas
 
   Future<void> _submitQuote() async {
     if (!_formKey.currentState!.validate()) return;
-    
-    if (_selectedStoneIds.isEmpty) {
+
+    if (_isCustomDesign) {
+      if (_customDesignController.text.trim().isEmpty) {
+        showErrorSnackbar(context, Exception('Please describe the custom design you need'));
+        return;
+      }
+    } else if (_selectedStoneIds.isEmpty) {
       showErrorSnackbar(context, Exception('Please select at least one stone for quotation'));
       return;
     }
@@ -117,23 +125,32 @@ class _QuoteRequestSupabaseScreenState extends ConsumerState<QuoteRequestSupabas
 
     try {
       final orderRepo = ref.read(orderRepositoryProvider);
-      
-      // Get selected stone names
+
+      // Get selected stone names (empty for a custom, off-catalogue design)
       final selectedStoneNames = _stones
           .where((s) => _selectedStoneIds.contains(s.id))
           .map((s) => s.name)
           .join(', ');
-      
-      // Submit quote for each selected stone (or combined)
+
+      // A custom design has no real stone_id to attach (it isn't in the
+      // catalogue yet) — stone_id stays null, exactly as the schema allows,
+      // and the description lives in stone_name/message instead.
       await orderRepo.submitQuote(
         name: _nameController.text.trim(),
         phone: _phoneController.text.trim(),
         email: _emailController.text.trim().isNotEmpty ? _emailController.text.trim() : null,
         company: _companyController.text.trim().isNotEmpty ? _companyController.text.trim() : null,
-        stoneId: _selectedStoneIds.first, // Primary stone
-        stoneName: selectedStoneNames,
+        stoneId: _isCustomDesign ? null : _selectedStoneIds.first,
+        stoneName: _isCustomDesign ? 'Custom Design Request' : selectedStoneNames,
         areaSqft: double.tryParse(_sqftController.text.trim()),
-        message: '''
+        message: _isCustomDesign
+            ? '''
+Project Type: $_projectType
+Project Name: ${_projectNameController.text.trim()}
+Custom Design Request: ${_customDesignController.text.trim()}
+Additional Notes: ${_notesController.text.trim()}
+'''
+            : '''
 Project Type: $_projectType
 Project Name: ${_projectNameController.text.trim()}
 Selected Stones: $selectedStoneNames
@@ -349,8 +366,69 @@ Additional Notes: ${_notesController.text.trim()}
               
               _buildSectionTitle('STONE SELECTION', palette),
               const SizedBox(height: 12),
-              
-              if (_isLoadingStones)
+
+              // Grazia also fabricates custom, off-catalogue designs to
+              // spec — this lets a customer request a quote for one
+              // without forcing them to pick an existing product first.
+              GestureDetector(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  setState(() => _isCustomDesign = !_isCustomDesign);
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    color: _isCustomDesign
+                        ? palette.primary.withValues(alpha: 0.10)
+                        : palette.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _isCustomDesign ? palette.primary : palette.border,
+                      width: _isCustomDesign ? 1.5 : 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _isCustomDesign ? Icons.check_circle : Icons.circle_outlined,
+                        color: _isCustomDesign ? palette.primary : palette.textTertiary,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'This is a custom design',
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: palette.textPrimary,
+                              ),
+                            ),
+                            Text(
+                              'Not in our catalogue — describe what you need instead',
+                              style: GoogleFonts.inter(fontSize: 11, color: palette.textSecondary),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              if (_isCustomDesign)
+                _buildTextField(
+                  'Describe your custom design',
+                  _customDesignController,
+                  palette,
+                  maxLines: 4,
+                  required: true,
+                )
+              else if (_isLoadingStones)
                 Center(child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: CircularProgressIndicator(color: palette.primary),
