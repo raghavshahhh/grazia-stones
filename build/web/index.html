@@ -198,6 +198,14 @@
     });
   </script>
 
+  <script>
+    // Use CDN for CanvasKit to reduce deployment size
+    window._flutter = window._flutter || {};
+    window._flutter.loader = window._flutter.loader || {};
+    window.flutterConfiguration = {
+      canvasKitBaseUrl: "https://unpkg.com/canvaskit-wasm@0.39.1/bin/"
+    };
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

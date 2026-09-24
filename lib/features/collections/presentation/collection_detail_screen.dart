@@ -232,25 +232,86 @@ class CollectionDetailScreen extends ConsumerWidget {
             ),
           ),
 
-          // Stones Grid
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-            sliver: SliverGrid(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.72,
-                crossAxisSpacing: 14,
-                mainAxisSpacing: 14,
+          // Stones Grid or Empty State
+          if (stones.isEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 36),
+                  decoration: BoxDecoration(
+                    color: palette.surface,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: palette.border),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: palette.surfaceDark,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: palette.border),
+                        ),
+                        child: Icon(Icons.inventory_2_outlined, color: palette.primary, size: 24),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'New Surfaces Coming Soon',
+                        style: GoogleFonts.playfairDisplay(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: palette.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'We are currently curating and handcrafting new architectural surfaces for this series.',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: palette.textSecondary,
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      ElevatedButton(
+                        onPressed: () => context.go('/collections'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: palette.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          elevation: 0,
+                        ),
+                        child: Text('Explore Other Collections', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600)),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final stone = stones[index];
-                  return _CollectionStoneCard(stone: stone, palette: palette);
-                },
-                childCount: stones.length,
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+              sliver: SliverGrid(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  childAspectRatio: 0.72,
+                  crossAxisSpacing: 14,
+                  mainAxisSpacing: 14,
+                ),
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final stone = stones[index];
+                    return _CollectionStoneCard(stone: stone, palette: palette);
+                  },
+                  childCount: stones.length,
+                ),
               ),
             ),
-          ),
         ],
       ),
     );

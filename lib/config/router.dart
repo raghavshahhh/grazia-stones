@@ -54,18 +54,29 @@ import '../features/about/presentation/about_screen.dart';
 import '../features/legal/presentation/privacy_policy_screen.dart';
 import '../features/legal/presentation/terms_of_service_screen.dart';
 import '../features/support/presentation/help_support_screen.dart';
+import '../features/ai_viz/presentation/ai_design_studio_screen.dart';
+import '../features/measure/presentation/scan_space_screen.dart';
+import '../features/measure/presentation/wall_measurement_screen.dart';
+import '../features/catalogue/presentation/choose_design_screen.dart';
+import '../features/ai_viz/presentation/ai_visualization_result_screen.dart';
+import '../features/ai_viz/presentation/customize_design_screen.dart';
+import '../features/ai_viz/presentation/compare_designs_screen.dart';
+import '../features/vr/presentation/vr_showroom_screen.dart';
+import '../features/vr/presentation/vr_room_selection_screen.dart';
+import '../features/pro/presentation/grazia_pro_screen.dart';
+import '../features/resources/presentation/download_resources_screen.dart';
+import '../features/measure/presentation/boq_calculator_screen.dart';
 import '../core/di.dart';
 import '../core/models/stone.dart';
 
-
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 
-/// Tab index → route mapping.
+/// Tab index → route mapping (Client Reference 5 tabs).
 const _tabRoutes = [
   '/home',
   '/collections',
-  '/tools',
-  '/cart',
+  '/ai-studio',
+  '/vr-showroom',
   '/profile',
 ];
 
@@ -278,6 +289,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 _fadePage(const CollectionListScreen(), state),
           ),
           GoRoute(
+            path: '/ai-studio',
+            pageBuilder: (context, state) =>
+                _fadePage(const AiDesignStudioScreen(), state),
+          ),
+          GoRoute(
+            path: '/vr-showroom',
+            pageBuilder: (context, state) =>
+                _fadePage(const VrShowroomScreen(), state),
+          ),
+          GoRoute(
+            path: '/profile',
+            pageBuilder: (context, state) =>
+                _fadePage(const ProfileScreen(), state),
+          ),
+          // Fallback tab aliases to preserve backward compatibility
+          GoRoute(
             path: '/tools',
             pageBuilder: (context, state) =>
                 _fadePage(const AiToolsHubScreen(), state),
@@ -287,12 +314,73 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) =>
                 _fadePage(const CartScreen(), state),
           ),
-          GoRoute(
-            path: '/profile',
-            pageBuilder: (context, state) =>
-                _fadePage(const ProfileScreen(), state),
-          ),
         ],
+      ),
+
+      // --- Client Reference Flow Screens (Screens 4 to 17) ---
+      GoRoute(
+        path: '/scan-space',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _scaleFadePage(const ScanSpaceScreen(), state),
+      ),
+      GoRoute(
+        path: '/wall-measurement',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const WallMeasurementScreen(), state),
+      ),
+      GoRoute(
+        path: '/choose-design',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const ChooseDesignScreen(), state),
+      ),
+      GoRoute(
+        path: '/ai-visualization',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) {
+          final stone = state.uri.queryParameters['stoneName'] ?? 'Desert Stone';
+          return _scaleFadePage(AiVisualizationResultScreen(stoneName: stone), state);
+        },
+      ),
+      GoRoute(
+        path: '/customize-design',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) {
+          final stone = state.uri.queryParameters['stoneName'] ?? 'Desert Stone';
+          return _slideUpPage(CustomizeDesignScreen(stoneName: stone), state);
+        },
+      ),
+      GoRoute(
+        path: '/compare-designs',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const CompareDesignsScreen(), state),
+      ),
+      GoRoute(
+        path: '/vr-spaces',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const VrRoomSelectionScreen(), state),
+      ),
+      GoRoute(
+        path: '/pro',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const GraziaProScreen(), state),
+      ),
+      GoRoute(
+        path: '/resources',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const DownloadResourcesScreen(), state),
+      ),
+      GoRoute(
+        path: '/boq-calculator',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const BoqCalculatorScreen(), state),
       ),
 
       // --- Detail screens (slide up, no bottom nav) ---

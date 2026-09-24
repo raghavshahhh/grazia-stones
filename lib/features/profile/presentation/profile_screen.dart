@@ -38,7 +38,7 @@ class ProfileScreen extends ConsumerWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'Architect Account',
+                          'Profile',
                           style: GoogleFonts.playfairDisplay(
                             fontSize: 22,
                             fontWeight: FontWeight.w700,
@@ -46,18 +46,21 @@ class ProfileScreen extends ConsumerWidget {
                           ),
                         ),
                         // Theme toggle
-                        GestureDetector(
-                          onTap: () {
-                            HapticFeedback.lightImpact();
-                            ref.read(themePaletteProvider.notifier).toggleTheme();
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: palette.surfaceDark,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: palette.border),
-                            ),
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(20),
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              ref.read(themePaletteProvider.notifier).toggleTheme();
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                              decoration: BoxDecoration(
+                                color: palette.surfaceDark,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: palette.border),
+                              ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -79,9 +82,10 @@ class ProfileScreen extends ConsumerWidget {
                             ),
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
+                ),
 
                   const SizedBox(height: 20),
 
@@ -91,15 +95,16 @@ class ProfileScreen extends ConsumerWidget {
                     child: Builder(
                       builder: (context) {
                         final auth = ref.watch(authRiverpodProvider);
-                        final name = auth.userName?.isNotEmpty == true
-                            ? auth.userName!
-                            : (auth.isLoggedIn ? 'Architect User' : 'Guest Architect');
-                        final email = auth.userEmail?.isNotEmpty == true
+                        final rawName = auth.userName;
+                        final name = (rawName != null && rawName.isNotEmpty && rawName != 'Guest User')
+                            ? rawName
+                            : 'Gaurav Rawat';
+                        final subtitle = auth.isLoggedIn && auth.userEmail != null
                             ? auth.userEmail!
-                            : (auth.isLoggedIn ? 'Registered Client' : 'Browse Mode');
+                            : 'Architect & Interior Designer • Bangalore, India';
                         final phone = auth.userPhone?.isNotEmpty == true
                             ? auth.userPhone!
-                            : (auth.isLoggedIn ? 'Verified Account' : '+91 Connect via Login');
+                            : '+91 98765 43210';
                         final parts = name.trim().split(' ').where((s) => s.isNotEmpty).toList();
                         final initials = parts.isEmpty
                             ? 'GS'
@@ -187,7 +192,7 @@ class ProfileScreen extends ConsumerWidget {
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
-                                        email,
+                                        subtitle,
                                         style: GoogleFonts.inter(
                                           color: palette.textSecondary,
                                           fontSize: 12,
@@ -409,6 +414,34 @@ class ProfileScreen extends ConsumerWidget {
                   const SizedBox(height: 8),
                   _MenuItem(
                     palette: palette,
+                    icon: Icons.workspace_premium_outlined,
+                    title: 'Grazia Pro',
+                    subtitle: 'Exclusive tools & benefits for architects & designers',
+                    onTap: () => context.push('/pro'),
+                  ),
+                  _MenuItem(
+                    palette: palette,
+                    icon: Icons.calculate_outlined,
+                    title: 'BOQ & Project Calculator',
+                    subtitle: 'Calculate stone area, box counts & estimations',
+                    onTap: () => context.push('/boq-calculator'),
+                  ),
+                  _MenuItem(
+                    palette: palette,
+                    icon: Icons.download_outlined,
+                    title: 'Download Resources',
+                    subtitle: 'CAD DWG files, 4K textures & technical specifications',
+                    onTap: () => context.push('/resources'),
+                  ),
+                  _MenuItem(
+                    palette: palette,
+                    icon: Icons.auto_awesome_outlined,
+                    title: 'Saved AI Visualizations',
+                    subtitle: 'Your rendered room visualizer concepts',
+                    onTap: () => context.push('/saved-designs'),
+                  ),
+                  _MenuItem(
+                    palette: palette,
                     icon: Icons.inventory_2_outlined,
                     title: 'Orders & Tracking',
                     subtitle: 'Real-time order history, tracking & invoices',
@@ -420,13 +453,6 @@ class ProfileScreen extends ConsumerWidget {
                     title: 'Architectural Wishlist',
                     subtitle: 'Curated stones saved for project inspiration',
                     onTap: () => context.push('/wishlist'),
-                  ),
-                  _MenuItem(
-                    palette: palette,
-                    icon: Icons.auto_awesome_outlined,
-                    title: 'Saved AI Studio Visualizations',
-                    subtitle: 'Your rendered room visualizer concepts',
-                    onTap: () => context.push('/saved-designs'),
                   ),
                   _MenuItem(
                     palette: palette,

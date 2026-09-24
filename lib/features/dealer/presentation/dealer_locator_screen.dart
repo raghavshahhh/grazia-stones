@@ -17,7 +17,7 @@ class DealerLocatorScreen extends ConsumerStatefulWidget {
 }
 
 class _DealerLocatorScreenState extends ConsumerState<DealerLocatorScreen> {
-  bool _isMapView = false;
+  bool _isMapView = true;
 
   void _makePhoneCall(String phone) async {
     final uri = Uri(scheme: 'tel', path: phone);

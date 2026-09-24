@@ -105,7 +105,7 @@ class GraziaTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: p.primary,
           foregroundColor: Colors.white,
-          minimumSize: const Size(double.infinity, GTokens.space12 + 8),
+          minimumSize: const Size(64, GTokens.space12 + 8),
           shape: RoundedRectangleBorder(
             borderRadius: GLuxuryBorders.buttonRadius,
           ),
@@ -119,7 +119,7 @@ class GraziaTheme {
 
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size(double.infinity, GTokens.space12 + 8),
+          minimumSize: const Size(64, GTokens.space12 + 8),
           shape: RoundedRectangleBorder(
             borderRadius: GLuxuryBorders.buttonRadius,
           ),
@@ -258,7 +258,7 @@ class GraziaTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: p.primary,
           foregroundColor: p.background,
-          minimumSize: const Size(double.infinity, GTokens.space12 + 8),
+          minimumSize: const Size(64, GTokens.space12 + 8),
           shape: RoundedRectangleBorder(
             borderRadius: GLuxuryBorders.buttonRadius,
           ),
@@ -272,7 +272,7 @@ class GraziaTheme {
 
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size(double.infinity, GTokens.space12 + 8),
+          minimumSize: const Size(64, GTokens.space12 + 8),
           shape: RoundedRectangleBorder(
             borderRadius: GLuxuryBorders.buttonRadius,
           ),

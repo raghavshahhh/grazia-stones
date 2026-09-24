@@ -118,37 +118,72 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Scaffold(
       backgroundColor: palette.background,
+      drawer: _buildLuxuryDrawer(context, palette),
       appBar: AppBar(
         backgroundColor: palette.background,
         elevation: 0,
         scrolledUnderElevation: 0,
-        centerTitle: false,
-        title: Row(
+        leading: Builder(
+          builder: (context) => IconButton(
+            visualDensity: VisualDensity.compact,
+            icon: Icon(Icons.menu_rounded, color: palette.textPrimary, size: 24),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
+        centerTitle: true,
+        title: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const GraziaLogo(variant: GraziaLogoVariant.emblem, height: 28),
-            const SizedBox(width: 10),
-            Flexible(
-              child: Text(
-                'GRAZIA STONES',
-                style: GoogleFonts.playfairDisplay(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 3.5,
-                  color: palette.textPrimary,
+            Text(
+              'GRAZIA',
+              style: GoogleFonts.playfairDisplay(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 2.5,
+                color: const Color(0xFFD4AF37),
+              ),
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(width: 14, height: 0.8, color: const Color(0xFFD4AF37)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
+                  child: Text(
+                    'STONES',
+                    style: GoogleFonts.inter(
+                      fontSize: 8.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 2.2,
+                      color: const Color(0xFFD4AF37),
+                    ),
+                  ),
                 ),
-                overflow: TextOverflow.ellipsis,
+                Container(width: 14, height: 0.8, color: const Color(0xFFD4AF37)),
+              ],
+            ),
+            Text(
+              'UNIT OF BNK STONES',
+              style: GoogleFonts.inter(
+                fontSize: 6.5,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1.4,
+                color: palette.textSecondary,
               ),
             ),
           ],
         ),
         actions: [
           IconButton(
-            icon: Icon(Icons.search_rounded, color: palette.textPrimary, size: 22),
+            visualDensity: VisualDensity.compact,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            icon: Icon(Icons.search_rounded, color: palette.textPrimary, size: 21),
             onPressed: () => context.push('/search'),
           ),
           IconButton(
-            icon: Icon(Icons.notifications_outlined, color: palette.textPrimary, size: 22),
+            visualDensity: VisualDensity.compact,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            icon: Icon(Icons.notifications_outlined, color: palette.textPrimary, size: 21),
             onPressed: () => _showNotificationsSheet(context, palette),
           ),
           Consumer(
@@ -159,7 +194,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 alignment: Alignment.center,
                 children: [
                   IconButton(
-                    icon: Icon(Icons.shopping_bag_outlined, color: palette.textPrimary, size: 22),
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    icon: Icon(Icons.shopping_bag_outlined, color: palette.textPrimary, size: 21),
                     onPressed: () => context.push('/cart'),
                   ),
                   if (count > 0)
@@ -188,7 +225,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               );
             },
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
         ],
       ),
       body: _isLoading
@@ -300,207 +337,484 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ? _trendingStones!.take(5).toList()
         : <Stone>[];
 
-    if (heroStones.isEmpty) return const SizedBox.shrink();
-
     return Container(
-      height: 290,
+      height: 270,
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
+            color: Colors.black.withValues(alpha: 0.18),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(22),
         child: Stack(
           fit: StackFit.expand,
           children: [
-            PageView.builder(
-              controller: _heroPageController,
-              itemCount: heroStones.length,
-              onPageChanged: (idx) {
-                setState(() => _currentHeroIndex = idx);
-              },
-              itemBuilder: (context, index) {
-                final stone = heroStones[index];
-                return Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    SmartStoneImage(
-                      imageUrl: stone.imageUrl,
-                      fit: BoxFit.cover,
-                      alignment: Alignment.topCenter,
-                      palette: palette,
-                    ),
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.black.withValues(alpha: 0.30),
-                            Colors.black.withValues(alpha: 0.65),
-                            Colors.black.withValues(alpha: 0.95),
-                          ],
-                          stops: const [0.0, 0.45, 1.0],
+            if (heroStones.isNotEmpty)
+              PageView.builder(
+                controller: _heroPageController,
+                itemCount: heroStones.length,
+                onPageChanged: (idx) {
+                  setState(() => _currentHeroIndex = idx);
+                },
+                itemBuilder: (context, index) {
+                  final stone = heroStones[index];
+                  return Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      SmartStoneImage(
+                        imageUrl: stone.imageUrl,
+                        fit: BoxFit.cover,
+                        alignment: Alignment.topCenter,
+                        palette: palette,
+                      ),
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withValues(alpha: 0.20),
+                              Colors.black.withValues(alpha: 0.65),
+                              Colors.black.withValues(alpha: 0.95),
+                            ],
+                            stops: const [0.0, 0.45, 1.0],
+                          ),
                         ),
                       ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(22),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          // Gold badge
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.5),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFFD4AF37).withValues(alpha: 0.5)),
+                      Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            Text(
+                              'Transform Walls.\nTransform Spaces.',
+                              style: GoogleFonts.playfairDisplay(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                height: 1.15,
+                              ),
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
+                            const SizedBox(height: 4),
+                            Text(
+                              '${stone.name} • ${stone.collection.toUpperCase()}',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: const Color(0xFFD4AF37),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
                               children: [
-                                const GraziaLogo(
-                                  variant: GraziaLogoVariant.emblem,
-                                  height: 14,
-                                  colorStyle: GraziaLogoColor.gold,
+                                ApplePressable(
+                                  onTap: () => context.push('/scan-space'),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFD4AF37),
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.camera_alt_outlined, color: Colors.black, size: 14),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          'Scan My Wall',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 11.5,
+                                            fontWeight: FontWeight.w700,
+                                            color: Colors.black,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  stone.collection.toUpperCase(),
-                                  style: GoogleFonts.inter(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 1.8,
-                                    color: const Color(0xFFD4AF37),
+                                const SizedBox(width: 8),
+                                ApplePressable(
+                                  onTap: () => context.push('/stones/${stone.id}'),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(color: Colors.white38),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          'Explore Stone',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 11.5,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 12),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ],
                             ),
-                          ),
-
-                          const SizedBox(height: 8),
-
-                          Text(
-                            stone.name,
-                            style: GoogleFonts.playfairDisplay(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                              height: 1.15,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '₹${stone.pricePerSqFt.toInt()}/sqft • ${stone.category}',
-                            style: GoogleFonts.inter(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.white.withValues(alpha: 0.9),
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          Row(
-                            children: [
-                              ApplePressable(
-                                onTap: () => context.push('/live-ai?stoneId=${stone.id}'),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                                  decoration: BoxDecoration(
-                                    gradient: palette.primaryGradient,
-                                    borderRadius: BorderRadius.circular(18),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: palette.primary.withValues(alpha: 0.45),
-                                        blurRadius: 14,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.view_in_ar_rounded, color: Colors.white, size: 15),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        'Visualize in AR',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              ApplePressable(
-                                onTap: () => context.push('/stones/${stone.id}'),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(18),
-                                    border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        'Explore Stone',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 13),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              )
+            else
+              Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.asset(
+                    'assets/images/hero_banner_1.png',
+                    fit: BoxFit.cover,
+                  ),
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withValues(alpha: 0.2),
+                          Colors.black.withValues(alpha: 0.85),
                         ],
                       ),
                     ),
-                  ],
-                );
-              },
-            ),
+                  ),
+                  Positioned(
+                    bottom: 20,
+                    left: 20,
+                    right: 20,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Transform Walls.\nTransform Spaces.',
+                          style: GoogleFonts.playfairDisplay(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                            height: 1.15,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Innovative Stone Panels for Extraordinary Spaces',
+                          style: GoogleFonts.inter(fontSize: 12, color: Colors.white70),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
 
             // Top Right Dots Indicator Overlay
-            Positioned(
-              top: 18,
-              right: 18,
-              child: Row(
-                children: List.generate(
-                  heroStones.length,
-                  (i) => AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    margin: const EdgeInsets.symmetric(horizontal: 3),
-                    width: _currentHeroIndex == i ? 18 : 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: _currentHeroIndex == i
-                          ? const Color(0xFFD4AF37)
-                          : Colors.white.withValues(alpha: 0.4),
-                      borderRadius: BorderRadius.circular(4),
+            if (heroStones.isNotEmpty)
+              Positioned(
+                top: 16,
+                right: 16,
+                child: Row(
+                  children: List.generate(
+                    heroStones.length,
+                    (i) => AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      margin: const EdgeInsets.symmetric(horizontal: 2.5),
+                      width: _currentHeroIndex == i ? 16 : 5,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: _currentHeroIndex == i
+                            ? const Color(0xFFD4AF37)
+                            : Colors.white.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
                     ),
                   ),
                 ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── 2. Signature 2x2 Feature Grid (Client Reference Screen 3) ──
+  Widget _buildFeatureHub(LuxuryPalette palette) {
+    const cardBg = Color(0xFFFBF9F5);
+    const borderColor = Color(0xFFE5DDD0);
+    const titleColor = Color(0xFF141210);
+    const subtitleColor = Color(0xFF6B655B);
+
+    final items = [
+      {
+        'title': 'AI Design Studio',
+        'subtitle': 'Visualize with AI',
+        'icon': Icons.auto_awesome_rounded,
+        'route': '/ai-studio',
+      },
+      {
+        'title': 'Scan My Space',
+        'subtitle': 'Measure with Camera',
+        'icon': Icons.camera_alt_outlined,
+        'route': '/scan-space',
+      },
+      {
+        'title': 'VR Showroom',
+        'subtitle': 'Explore in 3D',
+        'icon': Icons.view_in_ar_rounded,
+        'route': '/vr-showroom',
+      },
+      {
+        'title': 'Explore Collections',
+        'subtitle': 'Panels, Mosaics & More',
+        'icon': Icons.grid_view_rounded,
+        'route': '/collections',
+      },
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 1.50,
+        ),
+        itemCount: items.length,
+        itemBuilder: (context, i) {
+          final item = items[i];
+          return GestureDetector(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              context.push(item['route'] as String);
+            },
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: borderColor, width: 1.0),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD4AF37).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: const Color(0xFFD4AF37).withValues(alpha: 0.4),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: Icon(
+                      item['icon'] as IconData,
+                      size: 20,
+                      color: const Color(0xFFD4AF37),
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    item['title'] as String,
+                    style: GoogleFonts.playfairDisplay(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: titleColor,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    item['subtitle'] as String,
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: subtitleColor,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ── Luxury Drawer (Matches Hamburger Menu) ──
+  Widget _buildLuxuryDrawer(BuildContext context, LuxuryPalette palette) {
+    return Drawer(
+      backgroundColor: palette.background,
+      child: SafeArea(
+        child: Column(
+          children: [
+            // Drawer Brand Header
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: palette.surface,
+                border: Border(bottom: BorderSide(color: palette.border)),
+              ),
+              child: Row(
+                children: [
+                  const GraziaLogo(
+                    variant: GraziaLogoVariant.emblem,
+                    height: 38,
+                    colorStyle: GraziaLogoColor.gold,
+                  ),
+                  const SizedBox(width: 14),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'GRAZIA STONES',
+                        style: GoogleFonts.playfairDisplay(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.5,
+                          color: const Color(0xFFD4AF37),
+                        ),
+                      ),
+                      Text(
+                        'UNIT OF BNK STONES',
+                        style: GoogleFonts.inter(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.0,
+                          color: palette.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Navigation Links
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                children: [
+                  _buildDrawerItem(
+                    context,
+                    icon: Icons.auto_awesome_rounded,
+                    title: 'AI Design Studio',
+                    subtitle: 'Visualize with AI',
+                    route: '/ai-studio',
+                    palette: palette,
+                  ),
+                  _buildDrawerItem(
+                    context,
+                    icon: Icons.camera_alt_outlined,
+                    title: 'Scan My Space',
+                    subtitle: 'Measure wall with camera',
+                    route: '/scan-space',
+                    palette: palette,
+                  ),
+                  _buildDrawerItem(
+                    context,
+                    icon: Icons.view_in_ar_rounded,
+                    title: 'VR Showroom',
+                    subtitle: '360° virtual spaces',
+                    route: '/vr-showroom',
+                    palette: palette,
+                  ),
+                  _buildDrawerItem(
+                    context,
+                    icon: Icons.grid_view_rounded,
+                    title: 'Collections',
+                    subtitle: 'Panels, mosaics & art',
+                    route: '/collections',
+                    palette: palette,
+                  ),
+                  const Divider(height: 16),
+                  _buildDrawerItem(
+                    context,
+                    icon: Icons.architecture_rounded,
+                    title: 'Grazia Pro',
+                    subtitle: 'For architects & designers',
+                    route: '/pro',
+                    palette: palette,
+                  ),
+                  _buildDrawerItem(
+                    context,
+                    icon: Icons.download_rounded,
+                    title: 'Download Resources',
+                    subtitle: 'CAD DWG files & textures',
+                    route: '/resources',
+                    palette: palette,
+                  ),
+                  _buildDrawerItem(
+                    context,
+                    icon: Icons.calculate_outlined,
+                    title: 'Project Calculator',
+                    subtitle: 'BOQ & area estimation',
+                    route: '/boq-calculator',
+                    palette: palette,
+                  ),
+                  _buildDrawerItem(
+                    context,
+                    icon: Icons.store_mall_directory_outlined,
+                    title: 'Find a Dealer',
+                    subtitle: 'Showrooms in Kanpur & global',
+                    route: '/dealers',
+                    palette: palette,
+                  ),
+                  _buildDrawerItem(
+                    context,
+                    icon: Icons.request_quote_outlined,
+                    title: 'Request a Quotation',
+                    subtitle: 'Custom project enquiry',
+                    route: '/quotes/new',
+                    palette: palette,
+                  ),
+                  const Divider(height: 16),
+                  _buildDrawerItem(
+                    context,
+                    icon: Icons.info_outline_rounded,
+                    title: 'About Grazia Stones',
+                    subtitle: 'Brand heritage & craftsmanship',
+                    route: '/about',
+                    palette: palette,
+                  ),
+                  _buildDrawerItem(
+                    context,
+                    icon: Icons.support_agent_rounded,
+                    title: 'Help & Concierge',
+                    subtitle: '24/7 dedicated support',
+                    route: '/support',
+                    palette: palette,
+                  ),
+                ],
               ),
             ),
           ],
@@ -509,131 +823,45 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  // ── 2. Feature Hub (AR, AI Studio, Measure, Samples) ──
-  Widget _buildFeatureHub(LuxuryPalette palette) {
-    final features = [
-      {
-        'icon': Icons.view_in_ar_rounded,
-        'label': 'Live AR Wall',
-        'sub': 'Real-time Camera',
-        'route': '/live-ai',
-        'highlight': true,
-      },
-      {
-        'icon': Icons.auto_awesome_rounded,
-        'label': 'AI Studio',
-        'sub': 'Photo Visualizer',
-        'route': '/ai-viz',
-        'highlight': false,
-      },
-      {
-        'icon': Icons.architecture_rounded,
-        'label': '3D Wall Calc',
-        'sub': 'Proportional 3D',
-        'route': '/measure',
-        'highlight': false,
-      },
-      {
-        'icon': Icons.inventory_2_outlined,
-        'label': 'Sample Box',
-        'sub': 'Order Swatches',
-        'route': '/sample-order',
-        'highlight': false,
-      },
-    ];
-
-    return SizedBox(
-      height: 86,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: features.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 12),
-        itemBuilder: (context, index) {
-          final f = features[index];
-          final isHighlight = f['highlight'] as bool;
-
-          return ApplePressable(
-            onTap: () => context.push(f['route'] as String),
-            child: Container(
-              width: 158,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: palette.surface,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: isHighlight
-                      ? palette.primary.withValues(alpha: 0.5)
-                      : palette.border,
-                  width: isHighlight ? 1.2 : 0.8,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: isHighlight
-                        ? palette.primary.withValues(alpha: 0.08)
-                        : Colors.black.withValues(alpha: 0.02),
-                    blurRadius: 12,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      gradient: isHighlight
-                          ? palette.primaryGradient
-                          : LinearGradient(
-                              colors: [
-                                palette.primary.withValues(alpha: 0.15),
-                                palette.primary.withValues(alpha: 0.05),
-                              ],
-                            ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      f['icon'] as IconData,
-                      color: isHighlight ? Colors.white : palette.primary,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          f['label'] as String,
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: palette.textPrimary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          f['sub'] as String,
-                          style: GoogleFonts.inter(
-                            fontSize: 10,
-                            color: palette.textSecondary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
+  Widget _buildDrawerItem(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String route,
+    required LuxuryPalette palette,
+  }) {
+    return ListTile(
+      leading: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: palette.surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: palette.border),
+        ),
+        child: Icon(icon, size: 18, color: const Color(0xFFD4AF37)),
       ),
+      title: Text(
+        title,
+        style: GoogleFonts.playfairDisplay(
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          color: palette.textPrimary,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: GoogleFonts.inter(
+          fontSize: 10,
+          color: palette.textSecondary,
+        ),
+      ),
+      trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 12),
+      onTap: () {
+        Navigator.pop(context);
+        context.push(route);
+      },
     );
   }
 

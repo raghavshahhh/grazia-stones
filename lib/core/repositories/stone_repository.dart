@@ -167,6 +167,11 @@ class StoneRepository {
         debugPrint('[StoneRepository] Supabase error, serving cached stone: $e');
         return _stoneFromRow(Map<String, dynamic>.from(cached));
       }
+      final fallbackStone = MockDataService.getStoneById(id);
+      if (fallbackStone != null) {
+        debugPrint('[StoneRepository] Serving stone from MockDataService fallback: $id');
+        return fallbackStone;
+      }
       if (_useMockData) {
         debugPrint('[StoneRepository] getStoneById fallback: $e');
         final stone = MockDataService.getStoneById(id);

@@ -89,8 +89,8 @@ class StorageService {
   // ═══════════════════════════════════════════════════════════════════════
 
   // App Settings
-  Future<void> saveThemeMode(bool isDark) => _appBox.put('theme_dark', isDark);
-  bool getThemeMode() => _appBox.get('theme_dark', defaultValue: true);
+  Future<void> saveThemeMode(bool isDark) => _appBox.put('theme_mode_v2', isDark);
+  bool getThemeMode() => _appBox.get('theme_mode_v2', defaultValue: true);
 
   Future<void> saveOnboardingCompleted(bool completed) => _appBox.put('onboarding_completed', completed);
   bool getOnboardingCompleted() => _appBox.get('onboarding_completed', defaultValue: false);

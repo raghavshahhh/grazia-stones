@@ -56,3 +56,8 @@ firebase_options.dart
 # Sensitive keys
 **/google-services.json
 **/GoogleService-Info.plist
+*.jks
+*.keystore
+**/key.properties
+key.properties
+.env*

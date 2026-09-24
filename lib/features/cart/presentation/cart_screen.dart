@@ -552,12 +552,16 @@ class CartScreen extends ConsumerWidget {
             ),
           ),
 
-          // Floating Glass Checkout Bar (Appears above GraziaBottomNav)
+          // Floating Glass Checkout Bar (Appears cleanly above GraziaBottomNav)
           if (items.isNotEmpty)
             Positioned(
               left: 16,
               right: 16,
-              bottom: (bottomPadding > 0 ? bottomPadding + 6 : 14) + 72,
+              bottom: (MediaQuery.of(context).viewPadding.bottom > 0
+                      ? MediaQuery.of(context).viewPadding.bottom + 6
+                      : 14) +
+                  64 +
+                  12,
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 520),
@@ -566,6 +570,7 @@ class CartScreen extends ConsumerWidget {
                     child: BackdropFilter(
                       filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
                       child: Container(
+                        width: double.infinity,
                         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                         decoration: BoxDecoration(
                           color: isDark

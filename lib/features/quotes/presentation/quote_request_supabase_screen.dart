@@ -234,7 +234,7 @@ Additional Notes: ${_notesController.text.trim()}
           icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
         ),
         title: Text(
-          'Request Project Quote',
+          'Request a Quotation',
           style: GoogleFonts.playfairDisplay(
             fontSize: 20,
             fontWeight: FontWeight.w700,

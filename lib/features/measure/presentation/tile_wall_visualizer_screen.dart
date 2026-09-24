@@ -544,10 +544,6 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
         width: renderWidth,
         height: renderHeight,
         decoration: BoxDecoration(
-          border: Border.all(
-            color: palette.primary.withValues(alpha: 0.6),
-            width: 2.5,
-          ),
           borderRadius: BorderRadius.circular(4),
           boxShadow: [
             BoxShadow(
@@ -556,6 +552,13 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
               offset: Offset(_is3DView ? 14 : 0, _is3DView ? 12 : 4),
             ),
           ],
+        ),
+        foregroundDecoration: BoxDecoration(
+          border: Border.all(
+            color: palette.primary.withValues(alpha: 0.6),
+            width: 2.5,
+          ),
+          borderRadius: BorderRadius.circular(4),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(2),
@@ -606,26 +609,38 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
       itemCount: rows,
       itemBuilder: (context, rowIndex) {
         final isOffset = _layoutPattern == 'brick' && rowIndex.isOdd;
-        return SizedBox(
-          height: cellH,
-          child: Row(
-            children: List.generate(columns + (isOffset ? 1 : 0), (colIndex) {
-              return Container(
-                width: cellW,
-                height: cellH,
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: Colors.black.withValues(alpha: 0.15),
-                    width: 0.6,
-                  ),
+        return ClipRect(
+          child: SizedBox(
+            width: renderWidth,
+            height: cellH,
+            child: OverflowBox(
+              minWidth: 0,
+              maxWidth: renderWidth + (isOffset ? cellW : 0),
+              alignment: Alignment.centerLeft,
+              child: Transform.translate(
+                offset: Offset(isOffset ? -cellW / 2 : 0, 0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: List.generate(columns + (isOffset ? 1 : 0), (colIndex) {
+                    return Container(
+                      width: cellW,
+                      height: cellH,
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: Colors.black.withValues(alpha: 0.15),
+                          width: 0.6,
+                        ),
+                      ),
+                      child: SmartStoneImage(
+                        imageUrl: imageUrl,
+                        fit: BoxFit.cover,
+                        fallbackColor: const Color(0xFFC4B5A5),
+                      ),
+                    );
+                  }),
                 ),
-                child: SmartStoneImage(
-                  imageUrl: imageUrl,
-                  fit: BoxFit.cover,
-                  fallbackColor: const Color(0xFFC4B5A5),
-                ),
-              );
-            }),
+              ),
+            ),
           ),
         );
       },
@@ -746,6 +761,7 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                     style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: palette.primary),
                   ),
                   style: OutlinedButton.styleFrom(
+                    minimumSize: Size.zero,
                     side: BorderSide(color: palette.primary.withValues(alpha: 0.5)),
                     padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),

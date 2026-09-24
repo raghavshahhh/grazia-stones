@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
+import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/core/services/ai_endpoint_client.dart';
 import 'package:grazia_stones/core/di.dart';
 
@@ -35,7 +36,6 @@ class SimpleAIStudioScreen extends ConsumerStatefulWidget {
 
 class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
   final ImagePicker _picker = ImagePicker();
-  final palette = GLuxuryPalettes.gold;
 
   Uint8List? _roomBytes;
   Uint8List? _designBytes;
@@ -81,20 +81,24 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
   }
 
   Future<void> _pick(bool isRoom) async {
+    final palette = ref.read(themePaletteProvider);
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
-      backgroundColor: palette.background,
+      backgroundColor: palette.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (ctx) => SafeArea(
         child: Wrap(
           children: [
             ListTile(
-              leading: const Icon(Icons.camera_alt_outlined),
-              title: Text('Take Photo', style: GoogleFonts.inter(color: palette.textPrimary)),
+              leading: Icon(Icons.camera_alt_outlined, color: palette.primary),
+              title: Text('Take Photo', style: GoogleFonts.inter(color: palette.textPrimary, fontWeight: FontWeight.w600)),
               onTap: () => Navigator.pop(ctx, ImageSource.camera),
             ),
             ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: Text('Choose from Gallery', style: GoogleFonts.inter(color: palette.textPrimary)),
+              leading: Icon(Icons.photo_library_outlined, color: palette.primary),
+              title: Text('Choose from Gallery', style: GoogleFonts.inter(color: palette.textPrimary, fontWeight: FontWeight.w600)),
               onTap: () => Navigator.pop(ctx, ImageSource.gallery),
             ),
           ],
@@ -181,6 +185,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = ref.watch(themePaletteProvider);
     final canGenerate = _roomBytes != null && _designBytes != null && !_generating;
 
     return Scaffold(
@@ -188,11 +193,23 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
       appBar: AppBar(
         backgroundColor: palette.background,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            } else {
+              // fallback
+            }
+          },
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
+        ),
         title: Text(
           'AI Room Studio',
           style: GoogleFonts.playfairDisplay(
             color: palette.textPrimary,
-            fontWeight: FontWeight.w600,
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
           ),
         ),
         iconTheme: IconThemeData(color: palette.textPrimary),
@@ -207,7 +224,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
                 'Two photos, one realistic result.',
                 style: GoogleFonts.inter(
                   fontSize: 13,
-                  color: palette.textPrimary.withValues(alpha: 0.6),
+                  color: palette.textSecondary,
                 ),
               ),
               const SizedBox(height: 20),
@@ -227,10 +244,10 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
                       SizedBox(
                         width: 14,
                         height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: palette.accent),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: palette.primary),
                       ),
                       const SizedBox(width: 10),
-                      Text('Loading selected stone…', style: GoogleFonts.inter(fontSize: 12, color: palette.textPrimary.withValues(alpha: 0.6))),
+                      Text('Loading selected stone…', style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary)),
                     ],
                   ),
                 ),
@@ -249,10 +266,12 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
                 child: ElevatedButton(
                   onPressed: canGenerate ? _generate : null,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: palette.accent,
+                    backgroundColor: palette.primary,
                     foregroundColor: Colors.black,
-                    disabledBackgroundColor: palette.accent.withValues(alpha: 0.3),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    disabledBackgroundColor: palette.surfaceDark,
+                    disabledForegroundColor: palette.textTertiary,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
                   child: _generating
                       ? const SizedBox(
@@ -285,8 +304,8 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
                     ),
                     TextButton.icon(
                       onPressed: _shareResult,
-                      icon: Icon(Icons.share_outlined, size: 18, color: palette.accent),
-                      label: Text('Share', style: GoogleFonts.inter(color: palette.accent, fontWeight: FontWeight.w600)),
+                      icon: Icon(Icons.share_outlined, size: 18, color: palette.primary),
+                      label: Text('Share', style: GoogleFonts.inter(color: palette.primary, fontWeight: FontWeight.w600)),
                     ),
                   ],
                 ),
@@ -329,9 +348,9 @@ class _ImageSlot extends StatelessWidget {
       child: Container(
         height: 180,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: palette.accent.withValues(alpha: 0.4)),
-          color: palette.accent.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: palette.border, width: 1.0),
+          color: palette.surface,
           image: bytes != null
               ? DecorationImage(image: MemoryImage(bytes!), fit: BoxFit.cover)
               : null,
@@ -340,11 +359,20 @@ class _ImageSlot extends StatelessWidget {
             ? Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.add_photo_alternate_outlined, size: 32, color: palette.accent),
-                  const SizedBox(height: 8),
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: palette.surfaceDark,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: palette.border),
+                    ),
+                    child: Icon(Icons.add_photo_alternate_outlined, size: 24, color: palette.primary),
+                  ),
+                  const SizedBox(height: 12),
                   Text(
                     label,
-                    style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: palette.textPrimary),
+                    style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15, color: palette.textPrimary),
                   ),
                   const SizedBox(height: 4),
                   Padding(
@@ -352,7 +380,7 @@ class _ImageSlot extends StatelessWidget {
                     child: Text(
                       subtitle,
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.inter(fontSize: 12, color: palette.textPrimary.withValues(alpha: 0.5)),
+                      style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary),
                     ),
                   ),
                 ],
@@ -360,11 +388,11 @@ class _ImageSlot extends StatelessWidget {
             : Align(
                 alignment: Alignment.topRight,
                 child: Padding(
-                  padding: const EdgeInsets.all(8.0),
+                  padding: const EdgeInsets.all(10.0),
                   child: Container(
-                    decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(8)),
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    child: Text('Change', style: GoogleFonts.inter(color: Colors.white, fontSize: 11)),
+                    decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.7), borderRadius: BorderRadius.circular(8)),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    child: Text('Change', style: GoogleFonts.inter(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
                   ),
                 ),
               ),

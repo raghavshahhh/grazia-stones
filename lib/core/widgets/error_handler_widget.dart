@@ -23,7 +23,8 @@ class ErrorHandlerWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final activePalette = palette ?? GLuxuryPalettes.gold;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final activePalette = palette ?? (isDark ? GLuxuryPalettes.goldDark : GLuxuryPalettes.gold);
     final friendly = UserFriendlyError.from(error, fallbackMessage: customMessage);
 
     return Center(

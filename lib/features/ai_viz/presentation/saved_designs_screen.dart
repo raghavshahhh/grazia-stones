@@ -53,10 +53,20 @@ class _SavedDesignsScreenState extends ConsumerState<SavedDesignsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        setState(() {
-          _error = e.toString();
-          _isLoading = false;
-        });
+        if (e.toString().toLowerCase().contains('not logged in') ||
+            e.toString().contains('JWT') ||
+            e.toString().contains('PGRST301')) {
+          setState(() {
+            _designs = [];
+            _isLoading = false;
+            _error = null;
+          });
+        } else {
+          setState(() {
+            _error = e.toString();
+            _isLoading = false;
+          });
+        }
       }
     }
   }
@@ -247,6 +257,7 @@ class _SavedDesignsScreenState extends ConsumerState<SavedDesignsScreen> {
       body: _error != null
           ? ErrorHandlerWidget(
               error: Exception(_error),
+              palette: palette,
               onRetry: _loadDesigns,
             )
           : _isLoading
