@@ -13,7 +13,7 @@ final themePaletteProvider =
 class ThemePaletteNotifier extends StateNotifier<LuxuryPalette> {
   final StorageService _storage = StorageService.instance;
 
-  ThemePaletteNotifier() : super(GLuxuryPalettes.gold) {
+  ThemePaletteNotifier() : super(GLuxuryPalettes.goldDark) {
     _loadPersistedTheme();
   }
 

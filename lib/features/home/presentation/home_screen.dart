@@ -30,21 +30,12 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   List<Stone>? _trendingStones;
   List<Collection>? _collections;
-  String _selectedCategory = 'All';
   bool _isLoading = true;
   Object? _loadError;
 
   late PageController _heroPageController;
   Timer? _heroTimer;
   int _currentHeroIndex = 0;
-
-  final List<String> _categories = [
-    'All',
-    'Ledge Stone',
-    'Cultured Stone',
-    'Rustic Brick',
-    'Designer 3D',
-  ];
 
   @override
   void initState() {
@@ -238,39 +229,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
                       const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
-                      // 3. Category Filter Chips
+                      // 3. Curated Collections Gateway
                       SliverToBoxAdapter(
                         child: FadeInStagger(
                           index: 2,
-                          child: _buildCategoryChips(palette),
-                        ),
-                      ),
-
-                      const SliverToBoxAdapter(child: SizedBox(height: 18)),
-
-                      // 4. Trending Stones Section
-                      SliverToBoxAdapter(
-                        child: FadeInStagger(
-                          index: 3,
-                          child: _buildTrendingHeader(palette),
-                        ),
-                      ),
-
-                      const SliverToBoxAdapter(child: SizedBox(height: 14)),
-
-                      SliverToBoxAdapter(
-                        child: FadeInStagger(
-                          index: 4,
-                          child: _buildTrendingCarousel(palette),
-                        ),
-                      ),
-
-                      const SliverToBoxAdapter(child: SizedBox(height: 30)),
-
-                      // 5. Curated Collections
-                      SliverToBoxAdapter(
-                        child: FadeInStagger(
-                          index: 5,
                           child: _buildCollectionsHeader(palette),
                         ),
                       ),
@@ -279,18 +241,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
                       SliverToBoxAdapter(
                         child: FadeInStagger(
-                          index: 6,
+                          index: 3,
                           child: _buildCollectionsList(palette),
                         ),
                       ),
 
                       const SliverToBoxAdapter(child: SizedBox(height: 28)),
 
-                      // 5B. Full Architectural Product Grid
+                      // 4. Featured Masterpieces Section
                       SliverToBoxAdapter(
                         child: FadeInStagger(
-                          index: 7,
-                          child: _buildAllProductsHeader(palette),
+                          index: 4,
+                          child: _buildTrendingHeader(palette),
                         ),
                       ),
 
@@ -298,52 +260,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
                       SliverToBoxAdapter(
                         child: FadeInStagger(
-                          index: 8,
-                          child: _buildAllProductsGrid(palette),
+                          index: 5,
+                          child: _buildTrendingCarousel(palette),
                         ),
                       ),
 
-                      const SliverToBoxAdapter(child: SizedBox(height: 30)),
+                      const SliverToBoxAdapter(child: SizedBox(height: 28)),
 
-                      // 6. Room Upload AI Visualization Card
+                      // 5. Architectural Portals (Catalogue, Kanpur Experience Center, Custom Quotes)
                       SliverToBoxAdapter(
                         child: FadeInStagger(
-                          index: 9,
-                          child: _buildAIStudioPromoCard(palette),
+                          index: 6,
+                          child: _buildArchitecturalPortals(palette),
                         ),
                       ),
 
-                      const SliverToBoxAdapter(child: SizedBox(height: 32)),
+                      const SliverToBoxAdapter(child: SizedBox(height: 28)),
 
-                      // 7. Why Grazia Stones (4 Pillars)
+                      // 6. Refined Brand Signature
                       SliverToBoxAdapter(
                         child: FadeInStagger(
-                          index: 8,
-                          child: _buildWhyGraziaPillars(palette),
-                        ),
-                      ),
-
-                      const SliverToBoxAdapter(child: SizedBox(height: 30)),
-
-                      // 8. Architectural Consultation / Dealer CTA
-                      SliverToBoxAdapter(
-                        child: FadeInStagger(
-                          index: 9,
-                          child: _buildConsultationCTA(palette),
-                        ),
-                      ),
-
-                      const SliverToBoxAdapter(child: SizedBox(height: 30)),
-
-                      // 9. Official Brand & Kanpur Headquarters Signature
-                      SliverToBoxAdapter(
-                        child: FadeInStagger(
-                          index: 10,
+                          index: 7,
                           child: _buildBrandFooter(palette),
                         ),
                       ),
 
-                      const SliverToBoxAdapter(child: SizedBox(height: 140)),
+                      const SliverToBoxAdapter(child: SizedBox(height: 100)),
                     ],
                   ),
                 ),
@@ -695,53 +637,218 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  // ── 3. Category Filter Chips ──
-  Widget _buildCategoryChips(LuxuryPalette palette) {
+  // ── 3. Curated Collections Gateway ──
+  Widget _buildCollectionsHeader(LuxuryPalette palette) {
+    final count = _collections?.length ?? 0;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Text(
+                'CURATED COLLECTIONS',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 2.0,
+                  color: palette.textTertiary,
+                ),
+              ),
+              if (count > 0) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: palette.primary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '$count Series',
+                    style: GoogleFonts.inter(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w700,
+                      color: palette.primary,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          ApplePressable(
+            onTap: () => context.push('/collections'),
+            child: Row(
+              children: [
+                Text(
+                  'Explore All',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: palette.primary,
+                  ),
+                ),
+                const SizedBox(width: 2),
+                Icon(Icons.arrow_forward_ios_rounded, size: 11, color: palette.primary),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCollectionsList(LuxuryPalette palette) {
+    final collections = _collections ?? [];
+    if (collections.isEmpty) return const SizedBox.shrink();
+
+    final displayCollections = collections.take(6).toList();
+    final itemCount = displayCollections.length + 1;
+
     return SizedBox(
-      height: 38,
+      height: 154,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: _categories.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemCount: itemCount,
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
         itemBuilder: (context, index) {
-          final cat = _categories[index];
-          final isSelected = _selectedCategory == cat;
+          if (index == displayCollections.length) {
+            return Container(
+              width: 140,
+              decoration: BoxDecoration(
+                color: palette.surface,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: palette.border),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.03),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: ApplePressable(
+                onTap: () => context.push('/collections'),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: palette.primary.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.grid_view_rounded, color: palette.primary, size: 20),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'All Collections',
+                        style: GoogleFonts.playfairDisplay(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: palette.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '17 Series →',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: palette.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }
+
+          final col = displayCollections[index];
+          final matchingStone = _trendingStones
+              ?.where((s) =>
+                  s.collection.toLowerCase().contains(col.name.toLowerCase()) ||
+                  col.name.toLowerCase().contains(s.collection.toLowerCase()))
+              .firstOrNull;
 
           return ApplePressable(
-            onTap: () {
-              setState(() {
-                _selectedCategory = cat;
-              });
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            onTap: () => context.push('/collections/${col.id}'),
+            child: Container(
+              width: 175,
               decoration: BoxDecoration(
-                gradient: isSelected ? palette.primaryGradient : null,
-                color: isSelected ? null : palette.surface,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: isSelected ? Colors.transparent : palette.border,
-                ),
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: palette.primary.withValues(alpha: 0.35),
-                          blurRadius: 10,
-                          offset: const Offset(0, 2),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Center(
-                child: Text(
-                  cat,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                    color: isSelected ? Colors.white : palette.textSecondary,
+                color: palette.surface,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: palette.border),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
                   ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(17),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    SmartStoneImage(
+                      imageUrl: (col.imageUrl != null && col.imageUrl!.isNotEmpty)
+                          ? col.imageUrl
+                          : matchingStone?.imageUrl,
+                      localAsset: (col.imageUrl == null || col.imageUrl!.isEmpty) &&
+                              matchingStone?.imageUrl == null
+                          ? 'assets/images/placeholder_stone.png'
+                          : null,
+                      fit: BoxFit.cover,
+                      palette: palette,
+                    ),
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.8),
+                          ],
+                          stops: const [0.2, 1.0],
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text(
+                            col.name,
+                            style: GoogleFonts.playfairDisplay(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${col.stoneCount} Surfaces',
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white.withValues(alpha: 0.85),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -751,50 +858,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  // ── 4. Trending Header & Carousel ──
+  // ── 4. Featured Masterpieces Section ──
   Widget _buildTrendingHeader(LuxuryPalette palette) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              Text(
-                'TRENDING STONES',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 2.0,
-                  color: palette.textTertiary,
-                ),
-              ),
-              if (_selectedCategory != 'All') ...[
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: palette.primary.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    _selectedCategory,
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: palette.primary,
-                    ),
-                  ),
-                ),
-              ],
-            ],
+          Text(
+            'FEATURED MASTERPIECES',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 2.0,
+              color: palette.textTertiary,
+            ),
           ),
-          GestureDetector(
-            onTap: () => context.push('/collections'),
+          ApplePressable(
+            onTap: () => context.push('/catalogue'),
             child: Row(
               children: [
                 Text(
-                  'View All',
+                  'Full Catalogue',
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -815,27 +900,77 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final allStones = _trendingStones ?? [];
     if (allStones.isEmpty) return const SizedBox.shrink();
 
-    // Filter by selected category if not 'All'
-    final stones = _selectedCategory == 'All'
-        ? allStones
-        : allStones.where((s) {
-            final cat = _selectedCategory.toLowerCase();
-            return s.collection.toLowerCase().contains(cat) ||
-                s.name.toLowerCase().contains(cat) ||
-                s.category.toLowerCase().contains(cat) ||
-                s.description.toLowerCase().contains(cat);
-          }).toList();
-
-    final displayStones = stones.isEmpty ? allStones : stones;
+    final displayStones = allStones.take(6).toList();
+    final itemCount = displayStones.length + 1;
 
     return SizedBox(
       height: 295,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: displayStones.length,
+        itemCount: itemCount,
         separatorBuilder: (_, _) => const SizedBox(width: 14),
         itemBuilder: (context, index) {
+          if (index == displayStones.length) {
+            return Container(
+              width: 175,
+              decoration: BoxDecoration(
+                color: palette.surface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: palette.border),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.03),
+                    blurRadius: 14,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: ApplePressable(
+                onTap: () => context.push('/catalogue'),
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: palette.primary.withValues(alpha: 0.12),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(Icons.arrow_forward_rounded, color: palette.primary, size: 24),
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          'Full Catalogue',
+                          style: GoogleFonts.playfairDisplay(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: palette.textPrimary,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Browse all 18+ surfaces →',
+                          style: GoogleFonts.inter(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: palette.primary,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
+
           final stone = displayStones[index];
           final isWishlisted = ref.watch(
             wishlistProvider.select((w) => w.contains(stone.id)),
@@ -862,7 +997,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Dominant image with AR and Wishlist overlays
                     Expanded(
                       flex: 4,
                       child: Stack(
@@ -874,7 +1008,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             alignment: Alignment.topCenter,
                             palette: palette,
                           ),
-                          // Gradient bottom shadow on image
                           Container(
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
@@ -888,7 +1021,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               ),
                             ),
                           ),
-                          // Top Right: Wishlist Icon
                           Positioned(
                             top: 8,
                             right: 8,
@@ -920,7 +1052,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               ),
                             ),
                           ),
-                          // Bottom Left: 1-Tap AR Button
                           Positioned(
                             bottom: 8,
                             left: 8,
@@ -956,7 +1087,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ],
                       ),
                     ),
-                    // Metadata section
                     Padding(
                       padding: const EdgeInsets.all(12),
                       child: Column(
@@ -1010,649 +1140,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  // ── 4. Curated Collections ──
-  Widget _buildCollectionsHeader(LuxuryPalette palette) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            'CURATED COLLECTIONS',
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 2.0,
-              color: palette.textTertiary,
-            ),
-          ),
-          ApplePressable(
-            onTap: () => context.push('/collections'),
-            child: Row(
-              children: [
-                Text(
-                  'Explore All',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: palette.primary,
-                  ),
-                ),
-                const SizedBox(width: 2),
-                Icon(Icons.arrow_forward_ios_rounded, size: 11, color: palette.primary),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCollectionsList(LuxuryPalette palette) {
-    final collections = _collections ?? [];
-    if (collections.isEmpty) return const SizedBox.shrink();
-
-    return SizedBox(
-      height: 136,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: collections.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 12),
-        itemBuilder: (context, index) {
-          final col = collections[index];
-          final matchingStone = _trendingStones
-              ?.where((s) => s.collection.toLowerCase().contains(col.name.toLowerCase()) || col.name.toLowerCase().contains(s.collection.toLowerCase()))
-              .firstOrNull;
-
-          return ApplePressable(
-            onTap: () => context.push('/collections/${col.id}'),
-            child: Container(
-              width: 165,
-              decoration: BoxDecoration(
-                color: palette.surface,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: palette.border),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(17),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    SmartStoneImage(
-                      imageUrl: (col.imageUrl != null && col.imageUrl!.isNotEmpty)
-                          ? col.imageUrl
-                          : matchingStone?.imageUrl,
-                      localAsset: (col.imageUrl == null || col.imageUrl!.isEmpty) && matchingStone?.imageUrl == null
-                          ? 'assets/images/placeholder_stone.png'
-                          : null,
-                      fit: BoxFit.cover,
-                      palette: palette,
-                    ),
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            Colors.black.withValues(alpha: 0.75),
-                          ],
-                          stops: const [0.25, 1.0],
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          Text(
-                            col.name,
-                            style: GoogleFonts.playfairDisplay(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${col.stoneCount} Surfaces',
-                            style: GoogleFonts.inter(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.white.withValues(alpha: 0.85),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  // ── 4B. Full Architectural Product Grid with 1-Tap Quick Add ──
-  Widget _buildAllProductsHeader(LuxuryPalette palette) {
-    final allStones = _trendingStones ?? [];
-    final stones = _selectedCategory == 'All'
-        ? allStones
-        : allStones.where((s) {
-            final cat = _selectedCategory.toLowerCase();
-            return s.collection.toLowerCase().contains(cat) ||
-                s.name.toLowerCase().contains(cat) ||
-                s.category.toLowerCase().contains(cat) ||
-                s.description.toLowerCase().contains(cat);
-          }).toList();
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Row(
-              children: [
-                Flexible(
-                  child: Text(
-                    'ARCHITECTURAL CATALOGUE',
-                    style: GoogleFonts.inter(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.5,
-                      color: palette.textTertiary,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: GLuxuryPalettes.gold.primary.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    _selectedCategory == 'All'
-                        ? '${allStones.length} Products'
-                        : '${stones.length} of ${allStones.length} Products',
-                    style: GoogleFonts.inter(
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w700,
-                      color: GLuxuryPalettes.gold.primary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          GestureDetector(
-            onTap: () => context.push('/catalogue'),
-            child: Row(
-              children: [
-                Text(
-                  'Explore All',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: palette.primary,
-                  ),
-                ),
-                const SizedBox(width: 2),
-                Icon(Icons.arrow_forward_ios_rounded, size: 11, color: palette.primary),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAllProductsGrid(LuxuryPalette palette) {
-    final allStones = _trendingStones ?? [];
-    if (allStones.isEmpty) return const SizedBox.shrink();
-
-    final stones = _selectedCategory == 'All'
-        ? allStones
-        : allStones.where((s) {
-            final cat = _selectedCategory.toLowerCase();
-            return s.collection.toLowerCase().contains(cat) ||
-                s.name.toLowerCase().contains(cat) ||
-                s.category.toLowerCase().contains(cat) ||
-                s.description.toLowerCase().contains(cat);
-          }).toList();
-
-    if (stones.isEmpty) {
-      return Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-        decoration: BoxDecoration(
-          color: palette.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: palette.border),
-        ),
-        child: Column(
-          children: [
-            Icon(Icons.filter_alt_off_outlined, size: 42, color: palette.textTertiary),
-            const SizedBox(height: 12),
-            Text(
-              'No surfaces found under "$_selectedCategory"',
-              style: GoogleFonts.playfairDisplay(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: palette.textPrimary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Try selecting another category or view our complete architectural collection.',
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                color: palette.textSecondary,
-                height: 1.4,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            ApplePressable(
-              onTap: () {
-                HapticFeedback.selectionClick();
-                setState(() => _selectedCategory = 'All');
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                decoration: BoxDecoration(
-                  gradient: palette.primaryGradient,
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
-                    BoxShadow(
-                      color: palette.primary.withValues(alpha: 0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Text(
-                  'Show All Products',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final int crossAxisCount = width >= 1000
-            ? 4
-            : (width >= 640
-                ? 3
-                : 2);
-        final double childAspectRatio = width >= 640 ? 0.76 : 0.70;
-
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: stones.length,
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: crossAxisCount,
-              childAspectRatio: childAspectRatio,
-              crossAxisSpacing: 14,
-              mainAxisSpacing: 14,
-            ),
-            itemBuilder: (context, index) {
-              final stone = stones[index];
-              final isWishlisted = ref.watch(
-                wishlistProvider.select((w) => w.contains(stone.id)),
-              );
-
-              return ApplePressable(
-                onTap: () => context.push('/stones/${stone.id}'),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: palette.surface,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: palette.border, width: 0.8),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            ClipRRect(
-                              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-                              child: SmartStoneImage(
-                                imageUrl: stone.imageUrl,
-                                fit: BoxFit.cover,
-                                alignment: Alignment.topCenter,
-                                palette: palette,
-                              ),
-                            ),
-                            // Top-Right: Quick Wishlist Toggle
-                            Positioned(
-                              top: 8,
-                              right: 8,
-                              child: ApplePressable(
-                                onTap: () {
-                                  HapticFeedback.lightImpact();
-                                  ref.read(wishlistProvider.notifier).toggleStone(stone.id);
-                                },
-                                child: Container(
-                                  width: 30,
-                                  height: 30,
-                                  decoration: BoxDecoration(
-                                    color: palette.surface.withValues(alpha: 0.94),
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.12),
-                                        blurRadius: 6,
-                                      ),
-                                    ],
-                                  ),
-                                  child: Icon(
-                                    isWishlisted ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                                    size: 15,
-                                    color: isWishlisted ? palette.primary : palette.textSecondary,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            // Bottom-Left: AR View Badge Button
-                            Positioned(
-                              bottom: 8,
-                              left: 8,
-                              child: ApplePressable(
-                                onTap: () => context.push('/live-ai?stoneId=${stone.id}'),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha: 0.72),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: const Color(0xFFD4AF37).withValues(alpha: 0.6),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.view_in_ar_rounded, size: 12, color: Color(0xFFD4AF37)),
-                                      const SizedBox(width: 3),
-                                      Text(
-                                        'AR',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w700,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                            // Bottom-Right: Quick 1-Tap Add to Cart Button
-                            Positioned(
-                              bottom: 8,
-                              right: 8,
-                              child: ApplePressable(
-                                onTap: () {
-                                  HapticFeedback.mediumImpact();
-                                  ref.read(cartProvider.notifier).addItem(stone);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('${stone.name} added to Project Cart'),
-                                      duration: const Duration(seconds: 1),
-                                      behavior: SnackBarBehavior.floating,
-                                      backgroundColor: GLuxuryPalettes.gold.primary,
-                                    ),
-                                  );
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: GLuxuryPalettes.gold.primary,
-                                    borderRadius: BorderRadius.circular(14),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: GLuxuryPalettes.gold.primary.withValues(alpha: 0.4),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.add_shopping_cart_rounded, size: 13, color: Colors.black),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        '+ Add',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w800,
-                                          color: Colors.black,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              stone.name,
-                              style: GoogleFonts.inter(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: palette.textPrimary,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              stone.collection,
-                              style: GoogleFonts.inter(
-                                fontSize: 10.5,
-                                color: palette.textSecondary,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              '₹${stone.pricePerSqFt.toInt()}/sqft',
-                              style: GoogleFonts.playfairDisplay(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                                color: palette.primary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-
-  // ── 5. Room Upload AI Visualization Promo Card ──
-  Widget _buildAIStudioPromoCard(LuxuryPalette palette) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: palette.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: palette.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 16,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: palette.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(Icons.auto_awesome_outlined, color: palette.primary, size: 22),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'AI Visualization Studio',
-                style: GoogleFonts.inter(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: palette.textPrimary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Transform Your Space',
-            style: GoogleFonts.playfairDisplay(
-              fontSize: 21,
-              fontWeight: FontWeight.w700,
-              color: palette.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Upload a room photo and let AI render premium stone surfaces on walls and floors with photorealistic lighting in seconds.',
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              color: palette.textSecondary,
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 16),
-          ApplePressable(
-            onTap: () => context.push('/ai-viz'),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
-              decoration: BoxDecoration(
-                gradient: palette.primaryGradient,
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: [
-                  BoxShadow(
-                    color: palette.primary.withValues(alpha: 0.35),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.photo_camera_outlined, color: Colors.white, size: 18),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Try AI Studio →',
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── 6. Why Grazia Stones 4 Pillars (2x2 Grid) ──
-  Widget _buildWhyGraziaPillars(LuxuryPalette palette) {
-    final pillars = [
-      {
-        'icon': Icons.diamond_outlined,
-        'title': 'Curated Excellence',
-        'desc': 'Handpicked natural stone from premier quarries worldwide.',
-      },
-      {
-        'icon': Icons.view_in_ar_outlined,
-        'title': 'Precision Visualization',
-        'desc': 'Real-time AR & AI rendering true to scale and architectural lighting.',
-      },
-      {
-        'icon': Icons.verified_outlined,
-        'title': 'Architectural Grade',
-        'desc': 'Certified standards for luxury residential and commercial projects.',
-      },
-      {
-        'icon': Icons.inventory_2_outlined,
-        'title': 'Doorstep Samples',
-        'desc': 'Free physical sample swatches delivered anywhere across India.',
-      },
-    ];
-
+  // ── 5. Architectural Portals (Catalogue, Experience Center, Custom Quotes) ──
+  Widget _buildArchitecturalPortals(LuxuryPalette palette) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'WHY GRAZIA STONES',
+            'ARCHITECTURAL SHOWROOM',
             style: GoogleFonts.inter(
               fontSize: 12,
               fontWeight: FontWeight.w700,
@@ -1661,161 +1157,269 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
           const SizedBox(height: 14),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final width = constraints.maxWidth;
-              final int crossAxisCount = width >= 900 ? 4 : (width >= 600 ? 3 : 2);
-              final double childAspectRatio = width >= 900 ? 1.35 : (width >= 600 ? 1.15 : 0.88);
 
-              return GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: 4,
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: crossAxisCount,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: childAspectRatio,
-                ),
-                itemBuilder: (context, i) {
-                  final p = pillars[i];
-                  return Container(
-                    padding: const EdgeInsets.all(14),
+          // Portal 1: Full Architectural Catalogue
+          ApplePressable(
+            onTap: () => context.push('/catalogue'),
+            child: Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: palette.surface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: palette.border),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 14,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
                     decoration: BoxDecoration(
-                      color: palette.surface,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: palette.border),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.02),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
+                      color: palette.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(14),
                     ),
+                    child: Icon(Icons.auto_stories_rounded, color: palette.primary, size: 24),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(p['icon'] as IconData, color: palette.primary, size: 24),
-                        const SizedBox(height: 10),
                         Text(
-                          p['title'] as String,
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
+                          'Full Architectural Catalogue',
+                          style: GoogleFonts.playfairDisplay(
+                            fontSize: 16,
                             fontWeight: FontWeight.w700,
                             color: palette.textPrimary,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 3),
                         Text(
-                          p['desc'] as String,
+                          'Explore all collections, finish types & technical specifications',
                           style: GoogleFonts.inter(
-                            fontSize: 11,
+                            fontSize: 11.5,
                             color: palette.textSecondary,
-                            height: 1.35,
+                            height: 1.3,
                           ),
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
-                  );
-                },
-              );
-            },
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: palette.primary.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.arrow_forward_ios_rounded, size: 12, color: palette.primary),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ],
-      ),
-    );
-  }
 
-  // ── 7. Architectural Consultation CTA ──
-  Widget _buildConsultationCTA(LuxuryPalette palette) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: palette.surfaceDark,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: palette.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Need Architectural Consultation?',
-            style: GoogleFonts.playfairDisplay(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: palette.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Connect with an authorized Grazia dealer or request a personalized project quotation.',
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              color: palette.textSecondary,
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: ApplePressable(
-                  onTap: () => context.push('/dealers'),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    decoration: BoxDecoration(
-                      color: Colors.transparent,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: palette.border, width: 1.2),
-                    ),
-                    child: Center(
-                      child: Text(
-                        'Find Showroom',
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: palette.textPrimary,
-                        ),
-                      ),
-                    ),
+          const SizedBox(height: 12),
+
+          // Portal 2: Kanpur Experience Center & Dealer Network
+          ApplePressable(
+            onTap: () => context.push('/dealers'),
+            child: Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: palette.surface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: palette.border),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 14,
+                    offset: const Offset(0, 4),
                   ),
-                ),
+                ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ApplePressable(
-                  onTap: () => context.push('/quotes'),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
                     decoration: BoxDecoration(
-                      gradient: palette.primaryGradient,
+                      color: palette.primary.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(14),
-                      boxShadow: [
-                        BoxShadow(
-                          color: palette.primary.withValues(alpha: 0.35),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
+                    ),
+                    child: Icon(Icons.storefront_rounded, color: palette.primary, size: 24),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Kanpur Flagship & Dealer Network',
+                          style: GoogleFonts.playfairDisplay(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: palette.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          '123/477 Kalpi Road, Fazalganj & verified regional partner showrooms',
+                          style: GoogleFonts.inter(
+                            fontSize: 11.5,
+                            color: palette.textSecondary,
+                            height: 1.3,
+                          ),
                         ),
                       ],
                     ),
-                    child: Center(
-                      child: Text(
-                        'Request Quote',
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: palette.primary.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.arrow_forward_ios_rounded, size: 12, color: palette.primary),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // Portal 3: Custom Project Quotation & Doorstep Samples
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  palette.surface,
+                  palette.surfaceDark,
+                ],
+              ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: palette.primary.withValues(alpha: 0.25)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        gradient: palette.primaryGradient,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.request_quote_rounded, color: Colors.white, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Architectural Concierge',
+                            style: GoogleFonts.playfairDisplay(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: palette.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Certified estimates & physical sample swatches',
+                            style: GoogleFonts.inter(
+                              fontSize: 11.5,
+                              color: palette.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ApplePressable(
+                        onTap: () => context.push('/quotes'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 11),
+                          decoration: BoxDecoration(
+                            gradient: palette.primaryGradient,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: palette.primary.withValues(alpha: 0.35),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Center(
+                            child: Text(
+                              'Request Quote',
+                              style: GoogleFonts.inter(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ApplePressable(
+                        onTap: () => context.push('/sample-order'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 11),
+                          decoration: BoxDecoration(
+                            color: palette.surface,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: palette.border, width: 1.1),
+                          ),
+                          child: Center(
+                            child: Text(
+                              'Order Swatches',
+                              style: GoogleFonts.inter(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                                color: palette.textPrimary,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),

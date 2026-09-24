@@ -4,7 +4,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
-import 'package:grazia_stones/shared/theme/tokens.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/models/collection.dart';
@@ -171,83 +170,149 @@ class _CollectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final image = _getCollectionImage();
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            HapticFeedback.lightImpact();
-            context.push('/collections/${collection.id}');
-          },
-          borderRadius: BorderRadius.circular(GTokens.radiusLg),
-          child: Container(
-            decoration: BoxDecoration(
-              color: palette.surface,
-              borderRadius: BorderRadius.circular(GTokens.radiusLg),
-              border: Border.all(color: palette.border, width: 0.5),
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 4))],
-            ),
-            child: Row(
+      margin: const EdgeInsets.only(bottom: 16),
+      height: 170,
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: palette.border, width: 0.8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(19),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              context.push('/collections/${collection.id}');
+            },
+            child: Stack(
+              fit: StackFit.expand,
               children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), bottomLeft: Radius.circular(16)),
-                  child: SmartStoneImage(
-                    imageUrl: _getCollectionImage()?.startsWith('http') == true ? _getCollectionImage() : null,
-                    localAsset: _getCollectionImage()?.startsWith('http') == false ? _getCollectionImage() : null,
-                    width: 110,
-                    height: 110,
-                    fit: BoxFit.cover,
-                    fallbackColor: palette.surfaceDark,
-                  ),
+                // Background material texture
+                SmartStoneImage(
+                  imageUrl: image?.startsWith('http') == true ? image : null,
+                  localAsset: image?.startsWith('http') == false ? image : null,
+                  fit: BoxFit.cover,
+                  alignment: Alignment.center,
+                  fallbackColor: palette.surfaceDark,
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 4),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          collection.name,
-                          style: GoogleFonts.playfairDisplay(
-                            color: palette.textPrimary,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          collection.description,
-                          style: GoogleFonts.inter(
-                            color: palette.textSecondary,
-                            fontSize: 12,
-                            height: 1.4,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 10),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: palette.primary.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            '${collection.stoneCount} Surfaces',
-                            style: GoogleFonts.inter(
-                              color: palette.primary,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
+
+                // Luxury dark gradient overlay
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.25),
+                        Colors.black.withValues(alpha: 0.65),
+                        Colors.black.withValues(alpha: 0.92),
                       ],
+                      stops: const [0.0, 0.45, 1.0],
                     ),
                   ),
                 ),
-                Padding(padding: const EdgeInsets.only(right: 12), child: Icon(Icons.chevron_right, color: palette.textTertiary, size: 22)),
+
+                // Content
+                Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Gold badge
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.55),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: palette.primary.withValues(alpha: 0.6),
+                                      width: 0.8,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    '${collection.stoneCount} SURFACES',
+                                    style: GoogleFonts.inter(
+                                      color: palette.primary,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 1.2,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  collection.name,
+                                  style: GoogleFonts.playfairDisplay(
+                                    color: Colors.white,
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w800,
+                                    height: 1.15,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                if (collection.description.isNotEmpty) ...[
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    collection.description,
+                                    style: GoogleFonts.inter(
+                                      color: Colors.white.withValues(alpha: 0.85),
+                                      fontSize: 12,
+                                      height: 1.35,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: palette.primary,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: palette.primary.withValues(alpha: 0.4),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.arrow_forward_rounded,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),

@@ -124,9 +124,21 @@ dev_dependencies:
   
   # Testing
   mockito: ^5.4.4
-  integration_test:
-    sdk: flutter
   path_provider_platform_interface: ^2.1.2
+
+  # integration_test was removed from here on 2026-09-13: with this
+  # project's Flutter 3.44.4 + AGP 9.0.1 combination, Flutter's Gradle
+  # plugin loader correctly excludes it from the release *dependency*
+  # graph (PluginHandler.kt does check dev_dependency + release build
+  # type), but flutter_tools' GeneratedPluginRegistrant.java codegen is
+  # NOT variant-aware and references IntegrationTestPlugin unconditionally
+  # — so `flutter build apk/appbundle --release` failed with "package
+  # dev.flutter.plugins.integration_test does not exist" every time,
+  # confirmed via `flutter clean` + full rebuild (not a stale-cache issue).
+  # The integration_test/ directory and its test files are untouched and
+  # still exist; re-add this dependency (and confirm a release build
+  # still succeeds) once this Flutter/AGP pairing's plugin-loader bug is
+  # fixed upstream, or if downgrading AGP resolves it.
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

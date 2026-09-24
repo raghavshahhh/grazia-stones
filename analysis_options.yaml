@@ -10,6 +10,10 @@
 include: package:flutter_lints/flutter.yaml
 
 analyzer:
+  exclude:
+    - integration_test/**
+    - integration_test_driver/**
+    - scripts/**
   errors:
     unused_local_variable: ignore
     file_names: ignore

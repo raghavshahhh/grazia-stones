@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:ui';
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,7 +13,6 @@ import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 import 'widgets/ar_camera_view.dart';
 import 'widgets/ar_measure_overlay.dart';
 import 'widgets/corner_adjust_overlay.dart';
-import 'widgets/measure_overlay.dart';
 
 /// Live AI Visualizer — real camera + wall texture visualization
 class LiveAIScreen extends ConsumerStatefulWidget {
@@ -347,21 +345,19 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
           // 4. Info button — product name/price + link to product page (only in standard preview mode)
           if (!isOverlayActive) _buildInfoButton(),
 
-          // 5. Tap-to-measure overlay — only when camera is actively ready
-          if (_measureMode && _cameraReady)
-            (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.android)
-                ? ArMeasureOverlay(
-                    onClose: () => setState(() => _measureMode = false),
-                    tileWidthMm: _tileDimensionsMm()?.$1,
-                    tileHeightMm: _tileDimensionsMm()?.$2,
-                    onComplete: (result) {
-                      setState(() {
-                        _measureMode = false;
-                        _quantityResult = result;
-                      });
-                    },
-                  )
-                : MeasureOverlay(onClose: () => setState(() => _measureMode = false)),
+          // 5. Tap-to-measure overlay
+          if (_measureMode)
+            ArMeasureOverlay(
+              onClose: () => setState(() => _measureMode = false),
+              tileWidthMm: _tileDimensionsMm()?.$1,
+              tileHeightMm: _tileDimensionsMm()?.$2,
+              onComplete: (result) {
+                setState(() {
+                  _measureMode = false;
+                  _quantityResult = result;
+                });
+              },
+            ),
 
           // 6. Manual wall-corner adjustment overlay — only when camera is ready
           if (_adjustingCorners && _cameraReady)
