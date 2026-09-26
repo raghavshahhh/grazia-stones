@@ -122,5 +122,5 @@ final quoteRiverpodProvider = StateNotifierProvider<QuoteRiverpodNotifier, Quote
 });
 
 final orderRiverpodProvider = StateNotifierProvider<OrderRiverpodNotifier, OrderRiverpodState>((ref) {
-  return OrderRiverpodNotifier();
+  return OrderRiverpodNotifier(ref.watch(orderRepositoryProvider));
 });

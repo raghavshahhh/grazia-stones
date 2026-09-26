@@ -245,11 +245,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
   Future<void> _loginAsGuest() async {
     HapticFeedback.lightImpact();
-    ref.read(authRiverpodProvider.notifier).login(
-          'guest',
-          'Guest User',
-          '',
-        );
+    // Browse without an account. Don't mark the user logged in: there is no
+    // Supabase session, so cart sync / checkout / saves would fail later.
+    // Those flows prompt for login when needed.
     _navigateAfterAuth();
   }
 

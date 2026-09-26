@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/constants/app_colors.dart';
+import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/providers/stone_providers.dart';
 import 'package:grazia_stones/core/widgets/animated_widgets.dart';
@@ -299,16 +300,39 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
   }
 
   // ── Save Design ─────────────────────────────────────────────────────────────
-  void _saveDesign() {
+  Future<void> _saveDesign() async {
     HapticFeedback.mediumImpact();
     final stone = _selectedStone;
     if (stone == null) return;
-    
-    // Saved design notification
-    LuxuryToast.show(
-      context,
-      message: 'Design saved: ${stone.name}',
-    );
+
+    // saved_designs rows belong to a user (user_id not null)
+    if (!ref.read(authRiverpodProvider).isLoggedIn) {
+      LuxuryToast.show(context, message: 'Log in to save designs');
+      context.push('/login');
+      return;
+    }
+
+    // No AR snapshot API on the native channel yet, so the saved design is the
+    // stone choice + its texture image.
+    final image = stone.arTexture ?? stone.mainImageUrl;
+    if (image == null || image.isEmpty) {
+      LuxuryToast.show(context, message: 'Could not save this design');
+      return;
+    }
+    try {
+      await ref.read(userRepositoryProvider).saveDesign(
+            stoneId: stone.id,
+            stoneName: stone.name,
+            generatedImageUrl: image,
+            finish: stone.finish,
+            notes: 'Saved from Live AR',
+          );
+      if (!mounted) return;
+      LuxuryToast.show(context, message: 'Design saved: ${stone.name}');
+    } catch (_) {
+      if (!mounted) return;
+      LuxuryToast.show(context, message: 'Could not save design. Please try again.');
+    }
   }
 
   // ── Request Quote ───────────────────────────────────────────────────────────
@@ -317,12 +341,8 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     final stone = _selectedStone;
     if (stone == null) return;
     
-    // Navigate to quote request screen with pre-filled stone info
-    context.push('/quotes', extra: {
-      'stoneId': stone.id,
-      'stoneName': stone.name,
-      'pricePerSqFt': stone.pricePerSqFt,
-    });
+    // Quote form with this stone preselected (router reads ?stoneId=)
+    context.push('/quotes/new?stoneId=${stone.id}');
   }
 
   @override

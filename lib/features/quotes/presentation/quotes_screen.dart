@@ -9,6 +9,7 @@ import 'package:grazia_stones/core/providers/stone_providers.dart';
 import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/models/quote_request.dart';
 import 'package:grazia_stones/core/repositories/quote_repository.dart';
+import 'package:grazia_stones/core/services/storage_service.dart';
 
 // ─── Quote Model ─────────────────────────────────────────
 class QuoteEntry {
@@ -314,7 +315,7 @@ class _QuotesScreenState extends ConsumerState<QuotesScreen> {
     );
   }
 
-  void _submitQuote() {
+  Future<void> _submitQuote() async {
     if (_areaController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -330,15 +331,42 @@ class _QuotesScreenState extends ConsumerState<QuotesScreen> {
     final stonesList = ref.read(allStonesProvider).valueOrNull ?? [];
     final stone = stonesList.firstWhere((s) => s.id == _selectedStoneId!);
 
-    ref.read(quotesProvider.notifier).addQuote(QuoteEntry(
-      id: 'q${DateTime.now().millisecondsSinceEpoch}',
-      stoneName: stone.name,
-      finish: _selectedFinish,
-      area: '${_areaController.text} sq ft',
-      notes: _notesController.text,
-      status: 'Pending',
-      createdAt: DateTime.now(),
-    ));
+    // Same contact source as the full /quotes/new form. Without a name + phone
+    // the sales desk can't call back, so send the user to that form instead.
+    final profile = StorageService.instance.getClientProfile();
+    final auth = ref.read(authRiverpodProvider);
+    final name = (profile['name']?.isNotEmpty == true ? profile['name'] : auth.userName)?.trim() ?? '';
+    final phone = (profile['phone']?.isNotEmpty == true ? profile['phone'] : auth.userPhone)?.trim() ?? '';
+    if (name.isEmpty || phone.isEmpty) {
+      context.push('/quotes/new?stoneId=${stone.id}');
+      return;
+    }
+
+    try {
+      await ref.read(orderRepositoryProvider).submitQuote(
+            name: name,
+            phone: phone,
+            stoneId: stone.id,
+            stoneName: stone.name,
+            areaSqft: double.tryParse(_areaController.text.trim()),
+            message: [
+              'Finish: $_selectedFinish',
+              if (_notesController.text.trim().isNotEmpty) _notesController.text.trim(),
+            ].join('\n'),
+          );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not send quote request. Please try again.', style: GoogleFonts.inter()),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    await ref.read(quotesProvider.notifier).load();
+    if (!mounted) return;
 
     _areaController.clear();
     _notesController.clear();

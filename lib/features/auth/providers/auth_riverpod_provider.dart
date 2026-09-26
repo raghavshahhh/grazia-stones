@@ -109,7 +109,8 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
       } else {
         // No session — check local cache
         final userData = _storage.getUser();
-        if (userData != null) {
+        // 'guest' rows came from the old fake guest login — not a real account
+        if (userData != null && userData['id'] != 'guest') {
           state = state.copyWith(
             userId: userData['id'] as String?,
             userName: userData['name'] as String?,
@@ -224,6 +225,7 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
       debugPrint('❌ Password reset error: $e');
+      rethrow;
     }
   }
 
@@ -251,6 +253,7 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
       debugPrint('❌ Account deletion error: $e');
+      rethrow;
     }
   }
 
@@ -322,6 +325,7 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
       debugPrint('❌ Profile update error: $e');
+      rethrow;
     }
   }
 

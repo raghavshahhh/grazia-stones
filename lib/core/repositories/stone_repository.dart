@@ -137,6 +137,9 @@ class StoneRepository {
           await _cache.set(_cacheNamespace, cacheKey, data);
           return data.map((j) => _stoneFromRow(j)).toList();
         }
+        // DB answered with no rows (no match / empty page): that's the real answer.
+        // Mock stones have ids that don't exist in the DB, so they'd break cart/quotes.
+        if (!_useMockData) return <Stone>[];
         var stones = search != null && search.isNotEmpty
             ? MockDataService.searchStones(search)
             : collectionId != null
@@ -219,7 +222,7 @@ class StoneRepository {
           await _cache.set(_cacheNamespace, cacheKey, data);
           return data.map((j) => _stoneFromRow(j)).toList();
         }
-        return MockDataService.searchStones(query);
+        return _useMockData ? MockDataService.searchStones(query) : <Stone>[];
       });
     } catch (e) {
       final cached = await _cache.get<List>(_cacheNamespace, cacheKey);
@@ -413,7 +416,7 @@ class StoneRepository {
           await _cache.set(_cacheNamespace, cacheKey, data);
           return data.map((j) => _stoneFromRow(j)).toList();
         }
-        return MockDataService.getStonesByCollection(collectionId);
+        return _useMockData ? MockDataService.getStonesByCollection(collectionId) : <Stone>[];
       });
     } catch (e) {
       final cached = await _cache.get<List>(_cacheNamespace, cacheKey);

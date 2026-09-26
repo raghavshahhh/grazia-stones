@@ -85,7 +85,9 @@
   // True pixel-level segmentation masks are not available from NIM chat API.
   var _aiRequestInFlight = false;
   var _lastAiRequestAt = 0;
-  var AI_REQUEST_INTERVAL_MS = 3000; // 3s for VLM, 10s for SAM (more expensive)
+  // 10s: the web camera calls as a guest (8 req/min cap in api/wall-detect.js);
+  // 6/min leaves room for tap-to-select requests instead of hitting 429s.
+  var AI_REQUEST_INTERVAL_MS = 10000;
 
   // Object detection state
   var _objects = [];          // Array of detected objects (paintings, windows, etc.)

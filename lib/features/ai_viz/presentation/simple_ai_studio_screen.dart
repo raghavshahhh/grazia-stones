@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
+import 'package:image/image.dart' as img;
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,6 +18,8 @@ import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/core/services/ai_endpoint_client.dart';
 import 'package:grazia_stones/core/di.dart';
+import 'package:grazia_stones/core/models/stone.dart';
+import 'package:grazia_stones/core/providers/stone_providers.dart' show allStonesProvider;
 
 /// Architectural Color & Finish Variant Model
 class StudioColorVariant {
@@ -109,14 +113,14 @@ class _SamplePreset {
 
 const List<_SamplePreset> _sampleRooms = [
   _SamplePreset(
-    title: 'Master Bedroom',
-    subtitle: 'Headboard accent wall',
-    assetPath: 'assets/images/hero_luxury_bedroom.jpg',
-  ),
-  _SamplePreset(
     title: 'Living Room',
     subtitle: 'Feature entertainment wall',
     assetPath: 'assets/images/home_hero_living_room.jpg',
+  ),
+  _SamplePreset(
+    title: 'Master Bedroom',
+    subtitle: 'Headboard accent wall',
+    assetPath: 'assets/images/hero_luxury_bedroom.jpg',
   ),
   _SamplePreset(
     title: 'Grand Fireplace',
@@ -128,6 +132,11 @@ const List<_SamplePreset> _sampleRooms = [
     subtitle: 'Fluted architectural wall',
     assetPath: 'assets/images/hero_luxury_dining_fluted.jpg',
   ),
+  _SamplePreset(
+    title: 'Luxury Villa Salon',
+    subtitle: 'High-ceiling grand salon',
+    assetPath: 'assets/images/onboarding_hero_room.jpg',
+  ),
 ];
 
 const List<_SamplePreset> _sampleStones = [
@@ -135,6 +144,11 @@ const List<_SamplePreset> _sampleStones = [
     title: 'Mountain Ledge',
     subtitle: 'Warm rugged interlocking stack',
     assetPath: 'assets/images/mountain_ledge_m08_tex.png',
+  ),
+  _SamplePreset(
+    title: 'Grande Ledge',
+    subtitle: 'Monumental scale format',
+    assetPath: 'assets/images/grande_ledge_ta02_tex.png',
   ),
   _SamplePreset(
     title: 'Classic Ledge',
@@ -147,14 +161,19 @@ const List<_SamplePreset> _sampleStones = [
     assetPath: 'assets/images/opus_ledge_15_tex.png',
   ),
   _SamplePreset(
-    title: 'Grande Ledge',
-    subtitle: 'Monumental scale format',
-    assetPath: 'assets/images/grande_ledge_ta02_tex.png',
-  ),
-  _SamplePreset(
     title: 'Athena 3D',
     subtitle: 'Sculpted acoustic luxury',
     assetPath: 'assets/images/athena_3d_tex.png',
+  ),
+  _SamplePreset(
+    title: 'Vantage V12',
+    subtitle: 'Modern linear ashlar stone',
+    assetPath: 'assets/images/vantage_v12_tex.png',
+  ),
+  _SamplePreset(
+    title: 'Verona 3D',
+    subtitle: 'Architectural ribbed masonry',
+    assetPath: 'assets/images/verona_3d_tex.png',
   ),
 ];
 
@@ -186,6 +205,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
   double _generationProgress = 0.0;
   String _generationStatusText = 'Creating image';
   String? _statusNote;
+  bool _resultFromAi = false;
   String? _error;
   bool _showOriginal = false;
 
@@ -259,6 +279,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
         final byteData = await rootBundle.load(assetPath);
         final bytes = byteData.buffer.asUint8List();
         HapticFeedback.lightImpact();
+        if (!mounted) return;
         setState(() {
           if (isRoom) {
             _roomBytes = bytes;
@@ -270,36 +291,155 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
           _resultImage = null;
           _error = null;
         });
-      } catch (_) {}
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: Color(0xFFD4AF37), size: 18),
+                const SizedBox(width: 8),
+                Text('$label selected', style: GoogleFonts.inter(color: Colors.white, fontSize: 13)),
+              ],
+            ),
+            backgroundColor: const Color(0xFF1E1E22),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not load preset: $e', style: GoogleFonts.inter(color: Colors.white)),
+            backgroundColor: const Color(0xFFE53935),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+      return;
+    }
+
+    if (result['source'] == 'stone_model') {
+      final stone = result['stone'] as Stone;
+      final bytes = result['bytes'] as Uint8List;
+      HapticFeedback.lightImpact();
+      if (!mounted) return;
+      setState(() {
+        _designBytes = bytes;
+        _preSelectedStoneName = stone.name;
+        _resultImage = null;
+        _error = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded, color: Color(0xFFD4AF37), size: 18),
+              const SizedBox(width: 8),
+              Text('${stone.name} loaded from catalogue', style: GoogleFonts.inter(color: Colors.white, fontSize: 13)),
+            ],
+          ),
+          backgroundColor: const Color(0xFF1E1E22),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
       return;
     }
 
     final source = result['source'] as ImageSource;
-    final picked = await _picker.pickImage(
-      source: source,
-      imageQuality: 85,
-      maxWidth: 1600,
-      maxHeight: 1600,
-    );
-    if (picked == null) return;
+    try {
+      final picked = await _picker.pickImage(
+        source: source,
+        imageQuality: 88,
+        maxWidth: 1600,
+        maxHeight: 1600,
+      );
+      if (picked == null) return;
 
-    final bytes = await picked.readAsBytes();
-    HapticFeedback.mediumImpact();
-    setState(() {
-      if (isRoom) {
-        _roomBytes = bytes;
-        _roomLabel = null;
-      } else {
-        _designBytes = bytes;
-        _preSelectedStoneName = null;
+      final bytes = await picked.readAsBytes();
+      if (bytes.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Selected image is empty. Please choose another photo.', style: GoogleFonts.inter(color: Colors.white)),
+            backgroundColor: const Color(0xFFE53935),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+        return;
       }
-      _resultImage = null;
-      _error = null;
-    });
+
+      HapticFeedback.mediumImpact();
+      if (!mounted) return;
+      setState(() {
+        if (isRoom) {
+          _roomBytes = bytes;
+          _roomLabel = 'Custom Room Photo';
+        } else {
+          _designBytes = bytes;
+          _preSelectedStoneName = 'Custom Stone Texture';
+        }
+        _resultImage = null;
+        _error = null;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded, color: Color(0xFFD4AF37), size: 18),
+              const SizedBox(width: 8),
+              Text(
+                isRoom ? 'Room photo uploaded successfully' : 'Stone texture uploaded successfully',
+                style: GoogleFonts.inter(color: Colors.white, fontSize: 13),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF1E1E22),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            source == ImageSource.camera
+                ? 'Camera unavailable or permission denied. Please choose from Gallery.'
+                : 'Could not access photo library. Please check permissions.',
+            style: GoogleFonts.inter(color: Colors.white),
+          ),
+          backgroundColor: const Color(0xFFE53935),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    }
   }
 
   Future<void> _generate() async {
-    if (_roomBytes == null || _designBytes == null) return;
+    if (_roomBytes == null || _designBytes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _roomBytes == null
+                ? 'Please select or upload a room photo first (Step 1)'
+                : 'Please select or upload a stone design first (Step 2)',
+            style: GoogleFonts.inter(color: Colors.white, fontSize: 13),
+          ),
+          backgroundColor: const Color(0xFFD4AF37),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+      return;
+    }
     HapticFeedback.heavyImpact();
     setState(() {
       _generating = true;
@@ -311,13 +451,14 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
     });
 
     String? generatedB64;
-    String statusNote = 'Rendered with Grazia Neural Studio • ${_activeVariant.name}';
+    String statusNote = 'Quick preview • ${_activeVariant.name} (AI render unavailable, try again shortly)';
+    var fromAi = false;
 
     // Start background inference (via Vercel AI proxy or local high-res compositor)
     final inferenceFuture = () async {
       try {
-        final roomDataUrl = 'data:image/jpeg;base64,${base64Encode(_roomBytes!)}';
-        final designDataUrl = 'data:image/jpeg;base64,${base64Encode(_designBytes!)}';
+        final roomDataUrl = _jpegDataUrl(_roomBytes!);
+        final designDataUrl = _jpegDataUrl(_designBytes!);
 
         final data = await AIEndpointClient.post('/api/generate-visualization', {
           'image': roomDataUrl,
@@ -331,9 +472,12 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
         if (returnedImage != null && returnedImage.isNotEmpty) {
           generatedB64 = returnedImage;
           statusNote = 'Rendered via Google Gemini 2.5 Flash';
+          fromAi = true;
           return;
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[AIStudio] generate-visualization failed, using local preview: $e');
+      }
 
       // High-precision architectural composite
       final compositeUrl = await _createLocalCompositeDataUrl();
@@ -373,6 +517,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
     if (generatedB64 != null) {
       setState(() {
         _resultImage = generatedB64;
+        _resultFromAi = fromAi;
         _generating = false;
         _statusNote = statusNote;
       });
@@ -486,8 +631,9 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
     if (url != null && mounted) {
       setState(() {
         _resultImage = url;
+        _resultFromAi = false;
         _generating = false;
-        _statusNote = 'Rendered with Grazia Neural Studio • ${_activeVariant.name}';
+        _statusNote = 'Quick preview • ${_activeVariant.name}';
       });
     }
   }
@@ -523,10 +669,14 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
     HapticFeedback.mediumImpact();
     try {
       final bytes = base64Decode(_resultImage!.split(',').last);
-      final dir = await getApplicationDocumentsDirectory();
       final fileName = 'Grazia_Stones_${_activeVariant.id}_${DateTime.now().millisecondsSinceEpoch}.png';
-      final file = File('${dir.path}/$fileName');
-      await file.writeAsBytes(bytes);
+      if (kIsWeb) {
+        // Browser: triggers a file download (dart:io File doesn't exist on web)
+        await XFile.fromData(bytes, mimeType: 'image/png', name: fileName).saveTo(fileName);
+      } else {
+        final dir = await getApplicationDocumentsDirectory();
+        await File('${dir.path}/$fileName').writeAsBytes(bytes);
+      }
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -590,9 +740,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
     HapticFeedback.mediumImpact();
     try {
       final bytes = base64Decode(_resultImage!.split(',').last);
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/grazia_${_activeVariant.id}_preview.png');
-      await file.writeAsBytes(bytes);
+      final file = XFile.fromData(bytes, mimeType: 'image/png', name: 'grazia_${_activeVariant.id}_preview.png');
 
       final message = '✨ *Grazia Stones — AI Room Visualization*\n'
           '🏛 Stone Design: ${_preSelectedStoneName ?? "Luxury Natural Stone"}\n'
@@ -606,7 +754,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
       }
 
       await Share.shareXFiles(
-        [XFile(file.path)],
+        [file],
         text: message,
       );
     } catch (e) {
@@ -689,21 +837,33 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
     HapticFeedback.selectionClick();
     setState(() => _selectedColorIndex = index);
 
-    // If an image is already generated, dynamically re-composite with new colorway!
-    if (_resultImage != null && _roomBytes != null && _designBytes != null) {
-      _generateLocalComposite();
+    // Re-render in the new colourway: through the AI again if the current
+    // result came from it (a local composite would silently replace it).
+    if (_resultImage != null && _roomBytes != null && _designBytes != null && !_generating) {
+      _resultFromAi ? _generate() : _generateLocalComposite();
     }
+  }
+
+  /// Downscaled JPEG data URL for the AI proxy: keeps the request under
+  /// Vercel's ~4.5 MB body limit and labels the bytes with their real type.
+  String _jpegDataUrl(Uint8List bytes) {
+    var decoded = img.decodeImage(bytes);
+    if (decoded == null) return 'data:image/jpeg;base64,${base64Encode(bytes)}';
+    if (decoded.width > 1536 || decoded.height > 1536) {
+      decoded = decoded.width >= decoded.height
+          ? img.copyResize(decoded, width: 1536)
+          : img.copyResize(decoded, height: 1536);
+    }
+    return 'data:image/jpeg;base64,${base64Encode(img.encodeJpg(decoded, quality: 85))}';
   }
 
   Future<void> _shareResult() async {
     if (_resultImage == null) return;
     try {
       final bytes = base64Decode(_resultImage!.split(',').last);
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/grazia_${_activeVariant.id}_${DateTime.now().millisecondsSinceEpoch}.png');
-      await file.writeAsBytes(bytes);
+      final file = XFile.fromData(bytes, mimeType: 'image/png', name: 'grazia_${_activeVariant.id}_${DateTime.now().millisecondsSinceEpoch}.png');
       await Share.shareXFiles(
-        [XFile(file.path)],
+        [file],
         text: 'My Grazia Stones ${_activeVariant.name} room visualization',
       );
     } catch (_) {
@@ -1406,112 +1566,414 @@ class _LuxuryImageSlot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasImage = bytes != null && bytes!.isNotEmpty;
+
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
-        height: 190,
+        height: 195,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(22),
           border: Border.all(
-            color: bytes != null ? const Color(0xFFD4AF37).withValues(alpha: 0.5) : const Color(0xFF2C2C2E),
-            width: 1.0,
+            color: hasImage
+                ? const Color(0xFFD4AF37).withValues(alpha: 0.6)
+                : const Color(0xFF2C2C2E),
+            width: hasImage ? 1.4 : 1.0,
           ),
-          color: const Color(0xFF1C1C1E),
-          image: bytes != null
-              ? DecorationImage(image: MemoryImage(bytes!), fit: BoxFit.cover)
+          color: const Color(0xFF161618),
+          image: hasImage
+              ? DecorationImage(
+                  image: MemoryImage(bytes!),
+                  fit: BoxFit.cover,
+                )
+              : null,
+          boxShadow: hasImage
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.45),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ]
               : null,
         ),
-        child: bytes == null
-            ? Column(
+        clipBehavior: Clip.antiAlias,
+        child: hasImage
+            ? Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Top scrim for crisp badge and change button
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 64,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withValues(alpha: 0.75),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Bottom scrim for title & subtitle
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    height: 76,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.85),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Top Row: Step Badge + Change Button
+                  Positioned(
+                    top: 12,
+                    left: 12,
+                    right: 12,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.75),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: const Color(0xFFD4AF37).withValues(alpha: 0.5),
+                              width: 1.0,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.check_circle_rounded,
+                                color: Color(0xFFD4AF37),
+                                size: 12,
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                'STEP $stepNumber • ${label.toUpperCase()}',
+                                style: GoogleFonts.inter(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.80),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: const Color(0xFFD4AF37),
+                              width: 1.0,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.photo_camera_back_outlined,
+                                size: 13,
+                                color: Color(0xFFD4AF37),
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                'Change',
+                                style: GoogleFonts.inter(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Bottom info banner
+                  Positioned(
+                    bottom: 12,
+                    left: 14,
+                    right: 14,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                subtitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.inter(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Tap to upload or select another image',
+                                style: GoogleFonts.inter(
+                                  color: const Color(0xFFA1A1A6),
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.12),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            size: 11,
+                            color: Color(0xFFD4AF37),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              )
+            : Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Container(
-                    width: 58,
-                    height: 58,
+                    width: 56,
+                    height: 56,
                     decoration: BoxDecoration(
                       color: const Color(0xFF242426),
                       shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFF333336), width: 1.0),
-                    ),
-                    child: const Icon(Icons.add_photo_alternate_outlined, size: 26, color: Color(0xFFD4AF37)),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '$stepNumber. $label',
-                        style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 16, color: Colors.white),
+                      border: Border.all(
+                        color: const Color(0xFFD4AF37).withValues(alpha: 0.5),
+                        width: 1.2,
                       ),
-                    ],
+                    ),
+                    child: const Icon(
+                      Icons.add_photo_alternate_outlined,
+                      size: 26,
+                      color: Color(0xFFD4AF37),
+                    ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Step $stepNumber: $label',
+                    style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: Text(
                       subtitle,
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF8E8E93)),
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: const Color(0xFF8E8E93),
+                      ),
                     ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF242428),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFF333338)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.camera_alt_outlined, size: 12, color: Color(0xFFD4AF37)),
+                            const SizedBox(width: 4),
+                            Text('Camera', style: GoogleFonts.inter(color: Colors.white, fontSize: 11)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF242428),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFF333338)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.photo_library_outlined, size: 12, color: Color(0xFFD4AF37)),
+                            const SizedBox(width: 4),
+                            Text('Gallery', style: GoogleFonts.inter(color: Colors.white, fontSize: 11)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF242428),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFF333338)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.auto_awesome_rounded, size: 12, color: Color(0xFFD4AF37)),
+                            const SizedBox(width: 4),
+                            Text('Presets', style: GoogleFonts.inter(color: Colors.white, fontSize: 11)),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ],
-              )
-            : Align(
-                alignment: Alignment.topRight,
-                child: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.75),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.edit_outlined, size: 12, color: Colors.white),
-                        const SizedBox(width: 5),
-                        Text(
-                          'Change',
-                          style: GoogleFonts.inter(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
               ),
       ),
     );
   }
 }
 
-class _SourceSelectorSheet extends StatelessWidget {
+class _SourceSelectorSheet extends ConsumerStatefulWidget {
   final bool isRoom;
 
   const _SourceSelectorSheet({required this.isRoom});
 
   @override
+  ConsumerState<_SourceSelectorSheet> createState() => _SourceSelectorSheetState();
+}
+
+class _SourceSelectorSheetState extends ConsumerState<_SourceSelectorSheet> {
+  String? _loadingStoneId;
+
+  Future<void> _selectStone(Stone stone) async {
+    setState(() => _loadingStoneId = stone.id);
+    try {
+      final imageUrl = stone.arTexture ??
+          stone.mainImageUrl ??
+          (stone.images.isNotEmpty ? stone.images.first : null);
+      if (imageUrl == null || imageUrl.isEmpty) {
+        throw Exception('No texture available for this stone');
+      }
+
+      Uint8List bytes;
+      if (imageUrl.startsWith('assets/')) {
+        final data = await rootBundle.load(imageUrl);
+        bytes = data.buffer.asUint8List();
+      } else {
+        final response = await Dio().get<List<int>>(
+          imageUrl,
+          options: Options(responseType: ResponseType.bytes),
+        );
+        bytes = Uint8List.fromList(response.data!);
+      }
+
+      if (!mounted) return;
+      Navigator.pop(context, {
+        'source': 'stone_model',
+        'stone': stone,
+        'bytes': bytes,
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingStoneId = null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not load stone: $e', style: GoogleFonts.inter(color: Colors.white)),
+          backgroundColor: const Color(0xFFE53935),
+        ),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final presets = isRoom ? _sampleRooms : _sampleStones;
+    final presets = widget.isRoom ? _sampleRooms : _sampleStones;
 
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+      child: Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.82,
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Top Drag Handle
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 14),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.25),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+
+            // Header Row
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  isRoom ? 'Select Room Photo' : 'Select Stone / Tile Design',
-                  style: GoogleFonts.playfairDisplay(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.isRoom ? 'Select Room Photo' : 'Select Stone Surface',
+                        style: GoogleFonts.playfairDisplay(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        widget.isRoom
+                            ? 'Upload your wall or choose a showroom preset'
+                            : 'Upload custom sample or pick from Grazia collection',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: const Color(0xFF8E8E93),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 IconButton(
@@ -1522,7 +1984,7 @@ class _SourceSelectorSheet extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // Camera & Gallery options
+            // Camera & Gallery Primary Action Buttons
             Row(
               children: [
                 Expanded(
@@ -1530,39 +1992,77 @@ class _SourceSelectorSheet extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                     onTap: () => Navigator.pop(context, {'source': ImageSource.camera}),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF222226),
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF242428), Color(0xFF1E1E22)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(color: const Color(0xFF333338)),
                       ),
                       child: Column(
                         children: [
-                          const Icon(Icons.camera_alt_outlined, color: Color(0xFFD4AF37), size: 28),
-                          const SizedBox(height: 8),
-                          Text('Take Photo', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFD4AF37).withValues(alpha: 0.15),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.camera_alt_rounded, color: Color(0xFFD4AF37), size: 24),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            'Take Photo',
+                            style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            widget.isRoom ? 'Snap your wall' : 'Snap stone sample',
+                            style: GoogleFonts.inter(color: const Color(0xFF8E8E93), fontSize: 11),
+                          ),
                         ],
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 12),
                 Expanded(
                   child: InkWell(
                     borderRadius: BorderRadius.circular(16),
                     onTap: () => Navigator.pop(context, {'source': ImageSource.gallery}),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF222226),
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF242428), Color(0xFF1E1E22)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(color: const Color(0xFF333338)),
                       ),
                       child: Column(
                         children: [
-                          const Icon(Icons.photo_library_outlined, color: Color(0xFFD4AF37), size: 28),
-                          const SizedBox(height: 8),
-                          Text('Choose Gallery', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFD4AF37).withValues(alpha: 0.15),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.photo_library_rounded, color: Color(0xFFD4AF37), size: 24),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            'Choose Gallery',
+                            style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Upload from device',
+                            style: GoogleFonts.inter(color: const Color(0xFF8E8E93), fontSize: 11),
+                          ),
                         ],
                       ),
                     ),
@@ -1570,85 +2070,233 @@ class _SourceSelectorSheet extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
 
-            // Quick Preset Selection
-            Text(
-              isRoom ? 'OR TRY WITH A GRAZIA LUXURY ROOM:' : 'OR SELECT FROM SIGNATURE STONE SURFACES:',
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.0,
-                color: const Color(0xFF8E8E93),
-              ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 130,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: presets.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
-                itemBuilder: (context, idx) {
-                  final p = presets[idx];
-                  return InkWell(
-                    borderRadius: BorderRadius.circular(14),
-                    onTap: () {
-                      Navigator.pop(context, {
-                        'source': 'asset',
-                        'assetPath': p.assetPath,
-                        'label': p.title,
-                      });
-                    },
-                    child: Container(
-                      width: 140,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF222226),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0xFF333338)),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Expanded(
-                            child: Image.asset(
-                              p.assetPath,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  p.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                Text(
-                                  p.subtitle,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.inter(
-                                    fontSize: 10,
-                                    color: const Color(0xFF8E8E93),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+            // Scrollable section for presets & catalog
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Section Title
+                    Text(
+                      widget.isRoom
+                          ? 'OR TRY WITH A GRAZIA LUXURY ROOM:'
+                          : 'SIGNATURE STONE TEXTURES:',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.0,
+                        color: const Color(0xFF8E8E93),
                       ),
                     ),
-                  );
-                },
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 130,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: presets.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 12),
+                        itemBuilder: (context, idx) {
+                          final p = presets[idx];
+                          return InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: () {
+                              Navigator.pop(context, {
+                                'source': 'asset',
+                                'assetPath': p.assetPath,
+                                'label': p.title,
+                              });
+                            },
+                            child: Container(
+                              width: 140,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF222226),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: const Color(0xFF333338)),
+                              ),
+                              clipBehavior: Clip.antiAlias,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Expanded(
+                                    child: Image.asset(
+                                      p.assetPath,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.all(8.0),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          p.title,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: GoogleFonts.inter(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                        Text(
+                                          p.subtitle,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: GoogleFonts.inter(
+                                            fontSize: 10,
+                                            color: const Color(0xFF8E8E93),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+
+                    if (!widget.isRoom) ...[
+                      const SizedBox(height: 20),
+                      Text(
+                        'BROWSE CATALOGUE (36 SERIES):',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.0,
+                          color: const Color(0xFF8E8E93),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      ref.watch(allStonesProvider).when(
+                            data: (stones) {
+                              if (stones.isEmpty) {
+                                return const SizedBox.shrink();
+                              }
+                              return SizedBox(
+                                height: 130,
+                                child: ListView.separated(
+                                  scrollDirection: Axis.horizontal,
+                                  itemCount: stones.length,
+                                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                                  itemBuilder: (context, idx) {
+                                    final stone = stones[idx];
+                                    final isLoading = _loadingStoneId == stone.id;
+                                    final imgUrl = stone.arTexture ??
+                                        stone.mainImageUrl ??
+                                        (stone.images.isNotEmpty ? stone.images.first : null);
+
+                                    return InkWell(
+                                      borderRadius: BorderRadius.circular(14),
+                                      onTap: isLoading ? null : () => _selectStone(stone),
+                                      child: Container(
+                                        width: 140,
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF222226),
+                                          borderRadius: BorderRadius.circular(14),
+                                          border: Border.all(
+                                            color: isLoading
+                                                ? const Color(0xFFD4AF37)
+                                                : const Color(0xFF333338),
+                                          ),
+                                        ),
+                                        clipBehavior: Clip.antiAlias,
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                                          children: [
+                                            Expanded(
+                                              child: Stack(
+                                                fit: StackFit.expand,
+                                                children: [
+                                                  if (imgUrl != null && imgUrl.startsWith('assets/'))
+                                                    Image.asset(imgUrl, fit: BoxFit.cover)
+                                                  else if (imgUrl != null)
+                                                    Image.network(
+                                                      imgUrl,
+                                                      fit: BoxFit.cover,
+                                                      errorBuilder: (_, __, ___) => const Center(
+                                                        child: Icon(Icons.broken_image_outlined,
+                                                            color: Colors.white24),
+                                                      ),
+                                                    )
+                                                  else
+                                                    const Center(
+                                                      child: Icon(Icons.texture_rounded, color: Colors.white24),
+                                                    ),
+                                                  if (isLoading)
+                                                    Container(
+                                                      color: Colors.black.withValues(alpha: 0.6),
+                                                      child: const Center(
+                                                        child: SizedBox(
+                                                          width: 22,
+                                                          height: 22,
+                                                          child: CircularProgressIndicator(
+                                                            strokeWidth: 2,
+                                                            color: Color(0xFFD4AF37),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                            ),
+                                            Padding(
+                                              padding: const EdgeInsets.all(8.0),
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    stone.name,
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: GoogleFonts.inter(
+                                                      fontSize: 12,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
+                                                  Text(
+                                                    stone.collection,
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: GoogleFonts.inter(
+                                                      fontSize: 10,
+                                                      color: const Color(0xFF8E8E93),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              );
+                            },
+                            loading: () => const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 20),
+                              child: Center(
+                                child: SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Color(0xFFD4AF37),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            error: (_, __) => const SizedBox.shrink(),
+                          ),
+                    ],
+                  ],
+                ),
               ),
             ),
           ],

@@ -267,7 +267,8 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
   void _onAddToCart() {
     HapticFeedback.mediumImpact();
     if (_selectedStone != null) {
-      ref.read(cartProvider.notifier).addItem(_selectedStone!, quantity: _boxCount);
+      // Cart quantity is sq ft (priced as pricePerSqFt × qty), same as the tile visualiser
+      ref.read(cartProvider.notifier).addItem(_selectedStone!, quantity: _grossAreaSqFt.ceil());
       LuxuryToast.show(
         context,
         message: '$_boxCount boxes of ${_selectedStone!.name} added to Project Cart!',

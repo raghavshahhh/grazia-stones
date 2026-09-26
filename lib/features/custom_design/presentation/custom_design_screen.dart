@@ -204,13 +204,13 @@ class _CustomDesignScreenState extends ConsumerState<CustomDesignScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isSubmitting = false);
+        debugPrint('[CustomDesign] submitQuote failed: $e');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Submission noted: $e'),
-            backgroundColor: const Color(0xFFD4AF37),
+          const SnackBar(
+            content: Text('Could not send your design request. Please check your connection and try again.'),
+            backgroundColor: Colors.redAccent,
           ),
         );
-        _showSuccessDialog();
       }
     }
   }

@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:grazia_stones/core/di.dart';
+import 'package:grazia_stones/core/services/storage_service.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 
@@ -40,20 +42,45 @@ class _HelpSupportScreenState extends ConsumerState<HelpSupportScreen> {
     setState(() => _isSubmitting = true);
     HapticFeedback.mediumImpact();
 
-    await Future.delayed(const Duration(milliseconds: 700));
+    // No support table: with known contact details the inquiry goes to
+    // quote_requests (shows in admin → Quotes); otherwise hand it to WhatsApp.
+    final profile = StorageService.instance.getClientProfile();
+    final auth = ref.read(authRiverpodProvider);
+    final name = (profile['name']?.isNotEmpty == true ? profile['name'] : auth.userName)?.trim() ?? '';
+    final phone = (profile['phone']?.isNotEmpty == true ? profile['phone'] : auth.userPhone)?.trim() ?? '';
+
+    var sent = false;
+    if (name.isNotEmpty && phone.isNotEmpty) {
+      try {
+        await ref.read(orderRepositoryProvider).submitQuote(
+              name: name,
+              phone: phone,
+              stoneName: 'Support inquiry',
+              message: text,
+            );
+        sent = true;
+      } catch (e) {
+        debugPrint('[HelpSupport] submit failed, falling back to WhatsApp: $e');
+      }
+    }
+    if (!sent) {
+      await _launchUrl('https://wa.me/919839846105?text=${Uri.encodeComponent(text)}');
+    }
 
     if (mounted) {
       setState(() {
         _isSubmitting = false;
-        _queryController.clear();
+        if (sent) _queryController.clear();
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Inquiry submitted! Our technical concierge will contact you shortly.', style: GoogleFonts.inter()),
-          backgroundColor: Colors.green.shade600,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      if (sent) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Inquiry submitted! Our technical concierge will contact you shortly.', style: GoogleFonts.inter()),
+            backgroundColor: Colors.green.shade600,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
