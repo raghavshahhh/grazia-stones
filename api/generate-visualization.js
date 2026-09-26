@@ -6,7 +6,7 @@ const { verifyRequestAuth } = require('./_supabaseAuth');
 
 const GEMINI_URL =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent';
-const MAX_IMAGE_LENGTH = 500_000;
+const MAX_IMAGE_LENGTH = 5_000_000;
 const ALLOWED_ORIGINS = [
   'https://grazia-stones.vercel.app',
   'http://localhost:3000',
@@ -60,21 +60,27 @@ RULES:
 // of picking a catalog stone by name — the two images are sent to Gemini
 // together so the *real* uploaded texture is what gets applied, not a text
 // guess at what "marble" or "granite" might look like.
-function _buildCompositePrompt() {
-  return `You are editing a photo of a real room for an architectural visualization product.
+function _buildCompositePrompt({ color, finish, variantIndex } = {}) {
+  const colorInstruction = color ? `Adapt the material with a ${color} color tone/finish.` : '';
+  return `You are an expert architectural visualization AI and photorealistic inpainting engine.
 
 You are given two images:
-1. The FIRST image is a real photo of a room, showing a wall to be re-clad.
-2. The SECOND image is a close-up photo of a real stone/tile/material sample.
+1. The FIRST image is a real photo of an indoor room (e.g. living room, bedroom) with furniture (sofa, tables, decor, plants, ceiling).
+2. The SECOND image is a close-up texture photo of a real stone/tile cladding material.
 
-TASK: Apply the exact material shown in the SECOND image onto the main wall of the room in the FIRST image, as if that wall were physically re-clad with that material.
+TASK: Inpaint the EXACT stone/tile material from the SECOND image ONLY onto the vertical background wall surfaces in the FIRST image.${colorInstruction ? ` ${colorInstruction}` : ''}
 
-RULES:
-- Use the actual pattern, color, veining, and texture visible in the second image — do not substitute a generic or different-looking material.
-- Preserve the room's architecture, perspective, camera angle, furniture, windows, doors, and all other objects from the first image exactly as they are — change ONLY the wall surface.
-- Match the room's existing lighting and shadow direction so the applied material looks physically present, not pasted on.
-- Tile/fit the material naturally across the wall's visible area (respecting joints/grain direction if visible in the sample).
-- Output a single photorealistic result — not a collage, not a flat texture overlay, not a side-by-side of the two inputs.`;
+STRICT OCCLUSION & FOREGROUND PRESERVATION RULES:
+1. PRESERVE ALL FURNITURE & FOREGROUND:
+   - Accurately detect the sofa, cushions, coffee tables, armchairs, potted plants, lighting fixtures, curtains, ceiling, and floor.
+   - All foreground objects MUST remain 100% intact, crisp, and in front of the wall.
+   - NEVER draw, paste, or bleed the stone texture over the sofa, cushions, plants, or window frames.
+2. WALL-ONLY SURFACE INPAINTING:
+   - Replace ONLY the background vertical wall paint/plaster behind and around the furniture.
+3. REALISTIC CONTACT LIGHTING & DEPTH:
+   - Render natural ambient occlusion and subtle contact shadows behind the sofa backrest and along corners onto the stone wall.
+   - Retain existing directional lighting (such as ceiling downlights and natural window light) so the stone looks physically installed in the actual room.
+4. Output a single pristine photorealistic architectural photograph.`;
 }
 
 module.exports = async (req, res) => {
@@ -169,7 +175,7 @@ module.exports = async (req, res) => {
 
   try {
     const prompt = hasDesignImage
-      ? _buildCompositePrompt()
+      ? _buildCompositePrompt({ color, finish, variantIndex: variant })
       : _buildPrompt({ stoneName, color, finish, variantIndex: variant });
 
     const requestParts = hasDesignImage

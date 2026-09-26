@@ -17,7 +17,7 @@ const NIM_MODEL_VLM = 'meta/llama-3.2-11b-vision-instruct';
 // as-is rather than fabricating a replacement model id that hasn't been
 // verified to exist; the existing fallback already degrades gracefully.
 const NIM_MODEL_SAM = 'nvidia/segformer-b5-finetuned-ade-512-512'; // SAM via NIM — currently unavailable, see comment above
-const MAX_IMAGE_LENGTH = 500_000; // Increased for higher-res input (640px ~80KB base64)
+const MAX_IMAGE_LENGTH = 5_000_000; // Allow full camera photos up to ~3.7MB base64
 const ALLOWED_ORIGINS = ['https://grazia-stones.vercel.app', 'http://localhost:3000', 'http://localhost:8080', 'https://grazia-stones-git-main-raghavshah.vercel.app'];
 
 // Rate limiting — authenticated callers get the full limit; unauthenticated

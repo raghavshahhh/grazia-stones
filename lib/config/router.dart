@@ -59,6 +59,7 @@ import '../features/vr/presentation/vr_room_selection_screen.dart';
 import '../features/pro/presentation/grazia_pro_screen.dart';
 import '../features/resources/presentation/download_resources_screen.dart';
 import '../features/measure/presentation/boq_calculator_screen.dart';
+import '../features/custom_design/presentation/custom_design_screen.dart';
 import '../core/di.dart';
 import '../core/models/stone.dart';
 
@@ -222,7 +223,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/',
+    initialLocation: '/home',
     refreshListenable: refresh,
     redirect: (context, state) {
       // Admin routes require a genuinely authenticated session whose
@@ -284,7 +285,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/tools',
             pageBuilder: (context, state) =>
-                _fadePage(const AiToolsHubScreen(), state),
+                _fadePage(SimpleAIStudioScreen(
+                  preSelectedStoneId: state.uri.queryParameters['stoneId'],
+                ), state),
           ),
           GoRoute(
             path: '/vr-showroom',
@@ -323,7 +326,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/ai-visualization',
-        redirect: (context, state) => '/ai-viz',
+        redirect: (context, state) {
+          final stoneId = state.uri.queryParameters['stoneId'] ?? state.uri.queryParameters['stoneName'];
+          if (stoneId != null && stoneId.isNotEmpty) {
+            return '/live-ai?stoneId=${Uri.encodeComponent(stoneId)}';
+          }
+          return '/live-ai';
+        },
       ),
       GoRoute(
         path: '/customize-design',
@@ -419,6 +428,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           state,
         ),
+      ),
+      GoRoute(
+        path: '/custom-design',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const CustomDesignScreen(), state),
       ),
       GoRoute(
         path: '/orders',

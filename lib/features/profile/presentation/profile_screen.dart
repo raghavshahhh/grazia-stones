@@ -409,120 +409,111 @@ class ProfileScreen extends ConsumerWidget {
                     ),
                   ],
 
-                   // ARCHITECTURAL STUDIO SECTION
-                  _SectionLabel(label: 'ARCHITECTURAL STUDIO', palette: palette),
+                   // 1. ORDERS & PROJECTS SECTION
+                  _SectionLabel(label: 'ORDERS & PROJECTS', palette: palette),
                   const SizedBox(height: 8),
-                  _MenuItem(
-                    palette: palette,
-                    icon: Icons.workspace_premium_outlined,
-                    title: 'Grazia Pro',
-                    subtitle: 'Exclusive tools & benefits for architects & designers',
-                    onTap: () => context.push('/pro'),
-                  ),
-                  _MenuItem(
-                    palette: palette,
-                    icon: Icons.calculate_outlined,
-                    title: 'BOQ & Project Calculator',
-                    subtitle: 'Calculate stone area, box counts & estimations',
-                    onTap: () => context.push('/boq-calculator'),
-                  ),
-                  _MenuItem(
-                    palette: palette,
-                    icon: Icons.download_outlined,
-                    title: 'Download Resources',
-                    subtitle: 'CAD DWG files, 4K textures & technical specifications',
-                    onTap: () => context.push('/resources'),
-                  ),
-                  _MenuItem(
-                    palette: palette,
-                    icon: Icons.auto_awesome_outlined,
-                    title: 'Saved AI Visualizations',
-                    subtitle: 'Your rendered room visualizer concepts',
-                    onTap: () => context.push('/saved-designs'),
-                  ),
                   _MenuItem(
                     palette: palette,
                     icon: Icons.inventory_2_outlined,
                     title: 'Orders & Tracking',
-                    subtitle: 'Real-time order history, tracking & invoices',
+                    subtitle: 'Track active shipments, order status & invoices',
                     onTap: () => context.push('/orders'),
                   ),
                   _MenuItem(
                     palette: palette,
                     icon: Icons.favorite_border_rounded,
                     title: 'Architectural Wishlist',
-                    subtitle: 'Curated stones saved for project inspiration',
+                    subtitle: 'Curated stone panels saved for project concepts',
                     onTap: () => context.push('/wishlist'),
-                  ),
-                  _MenuItem(
-                    palette: palette,
-                    icon: Icons.location_on_outlined,
-                    title: 'Saved Delivery & Site Addresses',
-                    subtitle: 'Manage client site addresses & defaults',
-                    onTap: () => context.push('/addresses'),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // CONCIERGE & SAMPLES SECTION
-                  _SectionLabel(label: 'CONCIERGE & SAMPLES', palette: palette),
-                  const SizedBox(height: 8),
-                  _MenuItem(
-                    palette: palette,
-                    icon: Icons.request_quote_outlined,
-                    title: 'Request Quotation',
-                    subtitle: 'Get certified estimates for bulk square footage',
-                    onTap: () => context.push('/quotes'),
-                  ),
-                  _MenuItem(
-                    palette: palette,
-                    icon: Icons.layers_outlined,
-                    title: 'Order Material Sample Box',
-                    subtitle: 'Receive physical sample swatches at your studio',
-                    onTap: () => context.push('/sample-order'),
                   ),
                   _MenuItem(
                     palette: palette,
                     icon: Icons.pending_actions_outlined,
                     title: 'My Sample Requests',
-                    subtitle: 'Track swatch dispatch & delivery status',
+                    subtitle: 'Track dispatch & delivery of physical swatches',
                     onTap: () => context.push('/samples'),
                   ),
                   _MenuItem(
                     palette: palette,
-                    icon: Icons.storefront_outlined,
-                    title: 'Experience Centers & Showrooms',
-                    subtitle: 'Find authorized Grazia partner dealers near you',
-                    onTap: () => context.push('/dealers'),
+                    icon: Icons.request_quote_outlined,
+                    title: 'Project Quotations',
+                    subtitle: 'Certified estimates for bulk square footage',
+                    onTap: () => context.push('/quotes'),
+                  ),
+                  _MenuItem(
+                    palette: palette,
+                    icon: Icons.location_on_outlined,
+                    title: 'Site Delivery Addresses',
+                    subtitle: 'Manage client project sites & delivery addresses',
+                    onTap: () => context.push('/addresses'),
                   ),
 
                   const SizedBox(height: 20),
 
-                  // ACCOUNT & PREFERENCES SECTION
-                  _SectionLabel(label: 'PREFERENCES & SUPPORT', palette: palette),
+                  // 2. DESIGN TOOLS & AI SECTION
+                  _SectionLabel(label: 'DESIGN TOOLS & AI', palette: palette),
+                  const SizedBox(height: 8),
+                  _MenuItem(
+                    palette: palette,
+                    icon: Icons.calculate_outlined,
+                    title: 'BOQ & Project Calculator',
+                    subtitle: 'Calculate surface area, box counts & wastage',
+                    onTap: () => context.push('/boq-calculator'),
+                  ),
+                  _MenuItem(
+                    palette: palette,
+                    icon: Icons.auto_awesome_outlined,
+                    title: 'Saved AI Visualizations',
+                    subtitle: 'Your rendered room visualizer concepts & finishes',
+                    onTap: () => context.push('/saved-designs'),
+                  ),
+                  _MenuItem(
+                    palette: palette,
+                    icon: Icons.layers_outlined,
+                    title: 'Order Material Sample Box',
+                    subtitle: 'Physical stone swatches delivered to your studio',
+                    onTap: () => context.push('/sample-order'),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // 3. SHOWROOMS & CONCIERGE SECTION
+                  _SectionLabel(label: 'SHOWROOMS & CONCIERGE', palette: palette),
+                  const SizedBox(height: 8),
+                  _MenuItem(
+                    palette: palette,
+                    icon: Icons.storefront_outlined,
+                    title: 'Experience Centers & Showrooms',
+                    subtitle: 'Visit Kanpur & regional stone experience galleries',
+                    onTap: () => context.push('/dealers'),
+                  ),
+                  _MenuItem(
+                    palette: palette,
+                    icon: Icons.headset_mic_outlined,
+                    title: 'Concierge & Technical Support',
+                    subtitle: 'Direct hotline with Grazia stone architects',
+                    onTap: () => context.push('/help'),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // 4. PREFERENCES & ACCOUNT SECTION
+                  _SectionLabel(label: 'PREFERENCES & ACCOUNT', palette: palette),
                   const SizedBox(height: 8),
                   _MenuItem(
                     palette: palette,
                     icon: Icons.settings_outlined,
                     title: 'Settings & Units',
-                    subtitle: 'Measurement units, notifications & theme',
+                    subtitle: 'Measurement units (SqFt / SqM), notifications & alerts',
                     onTap: () => context.push('/settings'),
-                  ),
-                  _MenuItem(
-                    palette: palette,
-                    icon: Icons.headset_mic_outlined,
-                    title: 'Concierge Helpline & Support',
-                    subtitle: 'Direct contact with Grazia technical team',
-                    onTap: () => context.push('/help'),
                   ),
                   _MenuItem(
                     palette: palette,
                     icon: Icons.info_outline_rounded,
                     title: 'About Grazia Stones',
-                    subtitle: 'Heritage, quality standards & head office info',
+                    subtitle: 'Craftsmanship heritage, certifications & headquarters',
                     onTap: () => context.push('/about'),
                   ),
-
                   _MenuItem(
                     palette: palette,
                     icon: Icons.logout_rounded,
@@ -535,7 +526,7 @@ class ProfileScreen extends ConsumerWidget {
                     palette: palette,
                     icon: Icons.delete_outline_rounded,
                     title: 'Delete Account',
-                    subtitle: 'Permanently remove your account and data',
+                    subtitle: 'Permanently remove your account and all saved data',
                     isDestructive: true,
                     onTap: () => _confirmDeleteAccount(context, ref),
                   ),
@@ -651,32 +642,39 @@ class _StatTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            color: palette.background,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: palette.border),
-          ),
-          child: Column(
-            children: [
-              Icon(icon, color: palette.primary, size: 20),
-              const SizedBox(height: 6),
-              Text(
-                value,
-                style: GoogleFonts.inter(
-                  color: palette.textPrimary,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            HapticFeedback.lightImpact();
+            onTap();
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(
+              color: palette.background,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: palette.border),
+            ),
+            child: Column(
+              children: [
+                Icon(icon, color: palette.primary, size: 20),
+                const SizedBox(height: 6),
+                Text(
+                  value,
+                  style: GoogleFonts.inter(
+                    color: palette.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-              ),
-              Text(
-                label,
-                style: GoogleFonts.inter(fontSize: 11, color: palette.textSecondary),
-              ),
-            ],
+                Text(
+                  label,
+                  style: GoogleFonts.inter(fontSize: 11, color: palette.textSecondary),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -728,7 +726,10 @@ class _MenuItem extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: onTap,
+          onTap: () {
+            HapticFeedback.lightImpact();
+            onTap();
+          },
           borderRadius: BorderRadius.circular(14),
           child: Container(
             padding: const EdgeInsets.all(14),

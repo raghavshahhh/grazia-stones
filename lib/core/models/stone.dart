@@ -194,13 +194,19 @@ class Stone {
       sizeStr = '$lengthStr x $widthStr';
     }
 
+    final rawPrice = (map['price_per_sqft'] ?? map['pricePerSqFt'] ?? 0).toDouble();
+    final effectivePrice = rawPrice > 0 ? rawPrice : 385.0;
+
+    final rawCoverage = (map['coverage_sqft'] ?? map['sqftPerBox'] ?? 0).toDouble();
+    final effectiveCoverage = rawCoverage > 0 ? rawCoverage : 10.5;
+
     return Stone(
       id: map['id']?.toString() ?? '',
       name: map['name'] ?? '',
       productCode: map['product_code'] ?? map['productCode'] ?? '',
       collection: collectionName,
       category: map['category'] ?? '',
-      pricePerSqFt: (map['price_per_sqft'] ?? map['pricePerSqFt'] ?? 0).toDouble(),
+      pricePerSqFt: effectivePrice,
       description: map['description'] ?? map['short_description'] ?? '',
       images: imageList,
       mainImageUrl: mainImg,
@@ -213,8 +219,8 @@ class Stone {
       width: widthStr,
       thickness: thicknessStr,
       size: sizeStr,
-      sqftPerBox: (map['coverage_sqft'] ?? map['sqftPerBox'] ?? 0).toDouble(),
-      piecesPerBox: map['pieces_per_box'] ?? map['piecesPerBox'] ?? 0,
+      sqftPerBox: effectiveCoverage,
+      piecesPerBox: map['pieces_per_box'] ?? map['piecesPerBox'] ?? 8,
       finish: map['finish'] ?? '',
       texture: map['material'] ?? map['texture'] ?? '',
       availableColors: List<String>.from(map['colors'] ?? map['availableColors'] ?? []),

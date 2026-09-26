@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,14 +14,16 @@ import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/luxury_toast.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 
-/// Next-Generation Proportional 2D/3D Wall Visualizer & Tile Estimation Engine.
+/// Next-Generation Interactive Proportional 3D Wall Visualizer & Tile Estimation Engine.
 /// Allows architects and clients to:
 /// 1. Enter precise wall dimensions with any unit (ft, in, m, cm).
-/// 2. View proportional wall tiling at exact scale in 2D Plan or 3D Spatial Perspective.
-/// 3. Toggle tile layout patterns: Stacked Grid, Running Bond (Brick), and Vertical Stack.
-/// 4. Adjust wastage (5% - 20%) with real-time box count and financial calculation.
-/// 5. 1-Tap Export Architectural Specification & Tile Calculation PDF.
-/// 6. 1-Tap Add Required Boxes to Cart or Request Factory Quote.
+/// 2. Freely orbit, rotate, tilt, and pinch-to-zoom in full 3D with realistic slab depth & thickness.
+/// 3. Inspect high-res stone texture, grout lines, specular lighting, and architectural dimensions.
+/// 4. Switch between camera presets (Front 2D, Perspective 3D, Isometric, Side 45°).
+/// 5. Toggle tile layout patterns: Stacked Grid, Running Bond (Brick), and Vertical Stack.
+/// 6. Adjust wastage (5% - 20%) with real-time box count and financial calculation.
+/// 7. 1-Tap Export Architectural Specification & Tile Calculation PDF.
+/// 8. 1-Tap Add Required Boxes to Cart or Request Factory Quote.
 class TileWallVisualizerScreen extends ConsumerStatefulWidget {
   final String? initialStoneId;
 
@@ -30,27 +33,57 @@ class TileWallVisualizerScreen extends ConsumerStatefulWidget {
   ConsumerState<TileWallVisualizerScreen> createState() => _TileWallVisualizerScreenState();
 }
 
-class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScreen> {
+class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScreen>
+    with SingleTickerProviderStateMixin {
   final _widthController = TextEditingController(text: '12');
   final _heightController = TextEditingController(text: '10');
   String _unit = 'ft';
   double _wastagePercent = 10;
   Stone? _selectedStone;
-  bool _is3DView = false;
+  bool _is3DView = true;
   String _layoutPattern = 'stacked'; // 'stacked', 'brick', 'vertical'
   bool _isExportingPdf = false;
-  final TransformationController _viewerController = TransformationController();
+
+  // 3D Camera & Transform parameters
+  double _rotX = 0.12; // pitch in radians
+  double _rotY = -0.26; // yaw in radians
+  double _scale = 1.0;
+  Offset _panOffset = Offset.zero;
+
+  double _startRotX = 0.12;
+  double _startRotY = -0.26;
+  double _startScale = 1.0;
+  Offset _startPan = Offset.zero;
+
+  bool _showDimensions = true;
+
+  late AnimationController _cameraAnimController;
+  Animation<double>? _animRotX;
+  Animation<double>? _animRotY;
+  Animation<double>? _animScale;
+  Animation<Offset>? _animPan;
 
   @override
   void initState() {
     super.initState();
+    _cameraAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 380),
+    )..addListener(() {
+        setState(() {
+          if (_animRotX != null) _rotX = _animRotX!.value;
+          if (_animRotY != null) _rotY = _animRotY!.value;
+          if (_animScale != null) _scale = _animScale!.value;
+          if (_animPan != null) _panOffset = _animPan!.value;
+        });
+      });
   }
 
   @override
   void dispose() {
+    _cameraAnimController.dispose();
     _widthController.dispose();
     _heightController.dispose();
-    _viewerController.dispose();
     super.dispose();
   }
 
@@ -70,9 +103,69 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
     }
   }
 
-  void _resetView() {
-    _viewerController.value = Matrix4.identity();
+  void _stepWidth(double delta) {
+    HapticFeedback.lightImpact();
+    final cur = double.tryParse(_widthController.text.trim()) ?? 12.0;
+    final next = (cur + delta).clamp(1.0, 500.0);
+    _widthController.text = next == next.roundToDouble() ? next.toInt().toString() : next.toStringAsFixed(1);
+    setState(() {});
+  }
+
+  void _stepHeight(double delta) {
+    HapticFeedback.lightImpact();
+    final cur = double.tryParse(_heightController.text.trim()) ?? 10.0;
+    final next = (cur + delta).clamp(1.0, 500.0);
+    _heightController.text = next == next.roundToDouble() ? next.toInt().toString() : next.toStringAsFixed(1);
+    setState(() {});
+  }
+
+  void _applyWallPreset(String w, String h) {
     HapticFeedback.selectionClick();
+    _widthController.text = w;
+    _heightController.text = h;
+    _unit = 'ft';
+    setState(() {});
+  }
+
+  void _resetView() {
+    _animateToCamera(
+      targetRotX: 0.12,
+      targetRotY: -0.26,
+      targetScale: 1.0,
+      targetPan: Offset.zero,
+      is3D: true,
+    );
+  }
+
+  void _animateToCamera({
+    required double targetRotX,
+    required double targetRotY,
+    double targetScale = 1.0,
+    Offset targetPan = Offset.zero,
+    bool is3D = true,
+  }) {
+    HapticFeedback.selectionClick();
+    _cameraAnimController.stop();
+
+    _animRotX = Tween<double>(begin: _rotX, end: targetRotX).animate(
+      CurvedAnimation(parent: _cameraAnimController, curve: Curves.easeOutCubic),
+    );
+    _animRotY = Tween<double>(begin: _rotY, end: targetRotY).animate(
+      CurvedAnimation(parent: _cameraAnimController, curve: Curves.easeOutCubic),
+    );
+    _animScale = Tween<double>(begin: _scale, end: targetScale).animate(
+      CurvedAnimation(parent: _cameraAnimController, curve: Curves.easeOutCubic),
+    );
+    _animPan = Tween<Offset>(begin: _panOffset, end: targetPan).animate(
+      CurvedAnimation(parent: _cameraAnimController, curve: Curves.easeOutCubic),
+    );
+
+    _cameraAnimController.reset();
+    _cameraAnimController.forward();
+
+    setState(() {
+      _is3DView = is3D;
+    });
   }
 
   Future<void> _exportPdfSpecSheet(double widthFt, double heightFt, double netArea, double grossArea, int? boxes, int? totalTiles, double cost) async {
@@ -148,15 +241,19 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
     int? totalTiles;
     double estimatedCost = 0.0;
 
-    if (_selectedStone != null && validDimensions) {
-      if (_selectedStone!.sqftPerBox > 0) {
-        boxesRequired = (grossAreaSqFt / _selectedStone!.sqftPerBox).ceil();
-      } else {
-        boxesRequired = null;
-      }
+    final effectiveCoverage = (_selectedStone != null && _selectedStone!.sqftPerBox > 0)
+        ? _selectedStone!.sqftPerBox
+        : 10.5;
+    final effectivePrice = (_selectedStone != null && _selectedStone!.pricePerSqFt > 0)
+        ? _selectedStone!.pricePerSqFt
+        : 385.0;
 
-      final lenCm = _selectedStone!.lengthCm;
-      final widCm = _selectedStone!.widthCm;
+    if (validDimensions) {
+      boxesRequired = (grossAreaSqFt / effectiveCoverage).ceil();
+      estimatedCost = grossAreaSqFt * effectivePrice;
+
+      final lenCm = _selectedStone?.lengthCm;
+      final widCm = _selectedStone?.widthCm;
       if (lenCm != null && widCm != null && lenCm > 0 && widCm > 0) {
         final tileW = lenCm / 30.48;
         final tileH = widCm / 30.48;
@@ -164,10 +261,8 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
         final rows = (heightFt / tileH).ceil();
         totalTiles = (cols * rows * (1 + _wastagePercent / 100)).ceil();
       } else {
-        totalTiles = null;
+        totalTiles = (grossAreaSqFt / 8.0).ceil();
       }
-
-      estimatedCost = grossAreaSqFt * _selectedStone!.pricePerSqFt;
     }
 
     final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
@@ -178,9 +273,16 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
         backgroundColor: palette.background,
         elevation: 0,
         scrolledUnderElevation: 0,
+        titleSpacing: 0,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
-          onPressed: () => context.pop(),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/home');
+            }
+          },
         ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -188,7 +290,7 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
             Text(
               'Wall & Tile Visualizer',
               style: GoogleFonts.playfairDisplay(
-                fontSize: 16,
+                fontSize: 15,
                 fontWeight: FontWeight.w700,
                 color: palette.textPrimary,
               ),
@@ -196,7 +298,7 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
               overflow: TextOverflow.ellipsis,
             ),
             Text(
-              'Proportional 3D Geometry',
+              'Interactive 3D Architectural Geometry',
               style: GoogleFonts.inter(
                 fontSize: 10,
                 color: palette.textSecondary,
@@ -209,18 +311,23 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
         actions: [
           // 2D / 3D Toggle
           Padding(
-            padding: const EdgeInsets.only(right: 4),
+            padding: const EdgeInsets.only(right: 6),
             child: GestureDetector(
               onTap: () {
-                HapticFeedback.selectionClick();
-                setState(() => _is3DView = !_is3DView);
+                if (_is3DView) {
+                  _animateToCamera(targetRotX: 0.0, targetRotY: 0.0, targetScale: 1.0, is3D: false);
+                } else {
+                  _animateToCamera(targetRotX: 0.12, targetRotY: -0.26, targetScale: 1.0, is3D: true);
+                }
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: palette.primary.withValues(alpha: 0.12),
+                  color: _is3DView ? palette.primary : palette.surface,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: palette.primary.withValues(alpha: 0.3)),
+                  border: Border.all(
+                    color: _is3DView ? palette.primary : palette.border,
+                  ),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -228,15 +335,15 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                     Icon(
                       _is3DView ? Icons.view_in_ar_rounded : Icons.crop_square_rounded,
                       size: 13,
-                      color: palette.primary,
+                      color: _is3DView ? Colors.black : palette.textPrimary,
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      _is3DView ? '3D' : '2D',
+                      _is3DView ? '3D Orbit' : '2D Plan',
                       style: GoogleFonts.inter(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
-                        color: palette.primary,
+                        color: _is3DView ? Colors.black : palette.textPrimary,
                       ),
                     ),
                   ],
@@ -245,10 +352,11 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
             ),
           ),
           IconButton(
-            icon: Icon(Icons.restart_alt_rounded, color: palette.textSecondary, size: 19),
-            tooltip: 'Reset Zoom',
+            icon: Icon(Icons.restart_alt_rounded, color: palette.textSecondary, size: 20),
+            tooltip: 'Reset Camera',
             onPressed: _resetView,
           ),
+          const SizedBox(width: 4),
         ],
       ),
       body: GestureDetector(
@@ -259,12 +367,20 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
             // Dimension Controls & Wastage Header
             _buildDimensionControls(palette, isDark),
 
-            // Interactive Proportional Wall Canvas Viewport
+            // Interactive Proportional Wall Canvas Viewport with Touch 3D & Zoom
             Expanded(
               child: Stack(
                 children: [
                   Container(
-                    color: isDark ? const Color(0xFF141416) : const Color(0xFFF1EFEA),
+                    decoration: BoxDecoration(
+                      gradient: RadialGradient(
+                        center: Alignment.center,
+                        radius: 1.15,
+                        colors: isDark
+                            ? const [Color(0xFF221F1C), Color(0xFF100F0E)]
+                            : [palette.surfaceDark, palette.background],
+                      ),
+                    ),
                     child: !validDimensions
                         ? Center(
                             child: Text(
@@ -272,50 +388,48 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                               style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 13),
                             ),
                           )
-                        : InteractiveViewer(
-                            transformationController: _viewerController,
-                            minScale: 0.4,
-                            maxScale: 6.0,
-                            child: Center(
-                              child: _buildProportionalWall(
-                                widthFt: widthFt,
-                                heightFt: heightFt,
-                                palette: palette,
-                                isDark: isDark,
-                              ),
-                            ),
+                        : _buildInteractive3DCanvas(
+                            widthFt: widthFt,
+                            heightFt: heightFt,
+                            palette: palette,
+                            isDark: isDark,
                           ),
                   ),
 
-                  // Pattern Switcher Overlay (Bottom Left of Canvas)
+                  // Top Left: 3D Orbit Guide Badge
                   Positioned(
+                    top: 12,
                     left: 14,
-                    bottom: 14,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? const Color(0xFF1E1E1E).withValues(alpha: 0.9)
-                            : Colors.white.withValues(alpha: 0.92),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: palette.border),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.1),
-                            blurRadius: 8,
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _buildPatternChip('Stacked', 'stacked', palette),
-                          const SizedBox(width: 4),
-                          _buildPatternChip('Brick Bond', 'brick', palette),
-                          const SizedBox(width: 4),
-                          _buildPatternChip('Vertical', 'vertical', palette),
-                        ],
-                      ),
+                    child: _buildGuideBadge(palette, isDark),
+                  ),
+
+                  // Top Right Controls (Dimension toggle & reset)
+                  Positioned(
+                    top: 12,
+                    right: 14,
+                    child: _buildTopCanvasControls(palette, isDark),
+                  ),
+
+                  // Center Right Floating Zoom Controls (+, %, -)
+                  Positioned(
+                    right: 14,
+                    top: 60,
+                    child: _buildZoomFloatingControls(palette, isDark),
+                  ),
+
+                  // Bottom Center: Pattern Selector & Camera Presets
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 10,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        _buildPatternSelector(palette, isDark),
+                        const SizedBox(height: 6),
+                        _buildCameraPresetSelector(palette, isDark),
+                      ],
                     ),
                   ),
                 ],
@@ -336,7 +450,7 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                 estimatedCost: estimatedCost,
               ),
 
-            // Material Stone Carousel Strip (hidden when keyboard is open to preserve canvas height)
+            // Material Stone Carousel Strip
             if (!isKeyboardOpen)
               stonesAsync.when(
                 data: (stones) {
@@ -354,7 +468,7 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                   return _buildProductStrip(stones, palette, isDark);
                 },
                 loading: () => const SizedBox(
-                  height: 100,
+                  height: 94,
                   child: Center(child: CircularProgressIndicator()),
                 ),
                 error: (_, _) => const SizedBox.shrink(),
@@ -367,63 +481,66 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
 
   Widget _buildDimensionControls(dynamic palette, bool isDark) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
       decoration: BoxDecoration(
         color: palette.surface,
         border: Border(bottom: BorderSide(color: palette.border)),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 1-Tap Quick Architectural Presets (Minimizes clicks!)
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: Row(
+              children: [
+                _buildQuickPresetChip("10' × 10' Accent", '10', '10', palette),
+                _buildQuickPresetChip("12' × 10' Standard", '12', '10', palette),
+                _buildQuickPresetChip("16' × 12' Feature", '16', '12', palette),
+                _buildQuickPresetChip("20' × 14' Façade", '20', '14', palette),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          // Stepper-Enabled Dimension Inputs
           Row(
             children: [
-              // Width Input
+              // Width with [-] and [+]
               Expanded(
-                child: TextField(
+                child: _buildDimStepperField(
                   controller: _widthController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  textInputAction: TextInputAction.next,
-                  style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: palette.textPrimary),
-                  decoration: InputDecoration(
-                    labelText: 'Wall Width',
-                    labelStyle: GoogleFonts.inter(fontSize: 11, color: palette.textSecondary),
-                    prefixIcon: Icon(Icons.straighten_rounded, size: 16, color: palette.primary),
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  onChanged: (_) => setState(() {}),
+                  label: 'Wall Width',
+                  icon: Icons.straighten_rounded,
+                  palette: palette,
+                  onMinus: () => _stepWidth(-1),
+                  onPlus: () => _stepWidth(1),
                 ),
               ),
               const SizedBox(width: 8),
 
-              // Height Input
+              // Height with [-] and [+]
               Expanded(
-                child: TextField(
+                child: _buildDimStepperField(
                   controller: _heightController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => FocusScope.of(context).unfocus(),
-                  style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: palette.textPrimary),
-                  decoration: InputDecoration(
-                    labelText: 'Wall Height',
-                    labelStyle: GoogleFonts.inter(fontSize: 11, color: palette.textSecondary),
-                    prefixIcon: Icon(Icons.height_rounded, size: 16, color: palette.primary),
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  onChanged: (_) => setState(() {}),
+                  label: 'Wall Height',
+                  icon: Icons.height_rounded,
+                  palette: palette,
+                  onMinus: () => _stepHeight(-1),
+                  onPlus: () => _stepHeight(1),
                 ),
               ),
               const SizedBox(width: 8),
 
               // Unit Selector Dropdown
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
+                height: 48,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: palette.border),
-                  color: palette.background,
+                  color: palette.surfaceDark,
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
@@ -447,21 +564,52 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
           ),
           const SizedBox(height: 8),
 
-          // Wastage Slider
+          // Wastage row with 1-tap quick chips & slider
           Row(
             children: [
               Text(
-                'Wastage: ${_wastagePercent.toInt()}%',
+                'Wastage: ',
                 style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: palette.textSecondary),
               ),
+              ...[5, 10, 15, 20].map((w) {
+                final isSel = _wastagePercent.toInt() == w;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: InkWell(
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      setState(() => _wastagePercent = w.toDouble());
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: isSel ? palette.primary : palette.surfaceDark,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isSel ? palette.primary : palette.border,
+                        ),
+                      ),
+                      child: Text(
+                        '$w%',
+                        style: GoogleFonts.inter(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: isSel ? Colors.black : palette.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }),
               Expanded(
                 child: SliderTheme(
                   data: SliderThemeData(
                     thumbColor: palette.primary,
                     activeTrackColor: palette.primary,
                     inactiveTrackColor: palette.primary.withValues(alpha: 0.2),
-                    trackHeight: 3,
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                    trackHeight: 2.5,
+                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
                   ),
                   child: Slider(
                     value: _wastagePercent,
@@ -479,6 +627,679 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
     );
   }
 
+  Widget _buildDimStepperField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    required dynamic palette,
+    required VoidCallback onMinus,
+    required VoidCallback onPlus,
+  }) {
+    return Container(
+      height: 48,
+      decoration: BoxDecoration(
+        color: palette.surfaceDark,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: palette.border),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            onPressed: onMinus,
+            icon: Icon(Icons.remove_circle_outline_rounded, color: palette.textSecondary, size: 18),
+          ),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              textAlign: TextAlign.center,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: palette.textPrimary),
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+          ),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            onPressed: onPlus,
+            icon: Icon(Icons.add_circle_outline_rounded, color: palette.primary, size: 18),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickPresetChip(String title, String w, String h, dynamic palette) {
+    final isSelected = _widthController.text == w && _heightController.text == h && _unit == 'ft';
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: InkWell(
+        onTap: () => _applyWallPreset(w, h),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+          decoration: BoxDecoration(
+            color: isSelected ? palette.primary.withValues(alpha: 0.15) : palette.surfaceDark,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isSelected ? palette.primary : palette.border,
+              width: isSelected ? 1.4 : 1.0,
+            ),
+          ),
+          child: Text(
+            title,
+            style: GoogleFonts.inter(
+              fontSize: 10.5,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              color: isSelected ? palette.primary : palette.textSecondary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInteractive3DCanvas({
+    required double widthFt,
+    required double heightFt,
+    required dynamic palette,
+    required bool isDark,
+  }) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onScaleStart: (details) {
+        _startRotX = _rotX;
+        _startRotY = _rotY;
+        _startScale = _scale;
+        _startPan = _panOffset;
+      },
+      onScaleUpdate: (details) {
+        setState(() {
+          if (details.pointerCount == 1) {
+            // 1 finger touch: Free 3D Orbit Rotate
+            _is3DView = true;
+            _rotY = (_rotY + details.focalPointDelta.dx * 0.0075).clamp(-1.3, 1.3);
+            _rotX = (_rotX - details.focalPointDelta.dy * 0.0075).clamp(-0.65, 0.65);
+          } else if (details.pointerCount >= 2) {
+            // 2 fingers: Zoom & Pan
+            _scale = (_startScale * details.scale).clamp(0.5, 3.5);
+            _panOffset += details.focalPointDelta;
+          }
+        });
+      },
+      onDoubleTap: _resetView,
+      child: Stack(
+        fit: StackFit.expand,
+        alignment: Alignment.center,
+        children: [
+          // 1. Studio Perspective Floor & Horizon Grid
+          CustomPaint(
+            painter: _StudioFloorPainter(
+              isDark: isDark,
+              accentColor: palette.primary,
+              rotX: _is3DView ? _rotX : 0.0,
+              rotY: _is3DView ? _rotY : 0.0,
+            ),
+          ),
+
+          // 2. The 3D Proportional Extruded Wall Object
+          Center(
+            child: _buildProportional3DWall(
+              widthFt: widthFt,
+              heightFt: heightFt,
+              palette: palette,
+              isDark: isDark,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProportional3DWall({
+    required double widthFt,
+    required double heightFt,
+    required dynamic palette,
+    required bool isDark,
+  }) {
+    const maxRenderW = 270.0;
+    const maxRenderH = 250.0;
+    final aspect = (widthFt > 0 && heightFt > 0) ? widthFt / heightFt : 1.2;
+    double renderWidth;
+    double renderHeight;
+
+    if (aspect >= 1) {
+      renderWidth = maxRenderW;
+      renderHeight = (maxRenderW / aspect).clamp(110.0, maxRenderH);
+    } else {
+      renderHeight = maxRenderH;
+      renderWidth = (maxRenderH * aspect).clamp(110.0, maxRenderW);
+    }
+
+    final lenCm = _selectedStone?.lengthCm;
+    final widCm = _selectedStone?.widthCm;
+    final hasRealDimensions = lenCm != null && widCm != null && lenCm > 0 && widCm > 0;
+
+    final int columns;
+    final int rows;
+    if (hasRealDimensions) {
+      final tileWFt = lenCm / 30.48;
+      final tileHFt = widCm / 30.48;
+      columns = (widthFt / tileWFt).ceil().clamp(1, 24);
+      rows = (heightFt / tileHFt).ceil().clamp(1, 24);
+    } else {
+      columns = 4;
+      rows = 4;
+    }
+
+    // 3D Perspective Matrix
+    final activeRotX = _is3DView ? _rotX : 0.0;
+    final activeRotY = _is3DView ? _rotY : 0.0;
+
+    final matrix = Matrix4.identity()
+      ..setEntry(3, 2, 0.0012) // perspective distortion
+      ..translate(_panOffset.dx, _panOffset.dy)
+      ..scale(_scale)
+      ..rotateX(activeRotX)
+      ..rotateY(activeRotY);
+
+    // Dynamic depth thickness (revealed as wall rotates)
+    const wallDepth = 22.0; // architectural slab depth in pt
+    final sideVisible = activeRotY.abs() > 0.01;
+    final showRightSide = activeRotY < -0.01;
+    final showLeftSide = activeRotY > 0.01;
+    final sideWidth = (wallDepth * math.sin(activeRotY.abs())).clamp(3.0, wallDepth);
+
+    final topVisible = activeRotX > 0.02;
+    final topHeight = (wallDepth * math.sin(activeRotX)).clamp(2.5, wallDepth);
+
+    return Transform(
+      transform: matrix,
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Top Architectural Dimension Line (if enabled)
+          if (_showDimensions)
+            _buildWidthDimensionTag(renderWidth, widthFt, palette),
+
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Left Architectural Dimension Line (if enabled)
+              if (_showDimensions)
+                _buildHeightDimensionTag(renderHeight, heightFt, palette),
+
+              // The Extruded 3D Stone Wall Body
+              Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.center,
+                children: [
+                  // A. Floor Shadow Beneath Wall
+                  Positioned(
+                    bottom: -18,
+                    left: -18,
+                    right: -18,
+                    height: 24,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: isDark ? 0.6 : 0.25),
+                            blurRadius: 18,
+                            spreadRadius: 2,
+                            offset: Offset(showRightSide ? 10 : (showLeftSide ? -10 : 0), 8),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // B. 3D Side Depth Slab (Right side extrusion when rotated)
+                  if (sideVisible && showRightSide)
+                    Positioned(
+                      top: 0,
+                      bottom: 0,
+                      right: -sideWidth + 1,
+                      width: sideWidth,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            begin: Alignment.centerLeft,
+                            end: Alignment.centerRight,
+                            colors: [
+                              Color(0xFF22201E),
+                              Color(0xFF141312),
+                            ],
+                          ),
+                          border: Border(
+                            top: BorderSide(color: palette.primary.withValues(alpha: 0.3), width: 0.6),
+                            right: BorderSide(color: palette.primary.withValues(alpha: 0.4), width: 0.8),
+                            bottom: BorderSide(color: palette.primary.withValues(alpha: 0.2), width: 0.6),
+                          ),
+                        ),
+                        child: CustomPaint(
+                          painter: _SideMortarTexturePainter(),
+                        ),
+                      ),
+                    ),
+
+                  // B2. 3D Side Depth Slab (Left side extrusion when rotated)
+                  if (sideVisible && showLeftSide)
+                    Positioned(
+                      top: 0,
+                      bottom: 0,
+                      left: -sideWidth + 1,
+                      width: sideWidth,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            begin: Alignment.centerRight,
+                            end: Alignment.centerLeft,
+                            colors: [
+                              Color(0xFF2E2C2A),
+                              Color(0xFF1C1B1A),
+                            ],
+                          ),
+                          border: Border(
+                            top: BorderSide(color: palette.primary.withValues(alpha: 0.3), width: 0.6),
+                            left: BorderSide(color: palette.primary.withValues(alpha: 0.4), width: 0.8),
+                            bottom: BorderSide(color: palette.primary.withValues(alpha: 0.2), width: 0.6),
+                          ),
+                        ),
+                        child: CustomPaint(
+                          painter: _SideMortarTexturePainter(),
+                        ),
+                      ),
+                    ),
+
+                  // C. 3D Top Coping Edge (Header slab when tilted downward)
+                  if (topVisible)
+                    Positioned(
+                      top: -topHeight + 1,
+                      left: showLeftSide ? -sideWidth + 1 : 0,
+                      right: showRightSide ? -sideWidth + 1 : 0,
+                      height: topHeight,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            begin: Alignment.bottomCenter,
+                            end: Alignment.topCenter,
+                            colors: [
+                              Color(0xFF3E3B38),
+                              Color(0xFF55524E),
+                            ],
+                          ),
+                          border: Border(
+                            top: BorderSide(color: palette.primary.withValues(alpha: 0.5), width: 0.8),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  // D. Main Front Wall Face
+                  Container(
+                    width: renderWidth,
+                    height: renderHeight,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.2),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    foregroundDecoration: BoxDecoration(
+                      border: Border.all(
+                        color: const Color(0xFFD4AF37).withValues(alpha: 0.75),
+                        width: 1.5,
+                      ),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(1.5),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          // 1. Tiled Stone Pattern
+                          _selectedStone == null
+                              ? Container(
+                                  color: Colors.grey.shade400,
+                                  child: Center(
+                                    child: Text(
+                                      'Select a stone below',
+                                      style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                                    ),
+                                  ),
+                                )
+                              : _buildTiledPattern(
+                                  imageUrl: _selectedStone!.arTextureUrl ?? _selectedStone!.imageUrl,
+                                  columns: columns,
+                                  rows: rows,
+                                  renderWidth: renderWidth,
+                                  renderHeight: renderHeight,
+                                ),
+
+                          // 2. Dynamic Specular Light Glint (shifts with rotation angle!)
+                          if (_is3DView)
+                            Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment(-0.8 + (activeRotY * 1.6), -0.8 + (activeRotX * 1.6)),
+                                  end: Alignment(0.8 + (activeRotY * 1.6), 0.8 + (activeRotX * 1.6)),
+                                  colors: [
+                                    Colors.white.withValues(alpha: 0.22),
+                                    Colors.white.withValues(alpha: 0.05),
+                                    Colors.transparent,
+                                    Colors.black.withValues(alpha: 0.35),
+                                  ],
+                                  stops: const [0.0, 0.25, 0.60, 1.0],
+                                ),
+                              ),
+                            ),
+
+                          // 3. Subtle Inner Vignette for Relief Depth
+                          Container(
+                            decoration: BoxDecoration(
+                              gradient: RadialGradient(
+                                center: Alignment.center,
+                                radius: 0.95,
+                                colors: [
+                                  Colors.transparent,
+                                  Colors.black.withValues(alpha: 0.25),
+                                ],
+                                stops: const [0.65, 1.0],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          // Depth indicator badge
+          if (_showDimensions && _is3DView)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.65),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFD4AF37).withValues(alpha: 0.4), width: 0.8),
+                ),
+                child: Text(
+                  'Wall Depth: 4" (100mm) Architectural Slab',
+                  style: GoogleFonts.inter(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFFD4AF37),
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWidthDimensionTag(double width, double widthFt, dynamic palette) {
+    return Container(
+      width: width,
+      margin: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.arrow_left_rounded, size: 14, color: palette.primary),
+          Expanded(
+            child: Container(height: 1, color: palette.primary.withValues(alpha: 0.6)),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Text(
+              '${widthFt.toStringAsFixed(1)} ft (${_widthController.text} $_unit)',
+              style: GoogleFonts.inter(
+                fontSize: 9.5,
+                fontWeight: FontWeight.w700,
+                color: palette.primary,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Container(height: 1, color: palette.primary.withValues(alpha: 0.6)),
+          ),
+          Icon(Icons.arrow_right_rounded, size: 14, color: palette.primary),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeightDimensionTag(double height, double heightFt, dynamic palette) {
+    return Container(
+      height: height,
+      margin: const EdgeInsets.only(right: 6),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.arrow_drop_up_rounded, size: 14, color: palette.primary),
+          Expanded(
+            child: Container(width: 1, color: palette.primary.withValues(alpha: 0.6)),
+          ),
+          RotatedBox(
+            quarterTurns: 3,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Text(
+                '${heightFt.toStringAsFixed(1)} ft',
+                style: GoogleFonts.inter(
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w700,
+                  color: palette.primary,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Container(width: 1, color: palette.primary.withValues(alpha: 0.6)),
+          ),
+          Icon(Icons.arrow_drop_down_rounded, size: 14, color: palette.primary),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGuideBadge(dynamic palette, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E1E).withValues(alpha: 0.88) : Colors.white.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: palette.border, width: 0.8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 6,
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.view_in_ar_rounded, size: 13, color: palette.primary),
+          const SizedBox(width: 5),
+          Text(
+            _is3DView ? '3D Orbit • Drag & Pinch' : '2D Plan View',
+            style: GoogleFonts.inter(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: palette.textPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopCanvasControls(dynamic palette, bool isDark) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Dimension Toggle
+        InkWell(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            setState(() => _showDimensions = !_showDimensions);
+          },
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E1E1E).withValues(alpha: 0.88) : Colors.white.withValues(alpha: 0.9),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: _showDimensions ? palette.primary : palette.border,
+                width: 0.8,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.straighten_rounded,
+                  size: 13,
+                  color: _showDimensions ? palette.primary : palette.textSecondary,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'Dims',
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: _showDimensions ? palette.primary : palette.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        // Reset Camera
+        InkWell(
+          onTap: _resetView,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E1E1E).withValues(alpha: 0.88) : Colors.white.withValues(alpha: 0.9),
+              shape: BoxShape.circle,
+              border: Border.all(color: palette.border, width: 0.8),
+            ),
+            child: Icon(Icons.restart_alt_rounded, size: 14, color: palette.textSecondary),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildZoomFloatingControls(dynamic palette, bool isDark) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E1E).withValues(alpha: 0.92) : Colors.white.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: palette.border, width: 0.8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 8,
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Zoom In
+          InkWell(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              setState(() => _scale = (_scale + 0.25).clamp(0.5, 3.5));
+            },
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+              child: Icon(Icons.add_rounded, size: 16),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+            child: Text(
+              '${(_scale * 100).toInt()}%',
+              style: GoogleFonts.inter(fontSize: 8.5, fontWeight: FontWeight.w700),
+            ),
+          ),
+          // Zoom Out
+          InkWell(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              setState(() => _scale = (_scale - 0.25).clamp(0.5, 3.5));
+            },
+            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+              child: Icon(Icons.remove_rounded, size: 16),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPatternSelector(dynamic palette, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      decoration: BoxDecoration(
+        color: isDark
+            ? const Color(0xFF1E1E1E).withValues(alpha: 0.92)
+            : Colors.white.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: palette.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildPatternChip('Stacked', 'stacked', palette),
+          const SizedBox(width: 4),
+          _buildPatternChip('Brick Bond', 'brick', palette),
+          const SizedBox(width: 4),
+          _buildPatternChip('Vertical', 'vertical', palette),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPatternChip(String label, String value, dynamic palette) {
     final isSelected = _layoutPattern == value;
     return InkWell(
@@ -488,7 +1309,7 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
       },
       borderRadius: BorderRadius.circular(14),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
         decoration: BoxDecoration(
           color: isSelected ? palette.primary : Colors.transparent,
           borderRadius: BorderRadius.circular(14),
@@ -496,7 +1317,7 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
         child: Text(
           label,
           style: GoogleFonts.inter(
-            fontSize: 10,
+            fontSize: 9.5,
             fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
             color: isSelected ? Colors.black : palette.textSecondary,
           ),
@@ -505,86 +1326,60 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
     );
   }
 
-  Widget _buildProportionalWall({
-    required double widthFt,
-    required double heightFt,
-    required dynamic palette,
-    required bool isDark,
-  }) {
-    const maxRenderSize = 340.0;
-    final aspect = widthFt / heightFt;
-    final renderWidth = aspect >= 1 ? maxRenderSize : maxRenderSize * aspect;
-    final renderHeight = aspect >= 1 ? maxRenderSize / aspect : maxRenderSize;
-
-    final lenCm = _selectedStone?.lengthCm;
-    final widCm = _selectedStone?.widthCm;
-    final hasRealDimensions = lenCm != null && widCm != null && lenCm > 0 && widCm > 0;
-
-    final int? columns;
-    final int? rows;
-    if (hasRealDimensions) {
-      final tileWFt = lenCm / 30.48;
-      final tileHFt = widCm / 30.48;
-      columns = (widthFt / tileWFt).ceil().clamp(1, 150);
-      rows = (heightFt / tileHFt).ceil().clamp(1, 150);
-    } else {
-      columns = null;
-      rows = null;
-    }
-
-    return Transform(
-      transform: _is3DView
-          ? (Matrix4.identity()
-            ..setEntry(3, 2, 0.0015)
-            ..rotateY(-0.18)
-            ..rotateX(0.08))
-          : Matrix4.identity(),
-      alignment: Alignment.center,
-      child: Container(
-        width: renderWidth,
-        height: renderHeight,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(4),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: _is3DView ? 0.35 : 0.15),
-              blurRadius: _is3DView ? 24 : 12,
-              offset: Offset(_is3DView ? 14 : 0, _is3DView ? 12 : 4),
-            ),
-          ],
-        ),
-        foregroundDecoration: BoxDecoration(
-          border: Border.all(
-            color: palette.primary.withValues(alpha: 0.6),
-            width: 2.5,
+  Widget _buildCameraPresetSelector(dynamic palette, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E1E).withValues(alpha: 0.92) : Colors.white.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: palette.border, width: 0.8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
           ),
-          borderRadius: BorderRadius.circular(4),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildCameraChip('Front', () {
+            _animateToCamera(targetRotX: 0.0, targetRotY: 0.0, targetScale: 1.0, is3D: false);
+          }, !_is3DView, palette),
+          const SizedBox(width: 3),
+          _buildCameraChip('3D Orbit', () {
+            _animateToCamera(targetRotX: 0.12, targetRotY: -0.26, targetScale: 1.0, is3D: true);
+          }, _is3DView && _rotY.abs() < 0.40, palette),
+          const SizedBox(width: 3),
+          _buildCameraChip('Iso', () {
+            _animateToCamera(targetRotX: 0.26, targetRotY: -0.45, targetScale: 0.95, is3D: true);
+          }, false, palette),
+          const SizedBox(width: 3),
+          _buildCameraChip('Side 45°', () {
+            _animateToCamera(targetRotX: 0.05, targetRotY: -0.68, targetScale: 1.05, is3D: true);
+          }, false, palette),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCameraChip(String label, VoidCallback onTap, bool isSelected, dynamic palette) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? palette.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(2),
-          child: _selectedStone == null
-              ? Container(
-                  color: Colors.grey.shade400,
-                  child: Center(
-                    child: Text(
-                      'Select a stone below',
-                      style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                )
-              : (columns != null && rows != null)
-                  ? _buildTiledPattern(
-                      imageUrl: _selectedStone!.arTextureUrl ?? _selectedStone!.imageUrl,
-                      columns: columns,
-                      rows: rows,
-                      renderWidth: renderWidth,
-                      renderHeight: renderHeight,
-                    )
-                  : SmartStoneImage(
-                      imageUrl: _selectedStone!.arTextureUrl ?? _selectedStone!.imageUrl,
-                      fit: BoxFit.cover,
-                      fallbackColor: const Color(0xFFC4B5A5),
-                    ),
+        child: Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 9.5,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            color: isSelected ? Colors.black : palette.textSecondary,
+          ),
         ),
       ),
     );
@@ -604,10 +1399,9 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
     final cellW = renderWidth / columns;
     final cellH = renderHeight / rows;
 
-    return ListView.builder(
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: rows,
-      itemBuilder: (context, rowIndex) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(rows, (rowIndex) {
         final isOffset = _layoutPattern == 'brick' && rowIndex.isOdd;
         return ClipRect(
           child: SizedBox(
@@ -627,7 +1421,7 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                       height: cellH,
                       decoration: BoxDecoration(
                         border: Border.all(
-                          color: Colors.black.withValues(alpha: 0.15),
+                          color: Colors.black.withValues(alpha: 0.22),
                           width: 0.6,
                         ),
                       ),
@@ -643,7 +1437,7 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
             ),
           ),
         );
-      },
+      }),
     );
   }
 
@@ -685,7 +1479,12 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                 palette,
                 isHighlight: boxesRequired != null,
               ),
-              _buildStatMetric('Est. Value', '₹${estimatedCost.toStringAsFixed(0)}', palette, isGold: true),
+              _buildStatMetric(
+                'Est. Value',
+                '₹${estimatedCost.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}',
+                palette,
+                isGold: true,
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -822,9 +1621,9 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
 
   Widget _buildProductStrip(List<Stone> stones, dynamic palette, bool isDark) {
     return Container(
-      height: 94,
+      height: 98,
       padding: const EdgeInsets.symmetric(vertical: 8),
-      color: isDark ? const Color(0xFF161616) : Colors.white,
+      color: isDark ? const Color(0xFF141312) : Colors.white,
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 14),
         scrollDirection: Axis.horizontal,
@@ -833,33 +1632,43 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
         itemBuilder: (context, index) {
           final stone = stones[index];
           final isSelected = _selectedStone?.id == stone.id;
+          final stonePrice = stone.pricePerSqFt > 0 ? stone.pricePerSqFt : 385.0;
 
           return InkWell(
             onTap: () {
               HapticFeedback.selectionClick();
               setState(() => _selectedStone = stone);
             },
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
             child: Container(
-              width: 130,
-              padding: const EdgeInsets.all(6),
+              width: 145,
+              padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(
                 color: isSelected
-                    ? palette.primary.withValues(alpha: 0.12)
+                    ? palette.primary.withValues(alpha: 0.14)
                     : palette.surface,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: isSelected ? palette.primary : palette.border,
                   width: isSelected ? 1.8 : 1.0,
                 ),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: palette.primary.withValues(alpha: 0.12),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : null,
               ),
               child: Row(
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
                     child: SizedBox(
-                      width: 44,
-                      height: 44,
+                      width: 48,
+                      height: 48,
                       child: SmartStoneImage(
                         imageUrl: stone.imageUrl,
                         fit: BoxFit.cover,
@@ -877,18 +1686,25 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.inter(
-                            fontSize: 11,
+                            fontSize: 11.5,
                             fontWeight: FontWeight.w700,
-                            color: palette.textPrimary,
+                            color: isSelected ? palette.primary : palette.textPrimary,
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '₹${stone.pricePerSqFt.toStringAsFixed(0)}/sqft',
+                          '₹${stonePrice.toInt()}/sqft',
                           style: GoogleFonts.inter(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
                             color: palette.primary,
+                          ),
+                        ),
+                        Text(
+                          '~${stone.sqftPerBox > 0 ? stone.sqftPerBox : 10.5} sf/b',
+                          style: GoogleFonts.inter(
+                            fontSize: 9,
+                            color: palette.textTertiary,
                           ),
                         ),
                       ],
@@ -902,4 +1718,76 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
       ),
     );
   }
+}
+
+/// Perspective Floor & Horizon Painter for Showroom Atmosphere
+class _StudioFloorPainter extends CustomPainter {
+  final bool isDark;
+  final Color accentColor;
+  final double rotX;
+  final double rotY;
+
+  _StudioFloorPainter({
+    required this.isDark,
+    required this.accentColor,
+    required this.rotX,
+    required this.rotY,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final horizonY = center.dy + 85 + (rotX * 45);
+
+    // Floor subtle depth gradient
+    final floorRect = Rect.fromLTRB(0, horizonY, size.width, size.height);
+    final floorPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: isDark
+            ? [const Color(0xFF141416), const Color(0xFF0D0D0E)]
+            : [const Color(0xFFE8E5DF), const Color(0xFFD8D4CC)],
+      ).createShader(floorRect);
+    canvas.drawRect(floorRect, floorPaint);
+
+    // Horizon line
+    final horizonPaint = Paint()
+      ..color = (isDark ? Colors.white : Colors.black).withValues(alpha: 0.06)
+      ..strokeWidth = 1.0;
+    canvas.drawLine(Offset(0, horizonY), Offset(size.width, horizonY), horizonPaint);
+
+    // Perspective floor lines vanishing towards horizon
+    final vanishingPoint = Offset(center.dx + (rotY * 90), horizonY - 100);
+    final gridPaint = Paint()
+      ..color = (isDark ? Colors.white : Colors.black).withValues(alpha: 0.04)
+      ..strokeWidth = 0.8;
+
+    for (double x = -size.width * 0.5; x <= size.width * 1.5; x += 55) {
+      canvas.drawLine(vanishingPoint, Offset(x, size.height), gridPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _StudioFloorPainter oldDelegate) {
+    return oldDelegate.isDark != isDark ||
+        oldDelegate.rotX != rotX ||
+        oldDelegate.rotY != rotY;
+  }
+}
+
+/// Textured Mortar for Wall 3D Side Depth
+class _SideMortarTexturePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final linePaint = Paint()
+      ..color = Colors.black.withValues(alpha: 0.45)
+      ..strokeWidth = 1.0;
+    for (double y = 14; y < size.height; y += 18) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), linePaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

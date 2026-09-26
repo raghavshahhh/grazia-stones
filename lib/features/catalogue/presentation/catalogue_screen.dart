@@ -44,6 +44,23 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
     _loadData();
   }
 
+  @override
+  void didUpdateWidget(covariant CatalogueScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.collectionId != widget.collectionId && widget.collectionId != null) {
+      final target = widget.collectionId!.toLowerCase().trim();
+      final col = _collections.where((c) =>
+        c.id.toLowerCase() == target ||
+        c.name.toLowerCase().replaceAll(' ', '-') == target ||
+        c.name.toLowerCase().contains(target) ||
+        target.contains(c.id.toLowerCase())
+      ).firstOrNull;
+      if (col != null) {
+        _loadStonesByCollection(col);
+      }
+    }
+  }
+
   Future<void> _loadData() async {
     try {
       setState(() => _isLoading = true);
@@ -52,11 +69,14 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
       final collections = await stoneRepo.getCollections();
 
       Collection? selectedCollection;
-      if (widget.collectionId != null) {
-        selectedCollection = collections.firstWhere(
-          (c) => c.id == widget.collectionId,
-          orElse: () => collections.first,
-        );
+      if (widget.collectionId != null && widget.collectionId!.isNotEmpty) {
+        final target = widget.collectionId!.toLowerCase().trim();
+        selectedCollection = collections.where((c) =>
+          c.id.toLowerCase() == target ||
+          c.name.toLowerCase().replaceAll(' ', '-') == target ||
+          c.name.toLowerCase().contains(target) ||
+          target.contains(c.id.toLowerCase())
+        ).firstOrNull ?? (collections.isNotEmpty ? collections.first : null);
       } else {
         selectedCollection = collections.isNotEmpty ? collections.first : null;
       }
@@ -190,12 +210,12 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                             ),
                           )
                         : null,
-                    background: _selectedCollection?.imageUrl != null
+                    background: _selectedCollection != null
                         ? Stack(
                             fit: StackFit.expand,
                             children: [
                               SmartStoneImage(
-                                imageUrl: _selectedCollection!.imageUrl,
+                                imageUrl: _selectedCollection!.effectiveBannerImage,
                                 fit: BoxFit.cover,
                                 palette: palette,
                               ),
@@ -221,13 +241,42 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                 ),
 
                 // Collection tabs
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: _CollectionTabsDelegate(
-                    collections: _collections,
-                    selectedCollection: _selectedCollection,
-                    palette: palette,
-                    onCollectionSelected: _loadStonesByCollection,
+                SliverToBoxAdapter(
+                  child: Container(
+                    color: palette.surface,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: _collections.map((collection) {
+                          final isSelected = _selectedCollection?.id == collection.id;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: GestureDetector(
+                              onTap: () => _loadStonesByCollection(collection),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: isSelected ? palette.primary : palette.background,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: isSelected ? palette.primary : palette.border,
+                                  ),
+                                ),
+                                child: Text(
+                                  collection.name,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: isSelected ? Colors.white : palette.textSecondary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
                   ),
                 ),
 
@@ -574,65 +623,4 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
   }
 }
 
-class _CollectionTabsDelegate extends SliverPersistentHeaderDelegate {
-  final List<Collection> collections;
-  final Collection? selectedCollection;
-  final LuxuryPalette palette;
-  final Function(Collection) onCollectionSelected;
 
-  _CollectionTabsDelegate({
-    required this.collections,
-    required this.selectedCollection,
-    required this.palette,
-    required this.onCollectionSelected,
-  });
-
-  @override
-  double get minExtent => 60;
-
-  @override
-  double get maxExtent => 60;
-
-  @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return Container(
-      color: palette.surface,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: collections.map((collection) {
-            final isSelected = selectedCollection?.id == collection.id;
-            return Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: GestureDetector(
-                onTap: () => onCollectionSelected(collection),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: isSelected ? palette.primary : palette.background,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: isSelected ? palette.primary : palette.border,
-                    ),
-                  ),
-                  child: Text(
-                    collection.name,
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: isSelected ? Colors.white : palette.textSecondary,
-                    ),
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
-
-  @override
-  bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) => true;
-}

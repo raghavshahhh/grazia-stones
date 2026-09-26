@@ -56,6 +56,10 @@ public class ARKitPlugin: NSObject, FlutterPlugin {
             self?.sendEvent(type: "measurementResult", data: data)
         }
         
+        arKitManager.onObstacleDetected = { [weak self] data in
+            self?.sendEvent(type: "obstacleDetected", data: data)
+        }
+        
         arKitManager.onError = { [weak self] error in
             self?.sendEvent(type: "error", data: ["message": error])
         }

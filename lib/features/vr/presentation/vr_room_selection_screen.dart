@@ -22,38 +22,44 @@ class VrRoomSelectionScreen extends ConsumerWidget {
     {
       'title': 'Living Room',
       'subtitle': 'Grande Ledge & Athena 3D Cladding',
-      'image': 'assets/images/hero_banner_1.png',
-      'tour': '360° Walkthrough Available',
+      'image': 'assets/images/home_hero_living_room.jpg',
+      'tour': '360° AR Surface Mapping',
+      'stoneId': 'athena-3d',
     },
     {
       'title': 'Hotel Lobby',
       'subtitle': 'Verona 3D & Bookmatched Italian Marble',
-      'image': 'assets/images/hero_banner_2.png',
-      'tour': 'Double Height Grand Foyer',
+      'image': 'assets/images/hero_luxury_fireplace.jpg',
+      'tour': 'Double Height Grand Foyer AR',
+      'stoneId': 'verona-3d',
     },
     {
       'title': 'Restaurant',
       'subtitle': 'Rustic Mountain Ledge & Ambient Lighting',
-      'image': 'assets/images/onboarding_1.png',
-      'tour': 'Hospitality Showcase',
+      'image': 'assets/images/hero_luxury_dining_fluted.jpg',
+      'tour': 'Hospitality Showcase AR',
+      'stoneId': 'mountain-m08',
     },
     {
       'title': 'Bedroom',
       'subtitle': 'Opus Ledge 15 Textured Feature Wall',
-      'image': 'assets/images/onboarding_2.png',
-      'tour': 'Luxury Master Suite',
+      'image': 'assets/images/hero_luxury_bedroom.jpg',
+      'tour': 'Luxury Master Suite AR',
+      'stoneId': 'opus-15',
     },
     {
       'title': 'Office Boardroom',
       'subtitle': 'Vantage V12 Minimalist Linear Panels',
-      'image': 'assets/images/onboarding_3.png',
+      'image': 'assets/images/onboarding_hero_room.jpg',
       'tour': 'Corporate Acoustic Cladding',
+      'stoneId': 'vantage-v12',
     },
     {
       'title': 'Exterior Facade',
       'subtitle': 'Weatherproof High-Density Natural Panels',
-      'image': 'assets/images/hero_banner_1.png',
-      'tour': 'Outdoor Weathering Test',
+      'image': 'assets/images/auth_luxury_background.jpg',
+      'tour': 'Outdoor Weathering Test AR',
+      'stoneId': 'grande-aty-10',
     },
   ];
 
@@ -109,7 +115,8 @@ class VrRoomSelectionScreen extends ConsumerWidget {
                 child: InkWell(
                   onTap: () {
                     HapticFeedback.lightImpact();
-                    context.push('/ai-visualization?stoneName=${Uri.encodeComponent(room['title']!)}');
+                    final stoneId = room['stoneId'] ?? 'athena-3d';
+                    context.push('/live-ai?stoneId=$stoneId');
                   },
                   child: Stack(
                     fit: StackFit.expand,

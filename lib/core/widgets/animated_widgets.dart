@@ -62,11 +62,15 @@ class _ApplePressableState extends State<ApplePressable>
 
   void _handleTapUp(TapUpDetails details) {
     _controller.reverse();
-    widget.onTap?.call();
   }
 
   void _handleTapCancel() {
     _controller.reverse();
+  }
+
+  void _handleTap() {
+    _controller.reverse();
+    widget.onTap?.call();
   }
 
   @override
@@ -80,6 +84,7 @@ class _ApplePressableState extends State<ApplePressable>
         onTapDown: widget.onTap != null ? _handleTapDown : null,
         onTapUp: widget.onTap != null ? _handleTapUp : null,
         onTapCancel: widget.onTap != null ? _handleTapCancel : null,
+        onTap: widget.onTap != null ? _handleTap : null,
         child: AnimatedScale(
           scale: _isHovered && !_controller.isAnimating && _controller.value == 0
               ? widget.hoverScale

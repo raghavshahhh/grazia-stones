@@ -17,8 +17,6 @@ class DealerLocatorScreen extends ConsumerStatefulWidget {
 }
 
 class _DealerLocatorScreenState extends ConsumerState<DealerLocatorScreen> {
-  bool _isMapView = true;
-
   void _makePhoneCall(String phone) async {
     final uri = Uri(scheme: 'tel', path: phone);
     if (await canLaunchUrl(uri)) {
@@ -46,7 +44,13 @@ class _DealerLocatorScreenState extends ConsumerState<DealerLocatorScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          onPressed: () => context.pop(),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/home');
+            }
+          },
           icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
         ),
         title: Text(
@@ -59,12 +63,13 @@ class _DealerLocatorScreenState extends ConsumerState<DealerLocatorScreen> {
         ),
         actions: [
           IconButton(
+            tooltip: 'Open in Google Maps',
             onPressed: () {
-              setState(() => _isMapView = !_isMapView);
               HapticFeedback.lightImpact();
+              _openMaps('Grazia Stones Kanpur Experience Centre, 477, Kalpi Road, Fazalganj');
             },
             icon: Icon(
-              _isMapView ? Icons.view_list_rounded : Icons.map_outlined,
+              Icons.map_outlined,
               color: palette.primary,
             ),
           ),
@@ -75,166 +80,12 @@ class _DealerLocatorScreenState extends ConsumerState<DealerLocatorScreen> {
         error: (e, _) => Center(
           child: Text('Failed to load showrooms', style: GoogleFonts.inter(color: palette.textSecondary)),
         ),
-        data: (dealers) => _isMapView ? _buildMapView(palette, dealers) : _buildListView(palette, dealers),
+        data: (dealers) => _buildListView(palette, dealers),
       ),
     );
   }
 
-  Widget _buildMapView(LuxuryPalette palette, List<Dealer> dealers) {
-    return Stack(
-      children: [
-        Container(
-          color: palette.surfaceDark,
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.map_outlined, size: 64, color: palette.textTertiary.withValues(alpha: 0.3)),
-                const SizedBox(height: 16),
-                Text(
-                  'Map Coordinates',
-                  style: GoogleFonts.playfairDisplay(fontSize: 20, fontWeight: FontWeight.w700, color: palette.textPrimary),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Interactive architectural showroom map',
-                  style: GoogleFonts.inter(fontSize: 13, color: palette.textSecondary),
-                ),
-              ],
-            ),
-          ),
-        ),
-        Positioned(
-          bottom: 0,
-          left: 0,
-          right: 0,
-          child: Container(
-            height: 190,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            decoration: BoxDecoration(
-              color: palette.background,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 16,
-                  offset: const Offset(0, -4),
-                ),
-              ],
-            ),
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: dealers.length,
-              itemBuilder: (context, i) {
-                final dealer = dealers[i];
-                return Container(
-                  width: 290,
-                  margin: EdgeInsets.only(right: i < dealers.length - 1 ? 12 : 0),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: palette.surface,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: palette.border),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              dealer.name,
-                              style: GoogleFonts.playfairDisplay(
-                                color: palette.textPrimary,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (dealer.isAuthorized)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: palette.primary.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                'AUTHORIZED',
-                                style: GoogleFonts.inter(
-                                  color: palette.primary,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Icon(Icons.star_rounded, color: palette.primary, size: 16),
-                          const SizedBox(width: 4),
-                          Text(
-                            dealer.rating.toString(),
-                            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: palette.textPrimary),
-                          ),
-                          const SizedBox(width: 12),
-                          Icon(Icons.location_on_outlined, color: palette.textTertiary, size: 14),
-                          const SizedBox(width: 4),
-                          Text(
-                            dealer.distance,
-                            style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary),
-                          ),
-                        ],
-                      ),
-                      const Spacer(),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () => _makePhoneCall(dealer.phone),
-                              icon: const Icon(Icons.phone_outlined, size: 14),
-                              label: const Text('Call'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: palette.primary,
-                                side: BorderSide(color: palette.border),
-                                padding: const EdgeInsets.symmetric(vertical: 10),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: () => _openMaps(dealer.address),
-                              icon: const Icon(Icons.directions_outlined, size: 14),
-                              label: const Text('Directions'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: palette.primary,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 10),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                elevation: 0,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+
 
   Widget _buildListView(LuxuryPalette palette, List<Dealer> dealers) {
     return ListView.builder(

@@ -30,6 +30,7 @@ import MetalKit
     @objc public var onError: ((String) -> Void)?
     @objc public var onWallStateChanged: ((String) -> Void)?
     @objc public var onMeasurementResult: (([String: Any]) -> Void)?
+    @objc public var onObstacleDetected: (([String: Any]) -> Void)?
     
     // MARK: - Private Properties
     

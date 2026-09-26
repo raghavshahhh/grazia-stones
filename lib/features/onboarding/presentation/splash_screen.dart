@@ -54,10 +54,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
     if (!onboardingComplete) {
       context.go('/onboarding');
-    } else if (authState.isLoggedIn) {
-      context.go('/home');
     } else {
-      context.go('/login');
+      context.go('/home');
     }
   }
 

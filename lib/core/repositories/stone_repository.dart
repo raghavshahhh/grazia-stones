@@ -38,10 +38,13 @@ class StoneRepository {
       productCode: row['product_code'] ?? '',
       collection: collectionName ?? row['collection_id']?.toString() ?? '',
       category: row['category'] ?? '',
-      pricePerSqFt: (row['price_per_sqft'] as num?)?.toDouble() ?? 0,
+      pricePerSqFt: ((row['price_per_sqft'] as num?)?.toDouble() ?? 0) > 0
+          ? (row['price_per_sqft'] as num).toDouble()
+          : 385.0,
       description: row['description'] ?? '',
       images: images,
       mainImageUrl: row['thumbnail_url'] ?? (images.isNotEmpty ? images.first : null),
+      arTexture: row['ar_texture'] ?? row['texture_url'] ?? _findTextureByName(row['name'] ?? ''),
       rating: 0.0,
       reviewCount: 0,
       length: lengthMm != null ? '${lengthMm}mm' : '',
@@ -62,6 +65,17 @@ class StoneRepository {
       weight: row['weight_kg'] != null ? '${row['weight_kg']}kg' : null,
       origin: row['origin'],
     );
+  }
+
+  String _findTextureByName(String name) {
+    final lower = name.toLowerCase();
+    if (lower.contains('athena')) return 'assets/images/athena_3d_tex.png';
+    if (lower.contains('verona')) return 'assets/images/verona_3d_tex.png';
+    if (lower.contains('mountain')) return 'assets/images/mountain_ledge_m08_tex.png';
+    if (lower.contains('classic')) return 'assets/images/classic_ledge_07_tex.png';
+    if (lower.contains('opus')) return 'assets/images/opus_ledge_15_tex.png';
+    if (lower.contains('vantage')) return 'assets/images/vantage_v12_tex.png';
+    return 'assets/images/grande_ledge_ta02_tex.png';
   }
 
   /// Execute a Supabase query with retry logic
@@ -119,17 +133,10 @@ class StoneRepository {
         final data = await query
             .order(sortBy ?? 'sort_order', ascending: sortOrder == 'asc')
             .range(from, to);
-        await _cache.set(_cacheNamespace, cacheKey, data);
-        return data.map((j) => _stoneFromRow(j)).toList();
-      });
-    } catch (e) {
-      final cached = await _cache.get<List>(_cacheNamespace, cacheKey);
-      if (cached != null && cached.isNotEmpty) {
-        debugPrint('[StoneRepository] Supabase error, serving cached stones: $e');
-        return cached.map((j) => _stoneFromRow(Map<String, dynamic>.from(j as Map))).toList();
-      }
-      if (_useMockData) {
-        debugPrint('[StoneRepository] Supabase error & no cache, falling back to mock data: $e');
+        if (data.isNotEmpty) {
+          await _cache.set(_cacheNamespace, cacheKey, data);
+          return data.map((j) => _stoneFromRow(j)).toList();
+        }
         var stones = search != null && search.isNotEmpty
             ? MockDataService.searchStones(search)
             : collectionId != null
@@ -139,8 +146,23 @@ class StoneRepository {
         if (minPrice != null) stones = stones.where((s) => s.pricePerSqFt >= minPrice).toList();
         if (maxPrice != null) stones = stones.where((s) => s.pricePerSqFt <= maxPrice).toList();
         return stones;
+      });
+    } catch (e) {
+      final cached = await _cache.get<List>(_cacheNamespace, cacheKey);
+      if (cached != null && cached.isNotEmpty) {
+        debugPrint('[StoneRepository] Supabase error, serving cached stones: $e');
+        return cached.map((j) => _stoneFromRow(Map<String, dynamic>.from(j as Map))).toList();
       }
-      rethrow;
+      debugPrint('[StoneRepository] Supabase error & no cache, falling back to mock data: $e');
+      var stones = search != null && search.isNotEmpty
+          ? MockDataService.searchStones(search)
+          : collectionId != null
+              ? MockDataService.getStonesByCollection(collectionId)
+              : MockDataService.getAllStones();
+      if (finish != null) stones = stones.where((s) => s.finish == finish).toList();
+      if (minPrice != null) stones = stones.where((s) => s.pricePerSqFt >= minPrice).toList();
+      if (maxPrice != null) stones = stones.where((s) => s.pricePerSqFt <= maxPrice).toList();
+      return stones;
     }
   }
 
@@ -193,8 +215,11 @@ class StoneRepository {
             .or('name.ilike.%$query%,product_code.ilike.%$query%,tags.cs.{$query}')
             .order('sort_order')
             .limit(limit);
-        await _cache.set(_cacheNamespace, cacheKey, data);
-        return data.map((j) => _stoneFromRow(j)).toList();
+        if (data.isNotEmpty) {
+          await _cache.set(_cacheNamespace, cacheKey, data);
+          return data.map((j) => _stoneFromRow(j)).toList();
+        }
+        return MockDataService.searchStones(query);
       });
     } catch (e) {
       final cached = await _cache.get<List>(_cacheNamespace, cacheKey);
@@ -202,11 +227,8 @@ class StoneRepository {
         debugPrint('[StoneRepository] Supabase error, serving cached search results: $e');
         return cached.map((j) => _stoneFromRow(Map<String, dynamic>.from(j as Map))).toList();
       }
-      if (_useMockData) {
-        debugPrint('[StoneRepository] searchStones fallback: $e');
-        return MockDataService.searchStones(query);
-      }
-      rethrow;
+      debugPrint('[StoneRepository] searchStones fallback: $e');
+      return MockDataService.searchStones(query);
     }
   }
 
@@ -221,8 +243,22 @@ class StoneRepository {
             .eq('featured', true)
             .order('sort_order')
             .limit(limit);
-        await _cache.set(_cacheNamespace, cacheKey, data);
-        return data.map((j) => _stoneFromRow(j)).toList();
+        if (data.isNotEmpty) {
+          await _cache.set(_cacheNamespace, cacheKey, data);
+          return data.map((j) => _stoneFromRow(j)).toList();
+        }
+        // Fall back to active stones if no featured stones
+        final anyActive = await _sb.client
+            .from('stones')
+            .select('*, collections(name, slug)')
+            .eq('active', true)
+            .order('sort_order')
+            .limit(limit);
+        if (anyActive.isNotEmpty) {
+          await _cache.set(_cacheNamespace, cacheKey, anyActive);
+          return anyActive.map((j) => _stoneFromRow(j)).toList();
+        }
+        return MockDataService.getTrendingStones();
       });
     } catch (e) {
       final cached = await _cache.get<List>(_cacheNamespace, cacheKey);
@@ -230,11 +266,8 @@ class StoneRepository {
         debugPrint('[StoneRepository] Supabase error, serving cached trending stones: $e');
         return cached.map((j) => _stoneFromRow(Map<String, dynamic>.from(j as Map))).toList();
       }
-      if (_useMockData) {
-        debugPrint('[StoneRepository] getTrendingStones fallback: $e');
-        return MockDataService.getTrendingStones();
-      }
-      rethrow;
+      debugPrint('[StoneRepository] getTrendingStones fallback to mock data: $e');
+      return MockDataService.getTrendingStones();
     }
   }
 
@@ -320,8 +353,11 @@ class StoneRepository {
           map['stone_count'] = count > 0 ? count : (j['stone_count'] ?? 18);
           return map;
         }).toList();
-        await _cache.set(_cacheNamespace, cacheKey, processed);
-        return processed.map((m) => Collection.fromJson(m)).toList();
+        if (processed.isNotEmpty) {
+          await _cache.set(_cacheNamespace, cacheKey, processed);
+          return processed.map((m) => Collection.fromJson(m)).toList();
+        }
+        return MockDataService.getAllCollections();
       });
     } catch (e) {
       final cached = await _cache.get<List>(_cacheNamespace, cacheKey);
@@ -329,11 +365,8 @@ class StoneRepository {
         debugPrint('[StoneRepository] Supabase error, serving cached collections: $e');
         return cached.map((m) => Collection.fromJson(Map<String, dynamic>.from(m as Map))).toList();
       }
-      if (_useMockData) {
-        debugPrint('[StoneRepository] getCollections fallback: $e');
-        return MockDataService.getAllCollections();
-      }
-      rethrow;
+      debugPrint('[StoneRepository] getCollections fallback to mock data: $e');
+      return MockDataService.getAllCollections();
     }
   }
 
@@ -355,11 +388,12 @@ class StoneRepository {
         debugPrint('[StoneRepository] Supabase error, serving cached collection: $e');
         return Collection.fromJson(Map<String, dynamic>.from(cached));
       }
-      if (_useMockData) {
-        debugPrint('[StoneRepository] getCollectionById fallback: $e');
-        return MockDataService.getAllCollections().firstWhere((c) => c.id == id);
-      }
-      rethrow;
+      debugPrint('[StoneRepository] getCollectionById fallback: $e');
+      final target = id.toLowerCase().trim();
+      return MockDataService.getAllCollections().firstWhere(
+        (c) => c.id.toLowerCase() == target || c.name.toLowerCase().replaceAll(' ', '-') == target || c.name.toLowerCase().contains(target),
+        orElse: () => MockDataService.getAllCollections().first,
+      );
     }
   }
 
@@ -375,8 +409,11 @@ class StoneRepository {
             .eq('collection_id', collectionId)
             .order('sort_order')
             .range(from, from + limit - 1);
-        await _cache.set(_cacheNamespace, cacheKey, data);
-        return data.map((j) => _stoneFromRow(j)).toList();
+        if (data.isNotEmpty) {
+          await _cache.set(_cacheNamespace, cacheKey, data);
+          return data.map((j) => _stoneFromRow(j)).toList();
+        }
+        return MockDataService.getStonesByCollection(collectionId);
       });
     } catch (e) {
       final cached = await _cache.get<List>(_cacheNamespace, cacheKey);
@@ -384,11 +421,8 @@ class StoneRepository {
         debugPrint('[StoneRepository] Supabase error, serving cached stones by collection: $e');
         return cached.map((j) => _stoneFromRow(Map<String, dynamic>.from(j as Map))).toList();
       }
-      if (_useMockData) {
-        debugPrint('[StoneRepository] getStonesByCollection fallback: $e');
-        return MockDataService.getStonesByCollection(collectionId);
-      }
-      rethrow;
+      debugPrint('[StoneRepository] getStonesByCollection fallback: $e');
+      return MockDataService.getStonesByCollection(collectionId);
     }
   }
 

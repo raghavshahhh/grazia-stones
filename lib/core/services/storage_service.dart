@@ -89,8 +89,8 @@ class StorageService {
   // ═══════════════════════════════════════════════════════════════════════
 
   // App Settings
-  Future<void> saveThemeMode(bool isDark) => _appBox.put('theme_mode_v2', isDark);
-  bool getThemeMode() => _appBox.get('theme_mode_v2', defaultValue: true);
+  Future<void> saveThemeMode(bool isDark) => _appBox.put('theme_mode_v3', isDark);
+  bool getThemeMode() => _appBox.get('theme_mode_v3', defaultValue: true);
 
   Future<void> saveOnboardingCompleted(bool completed) => _appBox.put('onboarding_completed', completed);
   bool getOnboardingCompleted() => _appBox.get('onboarding_completed', defaultValue: false);
@@ -161,6 +161,60 @@ class StorageService {
 
   Future<void> clearUser() => _userBox.delete('user_data');
 
+  /// Universal Client Profile Memory (retained across quotes, samples, cart, checkout)
+  Future<void> saveClientProfile({
+    String? name,
+    String? phone,
+    String? altPhone,
+    String? email,
+    String? company,
+    String? address,
+    String? city,
+    String? state,
+    String? pincode,
+  }) async {
+    final existing = getClientProfile();
+    final updated = {
+      'name': (name != null && name.trim().isNotEmpty) ? name.trim() : (existing['name'] ?? ''),
+      'phone': (phone != null && phone.trim().isNotEmpty) ? phone.trim() : (existing['phone'] ?? ''),
+      'alt_phone': (altPhone != null && altPhone.trim().isNotEmpty) ? altPhone.trim() : (existing['alt_phone'] ?? ''),
+      'email': (email != null && email.trim().isNotEmpty) ? email.trim() : (existing['email'] ?? ''),
+      'company': (company != null && company.trim().isNotEmpty) ? company.trim() : (existing['company'] ?? ''),
+      'address': (address != null && address.trim().isNotEmpty) ? address.trim() : (existing['address'] ?? ''),
+      'city': (city != null && city.trim().isNotEmpty) ? city.trim() : (existing['city'] ?? ''),
+      'state': (state != null && state.trim().isNotEmpty) ? state.trim() : (existing['state'] ?? ''),
+      'pincode': (pincode != null && pincode.trim().isNotEmpty) ? pincode.trim() : (existing['pincode'] ?? ''),
+    };
+    await _userBox.put('client_universal_profile', jsonEncode(updated));
+  }
+
+  Map<String, String> getClientProfile() {
+    final data = _userBox.get('client_universal_profile');
+    if (data == null) {
+      final u = getUser();
+      if (u != null) {
+        return {
+          'name': (u['name'] ?? '').toString(),
+          'phone': (u['phone'] ?? '').toString(),
+          'alt_phone': (u['alt_phone'] ?? '').toString(),
+          'email': (u['email'] ?? '').toString(),
+          'company': (u['company'] ?? '').toString(),
+          'address': (u['address'] ?? '').toString(),
+          'city': (u['city'] ?? '').toString(),
+          'state': (u['state'] ?? '').toString(),
+          'pincode': (u['pincode'] ?? '').toString(),
+        };
+      }
+      return {};
+    }
+    try {
+      final map = Map<String, dynamic>.from(jsonDecode(data));
+      return map.map((k, v) => MapEntry(k, (v ?? '').toString()));
+    } catch (_) {
+      return {};
+    }
+  }
+
   // Search History
   Future<void> addSearchQuery(String query) async {
     final history = getSearchHistory();
@@ -194,6 +248,10 @@ class StorageService {
   }
 
   Future<void> clearRecentlyViewed() => _appBox.delete('recently_viewed');
+
+  // Interactive App Tour / First-Time Guide
+  bool hasSeenAppTour() => _appBox.get('has_seen_app_tour') == true;
+  Future<void> setHasSeenAppTour(bool seen) => _appBox.put('has_seen_app_tour', seen);
 
   // Generic Data Storage
   Future<void> saveData(String key, Map<String, dynamic> data) async {

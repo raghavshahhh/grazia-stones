@@ -1,12 +1,13 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
-import 'package:grazia_stones/shared/theme/typography.dart';
-import 'package:grazia_stones/shared/theme/spacing.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
+import 'package:grazia_stones/shared/widgets/grazia_logo.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
@@ -15,82 +16,55 @@ class OnboardingScreen extends ConsumerStatefulWidget {
   ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
-    with TickerProviderStateMixin {
+class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
-  late AnimationController _iconAnimationController;
-  late Animation<double> _iconScaleAnimation;
-  late Animation<double> _iconRotationAnimation;
-
   final List<_OnboardingPage> _pages = const [
     _OnboardingPage(
-      title: 'The Architecture\nof Nature',
+      heading1: 'Design',
+      heading2: 'Your Dream',
+      heading3: 'Space',
+      tagline: 'With the power of AI | AR | VR',
       subtitle:
-          'Explore our curated quarry collections of handcrafted Italian & global architectural stone surfaces.',
-      imagePath: 'assets/images/onboarding_1.png',
-      icon: Icons.diamond_outlined,
+          'Innovative stone panels, 3D relief surfaces & architectural textures.',
+      imagePath: 'assets/images/onboarding_hero_room.jpg',
     ),
     _OnboardingPage(
-      title: 'Precision AI\nRoom Studio',
+      heading1: 'Precision AI',
+      heading2: 'Wall Studio',
+      heading3: 'Reimagined',
+      tagline: 'Powered by NVIDIA NIM Neural Vision',
       subtitle:
-          'Transform your living walls in seconds. Upload any space to visualize realistic stone cladding.',
-      imagePath: 'assets/images/onboarding_2.png',
-      icon: Icons.auto_awesome_outlined,
+          'Upload or capture any living space to visualize realistic stone cladding in seconds.',
+      imagePath: 'assets/images/home_hero_living_room.jpg',
     ),
     _OnboardingPage(
-      title: 'Real-Time AR\nWall Visualization',
+      heading1: 'Virtual Reality',
+      heading2: 'Interactive',
+      heading3: 'Showroom',
+      tagline: 'Step Inside 3D Luxury Spaces',
       subtitle:
-          'Detect walls, project real-scale stone textures, measure square footage, and order samples directly.',
+          'Walk through virtual architectural villas, hotel lobbies and calculate BOQ estimates.',
       imagePath: 'assets/images/onboarding_3.png',
-      icon: Icons.view_in_ar_outlined,
     ),
   ];
 
   @override
-  void initState() {
-    super.initState();
-    _iconAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-
-    _iconScaleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _iconAnimationController,
-        curve: Curves.easeOutCubic,
-      ),
-    );
-
-    _iconRotationAnimation = Tween<double>(begin: -0.2, end: 0.0).animate(
-      CurvedAnimation(
-        parent: _iconAnimationController,
-        curve: Curves.easeOutCubic,
-      ),
-    );
-
-    _iconAnimationController.forward();
-  }
-
-  @override
   void dispose() {
     _pageController.dispose();
-    _iconAnimationController.dispose();
     super.dispose();
   }
 
   void _onPageChanged(int index) {
     setState(() => _currentPage = index);
-    _iconAnimationController.reset();
-    _iconAnimationController.forward();
     HapticFeedback.lightImpact();
   }
 
   void _next() {
     if (_currentPage < _pages.length - 1) {
       _pageController.nextPage(
-        duration: const Duration(milliseconds: 500),
+        duration: const Duration(milliseconds: 450),
         curve: Curves.easeOutCubic,
       );
     } else {
@@ -108,264 +82,294 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     context.go('/login');
   }
 
-
-
   @override
   Widget build(BuildContext context) {
     final palette = ref.watch(themePaletteProvider);
+    final currentPageData = _pages[_currentPage];
 
     return Scaffold(
-      backgroundColor: palette.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Header: Skip button
-            Padding(
-              padding: GLuxurySpacing.paddingBase,
+      backgroundColor: const Color(0xFF0D0D0C),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // ── 1. Full-Bleed Architectural Backdrop PageView ──
+          Positioned.fill(
+            child: PageView.builder(
+              controller: _pageController,
+              itemCount: _pages.length,
+              onPageChanged: _onPageChanged,
+              physics: const BouncingScrollPhysics(),
+              itemBuilder: (context, index) {
+                final page = _pages[index];
+                return Image.asset(
+                  page.imagePath,
+                  fit: BoxFit.cover,
+                  alignment: Alignment.center,
+                  errorBuilder: (_, __, ___) => Container(
+                    color: const Color(0xFF141312),
+                  ),
+                );
+              },
+            ),
+          ),
+
+          // ── 2. Cinematic Vignette Gradient Overlay ──
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.70),
+                    Colors.black.withValues(alpha: 0.25),
+                    Colors.black.withValues(alpha: 0.40),
+                    Colors.black.withValues(alpha: 0.90),
+                  ],
+                  stops: const [0.0, 0.35, 0.65, 1.0],
+                ),
+              ),
+            ),
+          ),
+
+          // ── 3. Top Header: Skip Button ──
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  if (_currentPage < _pages.length - 1)
-                    TextButton(
-                      onPressed: _skip,
-                      style: TextButton.styleFrom(
-                        foregroundColor: palette.textTertiary,
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                      child: Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: GLuxurySpacing.base,
-                          vertical: GLuxurySpacing.sm,
+                            horizontal: 14, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.35),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.20),
+                            width: 0.8,
+                          ),
                         ),
-                      ),
-                      child: Text(
-                        'Skip',
-                        style: GLuxuryTypography.labelMedium.copyWith(
-                          color: palette.textTertiary,
-                          fontWeight: FontWeight.w500,
+                        child: GestureDetector(
+                          onTap: _skip,
+                          child: Text(
+                            'Skip',
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
                         ),
                       ),
                     ),
+                  ),
                 ],
               ),
             ),
+          ),
 
-            // Page View
-            Expanded(
-              child: PageView.builder(
-                controller: _pageController,
-                itemCount: _pages.length,
-                onPageChanged: _onPageChanged,
-                physics: const BouncingScrollPhysics(),
-                itemBuilder: (context, index) {
-                  final page = _pages[index];
-                  return _buildPage(page, palette);
-                },
-              ),
-            ),
-
-            // Footer: Indicators + CTA
-            Padding(
-              padding: GLuxurySpacing.paddingXl,
+          // ── 4. Upper Architectural Headlines (Client Reference Screen 2) ──
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.only(left: 24, right: 24, top: 48),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Page Indicators
-                  _buildPageIndicators(palette),
-                  GLuxurySpacing.gapXl,
-
-                  // CTA Button
-                  _buildCTAButton(palette),
+                  Text(
+                    currentPageData.heading1,
+                    style: GoogleFonts.playfairDisplay(
+                      fontSize: 38,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      height: 1.08,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                  Text(
+                    currentPageData.heading2,
+                    style: GoogleFonts.playfairDisplay(
+                      fontSize: 38,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      height: 1.08,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                  Text(
+                    currentPageData.heading3,
+                    style: GoogleFonts.playfairDisplay(
+                      fontSize: 38,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      height: 1.08,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD4AF37).withValues(alpha: 0.20),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: const Color(0xFFD4AF37).withValues(alpha: 0.50),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: Text(
+                      currentPageData.tagline,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFFF3E7C4),
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
+          ),
 
-  Widget _buildPage(_OnboardingPage page, LuxuryPalette palette) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Architectural Image with Luxury Frame & Floating Icon
-          Stack(
-            alignment: Alignment.bottomRight,
-            children: [
-              Container(
-                height: 280,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: palette.border),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.06),
-                      blurRadius: 24,
-                      offset: const Offset(0, 10),
+          // ── 5. Bottom Client Reference Luxury Pill Card ──
+          Positioned(
+            left: 20,
+            right: 20,
+            bottom: 34,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFBF9F5), // Ivory card like reference
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: const Color(0xFFE5DDD0),
+                      width: 1.0,
                     ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(23),
-                  child: Image.asset(
-                    page.imagePath,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      color: palette.surfaceDark,
-                      child: Icon(page.icon, size: 64, color: palette.primary),
-                    ),
-                  ),
-                ),
-              ),
-              // Floating Accent Badge
-              Transform.translate(
-                offset: const Offset(-16, 18),
-                child: AnimatedBuilder(
-                  animation: _iconAnimationController,
-                  builder: (context, child) {
-                    return Transform.rotate(
-                      angle: _iconRotationAnimation.value,
-                      child: Transform.scale(
-                        scale: _iconScaleAnimation.value,
-                        child: child,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.40),
+                        blurRadius: 24,
+                        offset: const Offset(0, 10),
                       ),
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: palette.surface,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: palette.border),
-                      boxShadow: [
-                        BoxShadow(
-                          color: palette.primary.withValues(alpha: 0.15),
-                          blurRadius: 16,
-                          offset: const Offset(0, 4),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Brand Wordmark + Subtitle
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'GRAZIA STONES',
+                            style: GoogleFonts.playfairDisplay(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.5,
+                              color: const Color(0xFF141210),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'UNIT OF BNK STONES',
+                            style: GoogleFonts.inter(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 1.2,
+                              color: const Color(0xFF8C8275),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          // Indicators
+                          Row(
+                            children: List.generate(
+                              _pages.length,
+                              (i) => AnimatedContainer(
+                                duration: const Duration(milliseconds: 300),
+                                margin: const EdgeInsets.only(right: 4),
+                                width: _currentPage == i ? 18 : 6,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  color: _currentPage == i
+                                      ? const Color(0xFF141210)
+                                      : const Color(0xFFD5CBBF),
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      // Circular Action Button with Arrow (Client Reference Screen 2)
+                      GestureDetector(
+                        onTap: () {
+                          HapticFeedback.mediumImpact();
+                          _next();
+                        },
+                        child: Container(
+                          width: 48,
+                          height: 48,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF141210),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black26,
+                                blurRadius: 10,
+                                offset: Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: const Center(
+                            child: Icon(
+                              Icons.arrow_forward_rounded,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ),
                         ),
-                      ],
-                    ),
-                    child: Icon(page.icon, size: 28, color: palette.primary),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 38),
-
-          // Title
-          Text(
-            page.title,
-            textAlign: TextAlign.center,
-            style: GLuxuryTypography.h1.copyWith(
-              color: palette.textPrimary,
-              height: 1.15,
-              fontSize: 32,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 14),
-
-          // Subtitle
-          Text(
-            page.subtitle,
-            textAlign: TextAlign.center,
-            style: GLuxuryTypography.bodyLarge.copyWith(
-              color: palette.textSecondary,
-              height: 1.5,
-              fontSize: 15,
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildPageIndicators(LuxuryPalette palette) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(
-        _pages.length,
-        (index) {
-          final isActive = _currentPage == index;
-          return AnimatedContainer(
-            duration: const Duration(milliseconds: 350),
-            curve: Curves.easeOutCubic,
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            width: isActive ? 32 : 8,
-            height: 6,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(3),
-              gradient: isActive ? palette.primaryGradient : null,
-              color: isActive ? null : palette.border,
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildCTAButton(LuxuryPalette palette) {
-    final isLastPage = _currentPage == _pages.length - 1;
-
-    return Container(
-      width: double.infinity,
-      height: 54,
-      decoration: BoxDecoration(
-        gradient: palette.primaryGradient,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: palette.primary.withValues(alpha: 0.3),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: _next,
-          borderRadius: BorderRadius.circular(16),
-          child: Center(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  isLastPage ? 'Explore Showroom' : 'Continue',
-                  style: GLuxuryTypography.labelLarge.copyWith(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                const Icon(
-                  Icons.arrow_forward_rounded,
-                  color: Colors.white,
-                  size: 18,
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }
 }
 
 class _OnboardingPage {
-  final String title;
+  final String heading1;
+  final String heading2;
+  final String heading3;
+  final String tagline;
   final String subtitle;
   final String imagePath;
-  final IconData icon;
 
   const _OnboardingPage({
-    required this.title,
+    required this.heading1,
+    required this.heading2,
+    required this.heading3,
+    required this.tagline,
     required this.subtitle,
     required this.imagePath,
-    required this.icon,
   });
 }
-

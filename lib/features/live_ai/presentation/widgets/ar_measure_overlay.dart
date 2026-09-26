@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:grazia_stones/core/services/ar_native_channel.dart';
 import 'package:grazia_stones/core/widgets/animated_widgets.dart';
+import 'package:grazia_stones/shared/widgets/luxury_toast.dart';
 
 enum _MeasureMode { measure, level }
 enum _TrackingGuideState { ready, searching, lost }
@@ -169,20 +170,11 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
     HapticFeedback.heavyImpact();
     _flashController.forward(from: 0.0);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Row(
-          children: [
-            Icon(Icons.check_circle_rounded, color: Color(0xFF28CD41), size: 18),
-            SizedBox(width: 8),
-            Text('Measurement Snapshot Saved', style: TextStyle(fontWeight: FontWeight.w600)),
-          ],
-        ),
-        backgroundColor: const Color(0xFF1C1C1E),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        duration: const Duration(seconds: 2),
-      ),
+    LuxuryToast.show(
+      context,
+      message: 'Measurement Snapshot Saved',
+      icon: Icons.check_circle_rounded,
+      iconColor: const Color(0xFF28CD41),
     );
   }
 

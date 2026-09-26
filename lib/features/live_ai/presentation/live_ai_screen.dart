@@ -8,6 +8,7 @@ import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/providers/stone_providers.dart';
 import 'package:grazia_stones/core/widgets/animated_widgets.dart';
+import 'package:grazia_stones/core/services/mock_data_service.dart';
 import 'package:grazia_stones/shared/widgets/luxury_toast.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 import 'widgets/ar_camera_view.dart';
@@ -40,9 +41,6 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
   // Measure mode toggle (shown via the ruler button)
   bool _measureMode = false;
-
-  // Recording state — same button as measure: tap = measure, hold = record
-  bool _isRecording = false;
 
   // Manual wall-corner adjustment (fixes texture not matching wall angle)
   bool _adjustingCorners = false;
@@ -79,6 +77,11 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
       initialPage: 0,
     );
     _updateFilteredStones();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _stonePageController.hasClients && _selectedStoneIndex > 0) {
+        _stonePageController.jumpToPage(_selectedStoneIndex);
+      }
+    });
     
     // Start polling wall state from AR engine only after camera is ready
     _wallStateTimer = Timer.periodic(const Duration(milliseconds: 500), (_) async {
@@ -99,8 +102,8 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     super.dispose();
   }
 
-  void _updateFilteredStones() {
-    final allStones = ref.read(allStonesProvider).valueOrNull ?? [];
+  void _updateFilteredStones([List<Stone>? stones]) {
+    final allStones = stones ?? ref.read(allStonesProvider).valueOrNull ?? MockDataService.getAllStones();
     setState(() {
       if (_selectedCategory == 'All') {
         _filteredStones = List<Stone>.from(allStones);
@@ -115,7 +118,12 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
         }
       }
       if (widget.initialStoneId != null) {
-        final matchIdx = _filteredStones.indexWhere((s) => s.id == widget.initialStoneId);
+        final query = widget.initialStoneId!.toLowerCase().trim();
+        final matchIdx = _filteredStones.indexWhere((s) =>
+            s.id.toLowerCase() == query ||
+            s.name.toLowerCase() == query ||
+            s.name.toLowerCase().contains(query) ||
+            s.productCode.toLowerCase() == query);
         _selectedStoneIndex = matchIdx >= 0 ? matchIdx : 0;
       } else {
         _selectedStoneIndex = 0;
@@ -135,8 +143,8 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     setState(() => _selectedStoneIndex = index);
     final stone = _selectedStone;
     if (stone == null) return;
-    final path = stone.arTextureUrl;
-    if (path != null && _cameraReady) {
+    final path = stone.arTextureUrl ?? stone.mainImageUrl;
+    if (path != null) {
       ARCameraView.updateStone(path, _textureOpacity);
       
       // Preload adjacent carousel textures for instant switching
@@ -144,8 +152,10 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
       final int prevIndex = (currentIndex - 1 + _filteredStones.length) % _filteredStones.length;
       final int nextIndex = (currentIndex + 1) % _filteredStones.length;
       final List<String> preloadUrls = [];
-      if (_filteredStones[prevIndex].arTextureUrl != null) preloadUrls.add(_filteredStones[prevIndex].arTextureUrl!);
-      if (_filteredStones[nextIndex].arTextureUrl != null) preloadUrls.add(_filteredStones[nextIndex].arTextureUrl!);
+      final prevTex = _filteredStones[prevIndex].arTextureUrl ?? _filteredStones[prevIndex].mainImageUrl;
+      final nextTex = _filteredStones[nextIndex].arTextureUrl ?? _filteredStones[nextIndex].mainImageUrl;
+      if (prevTex != null) preloadUrls.add(prevTex);
+      if (nextTex != null) preloadUrls.add(nextTex);
       if (preloadUrls.isNotEmpty) {
         ARCameraView.preloadTextures(preloadUrls);
       }
@@ -170,18 +180,14 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     ARCameraView.updateScale(value);
   }
 
+  // Native video capture (ARCameraView.startRecording/stopRecording) isn't
+  // implemented on mobile yet -- surface that honestly instead of flipping
+  // _isRecording to a red "recording" state that never actually saves
+  // anything.
   void _startRecording() {
-    if (!_cameraReady || _isRecording) return;
+    if (!_cameraReady) return;
     HapticFeedback.mediumImpact();
-    ARCameraView.startRecording();
-    setState(() => _isRecording = true);
-  }
-
-  void _stopRecording() {
-    if (!_isRecording) return;
-    HapticFeedback.selectionClick();
-    ARCameraView.stopRecording();
-    setState(() => _isRecording = false);
+    LuxuryToast.show(context, message: 'Video recording is coming soon.');
   }
 
   void _navigateToProduct() {
@@ -240,17 +246,15 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
       });
       if (success) {
         _calculateQuantity();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Wall calibrated successfully! Accurate tile quantities enabled.'),
-            backgroundColor: Color(0xFF1E3A24),
-          ),
+        LuxuryToast.show(
+          context,
+          message: 'Wall calibrated successfully! Accurate tile quantities enabled.',
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Calibration could not compute reference points. Using standard estimate.'),
-          ),
+        LuxuryToast.show(
+          context,
+          message: 'Calibration could not compute reference points. Using standard estimate.',
+          isError: true,
         );
       }
     }
@@ -421,7 +425,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     }
 
     return Positioned(
-      top: MediaQuery.of(context).padding.top + 70,
+      top: MediaQuery.of(context).padding.top + 116,
       left: 0,
       right: 0,
       child: Center(
@@ -526,7 +530,10 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                     itemCount: _detectedWalls.length,
                     itemBuilder: (context, index) {
                       final wall = _detectedWalls[index];
-                      final area = (wall['area'] as num?)?.toDouble() ?? 0;
+                      final rawArea = wall['area'];
+                      final area = rawArea is num ? rawArea.toDouble() : (double.tryParse(rawArea?.toString() ?? '') ?? 0.0);
+                      final rawConf = wall['confidence'];
+                      final confidence = rawConf is num ? rawConf.toDouble() : (double.tryParse(rawConf?.toString() ?? '') ?? 0.0);
                       return ListTile(
                         leading: CircleAvatar(
                           backgroundColor: AppColors.goldWarm.withValues(alpha: 0.2),
@@ -537,7 +544,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                           style: const TextStyle(color: Colors.white, fontFamily: 'Inter'),
                         ),
                         subtitle: Text(
-                          '${area.toStringAsFixed(1)} px² • Confidence: ${((wall['confidence'] as num?)?.toDouble() ?? 0).toStringAsFixed(0)}%',
+                          '${area.toStringAsFixed(1)} px² • Confidence: ${confidence.toStringAsFixed(0)}%',
                           style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontFamily: 'Inter'),
                         ),
                         onTap: () => _selectWall(wall['id'] as String),
@@ -837,11 +844,17 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
             _buildQuantityRow('Wastage', '${r['wastagePercent']}%'),
             _buildQuantityRow('Recommended', '${r['recommendedQuantity']} tiles', highlight: true),
             const SizedBox(height: 12),
-            if (_selectedStone != null)
-              Text(
-                'Est. Cost: ₹${(_selectedStone!.pricePerSqFt * (r['wallArea'] as num) * (1 + (r['wastagePercent'] as num) / 100)).toStringAsFixed(0)}',
-                style: TextStyle(color: AppColors.goldWarm, fontSize: 14, fontWeight: FontWeight.w600, fontFamily: 'Inter'),
-              ),
+            if (_selectedStone != null) () {
+              final rawArea = r['wallArea'];
+              final areaVal = rawArea is num ? rawArea.toDouble() : (double.tryParse(rawArea?.toString() ?? '') ?? 0.0);
+              final rawWastage = r['wastagePercent'];
+              final wastageVal = rawWastage is num ? rawWastage.toDouble() : (double.tryParse(rawWastage?.toString() ?? '') ?? 10.0);
+              final cost = _selectedStone!.pricePerSqFt * areaVal * (1 + wastageVal / 100);
+              return Text(
+                'Est. Cost: ₹${cost.toStringAsFixed(0)}',
+                style: const TextStyle(color: AppColors.goldWarm, fontSize: 14, fontWeight: FontWeight.w600, fontFamily: 'Inter'),
+              );
+            }(),
           ],
         ),
       ),
@@ -990,27 +1003,22 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
                 child: GestureDetector(
-                  onLongPressStart: (_) => _startRecording(),
-                  onLongPressEnd: (_) => _stopRecording(),
+                  onLongPress: _startRecording,
                   child: Container(
                     decoration: BoxDecoration(
-                      color: _isRecording
-                          ? Colors.red.withValues(alpha: 0.5)
-                          : _measureMode
-                              ? AppColors.goldWarm.withValues(alpha: 0.3)
-                              : Colors.black.withValues(alpha: 0.45),
+                      color: _measureMode
+                          ? AppColors.goldWarm.withValues(alpha: 0.3)
+                          : Colors.black.withValues(alpha: 0.45),
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: _isRecording
-                            ? Colors.red
-                            : _measureMode
-                                ? AppColors.goldWarm
-                                : Colors.white.withValues(alpha: 0.22),
-                        width: (_isRecording || _measureMode) ? 1.2 : 0.8,
+                        color: _measureMode
+                            ? AppColors.goldWarm
+                            : Colors.white.withValues(alpha: 0.22),
+                        width: _measureMode ? 1.2 : 0.8,
                       ),
                     ),
                     child: IconButton(
-                      tooltip: 'Measure Surface (Hold to Record)',
+                      tooltip: 'Measure Surface',
                       onPressed: () {
                         if (!_cameraReady) {
                           LuxuryToast.show(
@@ -1023,15 +1031,11 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                         setState(() => _measureMode = true);
                       },
                       icon: Icon(
-                        _isRecording
-                            ? Icons.fiber_manual_record_rounded
-                            : Icons.straighten_rounded,
+                        Icons.straighten_rounded,
                         size: 17,
-                        color: _isRecording
-                            ? Colors.white
-                            : _measureMode
-                                ? AppColors.goldWarm
-                                : Colors.white,
+                        color: _measureMode
+                            ? AppColors.goldWarm
+                            : Colors.white,
                       ),
                     ),
                   ),

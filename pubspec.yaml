@@ -155,6 +155,8 @@ flutter:
   assets:
     - assets/brand/
     - assets/images/
+    - assets/images/products/
+    - assets/images/collections/
     - assets/icons/
     - assets/lottie/
     - assets/catalogues/

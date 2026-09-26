@@ -23,8 +23,8 @@ class ThemePaletteNotifier extends StateNotifier<LuxuryPalette> {
   Future<void> _loadPersistedTheme() async {
     try {
       final isDark = _storage.getThemeMode();
-      state = isDark ? GLuxuryPalettes.goldDark : GLuxuryPalettes.gold;
-      debugPrint('✅ Theme restored: ${isDark ? "Dark" : "Light"}');
+      state = isDark ? GLuxuryPalettes.goldDark : GLuxuryPalettes.goldDark;
+      debugPrint('✅ Theme restored: Dark');
     } catch (e) {
       debugPrint('❌ Error loading theme: $e');
     }

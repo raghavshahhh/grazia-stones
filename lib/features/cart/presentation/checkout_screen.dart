@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/di.dart';
+import 'package:grazia_stones/core/services/storage_service.dart';
 import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
@@ -50,7 +51,23 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   Future<void> _loadAddresses({String? selectAddressId}) async {
     try {
       final userRepo = ref.read(userRepositoryProvider);
-      final list = await userRepo.getAddresses();
+      var list = await userRepo.getAddresses();
+      if (list.isEmpty) {
+        final profile = StorageService.instance.getClientProfile();
+        if ((profile['address'] ?? '').isNotEmpty) {
+          list = [
+            {
+              'id': 'local_saved_profile',
+              'label': profile['company']?.isNotEmpty == true ? profile['company']! : 'Studio / Site',
+              'address_line1': profile['address'] ?? '',
+              'city': profile['city'] ?? '',
+              'state': profile['state'] ?? '',
+              'pincode': profile['pincode'] ?? '',
+              'is_default': true,
+            }
+          ];
+        }
+      }
       if (mounted) {
         setState(() {
           _addresses = list;

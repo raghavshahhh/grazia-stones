@@ -68,6 +68,8 @@ class ARNativeChannel {
       StreamController<String>.broadcast();
   static final StreamController<Map<String, dynamic>> _measurementResultController = 
       StreamController<Map<String, dynamic>>.broadcast();
+  static final StreamController<Map<String, dynamic>> _obstacleDetectedController = 
+      StreamController<Map<String, dynamic>>.broadcast();
   
   // Public streams
   static Stream<Map<String, dynamic>> get onWallDetected => _wallDetectedController.stream;
@@ -77,6 +79,7 @@ class ARNativeChannel {
   static Stream<String> get onError => _errorController.stream;
   static Stream<String> get onWallStateChanged => _wallStateController.stream;
   static Stream<Map<String, dynamic>> get onMeasurementResult => _measurementResultController.stream;
+  static Stream<Map<String, dynamic>> get onObstacleDetected => _obstacleDetectedController.stream;
   
   /// Initialize the platform channel and event listeners
   static Future<void> initialize() async {
@@ -98,6 +101,9 @@ class ARNativeChannel {
           break;
         case 'wallRemoved':
           _wallRemovedController.add(data?['id'] as String? ?? '');
+          break;
+        case 'obstacleDetected':
+          _obstacleDetectedController.add(Map<String, dynamic>.from(data ?? {}));
           break;
         case 'trackingStateChanged':
           _trackingStateController.add(data?['state'] as String? ?? 'UNKNOWN');
@@ -434,6 +440,7 @@ class ARNativeChannel {
     _trackingStateController.close();
     _wallStateController.close();
     _measurementResultController.close();
+    _obstacleDetectedController.close();
     _errorController.close();
   }
 }

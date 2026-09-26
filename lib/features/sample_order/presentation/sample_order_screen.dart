@@ -10,6 +10,9 @@ import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 import 'package:grazia_stones/core/di.dart';
+import 'package:grazia_stones/core/services/storage_service.dart';
+import 'package:grazia_stones/core/services/location_service.dart';
+import 'package:grazia_stones/core/widgets/animated_widgets.dart';
 
 class SampleOrderScreen extends ConsumerStatefulWidget {
   final String? preSelectedStoneId;
@@ -33,6 +36,9 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
   final Set<String> _selectedStones = {};
   bool _isSubmitting = false;
   bool _isLoading = true;
+  bool _isEditingDetails = false;
+  bool _isDetectingLocation = false;
+  String? _detectedLocationLabel;
   List<Stone> _stones = [];
   String? _error;
 
@@ -43,6 +49,105 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
       _selectedStones.add(widget.preSelectedStoneId!);
     }
     _loadStones();
+    _prefillUserData();
+  }
+
+  Future<void> _prefillUserData() async {
+    // 1. Check local persistent profile
+    final localProfile = StorageService.instance.getClientProfile();
+    if (localProfile['name']?.isNotEmpty == true && _nameController.text.isEmpty) {
+      _nameController.text = localProfile['name']!;
+    }
+    if (localProfile['phone']?.isNotEmpty == true && _phoneController.text.isEmpty) {
+      _phoneController.text = localProfile['phone']!;
+    }
+    if (localProfile['email']?.isNotEmpty == true && _emailController.text.isEmpty) {
+      _emailController.text = localProfile['email']!;
+    }
+    if (localProfile['address']?.isNotEmpty == true && _addressController.text.isEmpty) {
+      _addressController.text = localProfile['address']!;
+    }
+    if (localProfile['city']?.isNotEmpty == true && _cityController.text.isEmpty) {
+      _cityController.text = localProfile['city']!;
+    }
+    if (localProfile['pincode']?.isNotEmpty == true && _pincodeController.text.isEmpty) {
+      _pincodeController.text = localProfile['pincode']!;
+    }
+
+    final authState = ref.read(authRiverpodProvider);
+    if (authState.userName != null && authState.userName!.isNotEmpty && _nameController.text.isEmpty) {
+      _nameController.text = authState.userName!;
+    }
+    if (authState.userPhone != null && authState.userPhone!.isNotEmpty && _phoneController.text.isEmpty) {
+      _phoneController.text = authState.userPhone!;
+    }
+    if (authState.userEmail != null && authState.userEmail!.isNotEmpty && _emailController.text.isEmpty) {
+      _emailController.text = authState.userEmail!;
+    }
+    try {
+      final userRepo = ref.read(userRepositoryProvider);
+      final addresses = await userRepo.getAddresses();
+      if (mounted && addresses.isNotEmpty) {
+        final def = addresses.firstWhere((a) => a['is_default'] == true, orElse: () => addresses.first);
+        if (_addressController.text.isEmpty && def['address_line1'] != null) {
+          _addressController.text = def['address_line1'];
+        }
+        if (_cityController.text.isEmpty && def['city'] != null) {
+          _cityController.text = def['city'];
+        }
+        if (_pincodeController.text.isEmpty && def['pincode'] != null) {
+          _pincodeController.text = def['pincode'];
+        }
+      }
+    } catch (_) {}
+
+    if (mounted) {
+      setState(() {
+        _isEditingDetails = _nameController.text.isEmpty ||
+            _phoneController.text.isEmpty ||
+            _addressController.text.isEmpty;
+      });
+    }
+  }
+
+  Future<void> _autoDetectLocation() async {
+    setState(() => _isDetectingLocation = true);
+    HapticFeedback.lightImpact();
+
+    try {
+      final loc = await detectCurrentLocation();
+      if (loc != null && mounted) {
+        setState(() {
+          if (loc.addressLine1 != null && loc.addressLine1!.isNotEmpty) {
+            _addressController.text = loc.addressLine1!;
+          }
+          if (loc.city != null && loc.city!.isNotEmpty) {
+            _cityController.text = loc.city!;
+          }
+          if (loc.pincode != null && loc.pincode!.isNotEmpty) {
+            _pincodeController.text = loc.pincode!;
+          }
+          _detectedLocationLabel = <String?>[
+            loc.city,
+            loc.state,
+            loc.pincode,
+          ].where((e) => e != null && e.isNotEmpty).join(', ');
+        });
+        if (mounted) {
+          showSuccessSnackbar(context, 'Location detected: $_detectedLocationLabel');
+        }
+      } else if (mounted) {
+        showErrorSnackbar(context, Exception('Could not determine location. Please enter manually.'));
+      }
+    } catch (e) {
+      if (mounted) {
+        showErrorSnackbar(context, Exception('Location access failed. Please enter address manually.'));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isDetectingLocation = false);
+      }
+    }
   }
 
   @override
@@ -94,6 +199,16 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
       // table the Admin Samples dashboard reads. (They previously
       // went to `orders` with is_sample=true, which admin never saw.)
       final sampleRepo = ref.read(sampleOrderRepositoryProvider);
+
+      // Save client profile to universal storage so user is NEVER asked again
+      await StorageService.instance.saveClientProfile(
+        name: _nameController.text.trim(),
+        phone: _phoneController.text.trim(),
+        email: _emailController.text.trim(),
+        address: _addressController.text.trim(),
+        city: _cityController.text.trim(),
+        pincode: _pincodeController.text.trim(),
+      );
 
       // Resolve names so the admin dashboard and notification show the
       // actual product, not a generic fallback label.
@@ -352,74 +467,327 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
                           ),
                         ),
                         const SizedBox(height: 12),
-                        
-                        _buildTextField(
-                          palette,
-                          'Recipient / Architect Name',
-                          _nameController,
-                          Validators.validateName,
-                          Icons.person_outline,
-                        ),
-                        const SizedBox(height: 14),
-                        
-                        _buildTextField(
-                          palette,
-                          'Phone Number',
-                          _phoneController,
-                          Validators.validatePhone,
-                          Icons.phone_outlined,
-                          keyboardType: TextInputType.phone,
-                        ),
-                        const SizedBox(height: 14),
-                        
-                        _buildTextField(
-                          palette,
-                          'Email (Optional)',
-                          _emailController,
-                          null,
-                          Icons.email_outlined,
-                          keyboardType: TextInputType.emailAddress,
-                        ),
-                        const SizedBox(height: 14),
-                        
-                        _buildTextField(
-                          palette,
-                          'Studio / Project Address',
-                          _addressController,
-                          (v) => v?.isEmpty ?? true ? 'Address is required' : null,
-                          Icons.location_on_outlined,
-                          maxLines: 2,
-                        ),
-                        const SizedBox(height: 14),
-                        
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildTextField(
-                                palette,
-                                'City',
-                                _cityController,
-                                (v) => v?.isEmpty ?? true ? 'City is required' : null,
-                                Icons.location_city_outlined,
+
+                        if (!_isEditingDetails && _nameController.text.isNotEmpty && _addressController.text.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: palette.surface,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: palette.primary.withValues(alpha: 0.35)),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.03),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(Icons.verified_user_rounded, color: palette.primary, size: 16),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          'VERIFIED RECIPIENT & SITE',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 10.5,
+                                            fontWeight: FontWeight.w700,
+                                            letterSpacing: 1.2,
+                                            color: palette.primary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        ApplePressable(
+                                          onTap: _isDetectingLocation ? null : _autoDetectLocation,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: palette.primary.withValues(alpha: 0.1),
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                if (_isDetectingLocation)
+                                                  SizedBox(
+                                                    width: 11,
+                                                    height: 11,
+                                                    child: CircularProgressIndicator(
+                                                      strokeWidth: 1.5,
+                                                      color: palette.primary,
+                                                    ),
+                                                  )
+                                                else
+                                                  Icon(Icons.my_location_rounded, size: 11, color: palette.primary),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  'GPS',
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: palette.primary,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        ApplePressable(
+                                          onTap: () => setState(() => _isEditingDetails = true),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: palette.primary.withValues(alpha: 0.1),
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(Icons.edit_outlined, size: 11, color: palette.primary),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  'Change',
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: palette.primary,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  _nameController.text,
+                                  style: GoogleFonts.playfairDisplay(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: palette.textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Icon(Icons.phone_outlined, size: 13, color: palette.textSecondary),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      _phoneController.text,
+                                      style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary),
+                                    ),
+                                    if (_emailController.text.isNotEmpty) ...[
+                                      const SizedBox(width: 8),
+                                      Text('•', style: TextStyle(color: palette.textTertiary)),
+                                      const SizedBox(width: 8),
+                                      Flexible(
+                                        child: Text(
+                                          _emailController.text,
+                                          style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(Icons.location_on_outlined, size: 13, color: palette.textSecondary),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        [
+                                          _addressController.text,
+                                          _cityController.text,
+                                          _pincodeController.text.isNotEmpty ? 'PIN: ${_pincodeController.text}' : null,
+                                        ].where((e) => e != null && e.isNotEmpty).join(', '),
+                                        style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          )
+                        else ...[
+                          // Auto-Detect Current GPS Location Action Card
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 14),
+                            decoration: BoxDecoration(
+                              color: palette.surface,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: _detectedLocationLabel != null
+                                    ? palette.primary
+                                    : palette.primary.withValues(alpha: 0.35),
+                                width: _detectedLocationLabel != null ? 1.5 : 1,
                               ),
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _buildTextField(
-                                palette,
-                                'Pincode',
-                                _pincodeController,
-                                (v) {
-                                  if (v?.isEmpty ?? true) return 'Pincode required';
-                                  if (v!.length != 6) return 'Invalid pincode';
-                                  return null;
-                                },
-                                Icons.pin_outlined,
-                                keyboardType: TextInputType.number,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: _isDetectingLocation ? null : _autoDetectLocation,
+                                borderRadius: BorderRadius.circular(14),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: palette.primary.withValues(alpha: 0.12),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: _isDetectingLocation
+                                            ? SizedBox(
+                                                width: 18,
+                                                height: 18,
+                                                child: CircularProgressIndicator(
+                                                  strokeWidth: 2,
+                                                  color: palette.primary,
+                                                ),
+                                              )
+                                            : Icon(Icons.my_location_rounded, color: palette.primary, size: 18),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              _isDetectingLocation
+                                                  ? 'Detecting current location...'
+                                                  : 'Auto-Detect Current Location',
+                                              style: GoogleFonts.inter(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                                color: palette.textPrimary,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              _detectedLocationLabel != null
+                                                  ? '📍 Detected: $_detectedLocationLabel'
+                                                  : 'Tap to fetch city & pincode via phone GPS',
+                                              style: GoogleFonts.inter(
+                                                fontSize: 11,
+                                                color: _detectedLocationLabel != null
+                                                    ? palette.primary
+                                                    : palette.textSecondary,
+                                                fontWeight: _detectedLocationLabel != null
+                                                    ? FontWeight.w600
+                                                    : FontWeight.w400,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Icon(Icons.chevron_right_rounded, color: palette.textTertiary, size: 20),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          _buildTextField(
+                            palette,
+                            'Recipient / Architect Name',
+                            _nameController,
+                            Validators.validateName,
+                            Icons.person_outline,
+                          ),
+                          const SizedBox(height: 14),
+                          
+                          _buildTextField(
+                            palette,
+                            'Phone Number',
+                            _phoneController,
+                            Validators.validatePhone,
+                            Icons.phone_outlined,
+                            keyboardType: TextInputType.phone,
+                          ),
+                          const SizedBox(height: 14),
+                          
+                          _buildTextField(
+                            palette,
+                            'Email (Optional)',
+                            _emailController,
+                            null,
+                            Icons.email_outlined,
+                            keyboardType: TextInputType.emailAddress,
+                          ),
+                          const SizedBox(height: 14),
+                          
+                          _buildTextField(
+                            palette,
+                            'Studio / Project Address',
+                            _addressController,
+                            (v) => v?.isEmpty ?? true ? 'Address is required' : null,
+                            Icons.location_on_outlined,
+                            maxLines: 2,
+                          ),
+                          const SizedBox(height: 14),
+                          
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildTextField(
+                                  palette,
+                                  'City',
+                                  _cityController,
+                                  (v) => v?.isEmpty ?? true ? 'City is required' : null,
+                                  Icons.location_city_outlined,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildTextField(
+                                  palette,
+                                  'Pincode',
+                                  _pincodeController,
+                                  (v) {
+                                    if (v?.isEmpty ?? true) return 'Pincode required';
+                                    if (v!.length != 6) return 'Invalid pincode';
+                                    return null;
+                                  },
+                                  Icons.pin_outlined,
+                                  keyboardType: TextInputType.number,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (_nameController.text.isNotEmpty && _addressController.text.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton.icon(
+                                onPressed: () => setState(() => _isEditingDetails = false),
+                                icon: const Icon(Icons.check_rounded, size: 15),
+                                label: Text(
+                                  'Done Editing',
+                                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
+                                ),
                               ),
                             ),
                           ],
-                        ),
+                        ],
                         const SizedBox(height: 14),
                         
                         _buildTextField(

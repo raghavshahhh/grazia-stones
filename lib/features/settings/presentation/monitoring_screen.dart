@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../../core/services/analytics_service.dart';
 import '../../../core/services/crash_reporting_service.dart';
 import '../../../core/config/image_cache_config.dart';
@@ -291,14 +293,7 @@ class _MonitoringScreenState extends ConsumerState<MonitoringScreen> {
               style: TextStyle(fontSize: 13),
             ),
             trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () {
-              // Navigate to app info screen
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('App info screen not implemented yet'),
-                ),
-              );
-            },
+            onTap: () => _showAppInfoDialog(context),
           ),
 
           const SizedBox(height: 24),
@@ -354,6 +349,47 @@ class _MonitoringScreenState extends ConsumerState<MonitoringScreen> {
           ),
 
           const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showAppInfoDialog(BuildContext context) async {
+    final packageInfo = await PackageInfo.fromPlatform();
+    if (!context.mounted) return;
+    final rows = <(String, String)>[
+      ('App Name', packageInfo.appName),
+      ('Version', packageInfo.version),
+      ('Build Number', packageInfo.buildNumber),
+      ('Package', packageInfo.packageName),
+      ('Platform', '${Platform.operatingSystem} ${Platform.operatingSystemVersion}'),
+    ];
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('App Information'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final (label, value) in rows)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 100,
+                      child: Text(label, style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+                    ),
+                    Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
+                  ],
+                ),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
         ],
       ),
     );
