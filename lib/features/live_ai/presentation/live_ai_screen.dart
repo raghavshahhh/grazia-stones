@@ -347,6 +347,18 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Screen can open before the catalogue finishes loading; swap the
+    // placeholder list for real DB stones (and re-apply ?stoneId=) once it does.
+    ref.listen<AsyncValue<List<Stone>>>(allStonesProvider, (_, next) {
+      final stones = next.valueOrNull;
+      if (stones != null && stones.isNotEmpty) {
+        _updateFilteredStones(stones);
+        final path = _selectedStone?.arTextureUrl ?? _selectedStone?.mainImageUrl;
+        if (path != null && _cameraReady) {
+          ARCameraView.updateStone(path, _textureOpacity);
+        }
+      }
+    });
     final isOverlayActive = _measureMode ||
         _adjustingCorners ||
         _selectingWall ||

@@ -12,7 +12,8 @@ final dealerRepositoryProvider = Provider<DealerRepository>((_) => DealerReposit
 /// Fetches all active stones from Supabase.
 final allStonesProvider = FutureProvider<List<Stone>>((ref) async {
   final repo = ref.watch(stoneRepositoryProvider);
-  return repo.getStones(limit: 50);
+  // Whole active catalogue (~95): deep links like /live-ai?stoneId=ATHENA must be able to find any stone
+  return repo.getStones(limit: 200);
 });
 
 /// Fetches all active collections.

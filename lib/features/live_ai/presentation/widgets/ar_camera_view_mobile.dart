@@ -289,13 +289,13 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
       }
 
       if (!status.isGranted) {
-        // Fall back gracefully to 3D Wall Studio mode (instant room placement)
+        // Show the permission screen (retry / open Settings) instead of
+        // silently dropping into the sample-photo studio.
         if (mounted) {
           setState(() {
-            _is3DStudioMode = true;
+            _isPermissionDenied = true;
             _isInitialized = true;
           });
-          widget.onReady?.call();
         }
         return;
       }
@@ -318,7 +318,7 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
       }
 
       // Initialize native AR channel and room analysis
-      _hasLiDARHardware = true;
+      _hasLiDARHardware = await ARNativeChannel.hasLiDAR();
       RoomAnalysisService.instance.init();
       await ARNativeChannel.initialize();
       
@@ -337,12 +337,12 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
       }
 
     } catch (e) {
+      debugPrint('[ARCameraView] native AR init failed: $e');
       if (mounted) {
         setState(() {
-          _is3DStudioMode = true;
+          _error = 'Could not start the AR camera. $e';
           _isInitialized = true;
         });
-        widget.onReady?.call();
       }
     }
   }
@@ -794,7 +794,7 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
                     ),
                     const SizedBox(width: 5),
                     Text(
-                      _hasLiDARHardware ? 'LiDAR 3D Hardware • Active' : 'LiDAR 3D Engine • Active',
+                      _hasLiDARHardware ? 'LiDAR 3D Hardware • Active' : 'Sample Room Preview',
                       style: const TextStyle(
                         fontFamily: 'Inter',
                         fontSize: 9,
@@ -1129,6 +1129,7 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
                       setState(() {
                         _error = null;
                         _isPermissionDenied = false;
+                        _is3DStudioMode = true;
                         _isInitialized = true;
                       });
                       widget.onReady?.call();

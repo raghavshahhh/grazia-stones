@@ -35,42 +35,42 @@ class _VrShowroomScreenState extends ConsumerState<VrShowroomScreen> {
       'title': 'Living Room',
       'image': 'assets/images/home_hero_living_room.jpg',
       'panels': 'Athena 3D & Desert Stone',
-      'stoneId': 'athena-3d',
+      'stoneId': 'ATHENA',
       'category': 'Living Room',
     },
     {
       'title': 'Hotel Lobby',
       'image': 'assets/images/hero_luxury_fireplace.jpg',
       'panels': 'Verona Marble Grand Wall',
-      'stoneId': 'verona-3d',
+      'stoneId': 'VERONA',
       'category': 'Hotel Lobby',
     },
     {
       'title': 'Restaurant',
       'image': 'assets/images/hero_luxury_dining_fluted.jpg',
       'panels': 'Rustic Mountain Ledge',
-      'stoneId': 'mountain-m08',
+      'stoneId': 'TAK05',
       'category': 'Commercial',
     },
     {
       'title': 'Bedroom',
       'image': 'assets/images/hero_luxury_bedroom.jpg',
       'panels': 'Opus Ledge 15 Textured Wall',
-      'stoneId': 'opus-15',
+      'stoneId': 'Opus03',
       'category': 'Living Room',
     },
     {
       'title': 'Office Boardroom',
       'image': 'assets/images/onboarding_hero_room.jpg',
       'panels': 'Vantage V12 Linear Panels',
-      'stoneId': 'vantage-v12',
+      'stoneId': 'Vantage203',
       'category': 'Commercial',
     },
     {
       'title': 'Exterior Facade',
       'image': 'assets/images/auth_luxury_background.jpg',
       'panels': 'Grande Ledge ATY 10 Facade',
-      'stoneId': 'grande-aty-10',
+      'stoneId': 'ATY10',
       'category': 'Commercial',
     },
   ];
@@ -380,7 +380,7 @@ class _VrShowroomScreenState extends ConsumerState<VrShowroomScreen> {
                 return GestureDetector(
                   onTap: () {
                     HapticFeedback.lightImpact();
-                    final stoneId = space['stoneId'] ?? 'athena-3d';
+                    final stoneId = space['stoneId'] ?? 'ATHENA';
                     context.push('/live-ai?stoneId=$stoneId');
                   },
                   child: Container(

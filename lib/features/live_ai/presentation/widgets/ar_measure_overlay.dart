@@ -45,6 +45,8 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
 
   // Active Points & Measurements
   final List<Offset> _screenPoints = [];
+  // Real-world (metres) position of each point, from the native wall hit-test
+  final List<List<double>> _worldPoints = [];
   final List<double> _segmentMeters = [];
   String _unit = 'cm'; // Default 'cm' to match Apple Measure screenshots
   bool _busy = false;
@@ -120,28 +122,31 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
 
     final reticlePos = _centerReticleOffset;
 
-    // Raycast through native ARKit or fallback simulation
+    // Raycast through native ARKit/ARCore (LiDAR mesh when available)
     final hit = await ARNativeChannel.hitTestWallAtScreenPoint(reticlePos);
+    if (!mounted) return;
 
+    if (hit == null) {
+      // No real surface under the reticle: don't invent a distance
+      setState(() => _busy = false);
+      LuxuryToast.show(context, message: 'No wall found — point at the wall and move slowly');
+      return;
+    }
+
+    final world = [
+      (hit['x'] as num).toDouble(),
+      (hit['y'] as num).toDouble(),
+      (hit['z'] as num).toDouble(),
+    ];
     setState(() {
-      _screenPoints.add(reticlePos);
-      if (_screenPoints.length > 1) {
-        // Calculate distance from previous point
-        if (hit != null) {
-          // Native ARKit distance
-          ARNativeChannel.getMeasurementDistance().then((dist) {
-            if (dist != null && mounted) {
-              setState(() => _segmentMeters.add(dist));
-            }
-          });
-        } else {
-          // High-precision simulated metric distance based on standard mobile FOV (0.19m / 19cm baseline)
-          final last = _screenPoints[_screenPoints.length - 2];
-          final pxDist = (reticlePos - last).distance;
-          final meters = pxDist > 0 ? (pxDist / 380.0) : 0.19;
-          _segmentMeters.add(meters);
-        }
+      if (_worldPoints.isNotEmpty) {
+        final prev = _worldPoints.last;
+        _segmentMeters.add(math.sqrt(
+          math.pow(world[0] - prev[0], 2) + math.pow(world[1] - prev[1], 2) + math.pow(world[2] - prev[2], 2),
+        ));
       }
+      _screenPoints.add(reticlePos);
+      _worldPoints.add(world);
       _busy = false;
     });
   }
@@ -151,6 +156,7 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
     HapticFeedback.selectionClick();
     setState(() {
       _screenPoints.removeLast();
+      if (_worldPoints.isNotEmpty) _worldPoints.removeLast();
       if (_segmentMeters.isNotEmpty) {
         _segmentMeters.removeLast();
       }
@@ -162,6 +168,7 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
     ARNativeChannel.clearMeasurement();
     setState(() {
       _screenPoints.clear();
+      _worldPoints.clear();
       _segmentMeters.clear();
     });
   }
@@ -170,9 +177,21 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
     HapticFeedback.heavyImpact();
     _flashController.forward(from: 0.0);
 
+    if (_segmentMeters.isEmpty) {
+      LuxuryToast.show(context, message: 'Add at least two points to measure');
+      return;
+    }
+    // Copy the real measurements so they can be pasted into WhatsApp / quote notes
+    final total = _segmentMeters.fold<double>(0, (a, b) => a + b);
+    final lines = [
+      for (var i = 0; i < _segmentMeters.length; i++) 'Segment ${i + 1}: ${_formatLength(_segmentMeters[i], _unit)}',
+      'Total: ${_formatLength(total, _unit)}',
+    ];
+    Clipboard.setData(ClipboardData(text: 'Grazia Stones AR measurement\n${lines.join('\n')}'));
+
     LuxuryToast.show(
       context,
-      message: 'Measurement Snapshot Saved',
+      message: 'Measurements copied',
       icon: Icons.check_circle_rounded,
       iconColor: const Color(0xFF28CD41),
     );

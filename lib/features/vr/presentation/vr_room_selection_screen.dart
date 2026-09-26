@@ -24,42 +24,42 @@ class VrRoomSelectionScreen extends ConsumerWidget {
       'subtitle': 'Grande Ledge & Athena 3D Cladding',
       'image': 'assets/images/home_hero_living_room.jpg',
       'tour': '360° AR Surface Mapping',
-      'stoneId': 'athena-3d',
+      'stoneId': 'ATHENA',
     },
     {
       'title': 'Hotel Lobby',
       'subtitle': 'Verona 3D & Bookmatched Italian Marble',
       'image': 'assets/images/hero_luxury_fireplace.jpg',
       'tour': 'Double Height Grand Foyer AR',
-      'stoneId': 'verona-3d',
+      'stoneId': 'VERONA',
     },
     {
       'title': 'Restaurant',
       'subtitle': 'Rustic Mountain Ledge & Ambient Lighting',
       'image': 'assets/images/hero_luxury_dining_fluted.jpg',
       'tour': 'Hospitality Showcase AR',
-      'stoneId': 'mountain-m08',
+      'stoneId': 'TAK05',
     },
     {
       'title': 'Bedroom',
       'subtitle': 'Opus Ledge 15 Textured Feature Wall',
       'image': 'assets/images/hero_luxury_bedroom.jpg',
       'tour': 'Luxury Master Suite AR',
-      'stoneId': 'opus-15',
+      'stoneId': 'Opus03',
     },
     {
       'title': 'Office Boardroom',
       'subtitle': 'Vantage V12 Minimalist Linear Panels',
       'image': 'assets/images/onboarding_hero_room.jpg',
       'tour': 'Corporate Acoustic Cladding',
-      'stoneId': 'vantage-v12',
+      'stoneId': 'Vantage203',
     },
     {
       'title': 'Exterior Facade',
       'subtitle': 'Weatherproof High-Density Natural Panels',
       'image': 'assets/images/auth_luxury_background.jpg',
       'tour': 'Outdoor Weathering Test AR',
-      'stoneId': 'grande-aty-10',
+      'stoneId': 'ATY10',
     },
   ];
 
@@ -115,7 +115,7 @@ class VrRoomSelectionScreen extends ConsumerWidget {
                 child: InkWell(
                   onTap: () {
                     HapticFeedback.lightImpact();
-                    final stoneId = room['stoneId'] ?? 'athena-3d';
+                    final stoneId = room['stoneId'] ?? 'ATHENA';
                     context.push('/live-ai?stoneId=$stoneId');
                   },
                   child: Stack(
