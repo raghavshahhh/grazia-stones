@@ -50,10 +50,7 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
   double _scale = 1.0;
   Offset _panOffset = Offset.zero;
 
-  double _startRotX = 0.12;
-  double _startRotY = -0.26;
   double _startScale = 1.0;
-  Offset _startPan = Offset.zero;
 
   bool _showDimensions = true;
 
@@ -714,10 +711,7 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onScaleStart: (details) {
-        _startRotX = _rotX;
-        _startRotY = _rotY;
         _startScale = _scale;
-        _startPan = _panOffset;
       },
       onScaleUpdate: (details) {
         setState(() {

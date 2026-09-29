@@ -270,7 +270,7 @@ class _CompareDesignsScreenState extends ConsumerState<CompareDesignsScreen> {
                 child: ElevatedButton(
                   onPressed: () {
                     HapticFeedback.mediumImpact();
-                    context.push('/stone/${activeDesign['id']}');
+                    context.push('/stones/${activeDesign['id']}');
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFD4AF37),

@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -879,7 +878,7 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
                                   Image.asset(
                                     'assets/images/grande_ledge_ta02.png',
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => Container(
+                                    errorBuilder: (_, _, _) => Container(
                                       decoration: const BoxDecoration(
                                         gradient: LinearGradient(
                                           colors: [Color(0xFF382E2B), Color(0xFF1E1715)],
@@ -1028,7 +1027,7 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
           ),
-          error: (_, __) => _buildCustomRateFallback(palette),
+          error: (_, _) => _buildCustomRateFallback(palette),
           data: (stones) {
             if (stones.isEmpty) {
               return _buildCustomRateFallback(palette);

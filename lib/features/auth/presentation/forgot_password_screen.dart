@@ -7,7 +7,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/utils/validators.dart';
 import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
-import 'package:grazia_stones/shared/theme/spacing.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/grazia_button.dart';
 import 'package:grazia_stones/shared/widgets/grazia_logo.dart';
@@ -75,7 +74,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
               'assets/images/auth_luxury_background.jpg',
               fit: BoxFit.cover,
               alignment: Alignment.center,
-              errorBuilder: (_, __, ___) => Container(
+              errorBuilder: (_, _, _) => Container(
                 color: const Color(0xFF0D0D0C),
               ),
             ),

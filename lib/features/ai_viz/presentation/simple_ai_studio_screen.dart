@@ -14,8 +14,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:grazia_stones/shared/theme/colors.dart';
-import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/core/services/ai_endpoint_client.dart';
 import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/models/stone.dart';
@@ -645,7 +643,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
       PageRouteBuilder(
         opaque: false,
         barrierColor: Colors.black.withValues(alpha: 0.96),
-        pageBuilder: (context, _, __) {
+        pageBuilder: (context, _, _) {
           return _FullscreenStudioViewer(
             resultImage: _resultImage!,
             originalBytes: _roomBytes,
@@ -1177,7 +1175,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
                         itemCount: _studioColorVariants.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 8),
+                        separatorBuilder: (_, _) => const SizedBox(width: 8),
                         itemBuilder: (context, idx) {
                           final v = _studioColorVariants[idx];
                           final isSel = idx == _selectedColorIndex;
@@ -1445,7 +1443,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemCount: _studioColorVariants.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    separatorBuilder: (_, _) => const SizedBox(width: 8),
                     itemBuilder: (context, idx) {
                       final variant = _studioColorVariants[idx];
                       final isSelected = idx == _selectedColorIndex;
@@ -2096,7 +2094,7 @@ class _SourceSelectorSheetState extends ConsumerState<_SourceSelectorSheet> {
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
                         itemCount: presets.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 12),
+                        separatorBuilder: (_, _) => const SizedBox(width: 12),
                         itemBuilder: (context, idx) {
                           final p = presets[idx];
                           return InkWell(
@@ -2182,7 +2180,7 @@ class _SourceSelectorSheetState extends ConsumerState<_SourceSelectorSheet> {
                                 child: ListView.separated(
                                   scrollDirection: Axis.horizontal,
                                   itemCount: stones.length,
-                                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                                  separatorBuilder: (_, _) => const SizedBox(width: 12),
                                   itemBuilder: (context, idx) {
                                     final stone = stones[idx];
                                     final isLoading = _loadingStoneId == stone.id;
@@ -2218,7 +2216,7 @@ class _SourceSelectorSheetState extends ConsumerState<_SourceSelectorSheet> {
                                                     Image.network(
                                                       imgUrl,
                                                       fit: BoxFit.cover,
-                                                      errorBuilder: (_, __, ___) => const Center(
+                                                      errorBuilder: (_, _, _) => const Center(
                                                         child: Icon(Icons.broken_image_outlined,
                                                             color: Colors.white24),
                                                       ),
@@ -2292,7 +2290,7 @@ class _SourceSelectorSheetState extends ConsumerState<_SourceSelectorSheet> {
                                 ),
                               ),
                             ),
-                            error: (_, __) => const SizedBox.shrink(),
+                            error: (_, _) => const SizedBox.shrink(),
                           ),
                     ],
                   ],

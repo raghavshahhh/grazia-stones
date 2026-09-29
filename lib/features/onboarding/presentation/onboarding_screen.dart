@@ -5,9 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:grazia_stones/core/di.dart';
-import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
-import 'package:grazia_stones/shared/widgets/grazia_logo.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
@@ -105,7 +103,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   page.imagePath,
                   fit: BoxFit.cover,
                   alignment: Alignment.center,
-                  errorBuilder: (_, __, ___) => Container(
+                  errorBuilder: (_, _, _) => Container(
                     color: const Color(0xFF141312),
                   ),
                 );
