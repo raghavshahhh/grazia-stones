@@ -1,0 +1,120 @@
+name: Android Release
+
+# 1) compile-check: runs on PRs that touch Android/pubspec — proves the Android
+#    project still compiles. Needs no secrets (debug-signed APK, thrown away).
+# 2) release-aab: manual ("Run workflow"). Builds the SIGNED app bundle for the
+#    Play Store from repository secrets, uploads it as a downloadable artifact and,
+#    optionally, pushes it to a Play track.
+
+on:
+  pull_request:
+    paths:
+      - 'android/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - '.github/workflows/android-release.yml'
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: 'Play versionCode (must increase on every upload). Empty = run number.'
+        required: false
+        type: string
+      upload_to_play:
+        description: 'Also upload to Google Play'
+        required: false
+        default: false
+        type: boolean
+      track:
+        description: 'Play track (only when uploading)'
+        required: false
+        default: 'internal'
+        type: choice
+        options: [internal, alpha, beta, production]
+
+jobs:
+  compile-check:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.3'
+          channel: 'stable'
+          cache: true
+      - run: flutter pub get
+      # No keystore here, so this uses the debug-signing fallback. The signing
+      # guard only blocks `bundleRelease`, which is what release-aab runs.
+      - run: flutter build apk --release
+
+  release-aab:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    steps:
+      - name: Check signing secrets exist
+        run: |
+          missing=""
+          for v in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!v}" ]; then missing="$missing $v"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets:$missing (Settings > Secrets and variables > Actions)"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.3'
+          channel: 'stable'
+          cache: true
+      - run: flutter pub get
+
+      - name: Write keystore + key.properties (never committed)
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          {
+            echo "storePassword=$ANDROID_KEYSTORE_PASSWORD"
+            echo "keyPassword=$ANDROID_KEY_PASSWORD"
+            echo "keyAlias=$ANDROID_KEY_ALIAS"
+            echo "storeFile=$RUNNER_TEMP/upload.jks"
+          } > android/key.properties
+
+      - name: Build signed app bundle
+        env:
+          BUILD_NUMBER_INPUT: ${{ inputs.build_number }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          BUILD_NUMBER="${BUILD_NUMBER_INPUT:-$RUN_NUMBER}"
+          flutter build appbundle --release --build-number "$BUILD_NUMBER"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: grazia-stones-release-aab
+          path: build/app/outputs/bundle/release/app-release.aab
+          retention-days: 30
+
+      - name: Upload to Google Play
+        if: ${{ inputs.upload_to_play }}
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.graziastones.grazia_stones
+          releaseFiles: build/app/outputs/bundle/release/app-release.aab
+          track: ${{ inputs.track }}
+          status: draft
