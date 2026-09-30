@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart' show PointerScrollEvent;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -708,7 +709,16 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
     required dynamic palette,
     required bool isDark,
   }) {
-    return GestureDetector(
+    return Listener(
+      // Mouse wheel / trackpad zoom (web & desktop have no pinch).
+      onPointerSignal: (event) {
+        if (event is PointerScrollEvent) {
+          setState(() {
+            _scale = (_scale * (event.scrollDelta.dy > 0 ? 0.92 : 1.08)).clamp(0.5, 3.5);
+          });
+        }
+      },
+      child: GestureDetector(
       behavior: HitTestBehavior.opaque,
       onScaleStart: (details) {
         _startScale = _scale;
@@ -723,7 +733,9 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
           } else if (details.pointerCount >= 2) {
             // 2 fingers: Zoom & Pan
             _scale = (_startScale * details.scale).clamp(0.5, 3.5);
-            _panOffset += details.focalPointDelta;
+            // Keep the wall reachable — it used to be draggable off-screen.
+            final next = _panOffset + details.focalPointDelta;
+            _panOffset = Offset(next.dx.clamp(-260.0, 260.0), next.dy.clamp(-300.0, 300.0));
           }
         });
       },
@@ -752,6 +764,7 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
             ),
           ),
         ],
+      ),
       ),
     );
   }
