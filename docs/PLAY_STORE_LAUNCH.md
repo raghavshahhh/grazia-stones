@@ -23,7 +23,7 @@ Each Play upload needs a higher `build_number` (defaults to the workflow run num
 1. Create app → name "Grazia Stones", default language, App (not game), Free.
 2. **First upload is manual**: Testing → Internal testing → Create release → upload the `.aab`. (Enrol in *Play App Signing* when asked — recommended.)
 3. Add testers (an email list) and share the opt-in link.
-4. App content: privacy policy URL, Data safety form (collects: name, phone, email, location for dealer search, photos for AI Room Studio, account deletion supported in-app), content rating questionnaire, target audience (18+), ads = No, permissions declaration for Camera/Location.
+4. App content: privacy policy URL, Data safety form (collects: name, phone, email, location for dealer search, photos for AI Room Studio, account deletion supported in-app; **delete-account URL:** `https://grazia-stones.vercel.app/delete-account`), content rating questionnaire, target audience (18+), ads = No, permissions declaration for Camera/Location.
 5. Store listing: short + full description, 512×512 icon, 1024×500 feature graphic, ≥2 phone screenshots.
 6. **New personal developer accounts** must run a closed test with 12+ testers for 14 days before Production. Organisation accounts are exempt.
 
