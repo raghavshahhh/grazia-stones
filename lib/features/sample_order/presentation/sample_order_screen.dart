@@ -185,7 +185,16 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
   }
 
   Future<void> _submitOrder() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      // The delivery form sits below the swatch grid; without this the tap on
+      // the bottom button appears to do nothing when a field is invalid.
+      final formContext = _formKey.currentContext;
+      if (formContext != null) {
+        Scrollable.ensureVisible(formContext, duration: const Duration(milliseconds: 350), curve: Curves.easeOut);
+      }
+      showErrorSnackbar(context, Exception('Please fill in your delivery details'));
+      return;
+    }
     if (_selectedStones.isEmpty) {
       showErrorSnackbar(context, Exception('Please select at least one stone'));
       return;
