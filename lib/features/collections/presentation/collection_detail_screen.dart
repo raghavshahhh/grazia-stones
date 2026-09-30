@@ -1,3 +1,4 @@
+import 'package:grazia_stones/features/wishlist/wishlist_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -579,8 +580,7 @@ class _CollectionStoneCard extends ConsumerWidget {
                       right: 7,
                       child: GestureDetector(
                         onTap: () {
-                          HapticFeedback.lightImpact();
-                          ref.read(wishlistProvider.notifier).toggleStone(stone.id);
+                          toggleWishlistWithFeedback(context, ref, stone.id, stoneName: stone.name);
                         },
                         child: Container(
                           padding: const EdgeInsets.all(6),

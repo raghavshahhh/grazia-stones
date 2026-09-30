@@ -4,6 +4,8 @@ import '../../../core/di.dart';
 import '../data/wishlist_repository.dart';
 
 /// Wishlist state
+enum WishlistToggleResult { added, removed, needsLogin, failed }
+
 class WishlistState {
   final List<String> stoneIds;
   final bool isLoading;
@@ -110,12 +112,22 @@ class WishlistNotifier extends StateNotifier<WishlistState> {
     }
   }
 
-  /// Toggle stone in wishlist
-  Future<void> toggleStone(String stoneId) async {
-    if (state.stoneIds.contains(stoneId)) {
-      await removeStone(stoneId);
-    } else {
+  /// Toggle stone in wishlist. Never throws: callers get the real outcome so
+  /// the UI never claims "saved" for a write that was rolled back (e.g. guests).
+  Future<WishlistToggleResult> toggleStone(String stoneId) async {
+    final wasIn = state.stoneIds.contains(stoneId);
+    try {
+      if (wasIn) {
+        await removeStone(stoneId);
+        return WishlistToggleResult.removed;
+      }
       await addStone(stoneId);
+      return WishlistToggleResult.added;
+    } catch (e) {
+      final msg = e.toString().toLowerCase();
+      return msg.contains('not authenticated') || msg.contains('not logged in')
+          ? WishlistToggleResult.needsLogin
+          : WishlistToggleResult.failed;
     }
   }
 

@@ -1024,7 +1024,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
                               if (_statusNote != null)
                                 Text(
                                   _statusNote!,
-                                  maxLines: 1,
+                                  maxLines: 3,
                                   overflow: TextOverflow.ellipsis,
                                   style: GoogleFonts.inter(
                                     fontSize: 11,

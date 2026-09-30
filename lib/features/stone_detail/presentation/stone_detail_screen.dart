@@ -1,3 +1,4 @@
+import 'package:grazia_stones/features/wishlist/wishlist_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -192,21 +193,7 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
                 ),
                 actions: [
                   IconButton(
-                    onPressed: () {
-                      HapticFeedback.lightImpact();
-                      final isCurrentlyWishlisted = ref.read(wishlistProvider).contains(stone.id);
-                      ref.read(wishlistProvider.notifier).toggleStone(stone.id);
-                      LuxuryToast.show(
-                        context,
-                        message: isCurrentlyWishlisted
-                            ? 'Removed from Wishlist'
-                            : '${stone.name} saved to Wishlist',
-                        icon: isCurrentlyWishlisted
-                            ? Icons.favorite_border_rounded
-                            : Icons.favorite_rounded,
-                        iconColor: isCurrentlyWishlisted ? Colors.white60 : const Color(0xFFD4AF37),
-                      );
-                    },
+                    onPressed: () => toggleWishlistWithFeedback(context, ref, stone.id, stoneName: stone.name),
                     icon: Container(
                       width: 36,
                       height: 36,
