@@ -180,16 +180,6 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     ARCameraView.updateScale(value);
   }
 
-  // Native video capture (ARCameraView.startRecording/stopRecording) isn't
-  // implemented on mobile yet -- surface that honestly instead of flipping
-  // _isRecording to a red "recording" state that never actually saves
-  // anything.
-  void _startRecording() {
-    if (!_cameraReady) return;
-    HapticFeedback.mediumImpact();
-    LuxuryToast.show(context, message: 'Video recording is coming soon.');
-  }
-
   void _navigateToProduct() {
     HapticFeedback.mediumImpact();
     final stone = _selectedStone;
@@ -1028,13 +1018,12 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
             const Spacer(),
 
-            // Measure / ruler tool button (Tap to measure, Hold to record)
+            // Measure / ruler tool button
             ClipRRect(
               borderRadius: BorderRadius.circular(22),
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
                 child: GestureDetector(
-                  onLongPress: _startRecording,
                   child: Container(
                     decoration: BoxDecoration(
                       color: _measureMode

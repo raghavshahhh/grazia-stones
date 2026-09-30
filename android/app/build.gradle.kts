@@ -55,9 +55,35 @@ android {
             signingConfig = if (releaseSigning.storeFile != null && releaseSigning.storeFile!!.exists()) {
                 releaseSigning
             } else {
+                // Local `flutter run --release` convenience only. bundleRelease
+                // refuses to run without a real keystore (see below).
                 signingConfigs.getByName("debug")
             }
+
+            // Opt-in until verified on a device: R8 can strip ARCore/Filament
+            // reflection targets. Try with `flutter build appbundle -PenableMinify=true`.
+            if (project.hasProperty("enableMinify")) {
+                isMinifyEnabled = true
+                isShrinkResources = true
+                proguardFiles(
+                    getDefaultProguardFile("proguard-android-optimize.txt"),
+                    "proguard-rules.pro"
+                )
+            }
         }
+    }
+}
+
+// A Play Store upload must never be debug-signed: fail loudly instead of
+// silently producing an AAB Play will reject.
+gradle.taskGraph.whenReady {
+    val releaseSigning = android.signingConfigs.getByName("release")
+    val hasRealKey = releaseSigning.storeFile?.exists() == true
+    if (!hasRealKey && allTasks.any { it.name.contains("bundleRelease", ignoreCase = true) }) {
+        throw GradleException(
+            "bundleRelease needs a real upload keystore. Create android/key.properties " +
+                "(see android/key.properties.example and scripts/generate_upload_keystore.sh)."
+        )
     }
 }
 
