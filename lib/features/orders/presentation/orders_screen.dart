@@ -95,7 +95,9 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> with SingleTickerPr
           ],
         ),
       ),
-      body: orderState.error != null
+      body: !ref.watch(authRiverpodProvider).isLoggedIn
+          ? _buildSignInState(palette)
+          : orderState.error != null
           ? ErrorHandlerWidget(
               error: Exception(orderState.error),
               onRetry: () => ref.read(orderRiverpodProvider.notifier).loadOrders(),
@@ -118,6 +120,40 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> with SingleTickerPr
                             _buildOrderCard(filteredOrders[i], palette),
                       ),
                     ),
+    );
+  }
+
+  Widget _buildSignInState(LuxuryPalette palette) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.lock_outline_rounded, size: 40, color: palette.primary),
+            const SizedBox(height: 16),
+            Text(
+              'Sign in to view your orders',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.playfairDisplay(
+                color: palette.textPrimary,
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () => context.push('/login'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: palette.primary,
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+              ),
+              child: const Text('Sign In'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

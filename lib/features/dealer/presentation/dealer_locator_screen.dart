@@ -139,19 +139,23 @@ class _DealerLocatorScreenState extends ConsumerState<DealerLocatorScreen> {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  Icon(Icons.star_rounded, color: palette.primary, size: 16),
-                  const SizedBox(width: 4),
-                  Text(
-                    dealer.rating.toString(),
-                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: palette.textPrimary),
-                  ),
-                  const SizedBox(width: 14),
-                  Icon(Icons.near_me_outlined, color: palette.textTertiary, size: 14),
-                  const SizedBox(width: 4),
-                  Text(
-                    dealer.distance,
-                    style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary),
-                  ),
+                  if (dealer.rating > 0) ...[
+                    Icon(Icons.star_rounded, color: palette.primary, size: 16),
+                    const SizedBox(width: 4),
+                    Text(
+                      dealer.rating.toString(),
+                      style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: palette.textPrimary),
+                    ),
+                    const SizedBox(width: 14),
+                  ],
+                  if (dealer.distance.isNotEmpty) ...[
+                    Icon(Icons.near_me_outlined, color: palette.textTertiary, size: 14),
+                    const SizedBox(width: 4),
+                    Text(
+                      dealer.distance,
+                      style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary),
+                    ),
+                  ],
                 ],
               ),
               const SizedBox(height: 10),

@@ -54,8 +54,6 @@ import '../features/legal/presentation/terms_of_service_screen.dart';
 import '../features/support/presentation/help_support_screen.dart';
 import '../features/vr/presentation/vr_showroom_screen.dart';
 import '../features/vr/presentation/vr_room_selection_screen.dart';
-import '../features/pro/presentation/grazia_pro_screen.dart';
-import '../features/resources/presentation/download_resources_screen.dart';
 import '../features/measure/presentation/boq_calculator_screen.dart';
 import '../features/custom_design/presentation/custom_design_screen.dart';
 import '../core/di.dart';
@@ -346,17 +344,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) =>
             _slideUpPage(const VrRoomSelectionScreen(), state),
       ),
+      // /pro and /resources listed invented CAD/texture files whose download
+      // button only showed a toast. Nothing links to them; keep deep links safe.
       GoRoute(
         path: '/pro',
-        parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) =>
-            _slideUpPage(const GraziaProScreen(), state),
+        redirect: (context, state) => '/home',
       ),
       GoRoute(
         path: '/resources',
-        parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) =>
-            _slideUpPage(const DownloadResourcesScreen(), state),
+        redirect: (context, state) => '/home',
       ),
       GoRoute(
         path: '/boq-calculator',

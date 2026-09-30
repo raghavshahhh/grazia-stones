@@ -861,7 +861,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     Row(
                       children: [
                         Text(
-                          '${col.stoneCount} Surfaces',
+                          '${col.stoneCount} ${col.stoneCount == 1 ? 'Surface' : 'Surfaces'}',
                           style: GoogleFonts.inter(
                             fontSize: 11,
                             fontWeight: FontWeight.w500,
