@@ -419,7 +419,7 @@ class _CollectionCard extends StatelessWidget {
                                         ),
                                       ),
                                       child: Text(
-                                        '${collection.stoneCount > 0 ? collection.stoneCount : 6} SURFACES',
+                                        '${collection.stoneCount} ${collection.stoneCount == 1 ? 'SURFACE' : 'SURFACES'}',
                                         style: GoogleFonts.inter(
                                           color: palette.primary,
                                           fontSize: 9.5,

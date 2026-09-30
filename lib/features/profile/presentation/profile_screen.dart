@@ -96,15 +96,12 @@ class ProfileScreen extends ConsumerWidget {
                       builder: (context) {
                         final auth = ref.watch(authRiverpodProvider);
                         final rawName = auth.userName;
-                        final name = (rawName != null && rawName.isNotEmpty && rawName != 'Guest User')
-                            ? rawName
-                            : 'Gaurav Rawat';
-                        final subtitle = auth.isLoggedIn && auth.userEmail != null
-                            ? auth.userEmail!
-                            : 'Architect & Interior Designer • Bangalore, India';
-                        final phone = auth.userPhone?.isNotEmpty == true
-                            ? auth.userPhone!
-                            : '+91 98765 43210';
+                        final hasName = auth.isLoggedIn && rawName != null && rawName.isNotEmpty && rawName != 'Guest User';
+                        final name = hasName ? rawName : (auth.isLoggedIn ? 'Grazia Member' : 'Guest');
+                        final subtitle = !auth.isLoggedIn
+                            ? 'Sign in to save quotes, designs and wishlist'
+                            : (auth.userEmail?.isNotEmpty == true ? auth.userEmail! : 'Signed in');
+                        final phone = auth.isLoggedIn && auth.userPhone?.isNotEmpty == true ? auth.userPhone! : '';
                         final parts = name.trim().split(' ').where((s) => s.isNotEmpty).toList();
                         final initials = parts.isEmpty
                             ? 'GS'
@@ -182,12 +179,14 @@ class ProfileScreen extends ConsumerWidget {
                                               overflow: TextOverflow.ellipsis,
                                             ),
                                           ),
-                                          const SizedBox(width: 6),
-                                          Icon(
-                                            Icons.verified,
-                                            size: 14,
-                                            color: palette.primary,
-                                          ),
+                                          if (auth.isLoggedIn) ...[
+                                            const SizedBox(width: 6),
+                                            Icon(
+                                              Icons.verified,
+                                              size: 14,
+                                              color: palette.primary,
+                                            ),
+                                          ],
                                         ],
                                       ),
                                       const SizedBox(height: 2),
@@ -199,15 +198,17 @@ class ProfileScreen extends ConsumerWidget {
                                         ),
                                         overflow: TextOverflow.ellipsis,
                                       ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        phone,
-                                        style: GoogleFonts.inter(
-                                          color: palette.textTertiary,
-                                          fontSize: 11,
+                                      if (phone.isNotEmpty) ...[
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          phone,
+                                          style: GoogleFonts.inter(
+                                            color: palette.textTertiary,
+                                            fontSize: 11,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
+                                      ],
                                     ],
                                   ),
                                 ),

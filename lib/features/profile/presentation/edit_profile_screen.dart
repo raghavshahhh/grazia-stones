@@ -277,7 +277,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
     final nameForInitials = _nameController.text.trim().isNotEmpty
         ? _nameController.text.trim()
-        : (authState.userName ?? 'Architect');
+        : (authState.userName ?? 'Guest');
     final parts = nameForInitials.split(' ').where((s) => s.isNotEmpty).toList();
     final initials = parts.isEmpty
         ? 'GS'
@@ -287,7 +287,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
     final roleLabel = authState.isAdmin
         ? 'Administrator'
-        : (authState.isDealer ? 'Authorized Partner' : 'Registered Architect');
+        : (authState.isDealer ? 'Authorized Partner' : (authState.isLoggedIn ? 'Registered Member' : 'Guest'));
 
     return Scaffold(
       backgroundColor: palette.background,
@@ -491,7 +491,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                       return null;
                     },
                     icon: Icons.person_outline,
-                    hint: 'e.g. Raghav Shah',
+                    hint: 'Your full name',
                   ),
                   const SizedBox(height: 16),
 

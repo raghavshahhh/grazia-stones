@@ -487,8 +487,8 @@ class PDFService {
             ),
             pw.SizedBox(height: 8),
             pw.Text('Email: info@graziastones.com', style: _textStyle(10)),
-            pw.Text('Phone: +91 98765 43210', style: _textStyle(10)),
-            pw.Text('GSTIN: 29AABCU9603R1ZV', style: _textStyle(10)),
+            // Same helpline the Help, About and Privacy screens use.
+            pw.Text('Phone: +91 98398 46105', style: _textStyle(10)),
           ],
         ),
 
