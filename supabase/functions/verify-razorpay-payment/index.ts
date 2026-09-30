@@ -69,8 +69,24 @@ serve(async (req) => {
       });
     }
 
-    // Verify signature
-    const crypto = await import("https://deno.land/std@0.177.0/crypto/crypto.ts");
+    // `orderId` is our DB order id. Razorpay signs `<razorpay_order_id>|<payment_id>`,
+    // so load the razorpay_order_id that create-razorpay-order stored on this
+    // (caller-owned) order instead of trusting anything the client sends.
+    const { data: order, error: orderError } = await supabase
+      .from("orders")
+      .select("id, razorpay_order_id, payment_status")
+      .eq("id", orderId)
+      .eq("user_id", user.id)
+      .single();
+
+    if (orderError || !order || !order.razorpay_order_id) {
+      return new Response(JSON.stringify({ error: "Order not found" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Verify signature (global WebCrypto; the std/crypto module has no `subtle`)
     const encoder = new TextEncoder();
     const key = await crypto.subtle.importKey(
       "raw",
@@ -79,14 +95,19 @@ serve(async (req) => {
       false,
       ["sign"]
     );
-    
-    const message = encoder.encode(`${orderId}|${paymentId}`);
+
+    const message = encoder.encode(`${order.razorpay_order_id}|${paymentId}`);
     const sig = await crypto.subtle.sign("HMAC", key, message);
     const expectedSignature = Array.from(new Uint8Array(sig))
       .map(b => b.toString(16).padStart(2, "0"))
       .join("");
 
-    const isValid = expectedSignature === signature;
+    // Constant-time compare
+    let diff = expectedSignature.length ^ String(signature).length;
+    for (let i = 0; i < expectedSignature.length; i++) {
+      diff |= expectedSignature.charCodeAt(i) ^ (String(signature).charCodeAt(i) || 0);
+    }
+    const isValid = diff === 0;
 
     if (!isValid) {
       // Mark payment as failed

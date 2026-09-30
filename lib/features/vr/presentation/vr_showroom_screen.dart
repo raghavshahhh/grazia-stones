@@ -6,8 +6,6 @@ import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 
 import 'package:grazia_stones/core/providers/stone_providers.dart';
-import 'package:grazia_stones/core/services/mock_data_service.dart';
-import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 
 /// Screen 13: VR Showroom
@@ -484,7 +482,7 @@ class _VrShowroomScreenState extends ConsumerState<VrShowroomScreen> {
   }
 
   Widget _buildArProductsCarousel(BuildContext context, dynamic palette, bool isDark) {
-    final allStones = ref.watch(allStonesProvider).valueOrNull ?? MockDataService.getAllStones();
+    final allStones = ref.watch(allStonesProvider).valueOrNull ?? const [];
     return SizedBox(
       height: 255,
       child: ListView.builder(

@@ -5,8 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
-import 'package:grazia_stones/shared/theme/typography.dart';
-import 'package:grazia_stones/shared/theme/spacing.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/grazia_text_field.dart';
 import 'package:grazia_stones/shared/widgets/grazia_button.dart';
@@ -193,7 +191,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
               'assets/images/auth_luxury_background.jpg',
               fit: BoxFit.cover,
               alignment: Alignment.center,
-              errorBuilder: (_, __, ___) => Container(
+              errorBuilder: (_, _, _) => Container(
                 color: const Color(0xFF0D0D0C),
               ),
             ),

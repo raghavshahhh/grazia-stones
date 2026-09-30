@@ -9,7 +9,6 @@ import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/providers/stone_providers.dart';
 import 'package:grazia_stones/core/widgets/animated_widgets.dart';
-import 'package:grazia_stones/core/services/mock_data_service.dart';
 import 'package:grazia_stones/shared/widgets/luxury_toast.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 import 'widgets/ar_camera_view.dart';
@@ -104,7 +103,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
   }
 
   void _updateFilteredStones([List<Stone>? stones]) {
-    final allStones = stones ?? ref.read(allStonesProvider).valueOrNull ?? MockDataService.getAllStones();
+    final allStones = stones ?? ref.read(allStonesProvider).valueOrNull ?? const <Stone>[];
     setState(() {
       if (_selectedCategory == 'All') {
         _filteredStones = List<Stone>.from(allStones);

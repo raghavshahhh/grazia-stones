@@ -2050,6 +2050,7 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
           resultImageUrl: resultImageUrl,
           finish: _selectedFinish,
           stoneName: _isCustomMode ? _customDesignName : 'Grazia Stone',
+          stoneId: _isCustomMode ? null : _selectedStoneId,
         );
       },
     );
@@ -2064,6 +2065,7 @@ class _InteractiveCompareSheet extends StatefulWidget {
   final String resultImageUrl;
   final String finish;
   final String stoneName;
+  final String? stoneId;
 
   const _InteractiveCompareSheet({
     required this.palette,
@@ -2072,6 +2074,7 @@ class _InteractiveCompareSheet extends StatefulWidget {
     required this.resultImageUrl,
     required this.finish,
     required this.stoneName,
+    this.stoneId,
   });
 
   @override
@@ -2270,7 +2273,8 @@ class _InteractiveCompareSheetState extends State<_InteractiveCompareSheet> {
                   child: ElevatedButton.icon(
                     onPressed: () {
                       Navigator.pop(context);
-                      context.push('/quote-request?stone=${Uri.encodeComponent(widget.stoneName)}');
+                      final id = widget.stoneId;
+                      context.push(id != null ? '/quotes/new?stoneId=$id' : '/quotes/new');
                     },
                     icon: const Icon(Icons.request_quote_rounded, size: 16, color: Colors.white),
                     label: const Text('Get Quote', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),

@@ -21,7 +21,6 @@ import '../features/quotes/presentation/quote_request_supabase_screen.dart';
 import '../features/cart/presentation/cart_screen.dart';
 import '../features/orders/presentation/orders_screen.dart';
 import '../features/live_ai/presentation/live_ai_screen.dart';
-import '../features/studio/presentation/ai_tools_hub_screen.dart';
 import '../features/profile/presentation/profile_screen.dart';
 import '../features/wishlist/presentation/wishlist_screen.dart';
 import '../features/sample_order/presentation/sample_order_screen.dart';

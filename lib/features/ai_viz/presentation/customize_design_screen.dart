@@ -28,6 +28,7 @@ class _CustomizeDesignScreenState extends ConsumerState<CustomizeDesignScreen> {
   int _selectedTab = 0; // 0 = Colour, 1 = Finish, 2 = Layout
   int _selectedColorIndex = 0;
   int _selectedFinishIndex = 0;
+  int _selectedLayoutIndex = 0;
   bool _isFavorite = true;
 
   final List<String> _tabs = ['Colour', 'Finish', 'Layout'];
@@ -293,15 +294,22 @@ class _CustomizeDesignScreenState extends ConsumerState<CustomizeDesignScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
-                  children: _layouts.map((l) {
+                  children: List.generate(_layouts.length, (i) {
+                    final l = _layouts[i];
+                    final isSelected = _selectedLayoutIndex == i;
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: Icon(Icons.grid_view_rounded, color: palette.primary, size: 18),
+                      selected: isSelected,
                       title: Text(l, style: GoogleFonts.inter(fontSize: 13, color: palette.textPrimary)),
-                      trailing: const Icon(Icons.chevron_right_rounded, size: 18),
-                      onTap: () {},
+                      trailing: Icon(
+                        isSelected ? Icons.check_circle_rounded : Icons.circle_outlined,
+                        size: 18,
+                        color: isSelected ? palette.primary : palette.textPrimary.withValues(alpha: 0.4),
+                      ),
+                      onTap: () => setState(() => _selectedLayoutIndex = i),
                     );
-                  }).toList(),
+                  }),
                 ),
               ),
             ],

@@ -156,6 +156,7 @@ class StoneRepository {
         debugPrint('[StoneRepository] Supabase error, serving cached stones: $e');
         return cached.map((j) => _stoneFromRow(Map<String, dynamic>.from(j as Map))).toList();
       }
+      if (!_useMockData) rethrow;
       debugPrint('[StoneRepository] Supabase error & no cache, falling back to mock data: $e');
       var stones = search != null && search.isNotEmpty
           ? MockDataService.searchStones(search)
@@ -192,11 +193,6 @@ class StoneRepository {
         debugPrint('[StoneRepository] Supabase error, serving cached stone: $e');
         return _stoneFromRow(Map<String, dynamic>.from(cached));
       }
-      final fallbackStone = MockDataService.getStoneById(id);
-      if (fallbackStone != null) {
-        debugPrint('[StoneRepository] Serving stone from MockDataService fallback: $id');
-        return fallbackStone;
-      }
       if (_useMockData) {
         debugPrint('[StoneRepository] getStoneById fallback: $e');
         final stone = MockDataService.getStoneById(id);
@@ -230,6 +226,7 @@ class StoneRepository {
         debugPrint('[StoneRepository] Supabase error, serving cached search results: $e');
         return cached.map((j) => _stoneFromRow(Map<String, dynamic>.from(j as Map))).toList();
       }
+      if (!_useMockData) rethrow;
       debugPrint('[StoneRepository] searchStones fallback: $e');
       return MockDataService.searchStones(query);
     }
@@ -261,7 +258,7 @@ class StoneRepository {
           await _cache.set(_cacheNamespace, cacheKey, anyActive);
           return anyActive.map((j) => _stoneFromRow(j)).toList();
         }
-        return MockDataService.getTrendingStones();
+        return _useMockData ? MockDataService.getTrendingStones() : <Stone>[];
       });
     } catch (e) {
       final cached = await _cache.get<List>(_cacheNamespace, cacheKey);
@@ -269,6 +266,7 @@ class StoneRepository {
         debugPrint('[StoneRepository] Supabase error, serving cached trending stones: $e');
         return cached.map((j) => _stoneFromRow(Map<String, dynamic>.from(j as Map))).toList();
       }
+      if (!_useMockData) rethrow;
       debugPrint('[StoneRepository] getTrendingStones fallback to mock data: $e');
       return MockDataService.getTrendingStones();
     }
@@ -353,14 +351,14 @@ class StoneRepository {
           if (stoneCountData != null && stoneCountData.isNotEmpty) {
             count = (stoneCountData.first['count'] as num?)?.toInt() ?? 0;
           }
-          map['stone_count'] = count > 0 ? count : (j['stone_count'] ?? 18);
+          map['stone_count'] = count > 0 ? count : (j['stone_count'] ?? 0);
           return map;
         }).toList();
         if (processed.isNotEmpty) {
           await _cache.set(_cacheNamespace, cacheKey, processed);
           return processed.map((m) => Collection.fromJson(m)).toList();
         }
-        return MockDataService.getAllCollections();
+        return _useMockData ? MockDataService.getAllCollections() : <Collection>[];
       });
     } catch (e) {
       final cached = await _cache.get<List>(_cacheNamespace, cacheKey);
@@ -368,6 +366,7 @@ class StoneRepository {
         debugPrint('[StoneRepository] Supabase error, serving cached collections: $e');
         return cached.map((m) => Collection.fromJson(Map<String, dynamic>.from(m as Map))).toList();
       }
+      if (!_useMockData) rethrow;
       debugPrint('[StoneRepository] getCollections fallback to mock data: $e');
       return MockDataService.getAllCollections();
     }
@@ -391,6 +390,7 @@ class StoneRepository {
         debugPrint('[StoneRepository] Supabase error, serving cached collection: $e');
         return Collection.fromJson(Map<String, dynamic>.from(cached));
       }
+      if (!_useMockData) rethrow;
       debugPrint('[StoneRepository] getCollectionById fallback: $e');
       final target = id.toLowerCase().trim();
       return MockDataService.getAllCollections().firstWhere(
@@ -424,6 +424,7 @@ class StoneRepository {
         debugPrint('[StoneRepository] Supabase error, serving cached stones by collection: $e');
         return cached.map((j) => _stoneFromRow(Map<String, dynamic>.from(j as Map))).toList();
       }
+      if (!_useMockData) rethrow;
       debugPrint('[StoneRepository] getStonesByCollection fallback: $e');
       return MockDataService.getStonesByCollection(collectionId);
     }
