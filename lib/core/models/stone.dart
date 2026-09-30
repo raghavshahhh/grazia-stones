@@ -127,9 +127,28 @@ class Stone {
   List<String> get colors => availableColors;
   List<String> get tags => idealFor;
   String? get collectionId => null;
-  double? get lengthCm => double.tryParse(length.replaceAll(RegExp(r'[^0-9.]'), ''));
-  double? get widthCm => double.tryParse(width.replaceAll(RegExp(r'[^0-9.]'), ''));
-  double? get thicknessMm => double.tryParse(thickness.replaceAll(RegExp(r'[^0-9.]'), ''));
+  /// Parses a display dimension ("600mm", "60 cm", "18-20mm") into a number in
+  /// [toUnit] ('cm' or 'mm'). The catalogue repository formats dimensions in
+  /// mm while [Stone.fromMap] uses cm, so the unit must be read from the text —
+  /// treating "600mm" as 600 cm made every tile ~6 m long in the visualizer.
+  static double? _parseDimension(String raw, {required String toUnit, required String defaultUnit}) {
+    final m = RegExp(r'(\d+(?:\.\d+)?)').firstMatch(raw);
+    if (m == null) return null;
+    final v = double.tryParse(m.group(1)!);
+    if (v == null) return null;
+    final lower = raw.toLowerCase();
+    final unit = lower.contains('mm')
+        ? 'mm'
+        : lower.contains('cm')
+            ? 'cm'
+            : defaultUnit;
+    if (unit == toUnit) return v;
+    return unit == 'mm' ? v / 10 : v * 10;
+  }
+
+  double? get lengthCm => _parseDimension(length, toUnit: 'cm', defaultUnit: 'cm');
+  double? get widthCm => _parseDimension(width, toUnit: 'cm', defaultUnit: 'cm');
+  double? get thicknessMm => _parseDimension(thickness, toUnit: 'mm', defaultUnit: 'mm');
   double? get coverageSqft => sqftPerBox;
   String get material => texture;
   List<String> get patterns => const [];

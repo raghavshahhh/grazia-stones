@@ -110,6 +110,21 @@ class _AdminProductEditScreenState extends ConsumerState<AdminProductEditScreen>
         _populateFields(stone);
       }
 
+      // The Stone model is a lossy view of the row (no slug, collection id,
+      // `active` flag…). Overlay the raw row so saving an edit never resets
+      // those to defaults (it used to overwrite slug with the UUID, move the
+      // stone to the first collection and republish archived stones).
+      if (widget.stoneId != null && widget.stoneId != 'add') {
+        try {
+          final row = await SupabaseService.instance.client
+              .from('stones')
+              .select()
+              .eq('id', widget.stoneId!)
+              .single();
+          _applyRawRow(row);
+        } catch (_) {}
+      }
+
       if (_selectedCollectionId == null && _collections.isNotEmpty) {
         _selectedCollectionId = _collections.first.id;
       }
@@ -145,6 +160,26 @@ class _AdminProductEditScreenState extends ConsumerState<AdminProductEditScreen>
     _imageUrl = s.imageUrl;
   }
 
+  void _applyRawRow(Map<String, dynamic> row) {
+    _slugController.text = (row['slug'] ?? '').toString();
+    _codeController.text = (row['product_code'] ?? '').toString();
+    final cid = row['collection_id']?.toString();
+    if (cid != null && _collections.any((c) => c.id == cid)) {
+      _selectedCollectionId = cid;
+    }
+    _active = row['active'] != false;
+    _stockController.text = ((row['stock_quantity'] as num?)?.toInt() ?? 0).toString();
+    _priceController.text = ((row['price_per_sqft'] as num?)?.toDouble() ?? 0).toStringAsFixed(0);
+    String fmt(dynamic v) => v == null ? '' : (v as num).toDouble().toString().replaceAll(RegExp(r'\.0$'), '');
+    _lengthController.text = fmt(row['length_cm']);
+    _widthController.text = fmt(row['width_cm']);
+    _thicknessController.text = fmt(row['thickness_mm']);
+    _coverageController.text = fmt(row['coverage_sqft']);
+    _materialController.text = (row['material'] ?? '').toString();
+    if (row['finish'] != null && _finishes.contains(row['finish'])) _finish = row['finish'];
+    if (row['category'] != null && _categories.contains(row['category'])) _category = row['category'];
+  }
+
   Future<void> _pickImage() async {
     final picker = ImagePicker();
     final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
@@ -161,6 +196,10 @@ class _AdminProductEditScreenState extends ConsumerState<AdminProductEditScreen>
 
   Future<void> _saveProduct() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_newImageBytes == null && (_imageUrl == null || _imageUrl!.isEmpty)) {
+      LuxuryToast.show(context, message: 'Please add a photo — it is also used for AR and the wall visualizer', isError: true);
+      return;
+    }
 
     setState(() => _isSaving = true);
     HapticFeedback.mediumImpact();
@@ -199,9 +238,14 @@ class _AdminProductEditScreenState extends ConsumerState<AdminProductEditScreen>
         gallery.insert(0, uploadedUrl);
       }
 
+      String slugify(String v) => v
+          .trim()
+          .toLowerCase()
+          .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+          .replaceAll(RegExp(r'^-+|-+$'), '');
       final slug = _slugController.text.trim().isNotEmpty
-          ? _slugController.text.trim().toLowerCase().replaceAll(' ', '-')
-          : _nameController.text.trim().toLowerCase().replaceAll(' ', '-');
+          ? slugify(_slugController.text)
+          : slugify(_nameController.text);
 
       final stoneData = {
         'name': _nameController.text.trim(),
@@ -327,7 +371,7 @@ class _AdminProductEditScreenState extends ConsumerState<AdminProductEditScreen>
                                       const SizedBox(height: 8),
                                       Text('Tap to Upload Slab Image',
                                           style: GoogleFonts.inter(fontSize: 13, color: palette.textSecondary, fontWeight: FontWeight.w600)),
-                                      Text('Stored securely in Supabase bucket',
+                                      Text('Also used as the texture in AR & 3D wall visualizer',
                                           style: GoogleFonts.inter(fontSize: 11, color: palette.textTertiary)),
                                     ],
                                   ),
@@ -424,7 +468,7 @@ class _AdminProductEditScreenState extends ConsumerState<AdminProductEditScreen>
                     _buildSectionHeader('PRICING & DIMENSIONS', palette),
                     const SizedBox(height: 12),
 
-                    _buildField('Price Per Sq Ft (₹)', _priceController, palette, keyboardType: TextInputType.number, required: true),
+                    _buildField('Price Per Sq Ft (₹)', _priceController, palette, keyboardType: TextInputType.number, required: true, positiveNumber: true),
                     const SizedBox(height: 12),
 
                     Row(
@@ -536,6 +580,7 @@ class _AdminProductEditScreenState extends ConsumerState<AdminProductEditScreen>
     TextInputType keyboardType = TextInputType.text,
     int maxLines = 1,
     bool required = false,
+    bool positiveNumber = false,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -546,7 +591,12 @@ class _AdminProductEditScreenState extends ConsumerState<AdminProductEditScreen>
           controller: controller,
           keyboardType: keyboardType,
           maxLines: maxLines,
-          validator: required ? (v) => v == null || v.trim().isEmpty ? '$label is required' : null : null,
+          validator: (v) {
+            final t = v?.trim() ?? '';
+            if (required && t.isEmpty) return '$label is required';
+            if (positiveNumber && (double.tryParse(t) ?? 0) <= 0) return 'Enter a number greater than 0';
+            return null;
+          },
           style: GoogleFonts.inter(fontSize: 14, color: palette.textPrimary, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             filled: true,

@@ -76,14 +76,39 @@ void main() {
         stockQuantity: 450,
       );
 
-      expect(stone.lengthCm, 600.0);
-      expect(stone.widthCm, 300.0);
+      // '600mm' is 60 cm — the old getter returned 600 (unit ignored).
+      expect(stone.lengthCm, 60.0);
+      expect(stone.widthCm, 30.0);
       expect(stone.thicknessMm, 20.0);
       expect(stone.material, 'Smooth Marble');
       expect(stone.coverageSqft, 1.94);
       expect(stone.imageUrl, 'https://example.com/stone1.jpg');
       expect(stone.colors, contains('Beige'));
       expect(stone.tags, contains('Living Room'));
+    });
+
+    test('Dimension getters respect units (mm vs cm) and ranges', () {
+      Stone withDims(String l, String w, String t) => Stone(
+            id: 'd',
+            name: 'd',
+            productCode: 'd',
+            collection: 'd',
+            category: 'd',
+            pricePerSqFt: 1,
+            description: '',
+            length: l,
+            width: w,
+            thickness: t,
+          );
+      final cm = withDims('60 cm', '15 cm', '25 mm');
+      expect(cm.lengthCm, 60.0);
+      expect(cm.widthCm, 15.0);
+      expect(cm.thicknessMm, 25.0);
+      final range = withDims('490mm', '195mm', '18-20mm');
+      expect(range.lengthCm, 49.0);
+      expect(range.widthCm, 19.5);
+      expect(range.thicknessMm, 18.0);
+      expect(withDims('', '', '').lengthCm, isNull);
     });
   });
 

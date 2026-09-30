@@ -44,6 +44,9 @@ class StoneRepository {
       description: row['description'] ?? '',
       images: images,
       mainImageUrl: row['thumbnail_url'] ?? (images.isNotEmpty ? images.first : null),
+      // Bundled cropped textures exist only for a few legacy series. Any other
+      // stone (incl. ones an admin adds later) falls through to its own
+      // uploaded photo via Stone.arTextureUrl instead of a wrong stone's tile.
       arTexture: row['ar_texture'] ?? row['texture_url'] ?? _findTextureByName(row['name'] ?? ''),
       rating: 0.0,
       reviewCount: 0,
@@ -67,7 +70,7 @@ class StoneRepository {
     );
   }
 
-  String _findTextureByName(String name) {
+  String? _findTextureByName(String name) {
     final lower = name.toLowerCase();
     if (lower.contains('athena')) return 'assets/images/athena_3d_tex.png';
     if (lower.contains('verona')) return 'assets/images/verona_3d_tex.png';
@@ -75,7 +78,8 @@ class StoneRepository {
     if (lower.contains('classic')) return 'assets/images/classic_ledge_07_tex.png';
     if (lower.contains('opus')) return 'assets/images/opus_ledge_15_tex.png';
     if (lower.contains('vantage')) return 'assets/images/vantage_v12_tex.png';
-    return 'assets/images/grande_ledge_ta02_tex.png';
+    if (lower.contains('grande')) return 'assets/images/grande_ledge_ta02_tex.png';
+    return null;
   }
 
   /// Execute a Supabase query with retry logic
