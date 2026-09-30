@@ -176,11 +176,13 @@ class _FloatingGlassCartBarState extends ConsumerState<FloatingGlassCartBar>
                           ),
                           const SizedBox(width: 14),
 
-                          // Direct Checkout Action Pill
+                          // Direct Request-Quote Action Pill
                           GestureDetector(
                             onTap: () {
                               HapticFeedback.heavyImpact();
-                              context.push('/checkout');
+                              context.push(
+                                '/quotes/new?stoneIds=${cart.map((i) => i.stone.id).join(',')}',
+                              );
                             },
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -201,7 +203,7 @@ class _FloatingGlassCartBarState extends ConsumerState<FloatingGlassCartBar>
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
-                                    'Checkout',
+                                    'Get Quote',
                                     style: GoogleFonts.inter(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w800,

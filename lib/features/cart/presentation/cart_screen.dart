@@ -13,7 +13,6 @@ import 'package:grazia_stones/core/widgets/animated_widgets.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
-import 'package:grazia_stones/features/cart/presentation/checkout_screen.dart';
 
 // ─── Cart State Model ──────────────────────────────────────
 class CartItem {
@@ -596,7 +595,7 @@ class CartScreen extends ConsumerWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Total Payable',
+                                  'Estimated Total',
                                   style: GoogleFonts.inter(
                                     fontSize: 11,
                                     color: palette.textSecondary,
@@ -618,24 +617,8 @@ class CartScreen extends ConsumerWidget {
                             ApplePressable(
                               onTap: () {
                                 HapticFeedback.mediumImpact();
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => CheckoutScreen(
-                                      items: items
-                                          .map((item) => CheckoutItem(
-                                                stoneId: item.stone.id,
-                                                name: item.stone.name,
-                                                quantity: item.quantity,
-                                                price: item.stone.pricePerSqFt,
-                                              ))
-                                          .toList(),
-                                      subtotal: subtotal,
-                                      gst: gst,
-                                      shipping: shipping,
-                                      total: total,
-                                    ),
-                                  ),
+                                context.push(
+                                  '/quotes/new?stoneIds=${items.map((i) => i.stone.id).join(',')}',
                                 );
                               },
                               child: Container(
@@ -660,7 +643,7 @@ class CartScreen extends ConsumerWidget {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(
-                                      'Checkout',
+                                      'Request Quote',
                                       style: GoogleFonts.inter(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w700,
