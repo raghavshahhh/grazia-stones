@@ -49,6 +49,7 @@ import '../features/admin/presentation/admin_quotes_screen.dart';
 import '../features/admin/presentation/admin_samples_screen.dart';
 import '../features/admin/presentation/admin_ai_jobs_screen.dart';
 import '../features/about/presentation/about_screen.dart';
+import '../features/legal/presentation/delete_account_screen.dart';
 import '../features/legal/presentation/privacy_policy_screen.dart';
 import '../features/legal/presentation/terms_of_service_screen.dart';
 import '../features/support/presentation/help_support_screen.dart';
@@ -658,6 +659,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
             _slideUpPage(const PrivacyPolicyScreen(), state),
+      ),
+      GoRoute(
+        path: '/delete-account',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const DeleteAccountScreen(), state),
       ),
       GoRoute(
         path: '/terms',
