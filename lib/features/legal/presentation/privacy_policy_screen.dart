@@ -123,7 +123,7 @@ class PrivacyPolicyScreen extends ConsumerWidget {
               palette,
               '5. DATA STORAGE & RETENTION',
               '• Your profile and saved designs are securely stored in Supabase PostgreSQL databases with Row-Level Security (RLS) policies.\n'
-              '• You may request permanent deletion of your account and saved designs at any time via Settings or by contacting hello@graziastones.com.',
+              '• You may request permanent deletion of your account and saved designs at any time in the app (Profile → Delete Account) or from https://grazia-stones.vercel.app/delete-account, or by contacting hello@graziastones.com.',
             ),
 
             const SizedBox(height: 18),
