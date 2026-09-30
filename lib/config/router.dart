@@ -37,7 +37,6 @@ import '../features/settings/presentation/permissions_screen.dart';
 import '../features/auth/presentation/forgot_password_screen.dart';
 import '../features/profile/presentation/edit_profile_screen.dart';
 import '../features/profile/presentation/addresses_screen.dart';
-import '../features/cart/presentation/checkout_screen.dart';
 import '../features/ai_viz/presentation/saved_designs_screen.dart';
 import '../features/samples/presentation/sample_history_screen.dart';
 import '../features/admin/presentation/admin_dashboard_screen.dart';
@@ -424,6 +423,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _slideUpPage(
           QuoteRequestSupabaseScreen(
             preselectedStoneId: state.uri.queryParameters['stoneId'],
+            preselectedStoneIds:
+                (state.uri.queryParameters['stoneIds'] ?? '').split(',').where((id) => id.isNotEmpty).toList(),
           ),
           state,
         ),
@@ -440,11 +441,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) =>
             _slideUpPage(const OrdersScreen(), state),
       ),
+      // Quote-only launch: no order/payment checkout. Old deep links land on the cart.
       GoRoute(
         path: '/checkout',
-        parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) =>
-            _slideUpPage(const CheckoutScreen(), state),
+        redirect: (context, state) => '/cart',
       ),
       GoRoute(
         path: '/edit-profile',

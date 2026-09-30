@@ -112,8 +112,8 @@ class PrivacyPolicyScreen extends ConsumerWidget {
             _buildSection(
               palette,
               '4. PAYMENT SECURITY & ENCRYPTION',
-              '• Online transactions are securely processed through PCI-DSS Level 1 compliant payment gateways (Razorpay).\n'
-              '• Grazia Stones does not store or process complete credit/debit card numbers, CVVs, or NetBanking credentials on internal servers.\n'
+              '• The app does not take payments. Quotes and payments are arranged directly with Grazia Stones outside the app.\n'
+              '• Grazia Stones does not collect or store credit/debit card numbers, CVVs, or NetBanking credentials through this app.\n'
               '• All communication between your device and our database is protected using 256-bit TLS/SSL encryption.',
             ),
 

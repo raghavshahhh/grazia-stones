@@ -18,11 +18,13 @@ import 'package:grazia_stones/features/quotes/presentation/quotes_screen.dart' s
 class QuoteRequestSupabaseScreen extends ConsumerStatefulWidget {
   final Stone? preselectedStone;
   final String? preselectedStoneId;
+  final List<String> preselectedStoneIds;
 
   const QuoteRequestSupabaseScreen({
     super.key,
     this.preselectedStone,
     this.preselectedStoneId,
+    this.preselectedStoneIds = const [],
   });
 
   @override
@@ -71,6 +73,7 @@ class _QuoteRequestSupabaseScreenState extends ConsumerState<QuoteRequestSupabas
     } else if (widget.preselectedStoneId != null) {
       _selectedStoneIds.add(widget.preselectedStoneId!);
     }
+    _selectedStoneIds.addAll(widget.preselectedStoneIds.where((id) => id.isNotEmpty));
   }
 
   @override

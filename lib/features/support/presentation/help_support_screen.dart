@@ -224,8 +224,8 @@ class _HelpSupportScreenState extends ConsumerState<HelpSupportScreen> {
             const SizedBox(height: 10),
             _buildFaqItem(
               palette,
-              question: 'What are the payment options and GST benefits?',
-              answer: 'We support 100% secure online transactions via Razorpay (UPI, NetBanking, Corporate Cards) and verified Cash on Delivery/Site Verification for standard orders. All commercial invoices are issued with 18% GST input credit.',
+              question: 'How do pricing, payment and GST work?',
+              answer: 'Prices in the app are indicative. Send a quote enquiry and our team will confirm the final price, availability and delivery for your project. Payment is arranged directly with Grazia Stones after the quote is agreed; commercial invoices are issued with 18% GST input credit.',
             ),
             const SizedBox(height: 10),
             _buildFaqItem(
