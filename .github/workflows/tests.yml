@@ -144,6 +144,10 @@ jobs:
       
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # Default packages include the removed legacy `tools` package, which
+          # makes sdkmanager fail with "Failed to find package 'tools'".
+          packages: ''
       
       - name: AVD cache
         uses: actions/cache@v3
