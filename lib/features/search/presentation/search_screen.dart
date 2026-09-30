@@ -1,3 +1,4 @@
+import 'package:grazia_stones/features/wishlist/wishlist_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -685,7 +686,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   top: 8,
                   right: 8,
                   child: GestureDetector(
-                    onTap: () => ref.read(wishlistProvider.notifier).toggleStone(stone.id),
+                    onTap: () => toggleWishlistWithFeedback(context, ref, stone.id, stoneName: stone.name),
                     child: Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
@@ -809,7 +810,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ),
             ),
             IconButton(
-              onPressed: () => ref.read(wishlistProvider.notifier).toggleStone(stone.id),
+              onPressed: () => toggleWishlistWithFeedback(context, ref, stone.id, stoneName: stone.name),
               icon: Icon(
                 isWishlisted ? Icons.favorite : Icons.favorite_border,
                 color: isWishlisted ? Colors.red.shade400 : palette.textSecondary,

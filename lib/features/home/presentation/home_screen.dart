@@ -1,3 +1,4 @@
+import 'package:grazia_stones/features/wishlist/wishlist_feedback.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
@@ -1392,10 +1393,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       right: 7,
                       child: ApplePressable(
                         onTap: () {
-                          HapticFeedback.lightImpact();
-                          ref
-                              .read(wishlistProvider.notifier)
-                              .toggleStone(stone.id);
+                          toggleWishlistWithFeedback(context, ref, stone.id, stoneName: stone.name);
                         },
                         child: Container(
                           width: 30,
