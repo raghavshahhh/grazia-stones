@@ -3,6 +3,9 @@
 App id: `com.graziastones.grazia_stones` · Launch mode: **quote enquiry only (no payments)**
 
 ## A. One-time signing setup (on your own machine)
+**Fastest:** install the [GitHub CLI](https://cli.github.com), run `gh auth login`, then `./scripts/setup_android_signing.sh` — it creates the keystore and saves all 4 secrets for you. Then skip to **B**. (Back up `~/grazia-stones-upload.jks` + the password yourself.)
+
+**Manual way** (same result):
 1. `./scripts/generate_upload_keystore.sh` → creates `~/grazia-stones-upload.jks` (+ a local, gitignored `android/key.properties`).
 2. **Back up the `.jks` and its password** (password manager + offline copy). Never commit or share them in chat.
 3. `base64 -w0 ~/grazia-stones-upload.jks` (macOS: `base64 -i ~/grazia-stones-upload.jks`) → copy the output.
