@@ -75,11 +75,13 @@ android {
 }
 
 // A Play Store upload must never be debug-signed: fail loudly instead of
-// silently producing an AAB Play will reject.
+// silently producing an AAB Play will reject. Match the app's own task path only:
+// substring matching also hits plugin tasks like `bundleReleaseAar` that appear in
+// ordinary `assembleRelease` (apk) builds.
 gradle.taskGraph.whenReady {
     val releaseSigning = android.signingConfigs.getByName("release")
     val hasRealKey = releaseSigning.storeFile?.exists() == true
-    if (!hasRealKey && allTasks.any { it.name.contains("bundleRelease", ignoreCase = true) }) {
+    if (!hasRealKey && allTasks.any { it.path == ":app:bundleRelease" }) {
         throw GradleException(
             "bundleRelease needs a real upload keystore. Create android/key.properties " +
                 "(see android/key.properties.example and scripts/generate_upload_keystore.sh)."
