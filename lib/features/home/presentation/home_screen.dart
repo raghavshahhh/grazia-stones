@@ -56,12 +56,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     _heroPageController = PageController();
     _scrollController = ScrollController();
     _loadData();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!StorageService.instance.hasSeenAppTour()) {
-        _launchInteractiveTour();
-      }
-    });
   }
 
   void _launchInteractiveTour() {
@@ -188,7 +182,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           debugPrint('📂 COLLECTION: id=${c.id}, name=${c.name}');
         }
         if (_trendingStones != null && _trendingStones!.isNotEmpty) {
-          _startHeroTimer(5);
+          _startHeroTimer(6);
+        }
+        if (!StorageService.instance.hasSeenAppTour()) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _launchInteractiveTour();
+          });
         }
       }
     } catch (e) {
@@ -475,64 +474,89 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   // ── 1. Auto-Looping Editorial Hero Carousel (Luxury Architectural Rooms & Designs) ──
   Widget _buildEditorialHero(LuxuryPalette palette) {
+    final screenSize = MediaQuery.of(context).size;
+    final heroHeight = (screenSize.height * 0.40).clamp(320.0, 350.0);
+
     final slides = <Widget>[
       // Slide 1: Luxury Master Bedroom Suite (Travertine Accent Wall)
       _buildLuxuryEditorialSlide(
         badge: 'MASTER BEDROOM SUITE',
-        title: 'Travertine Accent Wall',
-        subtitle: 'Textured stone headboard with ambient warm cove lighting',
+        title: 'Travertine Master Suite',
+        subtitle: 'Textured monolithic stone headboard with ambient warm cove lighting',
         imagePath: 'assets/images/hero_luxury_bedroom.jpg',
+        ctaText: 'Explore Bedroom',
         onTap: () => context.push('/custom-design'),
       ),
-      // Slide 2: Penthouse Living Room & Fireplace (Charcoal Granite)
+      // Slide 2: Grand Fluted Marble Corridor & Atrium
       _buildLuxuryEditorialSlide(
-        badge: 'LIVING ROOM ARCHITECTURE',
+        badge: 'GRAND ATRIUM & FOYER',
+        title: 'Midnight Fluted Colonnade',
+        subtitle: 'Precision CNC 3D fluted stone pillars with high-gloss natural veined marble',
+        imagePath: 'assets/images/auth_luxury_background.jpg',
+        ctaText: 'View Gallery',
+        onTap: () => context.push('/catalogue'),
+      ),
+      // Slide 3: Penthouse Living Room & Fireplace (Charcoal Granite)
+      _buildLuxuryEditorialSlide(
+        badge: 'PENTHOUSE LIVING',
         title: 'Charcoal Hearth & Lounge',
-        subtitle: 'Dramatic split-face stone wall with vertical LED channels',
+        subtitle: 'Dramatic split-face stone wall with vertical architectural LED channels',
         imagePath: 'assets/images/hero_luxury_fireplace.jpg',
+        ctaText: 'Scan Space',
         onTap: () => context.push('/scan-space'),
       ),
-      // Slide 3: Curved 3D Fluted Quartzite Dining & Bar
+      // Slide 4: Minimalist Villa Double-Height Lounge
+      _buildLuxuryEditorialSlide(
+        badge: 'VILLA RESIDENCE',
+        title: 'Double-Height Travertine Wall',
+        subtitle: 'Large-format natural stone slabs seamlessly bridging interior & garden patio',
+        imagePath: 'assets/images/onboarding_hero_room.jpg',
+        ctaText: 'Custom Design',
+        onTap: () => context.push('/custom-design'),
+      ),
+      // Slide 5: Curved 3D Fluted Quartzite Dining & Bar
       _buildLuxuryEditorialSlide(
         badge: 'BESPOKE 3D FLUTED',
         title: 'Curved Dining Feature Wall',
-        subtitle: '3D fluted quartzite stone with brushed brass metal inlays',
+        subtitle: '3D fluted quartzite stone column with brushed brass metal inlays',
         imagePath: 'assets/images/hero_luxury_dining_fluted.jpg',
+        ctaText: 'Explore 3D Fluted',
         onTap: () => context.push('/custom-design'),
       ),
-      // Slide 4: Signature Grazia Living Lounge
+      // Slide 6: Signature Grazia Living Lounge
       _buildLuxuryEditorialSlide(
         badge: 'SIGNATURE RESIDENCE',
         title: 'Transform Walls. Spaces.',
-        subtitle: 'Innovative stone panels for extraordinary luxury interiors',
+        subtitle: 'Innovative split-rock stone panels for extraordinary luxury interiors',
         imagePath: 'assets/images/home_hero_living_room.jpg',
+        ctaText: 'Explore Catalogue',
         onTap: () => context.push('/catalogue'),
-      ),
-      // Slide 5: Modern Villa Residence
-      _buildLuxuryEditorialSlide(
-        badge: 'VILLA ARCHITECTURE',
-        title: 'Bespoke Facades & Patios',
-        subtitle: 'Handcrafted architectural natural stone crafted for generations',
-        imagePath: 'assets/images/onboarding_hero_room.jpg',
-        onTap: () => context.push('/custom-design'),
       ),
     ];
 
     return Container(
-      height: 184,
+      height: heroHeight,
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.10),
+          width: 1.0,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
+            color: Colors.black.withValues(alpha: 0.45),
+            blurRadius: 28,
+            offset: const Offset(0, 10),
+          ),
+          BoxShadow(
+            color: const Color(0xFFD4AF37).withValues(alpha: 0.08),
             blurRadius: 20,
-            offset: const Offset(0, 6),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(25),
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -545,26 +569,61 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               itemBuilder: (context, index) => slides[index],
             ),
 
-            // Top Right Dots Indicator Overlay
+            // Top Right Indicator Pill Overlay
             if (slides.length > 1)
               Positioned(
                 top: 14,
-                right: 16,
-                child: Row(
-                  children: List.generate(
-                    slides.length,
-                    (i) => AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      margin: const EdgeInsets.symmetric(horizontal: 2.5),
-                      width: _currentHeroIndex == i ? 16 : 5,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        color: _currentHeroIndex == i
-                            ? const Color(0xFFD4AF37)
-                            : Colors.white.withValues(alpha: 0.45),
-                        borderRadius: BorderRadius.circular(3),
-                      ),
+                right: 14,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.60),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      width: 0.8,
                     ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '0${_currentHeroIndex + 1} ',
+                        style: GoogleFonts.inter(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFFD4AF37),
+                        ),
+                      ),
+                      Text(
+                        '/ 0${slides.length}',
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white60,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      // Micro dots
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: List.generate(
+                          slides.length,
+                          (i) => AnimatedContainer(
+                            duration: const Duration(milliseconds: 300),
+                            margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                            width: _currentHeroIndex == i ? 10 : 3.5,
+                            height: 3.5,
+                            decoration: BoxDecoration(
+                              color: _currentHeroIndex == i
+                                  ? const Color(0xFFD4AF37)
+                                  : Colors.white.withValues(alpha: 0.35),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -579,6 +638,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     required String title,
     required String subtitle,
     required String imagePath,
+    required String ctaText,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
@@ -594,35 +654,42 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             fit: BoxFit.cover,
             alignment: Alignment.center,
           ),
-          // Luxury Architectural Gradient Overlay
+          // Luxury Architectural Cinematic Gradient Overlay
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.black.withValues(alpha: 0.35),
+                  Colors.black.withValues(alpha: 0.40),
                   Colors.transparent,
-                  Colors.black.withValues(alpha: 0.45),
-                  Colors.black.withValues(alpha: 0.92),
+                  Colors.black.withValues(alpha: 0.35),
+                  Colors.black.withValues(alpha: 0.82),
+                  Colors.black.withValues(alpha: 0.95),
                 ],
-                stops: const [0.0, 0.25, 0.55, 1.0],
+                stops: const [0.0, 0.22, 0.48, 0.76, 1.0],
               ),
             ),
           ),
           // Top Left Micro-Badge
           Positioned(
-            top: 13,
+            top: 14,
             left: 14,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.55),
+                color: Colors.black.withValues(alpha: 0.65),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: const Color(0xFFD4AF37).withValues(alpha: 0.6),
-                  width: 0.8,
+                  color: const Color(0xFFD4AF37).withValues(alpha: 0.70),
+                  width: 0.9,
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 8,
+                  ),
+                ],
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -635,13 +702,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       shape: BoxShape.circle,
                     ),
                   ),
-                  const SizedBox(width: 5),
+                  const SizedBox(width: 5.5),
                   Text(
                     badge,
                     style: GoogleFonts.inter(
-                      fontSize: 8.5,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.2,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.3,
                       color: const Color(0xFFD4AF37),
                     ),
                   ),
@@ -649,61 +716,132 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
           ),
-          // Bottom Content
+          // Bottom Content & Editorial Details
           Positioned(
             left: 16,
             right: 16,
-            bottom: 14,
+            bottom: 16,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Small Gold Category Accent
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.auto_awesome, size: 10, color: Color(0xFFD4AF37)),
+                    const SizedBox(width: 4),
+                    Text(
+                      'NATURAL ARCHITECTURAL STONE',
+                      style: GoogleFonts.inter(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.2,
+                        color: const Color(0xFFD4AF37).withValues(alpha: 0.9),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 5),
+
+                // Main Title (Playfair Display)
                 Text(
                   title,
                   style: GoogleFonts.playfairDisplay(
-                    fontSize: 20,
+                    fontSize: 23,
                     fontWeight: FontWeight.w700,
                     color: Colors.white,
                     height: 1.15,
                     letterSpacing: 0.3,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black.withValues(alpha: 0.8),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
+
+                // Subtitle Narrative
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w400,
+                    color: const Color(0xFFE2DDD5),
+                    height: 1.38,
+                    letterSpacing: 0.15,
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Bottom Action Row
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Expanded(
-                      child: Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w400,
-                          color: Colors.white.withValues(alpha: 0.85),
-                          letterSpacing: 0.2,
-                        ),
+                    // Tap to view hint
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.touch_app_outlined, size: 11, color: Colors.white.withValues(alpha: 0.7)),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Tap to inspect space',
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white70,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Explore',
-                          style: GoogleFonts.inter(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFFD4AF37),
+
+                    // Gold Luxury CTA Pill Button
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7.5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD4AF37),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFD4AF37).withValues(alpha: 0.35),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
                           ),
-                        ),
-                        const SizedBox(width: 3),
-                        const Icon(
-                          Icons.arrow_forward_ios_rounded,
-                          size: 9,
-                          color: Color(0xFFD4AF37),
-                        ),
-                      ],
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            ctaText,
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 13,
+                            color: Colors.black,
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),

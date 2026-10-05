@@ -166,14 +166,16 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
           }
         }
         // Fallback for Maya banner on top home fold
-        final bannerY = topPadding + 224.0;
+        final heroH = (screenSize.height * 0.40).clamp(320.0, 350.0);
+        final bannerY = topPadding + heroH + 14.0;
         final fallbackRect = Rect.fromLTWH(16, bannerY, screenSize.width - 32, 74);
+        final isAbove = bannerY > screenSize.height * 0.48;
         return _SpotlightTarget(
           rect: fallbackRect,
           isCircle: false,
           borderRadius: 20,
-          pointerDirection: _PointerDirection.up,
-          tooltipPosition: _TooltipPlacement.belowTarget,
+          pointerDirection: isAbove ? _PointerDirection.down : _PointerDirection.up,
+          tooltipPosition: isAbove ? _TooltipPlacement.aboveTarget : _TooltipPlacement.belowTarget,
           targetCenter: fallbackRect.center,
         );
 
@@ -195,14 +197,15 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
             );
           }
         }
-        final collY = topPadding + 314.0;
+        final heroH2 = (screenSize.height * 0.40).clamp(320.0, 350.0);
+        final collY = topPadding + heroH2 + 14.0 + 74.0 + 16.0;
         final fallbackRect = Rect.fromLTWH(16, collY, screenSize.width - 32, 44);
         return _SpotlightTarget(
           rect: fallbackRect,
           isCircle: false,
           borderRadius: 18,
-          pointerDirection: _PointerDirection.up,
-          tooltipPosition: _TooltipPlacement.belowTarget,
+          pointerDirection: _PointerDirection.down,
+          tooltipPosition: _TooltipPlacement.aboveTarget,
           targetCenter: fallbackRect.center,
         );
 
