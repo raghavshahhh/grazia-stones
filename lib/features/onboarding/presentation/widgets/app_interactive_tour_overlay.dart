@@ -70,13 +70,13 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
     },
     {
       'stepNum': '4 OF 4',
-      'category': 'IMMERSIVE 3D & VR',
-      'title': 'VR 360° Luxury Showroom',
+      'category': 'REAL-TIME 3D & AR',
+      'title': 'Live AR Wall Visualizer',
       'subtitle':
-          'Step into virtual luxury villas and hotel lobbies to experience authentic natural stone textures in 360° interactive 3D.',
+          'Experience real-scale stone slabs projected onto your physical walls in real-time with camera detection and LiDAR accuracy.',
       'icon': Icons.view_in_ar_rounded,
-      'targetType': 'vr_tab',
-      'targetLabel': 'VR Showroom Tab in Bottom Navigation',
+      'targetType': 'ar_tab',
+      'targetLabel': 'AR Tab in Bottom Navigation',
     },
   ];
 

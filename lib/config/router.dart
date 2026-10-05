@@ -14,7 +14,6 @@ import '../features/collections/presentation/collection_detail_screen.dart';
 import '../features/stone_detail/presentation/stone_detail_screen.dart';
 import '../features/ai_viz/presentation/simple_ai_studio_screen.dart';
 import '../features/ai_viz/presentation/ai_result_gallery_screen.dart';
-import '../features/ar_view/presentation/ar_view_screen.dart';
 import '../features/dealer/presentation/dealer_locator_screen.dart';
 import '../features/quotes/presentation/quotes_screen.dart';
 import '../features/quotes/presentation/quote_request_supabase_screen.dart';
@@ -53,8 +52,6 @@ import '../features/legal/presentation/delete_account_screen.dart';
 import '../features/legal/presentation/privacy_policy_screen.dart';
 import '../features/legal/presentation/terms_of_service_screen.dart';
 import '../features/support/presentation/help_support_screen.dart';
-import '../features/vr/presentation/vr_showroom_screen.dart';
-import '../features/vr/presentation/vr_room_selection_screen.dart';
 import '../features/measure/presentation/boq_calculator_screen.dart';
 import '../features/custom_design/presentation/custom_design_screen.dart';
 import '../features/maya_ai/presentation/maya_ai_chat_screen.dart';
@@ -63,12 +60,12 @@ import '../core/models/stone.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 
-/// Tab index → route mapping (Client Reference 5 tabs).
+/// Tab index → route mapping (Client Reference 5 tabs: Home, Collections, AI Studio, AR, Profile).
 const _tabRoutes = [
   '/home',
   '/collections',
   '/tools',
-  '/vr-showroom',
+  '/live-ai',
   '/profile',
 ];
 
@@ -288,9 +285,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 ), state),
           ),
           GoRoute(
-            path: '/vr-showroom',
+            path: '/live-ai',
             pageBuilder: (context, state) =>
-                _fadePage(const VrShowroomScreen(), state),
+                _fadePage(LiveAIScreen(
+                  initialStoneId: state.uri.queryParameters['stoneId'],
+                ), state),
+          ),
+          GoRoute(
+            path: '/vr-showroom',
+            redirect: (context, state) => '/live-ai',
           ),
           GoRoute(
             path: '/profile',
@@ -342,9 +345,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/vr-spaces',
-        parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) =>
-            _slideUpPage(const VrRoomSelectionScreen(), state),
+        redirect: (context, state) => '/live-ai',
       ),
       // /pro and /resources listed invented CAD/texture files whose download
       // button only showed a toast. Nothing links to them; keep deep links safe.
@@ -542,17 +543,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             _slideUpPage(const AdminAIJobsScreen(), state),
       ),
 
-      // --- Immersive full-screen (scale + fade, no bottom nav) ---
-      GoRoute(
-        path: '/live-ai',
-        parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) => _scaleFadePage(
-          LiveAIScreen(
-            initialStoneId: state.uri.queryParameters['stoneId'],
-          ),
-          state,
-        ),
-      ),
+
       GoRoute(
         path: '/maya-ai',
         parentNavigatorKey: _rootNavigatorKey,
@@ -629,9 +620,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/ar-view',
-        parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) =>
-            _scaleFadePage(const ARViewScreen(), state),
+        redirect: (context, state) => '/live-ai',
       ),
       GoRoute(
         path: '/measure',

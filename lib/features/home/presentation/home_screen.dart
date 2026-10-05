@@ -1284,14 +1284,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         'subtitle': 'True-Scale Wall View',
         'badge': '3D AR',
         'icon': Icons.view_in_ar_rounded,
-        'route': '/ar-view',
-      },
-      {
-        'title': 'VR Showroom',
-        'subtitle': '360° Villa Walkthrough',
-        'badge': '360° VR',
-        'icon': Icons.threed_rotation_rounded,
-        'route': '/vr-showroom',
+        'route': '/live-ai',
       },
       {
         'title': 'Scan Space',
@@ -1299,6 +1292,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         'badge': 'CAD / BOQ',
         'icon': Icons.straighten_rounded,
         'route': '/measure',
+      },
+      {
+        'title': 'Tile Visualizer',
+        'subtitle': '3D Wall & Layout Grid',
+        'badge': '3D WALL',
+        'icon': Icons.grid_goldenratio_rounded,
+        'route': '/measure/tile-visualizer',
       },
       {
         'title': 'Sample Kit',
@@ -1385,7 +1385,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ],
               ),
               const SizedBox(height: 10),
-              // Pair 2: VR Showroom & Scan Space
+              // Pair 2: Scan Space & Tile Visualizer
               Row(
                 children: [
                   Expanded(child: _buildLuxuryFeatureCard(features[2], goldAccent)),

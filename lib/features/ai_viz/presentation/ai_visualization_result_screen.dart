@@ -249,11 +249,11 @@ class _AiVisualizationResultScreenState extends ConsumerState<AiVisualizationRes
                       ),
                       _buildActionItem(
                         icon: Icons.view_in_ar_rounded,
-                        label: 'View in VR',
+                        label: 'View in AR',
                         palette: palette,
                         onTap: () {
                           HapticFeedback.lightImpact();
-                          context.push('/vr-showroom');
+                          context.push('/live-ai');
                         },
                       ),
                     ],
