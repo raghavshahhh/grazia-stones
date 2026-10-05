@@ -181,32 +181,31 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
 
       case 2:
         // Step 3: Curated Collections (36 Series)
-        final box = widget.collectionsKey?.currentContext?.findRenderObject() as RenderBox?;
+        final box = (widget.collectionsKey ?? GraziaBottomNav.collectionsKey).currentContext?.findRenderObject() as RenderBox?;
         if (box != null && box.hasSize) {
           final pos = box.localToGlobal(Offset.zero);
-          if (pos.dy >= topPadding && pos.dy <= screenSize.height - 120) {
-            final rect = Rect.fromLTWH(pos.dx - 4, pos.dy - 3, box.size.width + 8, box.size.height + 6);
-            final isAbove = pos.dy > screenSize.height * 0.48;
+          if (pos.dy > 0 && pos.dy < screenSize.height) {
+            final rect = Rect.fromLTWH(pos.dx - 4, pos.dy - 4, box.size.width + 8, box.size.height + 8);
             return _SpotlightTarget(
               rect: rect,
-              isCircle: false,
-              borderRadius: 18,
-              pointerDirection: isAbove ? _PointerDirection.down : _PointerDirection.up,
-              tooltipPosition: isAbove ? _TooltipPlacement.aboveTarget : _TooltipPlacement.belowTarget,
+              isCircle: true,
+              borderRadius: rect.width / 2,
+              pointerDirection: _PointerDirection.down,
+              tooltipPosition: _TooltipPlacement.aboveTarget,
               targetCenter: rect.center,
             );
           }
         }
-        final heroH2 = (screenSize.height * 0.40).clamp(320.0, 350.0);
-        final collY = topPadding + heroH2 + 14.0 + 74.0 + 16.0;
-        final fallbackRect = Rect.fromLTWH(16, collY, screenSize.width - 32, 44);
+        final navWidth = screenSize.width - 36;
+        final collX = 18 + navWidth * (1.3 / 5.0);
+        final collCenter = Offset(collX, navY);
         return _SpotlightTarget(
-          rect: fallbackRect,
-          isCircle: false,
-          borderRadius: 18,
+          rect: Rect.fromCircle(center: collCenter, radius: 26),
+          isCircle: true,
+          borderRadius: 26,
           pointerDirection: _PointerDirection.down,
           tooltipPosition: _TooltipPlacement.aboveTarget,
-          targetCenter: fallbackRect.center,
+          targetCenter: collCenter,
         );
 
       case 3:
