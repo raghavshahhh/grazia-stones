@@ -1268,17 +1268,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  // ── 1.2 Luxury Architectural Features Quick-Action Dock (2x2 Paired Luxury Cards) ──
+  // ── 1.2 Luxury Architectural Features Quick-Action Dock (Unified Champagne Gold Theme) ──
   Widget _buildFeaturesQuickDock(LuxuryPalette palette) {
+    const goldAccent = Color(0xFFD4AF37);
     final features = [
       {
         'title': 'AI Studio',
-        'subtitle': '4K Surface Visualizer',
+        'subtitle': '4K Wall Generator',
         'badge': 'AI 4K',
         'icon': Icons.auto_awesome_rounded,
         'route': '/ai-viz',
-        'gradient': const [Color(0xFF261F12), Color(0xFF14110A)],
-        'accentColor': const Color(0xFFD4AF37),
       },
       {
         'title': 'Live AR',
@@ -1286,17 +1285,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         'badge': '3D AR',
         'icon': Icons.view_in_ar_rounded,
         'route': '/ar-view',
-        'gradient': const [Color(0xFF10212C), Color(0xFF09131C)],
-        'accentColor': const Color(0xFF4FC3F7),
       },
       {
         'title': 'VR Showroom',
         'subtitle': '360° Villa Walkthrough',
         'badge': '360° VR',
-        'icon': Icons.vrpano_rounded,
+        'icon': Icons.threed_rotation_rounded,
         'route': '/vr-showroom',
-        'gradient': const [Color(0xFF23142B), Color(0xFF13091B)],
-        'accentColor': const Color(0xFFBA68C8),
       },
       {
         'title': 'Scan Space',
@@ -1304,26 +1299,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         'badge': 'CAD / BOQ',
         'icon': Icons.straighten_rounded,
         'route': '/measure',
-        'gradient': const [Color(0xFF12261B), Color(0xFF0A160F)],
-        'accentColor': const Color(0xFF81C784),
       },
       {
         'title': 'Sample Kit',
-        'subtitle': 'Curated Stone Box',
-        'badge': 'EXPRESS',
+        'subtitle': 'Real Stone Box Delivery',
+        'badge': 'BOX',
         'icon': Icons.inventory_2_outlined,
         'route': '/sample-order',
-        'gradient': const [Color(0xFF2B1D11), Color(0xFF180F08)],
-        'accentColor': const Color(0xFFFFB74D),
       },
       {
         'title': 'Bespoke Atelier',
         'subtitle': 'Custom CNC & Inlays',
-        'badge': 'ATELIER',
+        'badge': 'BESPOKE',
         'icon': Icons.architecture_rounded,
         'route': '/custom-design',
-        'gradient': const [Color(0xFF222225), Color(0xFF121214)],
-        'accentColor': const Color(0xFFE2DDD5),
       },
     ];
 
@@ -1342,7 +1331,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     width: 3.5,
                     height: 13,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFD4AF37),
+                      color: goldAccent,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -1353,7 +1342,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 1.6,
-                      color: const Color(0xFFD4AF37),
+                      color: goldAccent,
                     ),
                   ),
                 ],
@@ -1361,10 +1350,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFD4AF37).withValues(alpha: 0.12),
+                  color: goldAccent.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: const Color(0xFFD4AF37).withValues(alpha: 0.35),
+                    color: goldAccent.withValues(alpha: 0.35),
                     width: 0.8,
                   ),
                 ),
@@ -1373,7 +1362,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   style: GoogleFonts.inter(
                     fontSize: 9.5,
                     fontWeight: FontWeight.w600,
-                    color: const Color(0xFFD4AF37),
+                    color: goldAccent,
                   ),
                 ),
               ),
@@ -1382,7 +1371,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
         const SizedBox(height: 12),
 
-        // 2-by-2 Paired Luxury Feature Cards
+        // 2-by-2 Paired Luxury Feature Cards (Unified Gold)
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Column(
@@ -1390,27 +1379,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               // Pair 1: AI Studio & Live AR
               Row(
                 children: [
-                  Expanded(child: _buildLuxuryFeatureCard(features[0])),
+                  Expanded(child: _buildLuxuryFeatureCard(features[0], goldAccent)),
                   const SizedBox(width: 10),
-                  Expanded(child: _buildLuxuryFeatureCard(features[1])),
+                  Expanded(child: _buildLuxuryFeatureCard(features[1], goldAccent)),
                 ],
               ),
               const SizedBox(height: 10),
               // Pair 2: VR Showroom & Scan Space
               Row(
                 children: [
-                  Expanded(child: _buildLuxuryFeatureCard(features[2])),
+                  Expanded(child: _buildLuxuryFeatureCard(features[2], goldAccent)),
                   const SizedBox(width: 10),
-                  Expanded(child: _buildLuxuryFeatureCard(features[3])),
+                  Expanded(child: _buildLuxuryFeatureCard(features[3], goldAccent)),
                 ],
               ),
               const SizedBox(height: 10),
               // Pair 3: Sample Kit & Bespoke Atelier
               Row(
                 children: [
-                  Expanded(child: _buildLuxuryFeatureCard(features[4])),
+                  Expanded(child: _buildLuxuryFeatureCard(features[4], goldAccent)),
                   const SizedBox(width: 10),
-                  Expanded(child: _buildLuxuryFeatureCard(features[5])),
+                  Expanded(child: _buildLuxuryFeatureCard(features[5], goldAccent)),
                 ],
               ),
             ],
@@ -1420,10 +1409,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _buildLuxuryFeatureCard(Map<String, dynamic> item) {
-    final accent = item['accentColor'] as Color;
-    final gradient = item['gradient'] as List<Color>;
-
+  Widget _buildLuxuryFeatureCard(Map<String, dynamic> item, Color accent) {
     return ApplePressable(
       onTap: () {
         HapticFeedback.lightImpact();
@@ -1433,14 +1419,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         height: 116,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
+          gradient: const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: gradient,
+            colors: [
+              Color(0xFF1E1A14),
+              Color(0xFF12100C),
+            ],
           ),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: accent.withValues(alpha: 0.38),
+            color: accent.withValues(alpha: 0.28),
             width: 1.0,
           ),
           boxShadow: [
@@ -1450,7 +1439,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               offset: const Offset(0, 5),
             ),
             BoxShadow(
-              color: accent.withValues(alpha: 0.10),
+              color: accent.withValues(alpha: 0.08),
               blurRadius: 16,
             ),
           ],
@@ -1467,15 +1456,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.16),
+                    color: accent.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: accent.withValues(alpha: 0.50),
+                      color: accent.withValues(alpha: 0.45),
                       width: 1.0,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: accent.withValues(alpha: 0.15),
+                        color: accent.withValues(alpha: 0.12),
                         blurRadius: 10,
                       ),
                     ],
@@ -1492,10 +1481,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
                       decoration: BoxDecoration(
-                        color: accent.withValues(alpha: 0.18),
+                        color: accent.withValues(alpha: 0.14),
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
-                          color: accent.withValues(alpha: 0.45),
+                          color: accent.withValues(alpha: 0.40),
                           width: 0.8,
                         ),
                       ),
