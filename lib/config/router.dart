@@ -57,6 +57,7 @@ import '../features/vr/presentation/vr_showroom_screen.dart';
 import '../features/vr/presentation/vr_room_selection_screen.dart';
 import '../features/measure/presentation/boq_calculator_screen.dart';
 import '../features/custom_design/presentation/custom_design_screen.dart';
+import '../features/maya_ai/presentation/maya_ai_chat_screen.dart';
 import '../core/di.dart';
 import '../core/models/stone.dart';
 
@@ -551,6 +552,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           state,
         ),
+      ),
+      GoRoute(
+        path: '/maya-ai',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => _slideUpPage(
+          const MayaAIChatScreen(),
+          state,
+        ),
+      ),
+      GoRoute(
+        path: '/ai-chat',
+        redirect: (context, state) => '/maya-ai',
       ),
       GoRoute(
         path: '/studio',

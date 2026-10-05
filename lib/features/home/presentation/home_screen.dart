@@ -56,11 +56,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     _loadData();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Future.delayed(const Duration(milliseconds: 900), () {
-        if (mounted && !StorageService.instance.hasSeenAppTour()) {
-          _launchInteractiveTour();
-        }
-      });
+      // Tour can be launched anytime via the AppBar explore button
     });
   }
 
@@ -69,7 +65,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final palette = ref.read(themePaletteProvider);
     showGeneralDialog(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       barrierLabel: 'App Tour',
       barrierColor: Colors.transparent,
       transitionDuration: const Duration(milliseconds: 300),
@@ -213,7 +209,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         automaticallyImplyLeading: false,
-        titleSpacing: 16,
+        titleSpacing: 12,
         centerTitle: false,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -225,19 +221,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 Text(
                   'GRAZIA',
                   style: GoogleFonts.playfairDisplay(
-                    fontSize: 18,
+                    fontSize: 16.5,
                     fontWeight: FontWeight.w800,
-                    letterSpacing: 2.2,
+                    letterSpacing: 1.8,
                     color: const Color(0xFFD4AF37),
                   ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 4),
                 Text(
                   'STONES',
                   style: GoogleFonts.inter(
-                    fontSize: 10,
+                    fontSize: 9.5,
                     fontWeight: FontWeight.w700,
-                    letterSpacing: 2.0,
+                    letterSpacing: 1.5,
                     color: const Color(0xFFD4AF37),
                   ),
                 ),
@@ -255,6 +251,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ],
         ),
         actions: [
+          _buildMayaAppBarActionBtn(palette),
           _buildAppBarActionBtn(
             icon: Icon(Icons.explore_outlined, color: palette.primary, size: 20),
             onTap: () => _launchInteractiveTour(),
@@ -335,6 +332,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ),
 
                       const SliverToBoxAdapter(child: SizedBox(height: 14)),
+
+                      // 1.5 Maya AI Interactive Architectural Consultation Bar
+                      SliverToBoxAdapter(
+                        child: _buildMayaAiBanner(palette),
+                      ),
+
+                      const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
                       // 2. Curated Collections Gateway (36 Series)
                       SliverToBoxAdapter(
@@ -1051,9 +1055,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         onTap();
       },
       child: Container(
-        width: 38,
-        height: 38,
-        margin: const EdgeInsets.only(right: 8),
+        width: 35,
+        height: 35,
+        margin: const EdgeInsets.only(right: 6),
         decoration: BoxDecoration(
           color: palette.surface,
           shape: BoxShape.circle,
@@ -1075,6 +1079,178 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             icon,
             ?badge,
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMayaAppBarActionBtn(LuxuryPalette palette) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        context.push('/maya-ai');
+      },
+      child: Container(
+        width: 35,
+        height: 35,
+        margin: const EdgeInsets.only(right: 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1C1C20),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: const Color(0xFFD4AF37).withValues(alpha: 0.8),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFD4AF37).withValues(alpha: 0.25),
+              blurRadius: 8,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: const Center(
+          child: Icon(Icons.auto_awesome_rounded, color: Color(0xFFD4AF37), size: 18),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMayaAiBanner(LuxuryPalette palette) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1E1E22), Color(0xFF141416)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: const Color(0xFFD4AF37).withValues(alpha: 0.4),
+          width: 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFD4AF37).withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: () {
+            HapticFeedback.lightImpact();
+            context.push('/maya-ai');
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                // Glowing Maya Avatar
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFD4AF37), Color(0xFFAA820A)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFD4AF37).withValues(alpha: 0.35),
+                        blurRadius: 10,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: const Center(
+                    child: Icon(Icons.auto_awesome_rounded, color: Colors.black, size: 22),
+                  ),
+                ),
+                const SizedBox(width: 12),
+
+                // Text Description
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Maya AI Assistant',
+                            style: GoogleFonts.playfairDisplay(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFD4AF37).withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'HINDI / ENG',
+                              style: GoogleFonts.inter(
+                                fontSize: 8.5,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFFD4AF37),
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Poochiye: Living room, exterior ya 3D stone design suggestions',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(
+                          fontSize: 11.5,
+                          color: const Color(0xFF8E8E93),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+
+                // Pill Action Button
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD4AF37),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Chat',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.arrow_forward_rounded, size: 12, color: Colors.black),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
