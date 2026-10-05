@@ -336,7 +336,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ),
                       ),
 
-                      const SliverToBoxAdapter(child: SizedBox(height: 14)),
+                      const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+                      // 1.2 Luxury Architectural Features Quick-Action Dock (AI Studio, AR, VR, Scan, Sample Kit)
+                      SliverToBoxAdapter(
+                        child: _buildFeaturesQuickDock(palette),
+                      ),
+
+                      const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
                       // 1.5 Maya AI Interactive Architectural Consultation Bar
                       SliverToBoxAdapter(
@@ -475,7 +482,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // ── 1. Auto-Looping Editorial Hero Carousel (Luxury Architectural Rooms & Designs) ──
   Widget _buildEditorialHero(LuxuryPalette palette) {
     final screenSize = MediaQuery.of(context).size;
-    final heroHeight = (screenSize.height * 0.40).clamp(320.0, 350.0);
+    final heroHeight = (screenSize.height * 0.48).clamp(385.0, 420.0);
 
     final slides = <Widget>[
       // Slide 1: Luxury Master Bedroom Suite (Travertine Accent Wall)
@@ -1258,6 +1265,242 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           child: Icon(Icons.auto_awesome_rounded, color: Color(0xFFD4AF37), size: 18),
         ),
       ),
+    );
+  }
+
+  // ── 1.2 Luxury Architectural Features Quick-Action Dock (AI Studio, AR, VR, Scan, Sample Kit, Bespoke) ──
+  Widget _buildFeaturesQuickDock(LuxuryPalette palette) {
+    final features = [
+      {
+        'title': 'AI Studio',
+        'subtitle': 'Visualizer',
+        'badge': 'AI',
+        'icon': Icons.auto_awesome_rounded,
+        'route': '/ai-viz',
+        'gradient': const [Color(0xFF282218), Color(0xFF171410)],
+        'accentColor': const Color(0xFFD4AF37),
+      },
+      {
+        'title': 'Live AR',
+        'subtitle': 'On Wall',
+        'badge': '3D',
+        'icon': Icons.view_in_ar_rounded,
+        'route': '/ar-view',
+        'gradient': const [Color(0xFF16232D), Color(0xFF10171F)],
+        'accentColor': const Color(0xFF4FC3F7),
+      },
+      {
+        'title': 'VR Tour',
+        'subtitle': '360° Villa',
+        'badge': '360°',
+        'icon': Icons.vrpano_rounded,
+        'route': '/vr-showroom',
+        'gradient': const [Color(0xFF23182B), Color(0xFF16101D)],
+        'accentColor': const Color(0xFFBA68C8),
+      },
+      {
+        'title': 'Scan Space',
+        'subtitle': 'Measure & BOQ',
+        'badge': 'SCAN',
+        'icon': Icons.straighten_rounded,
+        'route': '/measure',
+        'gradient': const [Color(0xFF15261E), Color(0xFF0F1A15)],
+        'accentColor': const Color(0xFF81C784),
+      },
+      {
+        'title': 'Sample Kit',
+        'subtitle': 'Real Stones',
+        'badge': 'BOX',
+        'icon': Icons.inventory_2_outlined,
+        'route': '/sample-order',
+        'gradient': const [Color(0xFF2B2016), Color(0xFF19130D)],
+        'accentColor': const Color(0xFFFFB74D),
+      },
+      {
+        'title': 'Bespoke',
+        'subtitle': 'Architecture',
+        'badge': 'LUX',
+        'icon': Icons.architecture_rounded,
+        'route': '/custom-design',
+        'gradient': const [Color(0xFF222222), Color(0xFF131313)],
+        'accentColor': const Color(0xFFE0E0E0),
+      },
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 3.5,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD4AF37),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 7),
+                  Text(
+                    'ARCHITECTURAL SUITE',
+                    style: GoogleFonts.inter(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.5,
+                      color: const Color(0xFFD4AF37),
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                'Instant Interactive Features',
+                style: GoogleFonts.inter(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white38,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 98,
+          child: ListView.separated(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: features.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 10),
+            itemBuilder: (context, index) {
+              final item = features[index];
+              final accent = item['accentColor'] as Color;
+              final gradient = item['gradient'] as List<Color>;
+
+              return GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  context.push(item['route'] as String);
+                },
+                child: Container(
+                  width: 84,
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: gradient,
+                    ),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: accent.withValues(alpha: 0.38),
+                      width: 1.0,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.40),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                      BoxShadow(
+                        color: accent.withValues(alpha: 0.08),
+                        blurRadius: 12,
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Icon with micro badge
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: accent.withValues(alpha: 0.16),
+                              borderRadius: BorderRadius.circular(13),
+                              border: Border.all(
+                                color: accent.withValues(alpha: 0.55),
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Icon(
+                              item['icon'] as IconData,
+                              size: 19,
+                              color: accent,
+                            ),
+                          ),
+                          Positioned(
+                            top: -4,
+                            right: -6,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: accent,
+                                borderRadius: BorderRadius.circular(6),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.4),
+                                    blurRadius: 4,
+                                  ),
+                                ],
+                              ),
+                              child: Text(
+                                item['badge'] as String,
+                                style: GoogleFonts.inter(
+                                  fontSize: 7,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.black,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 7),
+                      // Title
+                      Text(
+                        item['title'] as String,
+                        style: GoogleFonts.inter(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                          height: 1.15,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 1.5),
+                      // Subtitle
+                      Text(
+                        item['subtitle'] as String,
+                        style: GoogleFonts.inter(
+                          fontSize: 8.5,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white60,
+                          height: 1.1,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
