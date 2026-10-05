@@ -1268,68 +1268,69 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  // ── 1.2 Luxury Architectural Features Quick-Action Dock (AI Studio, AR, VR, Scan, Sample Kit, Bespoke) ──
+  // ── 1.2 Luxury Architectural Features Quick-Action Dock (2x2 Paired Luxury Cards) ──
   Widget _buildFeaturesQuickDock(LuxuryPalette palette) {
     final features = [
       {
         'title': 'AI Studio',
-        'subtitle': 'Visualizer',
-        'badge': 'AI',
+        'subtitle': '4K Surface Visualizer',
+        'badge': 'AI 4K',
         'icon': Icons.auto_awesome_rounded,
         'route': '/ai-viz',
-        'gradient': const [Color(0xFF282218), Color(0xFF171410)],
+        'gradient': const [Color(0xFF261F12), Color(0xFF14110A)],
         'accentColor': const Color(0xFFD4AF37),
       },
       {
         'title': 'Live AR',
-        'subtitle': 'On Wall',
-        'badge': '3D',
+        'subtitle': 'True-Scale Wall View',
+        'badge': '3D AR',
         'icon': Icons.view_in_ar_rounded,
         'route': '/ar-view',
-        'gradient': const [Color(0xFF16232D), Color(0xFF10171F)],
+        'gradient': const [Color(0xFF10212C), Color(0xFF09131C)],
         'accentColor': const Color(0xFF4FC3F7),
       },
       {
-        'title': 'VR Tour',
-        'subtitle': '360° Villa',
-        'badge': '360°',
+        'title': 'VR Showroom',
+        'subtitle': '360° Villa Walkthrough',
+        'badge': '360° VR',
         'icon': Icons.vrpano_rounded,
         'route': '/vr-showroom',
-        'gradient': const [Color(0xFF23182B), Color(0xFF16101D)],
+        'gradient': const [Color(0xFF23142B), Color(0xFF13091B)],
         'accentColor': const Color(0xFFBA68C8),
       },
       {
         'title': 'Scan Space',
-        'subtitle': 'Measure & BOQ',
-        'badge': 'SCAN',
+        'subtitle': 'Auto Dimension & BOQ',
+        'badge': 'CAD / BOQ',
         'icon': Icons.straighten_rounded,
         'route': '/measure',
-        'gradient': const [Color(0xFF15261E), Color(0xFF0F1A15)],
+        'gradient': const [Color(0xFF12261B), Color(0xFF0A160F)],
         'accentColor': const Color(0xFF81C784),
       },
       {
         'title': 'Sample Kit',
-        'subtitle': 'Real Stones',
-        'badge': 'BOX',
+        'subtitle': 'Curated Stone Box',
+        'badge': 'EXPRESS',
         'icon': Icons.inventory_2_outlined,
         'route': '/sample-order',
-        'gradient': const [Color(0xFF2B2016), Color(0xFF19130D)],
+        'gradient': const [Color(0xFF2B1D11), Color(0xFF180F08)],
         'accentColor': const Color(0xFFFFB74D),
       },
       {
-        'title': 'Bespoke',
-        'subtitle': 'Architecture',
-        'badge': 'LUX',
+        'title': 'Bespoke Atelier',
+        'subtitle': 'Custom CNC & Inlays',
+        'badge': 'ATELIER',
         'icon': Icons.architecture_rounded,
         'route': '/custom-design',
-        'gradient': const [Color(0xFF222222), Color(0xFF131313)],
-        'accentColor': const Color(0xFFE0E0E0),
+        'gradient': const [Color(0xFF222225), Color(0xFF121214)],
+        'accentColor': const Color(0xFFE2DDD5),
       },
     ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Section Header
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
@@ -1339,168 +1340,218 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 children: [
                   Container(
                     width: 3.5,
-                    height: 12,
+                    height: 13,
                     decoration: BoxDecoration(
                       color: const Color(0xFFD4AF37),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                  const SizedBox(width: 7),
+                  const SizedBox(width: 8),
                   Text(
                     'ARCHITECTURAL SUITE',
                     style: GoogleFonts.inter(
-                      fontSize: 10.5,
+                      fontSize: 11,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: 1.5,
+                      letterSpacing: 1.6,
                       color: const Color(0xFFD4AF37),
                     ),
                   ),
                 ],
               ),
-              Text(
-                'Instant Interactive Features',
-                style: GoogleFonts.inter(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.white38,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD4AF37).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: const Color(0xFFD4AF37).withValues(alpha: 0.35),
+                    width: 0.8,
+                  ),
+                ),
+                child: Text(
+                  '6 Interactive Tools',
+                  style: GoogleFonts.inter(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFFD4AF37),
+                  ),
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 10),
-        SizedBox(
-          height: 98,
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            itemCount: features.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 10),
-            itemBuilder: (context, index) {
-              final item = features[index];
-              final accent = item['accentColor'] as Color;
-              final gradient = item['gradient'] as List<Color>;
+        const SizedBox(height: 12),
 
-              return GestureDetector(
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  context.push(item['route'] as String);
-                },
-                child: Container(
-                  width: 84,
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+        // 2-by-2 Paired Luxury Feature Cards
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Column(
+            children: [
+              // Pair 1: AI Studio & Live AR
+              Row(
+                children: [
+                  Expanded(child: _buildLuxuryFeatureCard(features[0])),
+                  const SizedBox(width: 10),
+                  Expanded(child: _buildLuxuryFeatureCard(features[1])),
+                ],
+              ),
+              const SizedBox(height: 10),
+              // Pair 2: VR Showroom & Scan Space
+              Row(
+                children: [
+                  Expanded(child: _buildLuxuryFeatureCard(features[2])),
+                  const SizedBox(width: 10),
+                  Expanded(child: _buildLuxuryFeatureCard(features[3])),
+                ],
+              ),
+              const SizedBox(height: 10),
+              // Pair 3: Sample Kit & Bespoke Atelier
+              Row(
+                children: [
+                  Expanded(child: _buildLuxuryFeatureCard(features[4])),
+                  const SizedBox(width: 10),
+                  Expanded(child: _buildLuxuryFeatureCard(features[5])),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLuxuryFeatureCard(Map<String, dynamic> item) {
+    final accent = item['accentColor'] as Color;
+    final gradient = item['gradient'] as List<Color>;
+
+    return ApplePressable(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        context.push(item['route'] as String);
+      },
+      child: Container(
+        height: 116,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: gradient,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: accent.withValues(alpha: 0.38),
+            width: 1.0,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.45),
+              blurRadius: 14,
+              offset: const Offset(0, 5),
+            ),
+            BoxShadow(
+              color: accent.withValues(alpha: 0.10),
+              blurRadius: 16,
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Top Row: Big Glowing Icon Container + Badge & Arrow
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: gradient,
-                    ),
-                    borderRadius: BorderRadius.circular(18),
+                    color: accent.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: accent.withValues(alpha: 0.38),
+                      color: accent.withValues(alpha: 0.50),
                       width: 1.0,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.40),
+                        color: accent.withValues(alpha: 0.15),
                         blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                      BoxShadow(
-                        color: accent.withValues(alpha: 0.08),
-                        blurRadius: 12,
                       ),
                     ],
                   ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // Icon with micro badge
-                      Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          Container(
-                            width: 38,
-                            height: 38,
-                            decoration: BoxDecoration(
-                              color: accent.withValues(alpha: 0.16),
-                              borderRadius: BorderRadius.circular(13),
-                              border: Border.all(
-                                color: accent.withValues(alpha: 0.55),
-                                width: 0.8,
-                              ),
-                            ),
-                            child: Icon(
-                              item['icon'] as IconData,
-                              size: 19,
-                              color: accent,
-                            ),
-                          ),
-                          Positioned(
-                            top: -4,
-                            right: -6,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
-                              decoration: BoxDecoration(
-                                color: accent,
-                                borderRadius: BorderRadius.circular(6),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.4),
-                                    blurRadius: 4,
-                                  ),
-                                ],
-                              ),
-                              child: Text(
-                                item['badge'] as String,
-                                style: GoogleFonts.inter(
-                                  fontSize: 7,
-                                  fontWeight: FontWeight.w900,
-                                  color: Colors.black,
-                                  letterSpacing: 0.2,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 7),
-                      // Title
-                      Text(
-                        item['title'] as String,
-                        style: GoogleFonts.inter(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                          height: 1.15,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 1.5),
-                      // Subtitle
-                      Text(
-                        item['subtitle'] as String,
-                        style: GoogleFonts.inter(
-                          fontSize: 8.5,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white60,
-                          height: 1.1,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
+                  child: Icon(
+                    item['icon'] as IconData,
+                    size: 23,
+                    color: accent,
                   ),
                 ),
-              );
-            },
-          ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: accent.withValues(alpha: 0.45),
+                          width: 0.8,
+                        ),
+                      ),
+                      child: Text(
+                        item['badge'] as String,
+                        style: GoogleFonts.inter(
+                          fontSize: 8.5,
+                          fontWeight: FontWeight.w800,
+                          color: accent,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.arrow_outward_rounded,
+                      size: 13,
+                      color: accent.withValues(alpha: 0.75),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            // Bottom Details: Title & Subtitle
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  item['title'] as String,
+                  style: GoogleFonts.inter(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                    letterSpacing: 0.15,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2.5),
+                Text(
+                  item['subtitle'] as String,
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w400,
+                    color: Colors.white.withValues(alpha: 0.65),
+                    height: 1.15,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 
