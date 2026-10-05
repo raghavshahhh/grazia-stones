@@ -10,6 +10,7 @@ import 'package:grazia_stones/shared/theme/theme_provider.dart';
 class GraziaBottomNav extends ConsumerStatefulWidget {
   static final GlobalKey aiStudioKey = GlobalKey();
   static final GlobalKey collectionsKey = GlobalKey();
+  static final GlobalKey vrKey = GlobalKey();
 
   final int currentIndex;
   final ValueChanged<int> onTap;
@@ -177,6 +178,7 @@ class _GraziaBottomNavState extends ConsumerState<GraziaBottomNav> {
     Key? targetKey;
     if (index == 1) targetKey = GraziaBottomNav.collectionsKey;
     if (index == 2) targetKey = GraziaBottomNav.aiStudioKey;
+    if (index == 3) targetKey = GraziaBottomNav.vrKey;
 
     return Material(
       color: Colors.transparent,

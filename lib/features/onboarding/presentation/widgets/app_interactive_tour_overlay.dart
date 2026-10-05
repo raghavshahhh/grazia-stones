@@ -13,6 +13,8 @@ class AppInteractiveTourOverlay extends StatefulWidget {
   final LuxuryPalette palette;
   final GlobalKey? arKey;
   final GlobalKey? addKey;
+  final GlobalKey? mayaKey;
+  final GlobalKey? collectionsKey;
 
   const AppInteractiveTourOverlay({
     super.key,
@@ -20,6 +22,8 @@ class AppInteractiveTourOverlay extends StatefulWidget {
     required this.palette,
     this.arKey,
     this.addKey,
+    this.mayaKey,
+    this.collectionsKey,
   });
 
   @override
@@ -46,33 +50,33 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
     },
     {
       'stepNum': '2 OF 4',
-      'category': 'IMMERSIVE AR CAMERA',
-      'title': 'Live Augmented Reality (AR)',
+      'category': 'MAYA AI ARCHITECTURAL GUIDE',
+      'title': 'Meet Maya AI Assistant',
       'subtitle':
-          'Tap [AR] on any stone to launch live camera mode and preview authentic stone wall patterns directly on your physical room walls at 1:1 architectural scale.',
-      'icon': Icons.view_in_ar_rounded,
-      'targetType': 'ar_button',
-      'targetLabel': 'AR Live Camera Button on Stone Card',
+          'Poochiye Maya se Hindi ya English me — "living room ke liye premium stone designs", aur Maya Grazia ke 36 collections me se perfect design suggest karegi!',
+      'icon': Icons.auto_awesome_rounded,
+      'targetType': 'maya_banner',
+      'targetLabel': 'Maya AI Architectural Consultant',
     },
     {
       'stepNum': '3 OF 4',
-      'category': 'SAMPLE & PROJECT ORDERING',
-      'title': 'Instant Sample & Project Cart',
-      'subtitle':
-          'Tap [+ Add] to order physical hand-carved stone samples delivered directly to your site, or calculate square-foot requirements for your project.',
-      'icon': Icons.shopping_bag_outlined,
-      'targetType': 'add_button',
-      'targetLabel': '+ Add to Cart & Sample Ordering',
-    },
-    {
-      'stepNum': '4 OF 4',
       'category': 'CURATED ARCHITECTURE',
-      'title': '36+ Curated Collections',
+      'title': '36+ Curated Design Collections',
       'subtitle':
           'Explore all 36 bespoke design series — from 3D fluted relief and monolithic split ledges to Egyptian and Roman heritage stones.',
       'icon': Icons.grid_view_rounded,
-      'targetType': 'collections_tab',
-      'targetLabel': 'Collections Tab in Bottom Navigation',
+      'targetType': 'curated_collections',
+      'targetLabel': 'Curated Collections (36 Series)',
+    },
+    {
+      'stepNum': '4 OF 4',
+      'category': 'IMMERSIVE 3D & VR',
+      'title': 'VR 360° Luxury Showroom',
+      'subtitle':
+          'Step into virtual luxury villas and hotel lobbies to experience authentic natural stone textures in 360° interactive 3D.',
+      'icon': Icons.view_in_ar_rounded,
+      'targetType': 'vr_tab',
+      'targetLabel': 'VR Showroom Tab in Bottom Navigation',
     },
   ];
 
@@ -113,22 +117,25 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
   /// Calculates the spotlight punch-out rect for the active step.
   _SpotlightTarget _getTarget(Size screenSize, double bottomPadding) {
     final navY = screenSize.height - (bottomPadding > 0 ? bottomPadding + 6 : 14) - 32;
+    final topPadding = MediaQuery.of(context).padding.top;
 
     switch (_currentStep) {
       case 0:
-        // Center AI Studio button
+        // Step 1: Center AI Studio button
         final aiBox = GraziaBottomNav.aiStudioKey.currentContext?.findRenderObject() as RenderBox?;
         if (aiBox != null && aiBox.hasSize) {
           final pos = aiBox.localToGlobal(Offset.zero);
-          final rect = Rect.fromLTWH(pos.dx - 4, pos.dy - 4, aiBox.size.width + 8, aiBox.size.height + 8);
-          return _SpotlightTarget(
-            rect: rect,
-            isCircle: true,
-            borderRadius: rect.width / 2,
-            pointerDirection: _PointerDirection.down,
-            tooltipPosition: _TooltipPlacement.aboveTarget,
-            targetCenter: rect.center,
-          );
+          if (pos.dy > 0 && pos.dy < screenSize.height) {
+            final rect = Rect.fromLTWH(pos.dx - 4, pos.dy - 4, aiBox.size.width + 8, aiBox.size.height + 8);
+            return _SpotlightTarget(
+              rect: rect,
+              isCircle: true,
+              borderRadius: rect.width / 2,
+              pointerDirection: _PointerDirection.down,
+              tooltipPosition: _TooltipPlacement.aboveTarget,
+              targetCenter: rect.center,
+            );
+          }
         }
         final center = Offset(screenSize.width / 2, navY);
         return _SpotlightTarget(
@@ -141,83 +148,91 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
         );
 
       case 1:
-        // AR Button on the first product card
-        final box = widget.arKey?.currentContext?.findRenderObject() as RenderBox?;
+        // Step 2: Maya AI Assistant Banner
+        final box = widget.mayaKey?.currentContext?.findRenderObject() as RenderBox?;
         if (box != null && box.hasSize) {
           final pos = box.localToGlobal(Offset.zero);
-          final rect = Rect.fromLTWH(pos.dx - 4, pos.dy - 3, box.size.width + 8, box.size.height + 6);
-          final isAbove = pos.dy > screenSize.height * 0.42;
-          return _SpotlightTarget(
-            rect: rect,
-            isCircle: false,
-            borderRadius: 14,
-            pointerDirection: isAbove ? _PointerDirection.down : _PointerDirection.up,
-            tooltipPosition: isAbove ? _TooltipPlacement.aboveTarget : _TooltipPlacement.belowTarget,
-            targetCenter: rect.center,
-          );
+          if (pos.dy >= topPadding && pos.dy <= screenSize.height - 120) {
+            final rect = Rect.fromLTWH(pos.dx - 4, pos.dy - 3, box.size.width + 8, box.size.height + 6);
+            final isAbove = pos.dy > screenSize.height * 0.48;
+            return _SpotlightTarget(
+              rect: rect,
+              isCircle: false,
+              borderRadius: 20,
+              pointerDirection: isAbove ? _PointerDirection.down : _PointerDirection.up,
+              tooltipPosition: isAbove ? _TooltipPlacement.aboveTarget : _TooltipPlacement.belowTarget,
+              targetCenter: rect.center,
+            );
+          }
         }
-        // Responsive fallback
-        final fallbackRect = Rect.fromLTWH(22, screenSize.height * 0.58, 52, 26);
+        // Fallback for Maya banner on top home fold
+        final bannerY = topPadding + 224.0;
+        final fallbackRect = Rect.fromLTWH(16, bannerY, screenSize.width - 32, 74);
         return _SpotlightTarget(
           rect: fallbackRect,
           isCircle: false,
-          borderRadius: 14,
-          pointerDirection: _PointerDirection.down,
-          tooltipPosition: _TooltipPlacement.aboveTarget,
+          borderRadius: 20,
+          pointerDirection: _PointerDirection.up,
+          tooltipPosition: _TooltipPlacement.belowTarget,
           targetCenter: fallbackRect.center,
         );
 
       case 2:
-        // + Add button on the first product card
-        final box = widget.addKey?.currentContext?.findRenderObject() as RenderBox?;
+        // Step 3: Curated Collections (36 Series)
+        final box = widget.collectionsKey?.currentContext?.findRenderObject() as RenderBox?;
         if (box != null && box.hasSize) {
           final pos = box.localToGlobal(Offset.zero);
-          final rect = Rect.fromLTWH(pos.dx - 4, pos.dy - 3, box.size.width + 8, box.size.height + 6);
-          final isAbove = pos.dy > screenSize.height * 0.42;
-          return _SpotlightTarget(
-            rect: rect,
-            isCircle: false,
-            borderRadius: 14,
-            pointerDirection: isAbove ? _PointerDirection.down : _PointerDirection.up,
-            tooltipPosition: isAbove ? _TooltipPlacement.aboveTarget : _TooltipPlacement.belowTarget,
-            targetCenter: rect.center,
-          );
+          if (pos.dy >= topPadding && pos.dy <= screenSize.height - 120) {
+            final rect = Rect.fromLTWH(pos.dx - 4, pos.dy - 3, box.size.width + 8, box.size.height + 6);
+            final isAbove = pos.dy > screenSize.height * 0.48;
+            return _SpotlightTarget(
+              rect: rect,
+              isCircle: false,
+              borderRadius: 18,
+              pointerDirection: isAbove ? _PointerDirection.down : _PointerDirection.up,
+              tooltipPosition: isAbove ? _TooltipPlacement.aboveTarget : _TooltipPlacement.belowTarget,
+              targetCenter: rect.center,
+            );
+          }
         }
-        final fallbackRect = Rect.fromLTWH(screenSize.width * 0.35, screenSize.height * 0.58, 68, 26);
+        final collY = topPadding + 314.0;
+        final fallbackRect = Rect.fromLTWH(16, collY, screenSize.width - 32, 44);
         return _SpotlightTarget(
           rect: fallbackRect,
           isCircle: false,
-          borderRadius: 14,
-          pointerDirection: _PointerDirection.down,
-          tooltipPosition: _TooltipPlacement.aboveTarget,
+          borderRadius: 18,
+          pointerDirection: _PointerDirection.up,
+          tooltipPosition: _TooltipPlacement.belowTarget,
           targetCenter: fallbackRect.center,
         );
 
       case 3:
-        // Collections Tab on bottom nav
-        final collBox = GraziaBottomNav.collectionsKey.currentContext?.findRenderObject() as RenderBox?;
-        if (collBox != null && collBox.hasSize) {
-          final pos = collBox.localToGlobal(Offset.zero);
-          final rect = Rect.fromLTWH(pos.dx - 4, pos.dy - 4, collBox.size.width + 8, collBox.size.height + 8);
-          return _SpotlightTarget(
-            rect: rect,
-            isCircle: true,
-            borderRadius: rect.width / 2,
-            pointerDirection: _PointerDirection.down,
-            tooltipPosition: _TooltipPlacement.aboveTarget,
-            targetCenter: rect.center,
-          );
+        // Step 4: VR Tab on bottom nav
+        final vrBox = GraziaBottomNav.vrKey.currentContext?.findRenderObject() as RenderBox?;
+        if (vrBox != null && vrBox.hasSize) {
+          final pos = vrBox.localToGlobal(Offset.zero);
+          if (pos.dy > 0 && pos.dy < screenSize.height) {
+            final rect = Rect.fromLTWH(pos.dx - 4, pos.dy - 4, vrBox.size.width + 8, vrBox.size.height + 8);
+            return _SpotlightTarget(
+              rect: rect,
+              isCircle: true,
+              borderRadius: rect.width / 2,
+              pointerDirection: _PointerDirection.down,
+              tooltipPosition: _TooltipPlacement.aboveTarget,
+              targetCenter: rect.center,
+            );
+          }
         }
         final navWidth = screenSize.width - 36;
-        final collectionsX = 18 + navWidth * (2.0 / 6.0);
-        final collCenter = Offset(collectionsX, navY);
+        final vrX = 18 + navWidth * (4.2 / 6.0);
+        final vrCenter = Offset(vrX, navY);
         return _SpotlightTarget(
-          rect: Rect.fromCircle(center: collCenter, radius: 26),
+          rect: Rect.fromCircle(center: vrCenter, radius: 26),
           isCircle: true,
           borderRadius: 26,
           pointerDirection: _PointerDirection.down,
           tooltipPosition: _TooltipPlacement.aboveTarget,
-          targetCenter: collCenter,
+          targetCenter: vrCenter,
         );
 
       default:
@@ -353,6 +368,7 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
           // 3. Anchored Contextual Tooltip Card
           _buildContextualTooltip(
             screenSize: screenSize,
+            topPadding: topPadding,
             bottomPadding: bottomPadding,
             target: target,
             step: step,
@@ -366,6 +382,7 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
 
   Widget _buildContextualTooltip({
     required Size screenSize,
+    required double topPadding,
     required double bottomPadding,
     required _SpotlightTarget target,
     required Map<String, dynamic> step,
@@ -376,15 +393,18 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
     // Card has left: 16, right: 16. Arrow width is 20 (half-width = 10).
     final arrowLeft = (target.targetCenter.dx - 16 - 10).clamp(20.0, screenSize.width - 32 - 40.0);
 
+    final double? cardBottom = isAbove
+        ? (screenSize.height - target.rect.top + 14).clamp(bottomPadding + 70.0, screenSize.height - 380.0)
+        : null;
+    final double? cardTop = !isAbove
+        ? (target.rect.bottom + 14).clamp(topPadding + 50.0, screenSize.height - 380.0)
+        : null;
+
     return Positioned(
       left: 16,
       right: 16,
-      bottom: isAbove
-          ? (screenSize.height - target.rect.top + 14)
-          : null,
-      top: !isAbove
-          ? (target.rect.bottom + 14)
-          : null,
+      bottom: cardBottom,
+      top: cardTop,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,

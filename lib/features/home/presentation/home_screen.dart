@@ -42,6 +42,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   final GlobalKey _firstArKey = GlobalKey();
   final GlobalKey _firstAddKey = GlobalKey();
+  final GlobalKey _mayaBannerKey = GlobalKey();
+  final GlobalKey _collectionsSectionKey = GlobalKey();
 
   late PageController _heroPageController;
   late final ScrollController _scrollController;
@@ -56,7 +58,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     _loadData();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Tour can be launched anytime via the AppBar explore button
+      if (!StorageService.instance.hasSeenAppTour()) {
+        _launchInteractiveTour();
+      }
     });
   }
 
@@ -74,6 +78,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           palette: palette,
           arKey: _firstArKey,
           addKey: _firstAddKey,
+          mayaKey: _mayaBannerKey,
+          collectionsKey: _collectionsSectionKey,
           onDismiss: () {
             StorageService.instance.setHasSeenAppTour(true);
             Navigator.of(dialogContext, rootNavigator: true).pop();
@@ -713,6 +719,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget _buildCollectionsHeader(LuxuryPalette palette) {
     final count = _collections?.length ?? 0;
     return Padding(
+      key: _collectionsSectionKey,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1118,6 +1125,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Widget _buildMayaAiBanner(LuxuryPalette palette) {
     return Container(
+      key: _mayaBannerKey,
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
