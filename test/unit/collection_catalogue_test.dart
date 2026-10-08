@@ -4,11 +4,11 @@ import 'package:grazia_stones/core/models/collection.dart';
 Collection _c(String name) => Collection(id: name, name: name, description: '');
 
 void main() {
-  test('all 36 live collections map to the client catalogue', () {
+  test('all visible live collections map to the client catalogue', () {
     const live = [
       'Grande Ledge Series', 'Country Ledge Series', 'Mountain Ledge Series',
       'Opus Ledge Series', 'Classic Ledge Series', 'Vantage Series',
-      'Rockface Linear Series', 'Castle Ledge Series', 'Cuarzo Series',
+      'Castle Ledge Series', 'Cuarzo Series',
       'Venetian Series', 'Andorra Series', 'Rustic Brick Series',
       'European Stack Series', 'Tarnished Brick Series', 'Florentine Series',
       'Veines Series', 'Foliage Series', 'Travertine Series', 'Hexa Series',
@@ -23,6 +23,13 @@ void main() {
     }
     // each live collection gets a distinct rank (no accidental key clash)
     expect(live.map((n) => _c(n).catalogueRank).toSet().length, live.length);
+  });
+
+  test('client lists one Rockface: Linear is hidden, plain one is titled', () {
+    expect(_c('Rockface Linear Series').isCatalogueDuplicate, isTrue);
+    expect(_c('Rockface Series').isCatalogueDuplicate, isFalse);
+    expect(_c('Rockface Series').displayName, 'Rockface Ledge Series');
+    expect(_c('Rockface Series').catalogueGroup, CatalogueGroups.ledge);
   });
 
   test('titles follow the client handwriting', () {

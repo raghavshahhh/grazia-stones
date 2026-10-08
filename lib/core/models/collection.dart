@@ -228,8 +228,7 @@ const _kCatalogue = <(String, String, String)>[
   ('classic', 'Classic Ledge Series', CatalogueGroups.ledge),
   ('opus', 'Opus Ledge Series', CatalogueGroups.ledge),
   ('vantage', 'Vantage Ledge Series', CatalogueGroups.ledge),
-  ('rockface linear', 'Rockface Ledge Series', CatalogueGroups.ledge),
-  ('rockface', 'Rockface Series', CatalogueGroups.ledge),
+  ('rockface', 'Rockface Ledge Series', CatalogueGroups.ledge),
   ('castle', 'Castle Ledge Series', CatalogueGroups.ledge),
   ('cuarzo', 'Cuarzo Ledge Series', CatalogueGroups.ledge),
   ('venetian', 'Venecia Ledge Series', CatalogueGroups.ledge),
@@ -238,12 +237,18 @@ const _kCatalogue = <(String, String, String)>[
 ];
 
 extension CollectionCatalogueExtension on Collection {
+  String get _catalogueKey => name
+      .toLowerCase()
+      .replaceAll(RegExp(r'\b(series|collection|ledge)\b'), '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+
+  /// The client lists a single "Rockface"; the DB also has "Rockface Linear".
+  /// Hidden from the collections list only (nothing is deleted).
+  bool get isCatalogueDuplicate => _catalogueKey == 'rockface linear';
+
   int get _catalogueIndex {
-    final key = name
-        .toLowerCase()
-        .replaceAll(RegExp(r'\b(series|collection|ledge)\b'), '')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
+    final key = _catalogueKey;
     final i = _kCatalogue.indexWhere((e) => e.$1 == key);
     if (i >= 0) return i;
     // "Premium Surface Collection" keeps its word "surface" in the key.

@@ -294,7 +294,9 @@ class _CollectionListScreenState extends ConsumerState<CollectionListScreen> {
             data: (collections) {
               final nonTest = collections.where((c) {
                 final name = c.name.toLowerCase();
-                return !name.startsWith('test') && !name.contains('test collection');
+                return !name.startsWith('test') &&
+                    !name.contains('test collection') &&
+                    !c.isCatalogueDuplicate;
               }).toList();
 
               final baseList = nonTest.isEmpty ? collections : nonTest;
