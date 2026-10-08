@@ -53,6 +53,18 @@ class _HomeTrendingGridState extends ConsumerState<HomeTrendingGrid> {
     }
   }
 
+  DateTime? _lastTileTap;
+
+  void _onTileTap(Stone s) {
+    final now = DateTime.now();
+    if (_lastTileTap != null && now.difference(_lastTileTap!) < const Duration(milliseconds: 600)) {
+      return;
+    }
+    _lastTileTap = now;
+    HapticFeedback.lightImpact();
+    context.push('/stones/${s.id}');
+  }
+
   @override
   Widget build(BuildContext context) {
     final palette = ref.watch(themePaletteProvider);
@@ -161,10 +173,7 @@ class _HomeTrendingGridState extends ConsumerState<HomeTrendingGrid> {
                 final s = stones[index];
                 return StoneGridTile(
                   stone: s,
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    context.push('/stones/${s.id}');
-                  },
+                  onTap: () => _onTileTap(s),
                   onWishlist: () {},
                 );
               },

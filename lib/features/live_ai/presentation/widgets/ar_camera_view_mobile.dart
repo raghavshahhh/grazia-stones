@@ -130,7 +130,7 @@ class ARCameraView extends StatefulWidget {
     required double tileWidth,
     required double tileHeight,
     String tileUnit = 'ft',
-    double wastagePercent = 10.0,
+    double wastagePercent = 15.0,
   }) async {
     return await ARNativeChannel.calculateTileQuantity(
       tileWidth: tileWidth,
@@ -281,25 +281,28 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
     _listenToNativeEvents();
   }
 
+  @override
+  void didUpdateWidget(covariant ARCameraView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.stoneImagePath != widget.stoneImagePath && widget.stoneImagePath != null) {
+      _displayStoneTexture = widget.stoneImagePath;
+      if (!_is3DStudioMode) {
+        _loadAndSendTexture(widget.stoneImagePath!);
+      }
+      setState(() {});
+    }
+    if (oldWidget.opacity != widget.opacity) {
+      _displayOpacity = widget.opacity;
+      setState(() {});
+    }
+    if (oldWidget.scale != widget.scale) {
+      _displayScale = widget.scale;
+      setState(() {});
+    }
+  }
+
   Future<void> _initializeNativeAR() async {
     try {
-      var status = await Permission.camera.request();
-      if (!status.isGranted) {
-        status = await Permission.camera.status;
-      }
-
-      if (!status.isGranted) {
-        // Show the permission screen (retry / open Settings) instead of
-        // silently dropping into the sample-photo studio.
-        if (mounted) {
-          setState(() {
-            _isPermissionDenied = true;
-            _isInitialized = true;
-          });
-        }
-        return;
-      }
-
       final supported = await ARNativeChannel.isARSupported().timeout(
         const Duration(seconds: 4),
         onTimeout: () => false,
@@ -313,6 +316,23 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
             _isInitialized = true;
           });
           widget.onReady?.call();
+        }
+        return;
+      }
+
+      var status = await Permission.camera.request();
+      if (!status.isGranted) {
+        status = await Permission.camera.status;
+      }
+
+      if (!status.isGranted) {
+        // Show the permission screen (retry / open Settings) instead of
+        // silently dropping into the sample-photo studio.
+        if (mounted) {
+          setState(() {
+            _isPermissionDenied = true;
+            _isInitialized = true;
+          });
         }
         return;
       }

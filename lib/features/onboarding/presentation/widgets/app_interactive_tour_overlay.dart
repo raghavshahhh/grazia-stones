@@ -1,13 +1,17 @@
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:grazia_stones/core/services/storage_service.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/widgets/grazia_bottom_nav.dart';
 
-/// True spotlight overlay that highlights the actual on-screen widgets
-/// with dynamic transparent punch-out cutouts, pulsing gold halos,
-/// and anchored contextual tooltips pointing directly to the active feature.
+/// Ultra-luxury Apple-grade interactive tour overlay.
+/// 
+/// Highlights live on-screen widgets with precision cutout apertures,
+/// luminous double-ring gold halo pulses, frosted glassmorphic cards,
+/// segmented progress indicators, and fluid step-by-step navigation.
 class AppInteractiveTourOverlay extends StatefulWidget {
   final VoidCallback onDismiss;
   final LuxuryPalette palette;
@@ -33,6 +37,8 @@ class AppInteractiveTourOverlay extends StatefulWidget {
 class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
     with SingleTickerProviderStateMixin {
   static const gold = Color(0xFFD4AF37);
+  static const goldLuminous = Color(0xFFFFD700);
+
   int _currentStep = 0;
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
@@ -41,42 +47,50 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
     {
       'stepNum': '1 OF 4',
       'category': 'AI WALL ARCHITECTURE',
+      'badge': 'AI STUDIO',
       'title': 'AI Room Visualizer Studio',
       'subtitle':
           'Tap this glowing gold center button anytime to upload a photo of your room or facade. Our AI instantly renders real natural stone textures onto your walls in seconds.',
       'icon': Icons.auto_awesome_rounded,
       'targetType': 'ai_center',
       'targetLabel': 'Center Floating AI Studio Button',
+      'chips': ['📸 Room Photo', '✨ Instant 4K Render', '⚡ Real Textures'],
     },
     {
       'stepNum': '2 OF 4',
-      'category': 'MAYA AI ARCHITECTURAL GUIDE',
-      'title': 'Meet Maya AI Assistant',
+      'category': 'MEET MAYA • ARCHITECTURAL CONSULTANT',
+      'badge': '24/7 AI GUIDE',
+      'title': 'Meet Maya — Your AI Design Consultant',
       'subtitle':
-          'Poochiye Maya se Hindi ya English me — "living room ke liye premium stone designs", aur Maya Grazia ke 36 collections me se perfect design suggest karegi!',
-      'icon': Icons.auto_awesome_rounded,
-      'targetType': 'maya_banner',
-      'targetLabel': 'Maya AI Architectural Consultant',
+          'Namaste! Main hoon Maya — Grazia Stones ki 24/7 AI Architectural Consultant. Poochiye mujhse Hindi ya English me — "living room ke liye premium stone designs", "villa exterior cladding", ya "budget estimates". Main 36 collections me se perfect design recommend karungi!',
+      'icon': Icons.smart_toy_rounded,
+      'targetType': 'maya_app_bar',
+      'targetLabel': 'Maya AI in Top Navigation Bar',
+      'chips': ['🛋️ Living Room Wall', '🏛️ Villa Facade', '📐 3D Fluted Panels'],
     },
     {
       'stepNum': '3 OF 4',
       'category': 'CURATED ARCHITECTURE',
+      'badge': '36 SERIES',
       'title': '36+ Curated Design Collections',
       'subtitle':
           'Explore all 36 bespoke design series — from 3D fluted relief and monolithic split ledges to Egyptian and Roman heritage stones.',
       'icon': Icons.grid_view_rounded,
       'targetType': 'curated_collections',
       'targetLabel': 'Curated Collections (36 Series)',
+      'chips': ['🏛️ 36 Bespoke Series', '🏺 Heritage Split Ledge', '📐 Monolithic Flutes'],
     },
     {
       'stepNum': '4 OF 4',
       'category': 'REAL-TIME 3D & AR',
+      'badge': 'SPATIAL AR',
       'title': 'Live AR Wall Visualizer',
       'subtitle':
           'Experience real-scale stone slabs projected onto your physical walls in real-time with camera detection and LiDAR accuracy.',
       'icon': Icons.view_in_ar_rounded,
       'targetType': 'ar_tab',
       'targetLabel': 'AR Tab in Bottom Navigation',
+      'chips': ['📱 Real-Scale 3D', '📐 LiDAR Wall Detection', '🔄 360° Material Rotation'],
     },
   ];
 
@@ -114,6 +128,19 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
     }
   }
 
+  void _prevStep() {
+    HapticFeedback.lightImpact();
+    if (_currentStep > 0) {
+      setState(() => _currentStep--);
+    }
+  }
+
+  void _openMaya() {
+    HapticFeedback.mediumImpact();
+    _finishTour();
+    context.push('/maya-ai');
+  }
+
   /// Calculates the spotlight punch-out rect for the active step.
   _SpotlightTarget _getTarget(Size screenSize, double bottomPadding) {
     final navY = screenSize.height - (bottomPadding > 0 ? bottomPadding + 6 : 14) - 32;
@@ -148,35 +175,30 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
         );
 
       case 1:
-        // Step 2: Maya AI Assistant Banner
+        // Step 2: Maya AI Assistant Avatar in top AppBar
         final box = widget.mayaKey?.currentContext?.findRenderObject() as RenderBox?;
         if (box != null && box.hasSize) {
           final pos = box.localToGlobal(Offset.zero);
-          if (pos.dy >= topPadding && pos.dy <= screenSize.height - 120) {
-            final rect = Rect.fromLTWH(pos.dx - 4, pos.dy - 3, box.size.width + 8, box.size.height + 6);
-            final isAbove = pos.dy > screenSize.height * 0.48;
-            return _SpotlightTarget(
-              rect: rect,
-              isCircle: false,
-              borderRadius: 20,
-              pointerDirection: isAbove ? _PointerDirection.down : _PointerDirection.up,
-              tooltipPosition: isAbove ? _TooltipPlacement.aboveTarget : _TooltipPlacement.belowTarget,
-              targetCenter: rect.center,
-            );
-          }
+          final center = Offset(pos.dx + box.size.width / 2, pos.dy + box.size.height / 2);
+          final rect = Rect.fromCircle(center: center, radius: 25);
+          return _SpotlightTarget(
+            rect: rect,
+            isCircle: true,
+            borderRadius: 25,
+            pointerDirection: _PointerDirection.up,
+            tooltipPosition: _TooltipPlacement.belowTarget,
+            targetCenter: center,
+          );
         }
-        // Fallback for Maya banner on top home fold
-        final heroH = (screenSize.height * 0.40).clamp(320.0, 350.0);
-        final bannerY = topPadding + heroH + 14.0;
-        final fallbackRect = Rect.fromLTWH(16, bannerY, screenSize.width - 32, 74);
-        final isAbove = bannerY > screenSize.height * 0.48;
+        // Fallback: Top right AppBar action button area
+        final fallbackCenter = Offset(screenSize.width - 150, topPadding + 28);
         return _SpotlightTarget(
-          rect: fallbackRect,
-          isCircle: false,
-          borderRadius: 20,
-          pointerDirection: isAbove ? _PointerDirection.down : _PointerDirection.up,
-          tooltipPosition: isAbove ? _TooltipPlacement.aboveTarget : _TooltipPlacement.belowTarget,
-          targetCenter: fallbackRect.center,
+          rect: Rect.fromCircle(center: fallbackCenter, radius: 25),
+          isCircle: true,
+          borderRadius: 25,
+          pointerDirection: _PointerDirection.up,
+          tooltipPosition: _TooltipPlacement.belowTarget,
+          targetCenter: fallbackCenter,
         );
 
       case 2:
@@ -185,66 +207,59 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
         if (box != null && box.hasSize) {
           final pos = box.localToGlobal(Offset.zero);
           if (pos.dy > 0 && pos.dy < screenSize.height) {
-            final rect = Rect.fromLTWH(pos.dx - 4, pos.dy - 4, box.size.width + 8, box.size.height + 8);
+            final center = Offset(pos.dx + box.size.width / 2, pos.dy + box.size.height / 2);
+            final rect = Rect.fromCircle(center: center, radius: 28);
             return _SpotlightTarget(
               rect: rect,
               isCircle: true,
-              borderRadius: rect.width / 2,
+              borderRadius: 28,
               pointerDirection: _PointerDirection.down,
               tooltipPosition: _TooltipPlacement.aboveTarget,
-              targetCenter: rect.center,
+              targetCenter: center,
             );
           }
         }
         final navWidth = screenSize.width - 36;
-        final collX = 18 + navWidth * (1.3 / 5.0);
+        final collX = 18 + navWidth * (1.5 / 5.0);
         final collCenter = Offset(collX, navY);
         return _SpotlightTarget(
-          rect: Rect.fromCircle(center: collCenter, radius: 26),
+          rect: Rect.fromCircle(center: collCenter, radius: 28),
           isCircle: true,
-          borderRadius: 26,
+          borderRadius: 28,
           pointerDirection: _PointerDirection.down,
           tooltipPosition: _TooltipPlacement.aboveTarget,
           targetCenter: collCenter,
         );
 
       case 3:
-        // Step 4: VR Tab on bottom nav
-        final vrBox = GraziaBottomNav.vrKey.currentContext?.findRenderObject() as RenderBox?;
-        if (vrBox != null && vrBox.hasSize) {
-          final pos = vrBox.localToGlobal(Offset.zero);
+      default:
+        // Step 4: Live AR View tab
+        final box = (widget.arKey ?? GraziaBottomNav.arKey).currentContext?.findRenderObject() as RenderBox?;
+        if (box != null && box.hasSize) {
+          final pos = box.localToGlobal(Offset.zero);
           if (pos.dy > 0 && pos.dy < screenSize.height) {
-            final rect = Rect.fromLTWH(pos.dx - 4, pos.dy - 4, vrBox.size.width + 8, vrBox.size.height + 8);
+            final center = Offset(pos.dx + box.size.width / 2, pos.dy + box.size.height / 2);
+            final rect = Rect.fromCircle(center: center, radius: 28);
             return _SpotlightTarget(
               rect: rect,
               isCircle: true,
-              borderRadius: rect.width / 2,
+              borderRadius: 28,
               pointerDirection: _PointerDirection.down,
               tooltipPosition: _TooltipPlacement.aboveTarget,
-              targetCenter: rect.center,
+              targetCenter: center,
             );
           }
         }
         final navWidth = screenSize.width - 36;
-        final vrX = 18 + navWidth * (4.2 / 6.0);
-        final vrCenter = Offset(vrX, navY);
+        final arX = 18 + navWidth * (3.5 / 5.0);
+        final arCenter = Offset(arX, navY);
         return _SpotlightTarget(
-          rect: Rect.fromCircle(center: vrCenter, radius: 26),
-          isCircle: true,
-          borderRadius: 26,
-          pointerDirection: _PointerDirection.down,
-          tooltipPosition: _TooltipPlacement.aboveTarget,
-          targetCenter: vrCenter,
-        );
-
-      default:
-        return _SpotlightTarget(
-          rect: Rect.fromCircle(center: Offset(screenSize.width / 2, navY), radius: 28),
+          rect: Rect.fromCircle(center: arCenter, radius: 28),
           isCircle: true,
           borderRadius: 28,
           pointerDirection: _PointerDirection.down,
           tooltipPosition: _TooltipPlacement.aboveTarget,
-          targetCenter: Offset(screenSize.width / 2, navY),
+          targetCenter: arCenter,
         );
     }
   }
@@ -275,8 +290,9 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
                     painter: _SpotlightHolePainter(
                       target: target,
                       pulseValue: _pulseAnimation.value,
-                      overlayColor: Colors.black.withValues(alpha: 0.70),
+                      overlayColor: Colors.black.withValues(alpha: 0.74),
                       glowColor: gold,
+                      luminousColor: goldLuminous,
                     ),
                   );
                 },
@@ -284,88 +300,8 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
             ),
           ),
 
-          // 2. Top Header Bar (Guide Badge & Skip Tour Button)
-          Positioned(
-            top: topPadding + 10,
-            left: 16,
-            right: 16,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // Interactive Guide Pill
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1C1A18),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: gold.withValues(alpha: 0.7),
-                      width: 1.0,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.4),
-                        blurRadius: 8,
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.touch_app_rounded, size: 14, color: gold),
-                      const SizedBox(width: 6),
-                      Text(
-                        'INTERACTIVE TOUR',
-                        style: GoogleFonts.inter(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.2,
-                          color: gold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Skip Tour Button
-                GestureDetector(
-                  onTap: _finishTour,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1C1A18),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.25),
-                        width: 0.8,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.4),
-                          blurRadius: 8,
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Skip Tour',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        const Icon(Icons.close_rounded, size: 14, color: Colors.white70),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          // 2. Top Header Bar (Frosted Apple Capsule & Skip Button)
+          _buildTopHeaderBar(topPadding),
 
           // 3. Anchored Contextual Tooltip Card
           _buildContextualTooltip(
@@ -382,6 +318,106 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
     );
   }
 
+  Widget _buildTopHeaderBar(double topPadding) {
+    final isMayaStep = _currentStep == 1;
+
+    return Positioned(
+      top: topPadding + 10,
+      left: 16,
+      right: isMayaStep ? null : 16,
+      child: Row(
+        mainAxisAlignment: isMayaStep ? MainAxisAlignment.start : MainAxisAlignment.spaceBetween,
+        children: [
+          // Frosted Glass Guide Pill
+          ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1C1A18).withValues(alpha: 0.85),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: gold.withValues(alpha: 0.65),
+                    width: 1.0,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.35),
+                      blurRadius: 10,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.auto_awesome_rounded, size: 12, color: gold),
+                    const SizedBox(width: 5),
+                    Text(
+                      'TOUR ${_currentStep + 1} OF ${_steps.length}',
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.0,
+                        color: gold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          if (isMayaStep) const SizedBox(width: 8),
+
+          // Skip Tour Button
+          ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+              child: GestureDetector(
+                onTap: _finishTour,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1C1A18).withValues(alpha: 0.80),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.22),
+                      width: 0.8,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.3),
+                        blurRadius: 8,
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Skip',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white70,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.close_rounded, size: 12, color: Colors.white60),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildContextualTooltip({
     required Size screenSize,
     required double topPadding,
@@ -392,15 +428,18 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
     required Color gold,
   }) {
     final isAbove = target.tooltipPosition == _TooltipPlacement.aboveTarget;
-    // Card has left: 16, right: 16. Arrow width is 20 (half-width = 10).
-    final arrowLeft = (target.targetCenter.dx - 16 - 10).clamp(20.0, screenSize.width - 32 - 40.0);
+    final isMayaStep = _currentStep == 1;
 
-    final double? cardBottom = isAbove
-        ? (screenSize.height - target.rect.top + 14).clamp(bottomPadding + 70.0, screenSize.height - 380.0)
-        : null;
-    final double? cardTop = !isAbove
-        ? (target.rect.bottom + 14).clamp(topPadding + 50.0, screenSize.height - 380.0)
-        : null;
+    double? cardTop;
+    double? cardBottom;
+
+    if (isAbove) {
+      cardBottom = screenSize.height - target.rect.top + 14;
+    } else {
+      cardTop = target.rect.bottom + 14;
+    }
+
+    final arrowLeft = (target.targetCenter.dx - 26).clamp(24.0, screenSize.width - 56.0);
 
     return Positioned(
       left: 16,
@@ -420,170 +459,64 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
                 painter: _TrianglePainter(
                   isUp: true,
                   color: const Color(0xFF181615),
-                  strokeColor: gold.withValues(alpha: 0.6),
+                  strokeColor: gold.withValues(alpha: 0.7),
                 ),
               ),
             ),
           ],
 
-          // Luxury Card
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: const Color(0xFF181615),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(
-                color: gold.withValues(alpha: 0.55),
-                width: 1.2,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.65),
-                  blurRadius: 28,
-                  offset: const Offset(0, 8),
-                ),
-                BoxShadow(
-                  color: gold.withValues(alpha: 0.12),
-                  blurRadius: 20,
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Top Category & Step Pills
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 28,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            color: gold.withValues(alpha: 0.18),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: gold.withValues(alpha: 0.4)),
-                          ),
-                          child: Icon(step['icon'] as IconData, size: 15, color: gold),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          step['category'] as String,
-                          style: GoogleFonts.inter(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.4,
-                            color: gold,
-                          ),
-                        ),
-                      ],
+          // Ultra-Luxury Frosted Glass Card with Animated Transitions
+          ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF171514).withValues(alpha: 0.90),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: gold.withValues(alpha: 0.50),
+                    width: 1.2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.65),
+                      blurRadius: 30,
+                      offset: const Offset(0, 10),
                     ),
-
-                    // Step indicator dots
-                    Row(
-                      children: List.generate(_steps.length, (i) {
-                        final isActive = i == _currentStep;
-                        return Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 2.5),
-                          width: isActive ? 18 : 6,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: isActive ? gold : Colors.white24,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        );
-                      }),
+                    BoxShadow(
+                      color: gold.withValues(alpha: 0.14),
+                      blurRadius: 24,
+                      spreadRadius: 1,
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-
-                // Title
-                Text(
-                  step['title'] as String,
-                  style: GoogleFonts.playfairDisplay(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                    height: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 6),
-
-                // Subtitle
-                Text(
-                  step['subtitle'] as String,
-                  style: GoogleFonts.inter(
-                    fontSize: 12.5,
-                    color: const Color(0xFFD4CEBE),
-                    height: 1.42,
-                  ),
-                ),
-                const SizedBox(height: 14),
-
-                // Target Label Chip
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4.5),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.06),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.my_location_rounded, size: 11, color: gold),
-                      const SizedBox(width: 5),
-                      Flexible(
-                        child: Text(
-                          step['targetLabel'] as String,
-                          style: GoogleFonts.inter(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white70,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 320),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  transitionBuilder: (child, animation) {
+                    return FadeTransition(
+                      opacity: animation,
+                      child: SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0, 0.05),
+                          end: Offset.zero,
+                        ).animate(animation),
+                        child: child,
                       ),
-                    ],
+                    );
+                  },
+                  child: KeyedSubtree(
+                    key: ValueKey<int>(_currentStep),
+                    child: isMayaStep
+                        ? _buildMayaCardContent(gold)
+                        : _buildStandardCardContent(step, isLast, gold),
                   ),
                 ),
-                const SizedBox(height: 16),
-
-                // Next Step Button
-                SizedBox(
-                  width: double.infinity,
-                  height: 44,
-                  child: ElevatedButton(
-                    onPressed: _nextStep,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: gold,
-                      foregroundColor: Colors.black,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(13),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          isLast ? 'Start Exploring Grazia ✨' : 'Next Step →',
-                          style: GoogleFonts.inter(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.3,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
 
@@ -596,7 +529,7 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
                 painter: _TrianglePainter(
                   isUp: false,
                   color: const Color(0xFF181615),
-                  strokeColor: gold.withValues(alpha: 0.6),
+                  strokeColor: gold.withValues(alpha: 0.7),
                 ),
               ),
             ),
@@ -605,10 +538,480 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
       ),
     );
   }
+
+  /// Apple-Style Segmented Step Progress Bar at top of card
+  Widget _buildSegmentedProgressBar(Color gold) {
+    return Row(
+      children: List.generate(_steps.length, (i) {
+        final isFilled = i <= _currentStep;
+        final isCurrent = i == _currentStep;
+        return Expanded(
+          child: Container(
+            margin: EdgeInsets.only(right: i < _steps.length - 1 ? 5 : 0),
+            height: 3.5,
+            decoration: BoxDecoration(
+              color: isCurrent
+                  ? gold
+                  : (isFilled ? gold.withValues(alpha: 0.70) : Colors.white12),
+              borderRadius: BorderRadius.circular(2),
+              boxShadow: isCurrent
+                  ? [
+                      BoxShadow(
+                        color: gold.withValues(alpha: 0.6),
+                        blurRadius: 6,
+                        spreadRadius: 0.5,
+                      ),
+                    ]
+                  : null,
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
+  /// Specialized Luxury Card for Introducing Maya AI
+  Widget _buildMayaCardContent(Color gold) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 0. Top Segmented Progress Bar
+        _buildSegmentedProgressBar(gold),
+        const SizedBox(height: 14),
+
+        // 1. Maya Identity Header with Glowing Portrait & Active Status
+        Row(
+          children: [
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: gold, width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: gold.withValues(alpha: 0.45),
+                        blurRadius: 12,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: ClipOval(
+                    child: Image.asset(
+                      'assets/images/maya_avatar.jpg',
+                      width: 50,
+                      height: 50,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => Icon(
+                        Icons.auto_awesome_rounded,
+                        color: gold,
+                        size: 26,
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: 1,
+                  right: 1,
+                  child: Container(
+                    width: 13,
+                    height: 13,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2E7D32),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: const Color(0xFF181615),
+                        width: 2.2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF4CAF50).withValues(alpha: 0.6),
+                          blurRadius: 6,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        'MAYA AI ARCHITECT',
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.4,
+                          color: gold,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5.5, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: gold.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'ONLINE',
+                          style: GoogleFonts.inter(
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.w700,
+                            color: gold,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Meet Maya AI Consultant',
+                    style: GoogleFonts.playfairDisplay(
+                      fontSize: 17.5,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      height: 1.2,
+                    ),
+                  ),
+                  Text(
+                    'Bilingual • Hindi & English Voice/Chat',
+                    style: GoogleFonts.inter(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w500,
+                      color: const Color(0xFFB0AAA0),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 14),
+
+        // 2. Personalized Hindi/English Greeting
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          child: Text(
+            'Poochiye Maya se Hindi ya English me — "living room ke liye premium stone designs", "villa exterior facades", ya "budget calculation". Maya aapko Grazia ke 36 collections me se perfect design recommend karegi!',
+            style: GoogleFonts.inter(
+              fontSize: 12.5,
+              color: const Color(0xFFE4DFD3),
+              height: 1.45,
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
+        // 3. Sample Query Prompts
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            _buildSamplePromptChip('🛋️ Living Room Wall', gold),
+            _buildSamplePromptChip('🏛️ Villa Facade', gold),
+            _buildSamplePromptChip('📐 3D Fluted Panels', gold),
+          ],
+        ),
+
+        const SizedBox(height: 16),
+
+        // 4. Action Row (Back, Chat with Maya Now & Next Step)
+        Row(
+          children: [
+            // Back Button
+            if (_currentStep > 0) ...[
+              _buildBackPillButton(),
+              const SizedBox(width: 8),
+            ],
+
+            // Chat with Maya Now (Primary Luxury Action)
+            Expanded(
+              flex: 6,
+              child: SizedBox(
+                height: 44,
+                child: ElevatedButton(
+                  onPressed: _openMaya,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: gold,
+                    foregroundColor: Colors.black,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.chat_bubble_rounded, size: 14, color: Colors.black),
+                        const SizedBox(width: 5),
+                        Text(
+                          'Talk to Maya Now',
+                          style: GoogleFonts.inter(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+
+            // Next Step
+            Expanded(
+              flex: 4,
+              child: SizedBox(
+                height: 44,
+                child: OutlinedButton(
+                  onPressed: _nextStep,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: BorderSide(color: Colors.white.withValues(alpha: 0.28)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      'Next Step →',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSamplePromptChip(String text, Color gold) {
+    return GestureDetector(
+      onTap: _openMaya,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: gold.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: gold.withValues(alpha: 0.32)),
+        ),
+        child: Text(
+          text,
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: gold,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Standard Card Content for Steps 1, 3, 4
+  Widget _buildStandardCardContent(Map<String, dynamic> step, bool isLast, Color gold) {
+    final chips = (step['chips'] as List<String>?) ?? [];
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 0. Top Segmented Progress Bar
+        _buildSegmentedProgressBar(gold),
+        const SizedBox(height: 14),
+
+        // 1. Top Category & Badge Row
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: gold.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(9),
+                    border: Border.all(color: gold.withValues(alpha: 0.45)),
+                  ),
+                  child: Icon(step['icon'] as IconData, size: 16, color: gold),
+                ),
+                const SizedBox(width: 9),
+                Text(
+                  step['category'] as String,
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.4,
+                    color: gold,
+                  ),
+                ),
+              ],
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+              ),
+              child: Text(
+                step['badge'] as String,
+                style: GoogleFonts.inter(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.8,
+                  color: Colors.white70,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // 2. Headline
+        Text(
+          step['title'] as String,
+          style: GoogleFonts.playfairDisplay(
+            fontSize: 18.5,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+            height: 1.2,
+          ),
+        ),
+        const SizedBox(height: 6),
+
+        // 3. Subtitle / Narrative
+        Text(
+          step['subtitle'] as String,
+          style: GoogleFonts.inter(
+            fontSize: 12.5,
+            color: const Color(0xFFD4CEBE),
+            height: 1.42,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // 4. Feature Pills
+        if (chips.isNotEmpty) ...[
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: chips.map((c) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+              ),
+              child: Text(
+                c,
+                style: GoogleFonts.inter(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w500,
+                  color: const Color(0xFFE2DDD5),
+                ),
+              ),
+            )).toList(),
+          ),
+          const SizedBox(height: 16),
+        ] else ...[
+          const SizedBox(height: 6),
+        ],
+
+        // 5. Action Row (Back + Next Step Buttons)
+        Row(
+          children: [
+            if (_currentStep > 0) ...[
+              _buildBackPillButton(),
+              const SizedBox(width: 8),
+            ],
+            Expanded(
+              child: SizedBox(
+                height: 44,
+                child: ElevatedButton(
+                  onPressed: _nextStep,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: gold,
+                    foregroundColor: Colors.black,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        isLast ? 'Start Exploring Grazia ✨' : 'Next Step →',
+                        style: GoogleFonts.inter(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBackPillButton() {
+    return SizedBox(
+      width: 44,
+      height: 44,
+      child: OutlinedButton(
+        onPressed: _prevStep,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.white70,
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.20)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          padding: EdgeInsets.zero,
+        ),
+        child: const Icon(Icons.arrow_back_rounded, size: 16, color: Colors.white70),
+      ),
+    );
+  }
 }
 
-enum _TooltipPlacement { aboveTarget, belowTarget }
 enum _PointerDirection { up, down }
+enum _TooltipPlacement { aboveTarget, belowTarget }
 
 class _SpotlightTarget {
   final Rect rect;
@@ -628,79 +1031,80 @@ class _SpotlightTarget {
   });
 }
 
-/// Paints the dimmed screen with a transparent cutout over the target widget
-/// and glowing pulsing borders.
 class _SpotlightHolePainter extends CustomPainter {
   final _SpotlightTarget target;
   final double pulseValue;
   final Color overlayColor;
   final Color glowColor;
+  final Color luminousColor;
 
   _SpotlightHolePainter({
     required this.target,
     required this.pulseValue,
     required this.overlayColor,
     required this.glowColor,
+    required this.luminousColor,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    // 1. Full screen path
     final screenPath = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
 
-    // 2. Cutout target path
-    final targetPath = Path();
+    final holePath = Path();
     if (target.isCircle) {
-      targetPath.addOval(target.rect);
+      holePath.addOval(target.rect);
     } else {
-      targetPath.addRRect(
-        RRect.fromRectAndRadius(target.rect, Radius.circular(target.borderRadius)),
-      );
+      holePath.addRRect(RRect.fromRectAndRadius(target.rect, Radius.circular(target.borderRadius)));
     }
 
-    // 3. Subtract target from screen path (Punchout)
-    final cutoutPath = Path.combine(PathOperation.difference, screenPath, targetPath);
+    final cutoutPath = Path.combine(PathOperation.difference, screenPath, holePath);
 
-    // 4. Fill darkened screen background
-    final darkPaint = Paint()..color = overlayColor;
-    canvas.drawPath(cutoutPath, darkPaint);
+    // Deep dim backdrop
+    final dimPaint = Paint()..color = overlayColor;
+    canvas.drawPath(cutoutPath, dimPaint);
 
-    // 5. Draw inner pulsing golden border
-    final innerBorderPaint = Paint()
-      ..color = glowColor
+    // Inner sharp gold rim
+    final innerRimPaint = Paint()
+      ..color = luminousColor.withValues(alpha: 0.85)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0;
 
     if (target.isCircle) {
-      canvas.drawOval(target.rect, innerBorderPaint);
+      canvas.drawOval(target.rect, innerRimPaint);
     } else {
       canvas.drawRRect(
         RRect.fromRectAndRadius(target.rect, Radius.circular(target.borderRadius)),
-        innerBorderPaint,
+        innerRimPaint,
       );
     }
 
-    // 6. Draw outer beacon pulsing wave ring
-    final waveOffset = 6.0 * pulseValue;
-    final waveAlpha = (0.50 * (1.0 - pulseValue)).clamp(0.0, 1.0);
-    final wavePaint = Paint()
-      ..color = glowColor.withValues(alpha: waveAlpha)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5;
+    // Outer pulsating radiant halo
+    final pulseScale = 1.0 + (pulseValue * 0.16);
+    final glowRect = Rect.fromCenter(
+      center: target.targetCenter,
+      width: target.rect.width * pulseScale,
+      height: target.rect.height * pulseScale,
+    );
 
-    final outerRect = target.rect.inflate(waveOffset);
+    final glowPaint = Paint()
+      ..color = glowColor.withValues(alpha: 0.45 * (1.0 - pulseValue * 0.6))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.5;
+
     if (target.isCircle) {
-      canvas.drawOval(outerRect, wavePaint);
+      canvas.drawOval(glowRect, glowPaint);
     } else {
       canvas.drawRRect(
-        RRect.fromRectAndRadius(outerRect, Radius.circular(target.borderRadius + waveOffset)),
-        wavePaint,
+        RRect.fromRectAndRadius(glowRect, Radius.circular(target.borderRadius * pulseScale)),
+        glowPaint,
       );
     }
   }
 
   @override
-  bool shouldRepaint(covariant _SpotlightHolePainter oldDelegate) => true;
+  bool shouldRepaint(covariant _SpotlightHolePainter oldDelegate) {
+    return oldDelegate.pulseValue != pulseValue || oldDelegate.target != target;
+  }
 }
 
 class _TrianglePainter extends CustomPainter {
@@ -721,22 +1125,21 @@ class _TrianglePainter extends CustomPainter {
       path.moveTo(size.width / 2, 0);
       path.lineTo(size.width, size.height);
       path.lineTo(0, size.height);
-      path.close();
     } else {
       path.moveTo(0, 0);
       path.lineTo(size.width, 0);
       path.lineTo(size.width / 2, size.height);
-      path.close();
     }
+    path.close();
 
-    canvas.drawPath(path, Paint()..color = color);
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = strokeColor
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0,
-    );
+    final fillPaint = Paint()..color = color;
+    final strokePaint = Paint()
+      ..color = strokeColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+
+    canvas.drawPath(path, fillPaint);
+    canvas.drawPath(path, strokePaint);
   }
 
   @override

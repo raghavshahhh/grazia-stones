@@ -35,12 +35,19 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _shouldPlayAnimation = !widget.skipDelay && !_animationPlayedThisLaunch;
-    if (_shouldPlayAnimation) {
-      _animationPlayedThisLaunch = true;
-    } else {
-      // Tests/deep links, or a re-mount after the animation already ran.
+    final onboardingComplete = StorageService.instance.getOnboardingCompleted() ||
+        ref.read(authRiverpodProvider).onboardingComplete;
+    if (onboardingComplete) {
+      _shouldPlayAnimation = false;
       WidgetsBinding.instance.addPostFrameCallback((_) => _navigateNext());
+    } else {
+      _shouldPlayAnimation = !widget.skipDelay && !_animationPlayedThisLaunch;
+      if (_shouldPlayAnimation) {
+        _animationPlayedThisLaunch = true;
+      } else {
+        // Tests/deep links, or a re-mount after the animation already ran.
+        WidgetsBinding.instance.addPostFrameCallback((_) => _navigateNext());
+      }
     }
   }
 

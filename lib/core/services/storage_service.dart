@@ -89,8 +89,8 @@ class StorageService {
   // ═══════════════════════════════════════════════════════════════════════
 
   // App Settings
-  Future<void> saveThemeMode(bool isDark) => _appBox.put('theme_mode_v3', isDark);
-  bool getThemeMode() => _appBox.get('theme_mode_v3', defaultValue: true);
+  Future<void> saveThemeMode(bool isDark) => _appBox.put('theme_mode_v4', isDark);
+  bool getThemeMode() => _appBox.get('theme_mode_v4', defaultValue: false);
 
   Future<void> saveOnboardingCompleted(bool completed) => _appBox.put('onboarding_completed', completed);
   bool getOnboardingCompleted() => _appBox.get('onboarding_completed', defaultValue: false);
@@ -160,6 +160,76 @@ class StorageService {
   }
 
   Future<void> clearUser() => _userBox.delete('user_data');
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // REGISTERED ACCOUNTS & CREDENTIALS
+  // ═══════════════════════════════════════════════════════════════════════
+
+  static const String demoEmail = 'architect@graziastones.com';
+  static const String demoPassword = 'Grazia@2025';
+
+  /// Save or update a registered account locally
+  Future<void> saveRegisteredAccount({
+    required String email,
+    required String password,
+    required String name,
+    String? phone,
+    String? role,
+    String? company,
+  }) async {
+    final accounts = getRegisteredAccounts();
+    final cleanEmail = email.trim().toLowerCase();
+    accounts[cleanEmail] = {
+      'email': cleanEmail,
+      'password': password,
+      'name': name,
+      'phone': phone,
+      'role': role ?? 'architect',
+      'company': company ?? 'Grazia Architectural Studio',
+      'created_at': DateTime.now().toIso8601String(),
+    };
+    await _userBox.put('registered_accounts_map', jsonEncode(accounts));
+  }
+
+  /// Retrieve all registered accounts (pre-seeded + user-created)
+  Map<String, Map<String, dynamic>> getRegisteredAccounts() {
+    final Map<String, Map<String, dynamic>> defaults = {
+      demoEmail: {
+        'email': demoEmail,
+        'password': demoPassword,
+        'name': 'Raghav Shah',
+        'phone': '9876543210',
+        'role': 'architect',
+        'company': 'Grazia Architectural Studio',
+      },
+    };
+
+    final raw = _userBox.get('registered_accounts_map');
+    if (raw == null) return defaults;
+    try {
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      final result = Map<String, Map<String, dynamic>>.from(defaults);
+      decoded.forEach((key, val) {
+        if (val is Map) {
+          result[key.toLowerCase()] = Map<String, dynamic>.from(val);
+        }
+      });
+      return result;
+    } catch (_) {
+      return defaults;
+    }
+  }
+
+  /// Match email and password against registered accounts
+  Map<String, dynamic>? findRegisteredAccount(String email, String password) {
+    final accounts = getRegisteredAccounts();
+    final cleanEmail = email.trim().toLowerCase();
+    final acc = accounts[cleanEmail];
+    if (acc != null && acc['password'] == password) {
+      return acc;
+    }
+    return null;
+  }
 
   /// Universal Client Profile Memory (retained across quotes, samples, cart, checkout)
   Future<void> saveClientProfile({
@@ -252,6 +322,27 @@ class StorageService {
   // Interactive App Tour / First-Time Guide
   bool hasSeenAppTour() => _appBox.get('has_seen_app_tour') == true;
   Future<void> setHasSeenAppTour(bool seen) => _appBox.put('has_seen_app_tour', seen);
+
+  // Local Sample Orders
+  Future<void> saveLocalSampleOrder(Map<String, dynamic> sampleJson) async {
+    final list = getLocalSampleOrders();
+    list.insert(0, sampleJson);
+    await _appBox.put('local_sample_orders', jsonEncode(list));
+  }
+
+  List<Map<String, dynamic>> getLocalSampleOrders() {
+    final raw = _appBox.get('local_sample_orders');
+    if (raw == null) return [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is List) {
+        return List<Map<String, dynamic>>.from(
+          decoded.map((x) => Map<String, dynamic>.from(x as Map)),
+        );
+      }
+    } catch (_) {}
+    return [];
+  }
 
   // Generic Data Storage
   Future<void> saveData(String key, Map<String, dynamic> data) async {

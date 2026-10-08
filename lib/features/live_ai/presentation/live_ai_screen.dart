@@ -78,8 +78,13 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     );
     _updateFilteredStones();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _stonePageController.hasClients && _selectedStoneIndex > 0) {
-        _stonePageController.jumpToPage(_selectedStoneIndex);
+      if (mounted) {
+        if (_stonePageController.hasClients && _selectedStoneIndex > 0) {
+          _stonePageController.jumpToPage(_selectedStoneIndex);
+        }
+        if (_filteredStones.isNotEmpty) {
+          _selectStone(_selectedStoneIndex);
+        }
       }
     });
     
@@ -92,6 +97,18 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
         setState(() => _wallState = state);
       }
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant LiveAIScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialStoneId != widget.initialStoneId && widget.initialStoneId != null) {
+      _updateFilteredStones();
+      _selectStone(_selectedStoneIndex);
+      if (_stonePageController.hasClients) {
+        _stonePageController.jumpToPage(_selectedStoneIndex);
+      }
+    }
   }
 
   @override
@@ -277,7 +294,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
       tileWidth: tileWidth,
       tileHeight: tileHeight,
       tileUnit: 'mm',
-      wastagePercent: 10.0,
+      wastagePercent: 15.0,
     );
 
     if (result != null && mounted) {
@@ -897,7 +914,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
   /// Camera feed
   Widget _buildCamera() {
-    final assetPath = _selectedStone?.arTextureUrl;
+    final assetPath = _selectedStone?.arTextureUrl ?? _selectedStone?.mainImageUrl;
 
     return Positioned.fill(
       child: ARCameraView(

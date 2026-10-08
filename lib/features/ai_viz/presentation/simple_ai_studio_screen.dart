@@ -18,6 +18,8 @@ import 'package:grazia_stones/core/services/ai_endpoint_client.dart';
 import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/providers/stone_providers.dart' show allStonesProvider;
+import 'package:grazia_stones/shared/theme/colors.dart';
+import 'package:grazia_stones/shared/theme/theme_provider.dart';
 
 /// Architectural Color & Finish Variant Model
 class StudioColorVariant {
@@ -195,72 +197,112 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
   String? _preSelectedStoneName;
   bool _loadingPreSelectedStone = false;
 
-  int _selectedColorIndex = 0;
-  StudioColorVariant get _activeVariant => _studioColorVariants[_selectedColorIndex];
+  StudioColorVariant get _activeVariant => _studioColorVariants.first;
 
   String? _resultImage; // data URL
   bool _generating = false;
   double _generationProgress = 0.0;
   String _generationStatusText = 'Creating image';
   String? _statusNote;
-  bool _resultFromAi = false;
   String? _error;
   bool _showOriginal = false;
 
   @override
   void initState() {
     super.initState();
+    // Start empty so user can upload/select their own room and stone.
+    // Only load stone into Step 2 if explicitly navigated with a preSelectedStoneId.
     if (widget.preSelectedStoneId != null) {
       _loadPreSelectedStone(widget.preSelectedStoneId!);
-    } else {
-      _loadInitialDemo();
     }
   }
 
-  Future<void> _loadInitialDemo() async {
-    try {
-      final roomData = await rootBundle.load('assets/images/home_hero_living_room.jpg');
-      final stoneData = await rootBundle.load('assets/images/grande_ledge_ta02_tex.png');
-      if (!mounted) return;
-      setState(() {
-        _roomBytes = roomData.buffer.asUint8List();
-        _roomLabel = 'Living Room Feature Wall';
-        _designBytes = stoneData.buffer.asUint8List();
-        _preSelectedStoneName = 'Grande Ledge Series';
-      });
-    } catch (_) {}
+  @override
+  void didUpdateWidget(covariant SimpleAIStudioScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.preSelectedStoneId != widget.preSelectedStoneId) {
+      if (widget.preSelectedStoneId != null) {
+        _loadPreSelectedStone(widget.preSelectedStoneId!);
+      } else {
+        setState(() {
+          _designBytes = null;
+          _preSelectedStoneName = null;
+        });
+      }
+    }
   }
 
   Future<void> _loadPreSelectedStone(String stoneId) async {
     setState(() => _loadingPreSelectedStone = true);
     try {
-      final stone = await ref.read(stoneRepositoryProvider).getStoneById(stoneId);
+      Stone? stone;
+      try {
+        stone = await ref.read(stoneRepositoryProvider).getStoneById(stoneId);
+      } catch (_) {}
+
+      if (stone == null) {
+        final all = ref.read(allStonesProvider).valueOrNull;
+        if (all != null && all.isNotEmpty) {
+          final query = stoneId.toLowerCase().trim();
+          stone = all.firstWhere(
+            (s) =>
+                s.id.toLowerCase() == query ||
+                s.name.toLowerCase() == query ||
+                s.name.toLowerCase().contains(query) ||
+                s.productCode.toLowerCase() == query,
+            orElse: () => all.firstWhere((s) => s.id == stoneId, orElse: () => all.first),
+          );
+        }
+      }
+      if (stone == null) return;
+
       final imageUrl = stone.arTexture ??
+          stone.arTextureUrl ??
           stone.mainImageUrl ??
           (stone.images.isNotEmpty ? stone.images.first : null);
-      if (imageUrl == null || imageUrl.isEmpty) return;
+      if (imageUrl == null || imageUrl.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _preSelectedStoneName = stone!.name;
+          });
+        }
+        return;
+      }
 
-      final response = await Dio().get<List<int>>(
-        imageUrl,
-        options: Options(responseType: ResponseType.bytes),
-      );
-      final bytes = response.data;
+      Uint8List? bytes;
+      if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+        final response = await Dio().get<List<int>>(
+          imageUrl,
+          options: Options(responseType: ResponseType.bytes),
+        );
+        final data = response.data;
+        if (data != null) {
+          bytes = Uint8List.fromList(data);
+        }
+      } else {
+        final byteData = await rootBundle.load(imageUrl);
+        bytes = byteData.buffer.asUint8List();
+      }
+
       if (bytes == null || !mounted) return;
       setState(() {
-        _designBytes = Uint8List.fromList(bytes);
-        _preSelectedStoneName = stone.name;
+        _designBytes = bytes;
+        _preSelectedStoneName = stone!.name;
+        _resultImage = null;
+        _error = null;
       });
-    } catch (_) {
-      // Best-effort
+    } catch (e) {
+      debugPrint('[SimpleAIStudio] Error loading stone $stoneId: $e');
     } finally {
       if (mounted) setState(() => _loadingPreSelectedStone = false);
     }
   }
 
   Future<void> _pick(bool isRoom) async {
+    final palette = ref.read(themePaletteProvider);
     final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
-      backgroundColor: const Color(0xFF161618),
+      backgroundColor: palette.surface,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -461,9 +503,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
         final data = await AIEndpointClient.post('/api/generate-visualization', {
           'image': roomDataUrl,
           'designImage': designDataUrl,
-          'color': _activeVariant.name,
-          'finish': _activeVariant.finishName,
-          'variantIndex': _selectedColorIndex,
+          'stoneName': _preSelectedStoneName ?? 'Natural Stone',
         });
 
         final returnedImage = data['resultImage'] as String?;
@@ -515,7 +555,6 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
     if (generatedB64 != null) {
       setState(() {
         _resultImage = generatedB64;
-        _resultFromAi = fromAi;
         _generating = false;
         _statusNote = statusNote;
       });
@@ -567,13 +606,8 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
       canvas.save();
       canvas.clipPath(wallPath);
 
-      // 4. Draw texture with active colorway tint & finish blend mode
-      final texturePaint = Paint()
-        ..shader = shader
-        ..colorFilter = ColorFilter.mode(
-          _activeVariant.tintColor,
-          _activeVariant.blendMode,
-        );
+      // 4. Draw texture directly with natural authentic stone color from design
+      final texturePaint = Paint()..shader = shader;
       canvas.drawPath(wallPath, texturePaint);
 
       // 5. Draw architectural lighting: ceiling ambient wash + vertical drop-shadow
@@ -624,17 +658,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
     }
   }
 
-  Future<void> _generateLocalComposite() async {
-    final url = await _createLocalCompositeDataUrl();
-    if (url != null && mounted) {
-      setState(() {
-        _resultImage = url;
-        _resultFromAi = false;
-        _generating = false;
-        _statusNote = 'Quick preview • ${_activeVariant.name}';
-      });
-    }
-  }
+
 
   void _openFullscreenViewer() {
     if (_resultImage == null) return;
@@ -830,17 +854,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
     super.dispose();
   }
 
-  void _onColorVariantChanged(int index) {
-    if (index == _selectedColorIndex) return;
-    HapticFeedback.selectionClick();
-    setState(() => _selectedColorIndex = index);
 
-    // Re-render in the new colourway: through the AI again if the current
-    // result came from it (a local composite would silently replace it).
-    if (_resultImage != null && _roomBytes != null && _designBytes != null && !_generating) {
-      _resultFromAi ? _generate() : _generateLocalComposite();
-    }
-  }
 
   /// Downscaled JPEG data URL for the AI proxy: keeps the request under
   /// Vercel's ~4.5 MB body limit and labels the bytes with their real type.
@@ -873,9 +887,10 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
   }
 
   void _showApiInfo() {
+    final palette = ref.read(themePaletteProvider);
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF161618),
+      backgroundColor: palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -887,11 +902,14 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
   Widget build(BuildContext context) {
     debugPrint('🔥🔥🔥 BUILDING SimpleAIStudioScreen now! 🔥🔥🔥');
     final canGenerate = _roomBytes != null && _designBytes != null && !_generating;
+    final palette = ref.watch(themePaletteProvider);
+    final isDark = ref.watch(themePaletteProvider.notifier).isDarkMode;
+    final accentGold = isDark ? const Color(0xFFD4AF37) : const Color(0xFF8B6B23);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F11),
+      backgroundColor: palette.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F0F11),
+        backgroundColor: palette.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
@@ -903,12 +921,12 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
               context.go('/home');
             }
           },
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
         ),
         title: Text(
           'AI Room Studio',
           style: GoogleFonts.playfairDisplay(
-            color: Colors.white,
+            color: palette.textPrimary,
             fontSize: 22,
             fontWeight: FontWeight.w700,
           ),
@@ -916,7 +934,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
         actions: [
           IconButton(
             onPressed: _showApiInfo,
-            icon: const Icon(Icons.info_outline_rounded, color: Color(0xFFD4AF37), size: 22),
+            icon: Icon(Icons.info_outline_rounded, color: accentGold, size: 22),
             tooltip: 'AI & Architecture',
           ),
         ],
@@ -945,10 +963,10 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
                       Container(
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFD4AF37).withValues(alpha: 0.15),
+                          color: accentGold.withValues(alpha: 0.15),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.check_rounded, color: Color(0xFFD4AF37), size: 14),
+                        child: Icon(Icons.check_rounded, color: accentGold, size: 14),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
@@ -957,7 +975,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.inter(
-                            color: Colors.white,
+                            color: palette.textPrimary,
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                           ),
@@ -971,12 +989,12 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
                     HapticFeedback.lightImpact();
                     setState(() => _resultImage = null);
                   },
-                  icon: const Icon(Icons.replay_rounded, size: 14, color: Color(0xFFD4AF37)),
+                  icon: Icon(Icons.replay_rounded, size: 14, color: accentGold),
                   label: Text(
                     'Change Photos',
                     style: GoogleFonts.inter(
                       fontSize: 12,
-                      color: const Color(0xFFD4AF37),
+                      color: accentGold,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -990,12 +1008,17 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
               onTap: _openFullscreenViewer,
               child: Container(
                 decoration: BoxDecoration(
-                  color: const Color(0xFF161618),
+                  color: palette.surface,
                   borderRadius: BorderRadius.circular(22),
-                  border: Border.all(color: const Color(0xFFD4AF37).withValues(alpha: 0.35), width: 1.2),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFFD4AF37).withValues(alpha: 0.35) : palette.border,
+                    width: 1.2,
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFD4AF37).withValues(alpha: 0.08),
+                      color: isDark
+                          ? const Color(0xFFD4AF37).withValues(alpha: 0.08)
+                          : Colors.black.withValues(alpha: 0.06),
                       blurRadius: 24,
                       spreadRadius: 2,
                     ),
@@ -1018,7 +1041,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
                                 style: GoogleFonts.playfairDisplay(
                                   fontSize: 18,
                                   fontWeight: FontWeight.w700,
-                                  color: Colors.white,
+                                  color: palette.textPrimary,
                                 ),
                               ),
                               if (_statusNote != null)
@@ -1028,7 +1051,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
                                   overflow: TextOverflow.ellipsis,
                                   style: GoogleFonts.inter(
                                     fontSize: 11,
-                                    color: const Color(0xFFD4AF37),
+                                    color: accentGold,
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
@@ -1115,7 +1138,9 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
                                 border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
                               ),
                               child: Text(
-                                _showOriginal ? 'ORIGINAL ROOM' : _activeVariant.name.toUpperCase(),
+                                _showOriginal
+                                    ? 'ORIGINAL ROOM'
+                                    : (_preSelectedStoneName ?? 'NATURAL STONE').toUpperCase(),
                                 style: GoogleFonts.inter(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w700,
@@ -1159,86 +1184,33 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Color Variants Selection Bar inside Result
-                    Text(
-                      'TRY SAME DESIGN IN OTHER FINISHES & TONES:',
-                      style: GoogleFonts.inter(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.8,
-                        color: const Color(0xFF8E8E93),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      height: 40,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _studioColorVariants.length,
-                        separatorBuilder: (_, _) => const SizedBox(width: 8),
-                        itemBuilder: (context, idx) {
-                          final v = _studioColorVariants[idx];
-                          final isSel = idx == _selectedColorIndex;
-                          return InkWell(
-                            borderRadius: BorderRadius.circular(20),
-                            onTap: () => _onColorVariantChanged(idx),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: isSel ? const Color(0xFFD4AF37).withValues(alpha: 0.18) : const Color(0xFF222226),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: isSel ? const Color(0xFFD4AF37) : const Color(0xFF333338),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  CircleAvatar(radius: 6, backgroundColor: v.swatchColor),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    v.name,
-                                    style: GoogleFonts.inter(
-                                      fontSize: 12,
-                                      fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
-                                      color: isSel ? const Color(0xFFD4AF37) : Colors.white70,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 16),
 
                     // Matching Collections Recommendation Chip
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF1E1E22),
+                        color: palette.surfaceDark,
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0xFF2A2A30)),
+                        border: Border.all(color: palette.border),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.layers_outlined, color: Color(0xFFD4AF37), size: 18),
+                          Icon(Icons.layers_outlined, color: accentGold, size: 18),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Recommended Collections for this shade:',
-                                  style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF8E8E93)),
+                                  'Selected Stone Design:',
+                                  style: GoogleFonts.inter(fontSize: 11, color: palette.textSecondary),
                                 ),
                                 Text(
-                                  _activeVariant.matchingCollections.join(' • '),
+                                  _preSelectedStoneName ?? 'Natural Architectural Stone',
                                   style: GoogleFonts.inter(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
-                                    color: Colors.white,
+                                    color: palette.textPrimary,
                                   ),
                                 ),
                               ],
@@ -1256,13 +1228,13 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
                         Expanded(
                           child: OutlinedButton.icon(
                             onPressed: _downloadImage,
-                            icon: const Icon(Icons.download_rounded, size: 16, color: Colors.white),
+                            icon: Icon(Icons.download_rounded, size: 16, color: palette.textPrimary),
                             label: Text(
                               'Save',
-                              style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 12),
+                              style: GoogleFonts.inter(color: palette.textPrimary, fontWeight: FontWeight.w600, fontSize: 12),
                             ),
                             style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Color(0xFF3A3A40)),
+                              side: BorderSide(color: palette.border),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                               padding: const EdgeInsets.symmetric(vertical: 12),
                             ),
@@ -1292,13 +1264,13 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
                         Expanded(
                           child: ElevatedButton.icon(
                             onPressed: _shareResult,
-                            icon: const Icon(Icons.share_outlined, size: 16, color: Colors.black),
+                            icon: const Icon(Icons.share_outlined, size: 16, color: Colors.white),
                             label: Text(
                               'Share',
-                              style: GoogleFonts.inter(color: Colors.black, fontWeight: FontWeight.w700, fontSize: 12),
+                              style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12),
                             ),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFD4AF37),
+                              backgroundColor: accentGold,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                               padding: const EdgeInsets.symmetric(vertical: 12),
                             ),
@@ -1313,13 +1285,13 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
                       onPressed: () {
                         context.push('/samples/request');
                       },
-                      icon: const Icon(Icons.shopping_bag_outlined, size: 16, color: Color(0xFFD4AF37)),
+                      icon: Icon(Icons.shopping_bag_outlined, size: 16, color: accentGold),
                       label: Text(
                         'Order Free Physical Sample Tile',
-                        style: GoogleFonts.inter(color: const Color(0xFFD4AF37), fontWeight: FontWeight.w600, fontSize: 13),
+                        style: GoogleFonts.inter(color: accentGold, fontWeight: FontWeight.w600, fontSize: 13),
                       ),
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Color(0xFFD4AF37)),
+                        side: BorderSide(color: accentGold),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
@@ -1340,27 +1312,27 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
                   'Two photos, one realistic result.',
                   style: GoogleFonts.inter(
                     fontSize: 13,
-                    color: const Color(0xFF8E8E93),
+                    color: palette.textSecondary,
                   ),
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFD4AF37).withValues(alpha: 0.15),
+                    color: accentGold.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0xFFD4AF37).withValues(alpha: 0.35), width: 0.8),
+                    border: Border.all(color: accentGold.withValues(alpha: 0.35), width: 0.8),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.auto_awesome_rounded, color: Color(0xFFD4AF37), size: 11),
+                      Icon(Icons.auto_awesome_rounded, color: accentGold, size: 11),
                       const SizedBox(width: 4),
                       Text(
                         'AI GEN 2.5',
                         style: GoogleFonts.inter(
                           fontSize: 9,
                           fontWeight: FontWeight.w700,
-                          color: const Color(0xFFD4AF37),
+                          color: accentGold,
                           letterSpacing: 0.8,
                         ),
                       ),
@@ -1375,9 +1347,11 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
             _LuxuryImageSlot(
               stepNumber: '1',
               label: 'Your Room',
-              subtitle: _roomLabel ?? 'Photo of the wall you want to redesign',
+              subtitle: _roomLabel ?? 'Upload or take photo of your room / wall',
               bytes: _roomBytes,
               onTap: () => _pick(true),
+              palette: palette,
+              isDark: isDark,
             ),
             const SizedBox(height: 14),
 
@@ -1387,15 +1361,15 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Row(
                   children: [
-                    const SizedBox(
+                    SizedBox(
                       width: 14,
                       height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFD4AF37)),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: accentGold),
                     ),
                     const SizedBox(width: 10),
                     Text(
                       'Loading selected stone texture…',
-                      style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF8E8E93)),
+                      style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary),
                     ),
                   ],
                 ),
@@ -1405,106 +1379,57 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
               label: 'Your Design',
               subtitle: _preSelectedStoneName != null
                   ? '$_preSelectedStoneName — tap to switch'
-                  : 'Photo of the stone or tile design you want applied',
+                  : 'Select stone from catalogue or upload photo',
               bytes: _designBytes,
               onTap: () => _pick(false),
+              palette: palette,
+              isDark: isDark,
             ),
-            const SizedBox(height: 20),
-
-            // Colorway & Finish Palette Selector
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'STONE COLORWAY & FINISH',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.0,
-                        color: const Color(0xFFA1A1A6),
-                      ),
-                    ),
-                    Text(
-                      _activeVariant.finishName,
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFFD4AF37),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  height: 48,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _studioColorVariants.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 8),
-                    itemBuilder: (context, idx) {
-                      final variant = _studioColorVariants[idx];
-                      final isSelected = idx == _selectedColorIndex;
-                      return InkWell(
-                        borderRadius: BorderRadius.circular(24),
-                        onTap: () => _onColorVariantChanged(idx),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: isSelected ? const Color(0xFF26262A) : const Color(0xFF161618),
-                            borderRadius: BorderRadius.circular(24),
-                            border: Border.all(
-                              color: isSelected ? const Color(0xFFD4AF37) : const Color(0xFF2A2A2E),
-                              width: isSelected ? 1.5 : 1.0,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 16,
-                                height: 16,
-                                decoration: BoxDecoration(
-                                  color: variant.swatchColor,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 0.8),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                variant.name,
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                                  color: isSelected ? Colors.white : const Color(0xFF8E8E93),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 24),
 
             // Generate Action Button
             SizedBox(
               height: 54,
               child: ElevatedButton(
-                onPressed: canGenerate ? _generate : null,
+                onPressed: () {
+                  if (canGenerate) {
+                    _generate();
+                  } else {
+                    HapticFeedback.lightImpact();
+                    String msg = 'Please upload your room photo and select a stone design';
+                    if (_roomBytes == null && _designBytes != null) {
+                      msg = 'Please upload or select your room / wall photo (Step 1)';
+                    } else if (_roomBytes != null && _designBytes == null) {
+                      msg = 'Please select a stone design (Step 2)';
+                    }
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Row(
+                          children: [
+                            const Icon(Icons.info_outline_rounded, color: Color(0xFFD4AF37), size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text(msg, style: GoogleFonts.inter(color: Colors.white, fontSize: 13))),
+                          ],
+                        ),
+                        backgroundColor: const Color(0xFF1E1E22),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFD4AF37),
-                  foregroundColor: Colors.black,
-                  disabledBackgroundColor: const Color(0xFF1C1C1E),
-                  disabledForegroundColor: const Color(0xFF555558),
+                  backgroundColor: canGenerate ? accentGold : palette.surfaceDark,
+                  foregroundColor: canGenerate ? Colors.white : palette.textTertiary,
                   elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(
+                      color: canGenerate ? accentGold : palette.border,
+                      width: 1,
+                    ),
+                  ),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -1553,6 +1478,8 @@ class _LuxuryImageSlot extends StatelessWidget {
   final String subtitle;
   final Uint8List? bytes;
   final VoidCallback onTap;
+  final LuxuryPalette palette;
+  final bool isDark;
 
   const _LuxuryImageSlot({
     required this.stepNumber,
@@ -1560,11 +1487,14 @@ class _LuxuryImageSlot extends StatelessWidget {
     required this.subtitle,
     required this.bytes,
     required this.onTap,
+    required this.palette,
+    required this.isDark,
   });
 
   @override
   Widget build(BuildContext context) {
     final hasImage = bytes != null && bytes!.isNotEmpty;
+    final accentGold = isDark ? const Color(0xFFD4AF37) : const Color(0xFF8B6B23);
 
     return GestureDetector(
       onTap: onTap,
@@ -1575,26 +1505,24 @@ class _LuxuryImageSlot extends StatelessWidget {
           borderRadius: BorderRadius.circular(22),
           border: Border.all(
             color: hasImage
-                ? const Color(0xFFD4AF37).withValues(alpha: 0.6)
-                : const Color(0xFF2C2C2E),
+                ? accentGold.withValues(alpha: 0.6)
+                : palette.border,
             width: hasImage ? 1.4 : 1.0,
           ),
-          color: const Color(0xFF161618),
+          color: palette.surface,
           image: hasImage
               ? DecorationImage(
                   image: MemoryImage(bytes!),
                   fit: BoxFit.cover,
                 )
               : null,
-          boxShadow: hasImage
-              ? [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.45),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                  ),
-                ]
-              : null,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.05),
+              blurRadius: 14,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         clipBehavior: Clip.antiAlias,
         child: hasImage
@@ -1772,17 +1700,19 @@ class _LuxuryImageSlot extends StatelessWidget {
                     width: 56,
                     height: 56,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF242426),
+                      color: palette.surfaceDark,
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: const Color(0xFFD4AF37).withValues(alpha: 0.5),
+                        color: accentGold.withValues(alpha: 0.5),
                         width: 1.2,
                       ),
                     ),
-                    child: const Icon(
-                      Icons.add_photo_alternate_outlined,
+                    child: Icon(
+                      stepNumber == '1'
+                          ? Icons.add_photo_alternate_outlined
+                          : Icons.texture_rounded,
                       size: 26,
-                      color: Color(0xFFD4AF37),
+                      color: accentGold,
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -1791,7 +1721,7 @@ class _LuxuryImageSlot extends StatelessWidget {
                     style: GoogleFonts.inter(
                       fontWeight: FontWeight.w700,
                       fontSize: 16,
-                      color: Colors.white,
+                      color: palette.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 5),
@@ -1802,7 +1732,7 @@ class _LuxuryImageSlot extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: GoogleFonts.inter(
                         fontSize: 12,
-                        color: const Color(0xFF8E8E93),
+                        color: palette.textSecondary,
                       ),
                     ),
                   ),
@@ -1813,15 +1743,15 @@ class _LuxuryImageSlot extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF242428),
+                          color: palette.surfaceDark,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFF333338)),
+                          border: Border.all(color: palette.border),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.camera_alt_outlined, size: 12, color: Color(0xFFD4AF37)),
+                            Icon(Icons.camera_alt_outlined, size: 12, color: accentGold),
                             const SizedBox(width: 4),
-                            Text('Camera', style: GoogleFonts.inter(color: Colors.white, fontSize: 11)),
+                            Text('Camera', style: GoogleFonts.inter(color: palette.textPrimary, fontSize: 11)),
                           ],
                         ),
                       ),
@@ -1829,15 +1759,15 @@ class _LuxuryImageSlot extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF242428),
+                          color: palette.surfaceDark,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFF333338)),
+                          border: Border.all(color: palette.border),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.photo_library_outlined, size: 12, color: Color(0xFFD4AF37)),
+                            Icon(Icons.photo_library_outlined, size: 12, color: accentGold),
                             const SizedBox(width: 4),
-                            Text('Gallery', style: GoogleFonts.inter(color: Colors.white, fontSize: 11)),
+                            Text('Gallery', style: GoogleFonts.inter(color: palette.textPrimary, fontSize: 11)),
                           ],
                         ),
                       ),
@@ -1845,15 +1775,15 @@ class _LuxuryImageSlot extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF242428),
+                          color: palette.surfaceDark,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFF333338)),
+                          border: Border.all(color: palette.border),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.auto_awesome_rounded, size: 12, color: Color(0xFFD4AF37)),
+                            Icon(Icons.auto_awesome_rounded, size: 12, color: accentGold),
                             const SizedBox(width: 4),
-                            Text('Presets', style: GoogleFonts.inter(color: Colors.white, fontSize: 11)),
+                            Text('Presets', style: GoogleFonts.inter(color: palette.textPrimary, fontSize: 11)),
                           ],
                         ),
                       ),
@@ -1921,6 +1851,9 @@ class _SourceSelectorSheetState extends ConsumerState<_SourceSelectorSheet> {
   @override
   Widget build(BuildContext context) {
     final presets = widget.isRoom ? _sampleRooms : _sampleStones;
+    final palette = ref.watch(themePaletteProvider);
+    final isDark = ref.watch(themePaletteProvider.notifier).isDarkMode;
+    final accentGold = isDark ? const Color(0xFFD4AF37) : const Color(0xFF8B6B23);
 
     return SafeArea(
       child: Container(
@@ -1939,7 +1872,7 @@ class _SourceSelectorSheetState extends ConsumerState<_SourceSelectorSheet> {
                 height: 4,
                 margin: const EdgeInsets.only(bottom: 14),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.25),
+                  color: palette.textTertiary.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1958,7 +1891,7 @@ class _SourceSelectorSheetState extends ConsumerState<_SourceSelectorSheet> {
                         style: GoogleFonts.playfairDisplay(
                           fontSize: 20,
                           fontWeight: FontWeight.w700,
-                          color: Colors.white,
+                          color: palette.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -1968,7 +1901,7 @@ class _SourceSelectorSheetState extends ConsumerState<_SourceSelectorSheet> {
                             : 'Upload custom sample or pick from Grazia collection',
                         style: GoogleFonts.inter(
                           fontSize: 12,
-                          color: const Color(0xFF8E8E93),
+                          color: palette.textSecondary,
                         ),
                       ),
                     ],
@@ -1976,7 +1909,7 @@ class _SourceSelectorSheetState extends ConsumerState<_SourceSelectorSheet> {
                 ),
                 IconButton(
                   onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close_rounded, color: Color(0xFF8E8E93)),
+                  icon: Icon(Icons.close_rounded, color: palette.textSecondary),
                 ),
               ],
             ),
@@ -1992,33 +1925,29 @@ class _SourceSelectorSheetState extends ConsumerState<_SourceSelectorSheet> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF242428), Color(0xFF1E1E22)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
+                        color: palette.surfaceDark,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFF333338)),
+                        border: Border.all(color: palette.border),
                       ),
                       child: Column(
                         children: [
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFD4AF37).withValues(alpha: 0.15),
+                              color: accentGold.withValues(alpha: 0.15),
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(Icons.camera_alt_rounded, color: Color(0xFFD4AF37), size: 24),
+                            child: Icon(Icons.camera_alt_rounded, color: accentGold, size: 24),
                           ),
                           const SizedBox(height: 10),
                           Text(
                             'Take Photo',
-                            style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13),
+                            style: GoogleFonts.inter(color: palette.textPrimary, fontWeight: FontWeight.w700, fontSize: 13),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             widget.isRoom ? 'Snap your wall' : 'Snap stone sample',
-                            style: GoogleFonts.inter(color: const Color(0xFF8E8E93), fontSize: 11),
+                            style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 11),
                           ),
                         ],
                       ),
@@ -2033,33 +1962,29 @@ class _SourceSelectorSheetState extends ConsumerState<_SourceSelectorSheet> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF242428), Color(0xFF1E1E22)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
+                        color: palette.surfaceDark,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFF333338)),
+                        border: Border.all(color: palette.border),
                       ),
                       child: Column(
                         children: [
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFD4AF37).withValues(alpha: 0.15),
+                              color: accentGold.withValues(alpha: 0.15),
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(Icons.photo_library_rounded, color: Color(0xFFD4AF37), size: 24),
+                            child: Icon(Icons.photo_library_rounded, color: accentGold, size: 24),
                           ),
                           const SizedBox(height: 10),
                           Text(
                             'Choose Gallery',
-                            style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13),
+                            style: GoogleFonts.inter(color: palette.textPrimary, fontWeight: FontWeight.w700, fontSize: 13),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             'Upload from device',
-                            style: GoogleFonts.inter(color: const Color(0xFF8E8E93), fontSize: 11),
+                            style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 11),
                           ),
                         ],
                       ),
@@ -2085,7 +2010,7 @@ class _SourceSelectorSheetState extends ConsumerState<_SourceSelectorSheet> {
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 1.0,
-                        color: const Color(0xFF8E8E93),
+                        color: palette.textSecondary,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -2109,9 +2034,9 @@ class _SourceSelectorSheetState extends ConsumerState<_SourceSelectorSheet> {
                             child: Container(
                               width: 140,
                               decoration: BoxDecoration(
-                                color: const Color(0xFF222226),
+                                color: palette.surfaceDark,
                                 borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: const Color(0xFF333338)),
+                                border: Border.all(color: palette.border),
                               ),
                               clipBehavior: Clip.antiAlias,
                               child: Column(
@@ -2135,7 +2060,7 @@ class _SourceSelectorSheetState extends ConsumerState<_SourceSelectorSheet> {
                                           style: GoogleFonts.inter(
                                             fontSize: 12,
                                             fontWeight: FontWeight.w600,
-                                            color: Colors.white,
+                                            color: palette.textPrimary,
                                           ),
                                         ),
                                         Text(
@@ -2144,7 +2069,7 @@ class _SourceSelectorSheetState extends ConsumerState<_SourceSelectorSheet> {
                                           overflow: TextOverflow.ellipsis,
                                           style: GoogleFonts.inter(
                                             fontSize: 10,
-                                            color: const Color(0xFF8E8E93),
+                                            color: palette.textSecondary,
                                           ),
                                         ),
                                       ],
@@ -2166,7 +2091,7 @@ class _SourceSelectorSheetState extends ConsumerState<_SourceSelectorSheet> {
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 1.0,
-                          color: const Color(0xFF8E8E93),
+                          color: palette.textSecondary,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -2194,12 +2119,12 @@ class _SourceSelectorSheetState extends ConsumerState<_SourceSelectorSheet> {
                                       child: Container(
                                         width: 140,
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFF222226),
+                                          color: palette.surfaceDark,
                                           borderRadius: BorderRadius.circular(14),
                                           border: Border.all(
                                             color: isLoading
-                                                ? const Color(0xFFD4AF37)
-                                                : const Color(0xFF333338),
+                                                ? accentGold
+                                                : palette.border,
                                           ),
                                         ),
                                         clipBehavior: Clip.antiAlias,
@@ -2216,25 +2141,25 @@ class _SourceSelectorSheetState extends ConsumerState<_SourceSelectorSheet> {
                                                     Image.network(
                                                       imgUrl,
                                                       fit: BoxFit.cover,
-                                                      errorBuilder: (_, _, _) => const Center(
+                                                      errorBuilder: (_, _, _) => Center(
                                                         child: Icon(Icons.broken_image_outlined,
-                                                            color: Colors.white24),
+                                                            color: palette.textTertiary),
                                                       ),
                                                     )
                                                   else
-                                                    const Center(
-                                                      child: Icon(Icons.texture_rounded, color: Colors.white24),
+                                                    Center(
+                                                      child: Icon(Icons.texture_rounded, color: palette.textTertiary),
                                                     ),
                                                   if (isLoading)
                                                     Container(
                                                       color: Colors.black.withValues(alpha: 0.6),
-                                                      child: const Center(
+                                                      child: Center(
                                                         child: SizedBox(
                                                           width: 22,
                                                           height: 22,
                                                           child: CircularProgressIndicator(
                                                             strokeWidth: 2,
-                                                            color: Color(0xFFD4AF37),
+                                                            color: accentGold,
                                                           ),
                                                         ),
                                                       ),
@@ -2254,7 +2179,7 @@ class _SourceSelectorSheetState extends ConsumerState<_SourceSelectorSheet> {
                                                     style: GoogleFonts.inter(
                                                       fontSize: 12,
                                                       fontWeight: FontWeight.w600,
-                                                      color: Colors.white,
+                                                      color: palette.textPrimary,
                                                     ),
                                                   ),
                                                   Text(
@@ -2263,7 +2188,7 @@ class _SourceSelectorSheetState extends ConsumerState<_SourceSelectorSheet> {
                                                     overflow: TextOverflow.ellipsis,
                                                     style: GoogleFonts.inter(
                                                       fontSize: 10,
-                                                      color: const Color(0xFF8E8E93),
+                                                      color: palette.textSecondary,
                                                     ),
                                                   ),
                                                 ],
@@ -2277,15 +2202,15 @@ class _SourceSelectorSheetState extends ConsumerState<_SourceSelectorSheet> {
                                 ),
                               );
                             },
-                            loading: () => const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 20),
+                            loading: () => Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 20),
                               child: Center(
                                 child: SizedBox(
                                   width: 24,
                                   height: 24,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: Color(0xFFD4AF37),
+                                    color: accentGold,
                                   ),
                                 ),
                               ),
@@ -2304,11 +2229,15 @@ class _SourceSelectorSheetState extends ConsumerState<_SourceSelectorSheet> {
   }
 }
 
-class _ApiArchitectureSheet extends StatelessWidget {
+class _ApiArchitectureSheet extends ConsumerWidget {
   const _ApiArchitectureSheet();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(themePaletteProvider);
+    final isDark = ref.watch(themePaletteProvider.notifier).isDarkMode;
+    final accentGold = isDark ? const Color(0xFFD4AF37) : const Color(0xFF8B6B23);
+
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
@@ -2324,12 +2253,12 @@ class _ApiArchitectureSheet extends StatelessWidget {
                   style: GoogleFonts.playfairDisplay(
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                    color: palette.textPrimary,
                   ),
                 ),
                 IconButton(
                   onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close_rounded, color: Color(0xFF8E8E93)),
+                  icon: Icon(Icons.close_rounded, color: palette.textSecondary),
                 ),
               ],
             ),
@@ -2338,6 +2267,8 @@ class _ApiArchitectureSheet extends StatelessWidget {
               icon: Icons.cloud_done_outlined,
               title: 'Backend API Endpoint',
               description: 'https://grazia-stones.vercel.app/api/generate-visualization',
+              palette: palette,
+              accentGold: accentGold,
             ),
             const SizedBox(height: 12),
             _infoItem(
@@ -2345,12 +2276,16 @@ class _ApiArchitectureSheet extends StatelessWidget {
               title: 'Primary AI Model & API Key',
               description:
                   'Google Gemini 2.5 Flash Image Generation.\nAPI Key: GEMINI_API_KEY (stored securely in backend environment).',
+              palette: palette,
+              accentGold: accentGold,
             ),
             const SizedBox(height: 12),
             _infoItem(
               icon: Icons.filter_center_focus_rounded,
               title: 'Room & Wall Vision Detection',
               description: 'NVIDIA NIM Vision (Llama 3.2 11B Vision Instruct) via /api/wall-detect.',
+              palette: palette,
+              accentGold: accentGold,
             ),
             const SizedBox(height: 12),
             _infoItem(
@@ -2358,6 +2293,8 @@ class _ApiArchitectureSheet extends StatelessWidget {
               title: 'Offline / Hybrid Neural Engine',
               description:
                   'If Gemini rate limits or connection drops, Grazia GPU Compositor seamlessly renders realistic multi-shade wall claddings instantly without breaking.',
+              palette: palette,
+              accentGold: accentGold,
             ),
           ],
         ),
@@ -2369,6 +2306,8 @@ class _ApiArchitectureSheet extends StatelessWidget {
     required IconData icon,
     required String title,
     required String description,
+    required LuxuryPalette palette,
+    required Color accentGold,
   }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2376,10 +2315,10 @@ class _ApiArchitectureSheet extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: const Color(0xFFD4AF37).withValues(alpha: 0.15),
+            color: accentGold.withValues(alpha: 0.15),
             shape: BoxShape.circle,
           ),
-          child: Icon(icon, color: const Color(0xFFD4AF37), size: 18),
+          child: Icon(icon, color: accentGold, size: 18),
         ),
         const SizedBox(width: 14),
         Expanded(
@@ -2388,12 +2327,12 @@ class _ApiArchitectureSheet extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+                style: GoogleFonts.inter(color: palette.textPrimary, fontWeight: FontWeight.w600, fontSize: 13),
               ),
               const SizedBox(height: 2),
               Text(
                 description,
-                style: GoogleFonts.inter(color: const Color(0xFF8E8E93), fontSize: 12, height: 1.4),
+                style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 12, height: 1.4),
               ),
             ],
           ),

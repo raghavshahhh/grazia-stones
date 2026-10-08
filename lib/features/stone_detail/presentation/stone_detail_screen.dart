@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:grazia_stones/features/wishlist/wishlist_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -22,12 +23,60 @@ class StoneDetailScreen extends ConsumerStatefulWidget {
   ConsumerState<StoneDetailScreen> createState() => _StoneDetailScreenState();
 }
 
-class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
+class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
+    with SingleTickerProviderStateMixin {
   int _currentImageIndex = 0;
   
   // Area Estimator State
   double _areaSqFt = 150.0;
-  double _wastagePercent = 0.10; // 10% recommended
+  double _wastagePercent = 0.15; // 15% standard recommended
+
+  bool _justAdded = false;
+  Timer? _justAddedTimer;
+  late AnimationController _cartBtnAnimController;
+  late Animation<double> _cartBtnScaleAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _cartBtnAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 380),
+    );
+    _cartBtnScaleAnim = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.92).chain(CurveTween(curve: Curves.easeOut)), weight: 35),
+      TweenSequenceItem(tween: Tween(begin: 0.92, end: 1.06).chain(CurveTween(curve: Curves.easeOutBack)), weight: 45),
+      TweenSequenceItem(tween: Tween(begin: 1.06, end: 1.0).chain(CurveTween(curve: Curves.easeInOut)), weight: 20),
+    ]).animate(_cartBtnAnimController);
+  }
+
+  @override
+  void dispose() {
+    _justAddedTimer?.cancel();
+    _cartBtnAnimController.dispose();
+    super.dispose();
+  }
+
+  void _handleAddToCart(Stone stone, LuxuryPalette palette) {
+    HapticFeedback.heavyImpact();
+    _cartBtnAnimController.forward(from: 0.0);
+    ref.read(cartProvider.notifier).addItem(stone);
+
+    _justAddedTimer?.cancel();
+    setState(() => _justAdded = true);
+    _justAddedTimer = Timer(const Duration(milliseconds: 2600), () {
+      if (mounted) setState(() => _justAdded = false);
+    });
+
+    LuxuryToast.show(
+      context,
+      message: '${stone.name} added to Cart',
+      icon: Icons.check_circle_rounded,
+      iconColor: const Color(0xFF10B981),
+      actionLabel: 'View Cart',
+      onAction: () => context.push('/cart'),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -174,7 +223,14 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
                 backgroundColor: palette.background,
                 elevation: 0,
                 leading: IconButton(
-                  onPressed: () => context.pop(),
+                  onPressed: () {
+                    if (context.canPop()) {
+                      context.pop();
+                    } else {
+                      final col = stone.collection.isNotEmpty ? stone.collection : 'Exclusive Collection';
+                      context.go('/collections/$col');
+                    }
+                  },
                   icon: Container(
                     width: 36,
                     height: 36,
@@ -445,23 +501,7 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
                         ],
                       ),
 
-                      const SizedBox(height: 12),
-
-                      // Get Quote — one tap, carries this product straight
-                      // into the quote form (no re-selecting the stone).
-                      SizedBox(
-                        width: double.infinity,
-                        child: TextButton.icon(
-                          onPressed: () => context.push('/quotes/new?stoneId=${stone.id}'),
-                          icon: Icon(Icons.request_quote_outlined, size: 18, color: palette.primary),
-                          label: Text(
-                            'Get Quote for This Stone',
-                            style: GoogleFonts.inter(color: palette.primary, fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 8),
 
                       // 4. Architectural Specifications Grid
                       Text(
@@ -557,21 +597,20 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
                               ],
                             ),
                             const SizedBox(height: 10),
-                            Row(
-                              children: [5, 10, 15].map((percent) {
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 6,
+                              children: [5, 10, 15, 20].map((percent) {
                                 final isSelected = (_wastagePercent * 100).toInt() == percent;
-                                return Padding(
-                                  padding: const EdgeInsets.only(right: 8),
-                                  child: ChoiceChip(
-                                    label: Text('$percent% ${percent == 10 ? '(Rec.)' : ''}'),
-                                    selected: isSelected,
-                                    onSelected: (_) => setState(() => _wastagePercent = percent / 100.0),
-                                    selectedColor: palette.primary.withValues(alpha: 0.15),
-                                    labelStyle: GoogleFonts.inter(
-                                      fontSize: 11,
-                                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                                      color: isSelected ? palette.primary : palette.textSecondary,
-                                    ),
+                                return ChoiceChip(
+                                  label: Text('$percent% ${percent == 15 ? '(Rec.)' : ''}'),
+                                  selected: isSelected,
+                                  onSelected: (_) => setState(() => _wastagePercent = percent / 100.0),
+                                  selectedColor: palette.primary.withValues(alpha: 0.15),
+                                  labelStyle: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                    color: isSelected ? palette.primary : palette.textSecondary,
                                   ),
                                 );
                               }).toList(),
@@ -674,52 +713,77 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen> {
                   ),
                 ],
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: 1,
-                    child: OutlinedButton(
-                      onPressed: () => context.push('/sample-order?stoneId=${stone.id}'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: palette.textPrimary,
-                        side: BorderSide(color: palette.border, width: 1.2),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Builder(
+                builder: (context) {
+                  final cartItems = ref.watch(cartProvider);
+                  final inCartItem = cartItems.where((i) => i.stone.id == stone.id).firstOrNull;
+                  final isInCart = inCartItem != null;
+                  final inCartQty = inCartItem?.quantity ?? 0;
+                  final isGreen = _justAdded || isInCart;
+
+                  return ScaleTransition(
+                    scale: _cartBtnScaleAnim,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOutCubic,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: (isGreen ? const Color(0xFF10B981) : palette.primary).withValues(alpha: isGreen ? 0.38 : 0.28),
+                            blurRadius: isGreen ? 16 : 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
-                      child: Text(
-                        'Order Sample',
-                        style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () => _handleAddToCart(stone, palette),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isGreen ? const Color(0xFF10B981) : palette.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            elevation: 0,
+                          ),
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 250),
+                            transitionBuilder: (child, anim) => FadeTransition(
+                              opacity: anim,
+                              child: ScaleTransition(scale: anim, child: child),
+                            ),
+                            child: Row(
+                              key: ValueKey<String>('btn_${_justAdded}_${isInCart}_$inCartQty'),
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  isGreen ? Icons.check_circle_rounded : Icons.shopping_bag_outlined,
+                                  size: 20,
+                                  color: Colors.white,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  _justAdded
+                                      ? 'Added to Cart ✓'
+                                      : isInCart
+                                          ? 'Added to Cart ($inCartQty)'
+                                          : 'Add to Cart',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.3,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        HapticFeedback.mediumImpact();
-                        ref.read(cartProvider.notifier).addItem(stone);
-                        LuxuryToast.show(
-                          context,
-                          message: '${stone.name} added to Project',
-                          actionLabel: 'View Cart',
-                          onAction: () => context.push('/cart'),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: palette.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        elevation: 0,
-                      ),
-                      child: Text(
-                        'Add to Project',
-                        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                  ),
-                ],
+                  );
+                },
               ),
             ),
           ),

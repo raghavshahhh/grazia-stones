@@ -11,7 +11,6 @@ import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/providers/stone_providers.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 import 'package:grazia_stones/features/wishlist/providers/wishlist_provider.dart';
-import 'package:grazia_stones/features/cart/presentation/cart_screen.dart';
 
 class CollectionDetailScreen extends ConsumerWidget {
   final String collectionId;
@@ -373,50 +372,6 @@ class CollectionDetailScreen extends ConsumerWidget {
                     ),
                   ),
 
-                  const SizedBox(height: 16),
-
-                  // Quick Action Buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            HapticFeedback.lightImpact();
-                            final targetStoneId = stones.isNotEmpty ? stones.first.id : null;
-                            context.push(targetStoneId != null ? '/sample-order?stoneId=$targetStoneId' : '/sample-order');
-                          },
-                          icon: const Icon(Icons.markunread_mailbox_outlined, size: 16),
-                          label: const Text('Sample Box'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: palette.textPrimary,
-                            side: BorderSide(color: palette.border),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            HapticFeedback.mediumImpact();
-                            final targetStoneId = stones.isNotEmpty ? stones.first.id : null;
-                            context.push(targetStoneId != null ? '/quotes/new?stoneId=$targetStoneId' : '/quotes/new');
-                          },
-                          icon: const Icon(Icons.request_quote_outlined, size: 16),
-                          label: const Text('Get Quote'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: palette.primary,
-                            foregroundColor: Colors.black,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            elevation: 0,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
                   const SizedBox(height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -618,54 +573,6 @@ class _CollectionStoneCard extends ConsumerWidget {
                             fontWeight: FontWeight.w800,
                             color: const Color(0xFFD4AF37),
                             letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // Bottom-Right: 1-Tap Quick Add to Cart
-                    Positioned(
-                      bottom: 7,
-                      right: 7,
-                      child: GestureDetector(
-                        onTap: () {
-                          HapticFeedback.mediumImpact();
-                          ref.read(cartProvider.notifier).addItem(stone);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('${stone.name} added to cart'),
-                              duration: const Duration(seconds: 1),
-                              behavior: SnackBarBehavior.floating,
-                              backgroundColor: palette.primary,
-                            ),
-                          );
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFD4AF37),
-                            borderRadius: BorderRadius.circular(10),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.2),
-                                blurRadius: 4,
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.add_shopping_cart_rounded, size: 11, color: Colors.black),
-                              const SizedBox(width: 3),
-                              Text(
-                                '+ Add',
-                                style: GoogleFonts.inter(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.black,
-                                ),
-                              ),
-                            ],
                           ),
                         ),
                       ),

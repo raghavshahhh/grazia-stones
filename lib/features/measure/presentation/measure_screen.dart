@@ -25,7 +25,7 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
   final _lengthController = TextEditingController(text: '12');
   final _widthController = TextEditingController(text: '10');
   final _heightController = TextEditingController(text: '4');
-  final _wastageController = TextEditingController(text: '10');
+  final _wastageController = TextEditingController(text: '15');
   final _customRateController = TextEditingController(text: '450');
 
   String _unit = 'feet'; // 'feet', 'meters', 'inches'
@@ -39,11 +39,11 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
 
   // Calculated Metrics
   double _netAreaSqFt = 120.0;
-  double _grossAreaSqFt = 132.0;
-  double _wastageAreaSqFt = 12.0;
-  int _boxCount = 13;
-  double _estimatedCost = 59400.0;
-  int _tileCount = 17;
+  double _grossAreaSqFt = 138.0;
+  double _wastageAreaSqFt = 18.0;
+  int _boxCount = 14;
+  double _estimatedCost = 62100.0;
+  int _tileCount = 18;
   int _adhesiveBags = 4;
   int _groutKg = 6;
   int _cols = 6;
@@ -81,7 +81,7 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
   final List<Map<String, dynamic>> _wastageOptions = [
     {'pct': 5, 'label': '5%', 'desc': 'Straight Lay'},
     {'pct': 10, 'label': '10%', 'desc': 'Standard'},
-    {'pct': 15, 'label': '15%', 'desc': 'Herringbone'},
+    {'pct': 15, 'label': '15%', 'desc': 'Standard (Rec.)'},
     {'pct': 20, 'label': '20%', 'desc': 'Diagonal / Curved'},
   ];
 
@@ -253,7 +253,7 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
       _lengthController.text = '12';
       _widthController.text = '10';
       _heightController.text = '4';
-      _wastageController.text = '10';
+      _wastageController.text = '15';
       _unit = 'feet';
       _shape = 'Rectangle';
       _selectedTileSize = '24" × 48"';

@@ -278,7 +278,7 @@ class ARCameraView extends StatefulWidget {
     required double tileWidth,
     required double tileHeight,
     String tileUnit = 'ft',
-    double wastagePercent = 10.0,
+    double wastagePercent = 15.0,
   }) async {
     final raw = _jsEval(
       'GraziaAR.calculateTileQuantity($tileWidth, $tileHeight, "$tileUnit", $wastagePercent)'

@@ -348,7 +348,7 @@ class ARNativeChannel {
     required double tileWidth,
     required double tileHeight,
     String tileUnit = 'ft',
-    double wastagePercent = 10.0,
+    double wastagePercent = 15.0,
   }) async {
     try {
       final result = await _channel.invokeMethod('calculateTileQuantity', {

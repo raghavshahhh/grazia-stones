@@ -13,7 +13,7 @@ final themePaletteProvider =
 class ThemePaletteNotifier extends StateNotifier<LuxuryPalette> {
   final StorageService _storage = StorageService.instance;
 
-  ThemePaletteNotifier() : super(GLuxuryPalettes.goldDark) {
+  ThemePaletteNotifier() : super(GLuxuryPalettes.gold) {
     _loadPersistedTheme();
   }
 
@@ -23,8 +23,8 @@ class ThemePaletteNotifier extends StateNotifier<LuxuryPalette> {
   Future<void> _loadPersistedTheme() async {
     try {
       final isDark = _storage.getThemeMode();
-      state = isDark ? GLuxuryPalettes.goldDark : GLuxuryPalettes.goldDark;
-      debugPrint('✅ Theme restored: Dark');
+      state = isDark ? GLuxuryPalettes.goldDark : GLuxuryPalettes.gold;
+      debugPrint('✅ Theme restored: ${isDark ? "Dark" : "Light"}');
     } catch (e) {
       debugPrint('❌ Error loading theme: $e');
     }

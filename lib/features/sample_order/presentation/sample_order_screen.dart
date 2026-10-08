@@ -13,11 +13,17 @@ import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/services/storage_service.dart';
 import 'package:grazia_stones/core/services/location_service.dart';
 import 'package:grazia_stones/core/widgets/animated_widgets.dart';
+import 'package:grazia_stones/features/cart/presentation/cart_screen.dart' show cartProvider;
 
 class SampleOrderScreen extends ConsumerStatefulWidget {
   final String? preSelectedStoneId;
+  final List<String> preSelectedStoneIds;
   
-  const SampleOrderScreen({super.key, this.preSelectedStoneId});
+  const SampleOrderScreen({
+    super.key,
+    this.preSelectedStoneId,
+    this.preSelectedStoneIds = const [],
+  });
 
   @override
   ConsumerState<SampleOrderScreen> createState() => _SampleOrderScreenState();
@@ -27,6 +33,7 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _altPhoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _addressController = TextEditingController();
   final _cityController = TextEditingController();
@@ -48,6 +55,13 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
     if (widget.preSelectedStoneId != null) {
       _selectedStones.add(widget.preSelectedStoneId!);
     }
+    _selectedStones.addAll(widget.preSelectedStoneIds);
+    // Auto-select all stones from cart
+    final cartItems = ref.read(cartProvider);
+    for (final item in cartItems) {
+      _selectedStones.add(item.stone.id);
+    }
+
     _loadStones();
     _prefillUserData();
   }
@@ -60,6 +74,9 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
     }
     if (localProfile['phone']?.isNotEmpty == true && _phoneController.text.isEmpty) {
       _phoneController.text = localProfile['phone']!;
+    }
+    if (localProfile['alt_phone']?.isNotEmpty == true && _altPhoneController.text.isEmpty) {
+      _altPhoneController.text = localProfile['alt_phone']!;
     }
     if (localProfile['email']?.isNotEmpty == true && _emailController.text.isEmpty) {
       _emailController.text = localProfile['email']!;
@@ -102,15 +119,23 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
     } catch (_) {}
 
     if (mounted) {
+      // If address is already saved, don't ask user again!
+      final hasSavedAddress = _addressController.text.trim().isNotEmpty &&
+          _cityController.text.trim().isNotEmpty;
+
       setState(() {
-        _isEditingDetails = _nameController.text.isEmpty ||
-            _phoneController.text.isEmpty ||
-            _addressController.text.isEmpty;
+        _isEditingDetails = !hasSavedAddress;
       });
+
+      // Auto-trigger location detection if address is still empty
+      if (!hasSavedAddress) {
+        _autoDetectLocation();
+      }
     }
   }
 
   Future<void> _autoDetectLocation() async {
+    if (_isDetectingLocation) return;
     setState(() => _isDetectingLocation = true);
     HapticFeedback.lightImpact();
 
@@ -154,6 +179,7 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
+    _altPhoneController.dispose();
     _emailController.dispose();
     _addressController.dispose();
     _cityController.dispose();
@@ -169,11 +195,54 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
         _error = null;
       });
       
+      final cartItems = ref.read(cartProvider);
+      final cartStones = cartItems.map((ci) => ci.stone).toList();
       final stoneRepo = ref.read(stoneRepositoryProvider);
-      final stones = await stoneRepo.getTrendingStones();
-      
+
+      final targetStones = <Stone>[];
+
+      // 1. If explicit preselected stone id was passed
+      if (widget.preSelectedStoneId != null) {
+        try {
+          final s = await stoneRepo.getStoneById(widget.preSelectedStoneId!);
+          targetStones.add(s);
+        } catch (_) {}
+      }
+
+      // 2. Preselected stone IDs list
+      for (final id in widget.preSelectedStoneIds) {
+        if (!targetStones.any((s) => s.id == id)) {
+          final s = cartStones.where((cs) => cs.id == id).firstOrNull;
+          if (s != null) {
+            targetStones.add(s);
+          } else {
+            try {
+              final remoteS = await stoneRepo.getStoneById(id);
+              targetStones.add(remoteS);
+            } catch (_) {}
+          }
+        }
+      }
+
+      // 3. Add all cart stones
+      for (final s in cartStones) {
+        if (!targetStones.any((x) => x.id == s.id)) {
+          targetStones.add(s);
+        }
+      }
+
+      // 4. ONLY if cart has 0 stones and no stone was preselected, fallback to trending
+      if (targetStones.isEmpty) {
+        final fallback = await stoneRepo.getTrendingStones();
+        targetStones.addAll(fallback);
+      }
+
       setState(() {
-        _stones = stones.take(12).toList();
+        _stones = targetStones;
+        // Auto-select all target stones
+        for (final s in targetStones) {
+          _selectedStones.add(s.id);
+        }
         _isLoading = false;
       });
     } catch (e) {
@@ -185,16 +254,25 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
   }
 
   Future<void> _submitOrder() async {
-    if (!_formKey.currentState!.validate()) {
-      // The delivery form sits below the swatch grid; without this the tap on
-      // the bottom button appears to do nothing when a field is invalid.
-      final formContext = _formKey.currentContext;
-      if (formContext != null) {
-        Scrollable.ensureVisible(formContext, duration: const Duration(milliseconds: 350), curve: Curves.easeOut);
+    // If details are in edit mode, validate form
+    if (_isEditingDetails) {
+      if (!_formKey.currentState!.validate()) {
+        final formContext = _formKey.currentContext;
+        if (formContext != null) {
+          Scrollable.ensureVisible(formContext, duration: const Duration(milliseconds: 350), curve: Curves.easeOut);
+        }
+        showErrorSnackbar(context, Exception('Please fill in your delivery details'));
+        return;
       }
-      showErrorSnackbar(context, Exception('Please fill in your delivery details'));
+    }
+
+    // Ensure we have address and city
+    if (_addressController.text.trim().isEmpty || _cityController.text.trim().isEmpty) {
+      setState(() => _isEditingDetails = true);
+      showErrorSnackbar(context, Exception('Please enter delivery address'));
       return;
     }
+
     if (_selectedStones.isEmpty) {
       showErrorSnackbar(context, Exception('Please select at least one stone'));
       return;
@@ -204,44 +282,42 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
     HapticFeedback.mediumImpact();
 
     try {
-      // Sample requests go to the `sample_requests` table — the same
-      // table the Admin Samples dashboard reads. (They previously
-      // went to `orders` with is_sample=true, which admin never saw.)
       final sampleRepo = ref.read(sampleOrderRepositoryProvider);
 
-      // Save client profile to universal storage so user is NEVER asked again
+      // Persist user profile and address permanently so it is NEVER asked again
       await StorageService.instance.saveClientProfile(
-        name: _nameController.text.trim(),
-        phone: _phoneController.text.trim(),
-        email: _emailController.text.trim(),
+        name: _nameController.text.trim().isNotEmpty ? _nameController.text.trim() : null,
+        phone: _phoneController.text.trim().isNotEmpty ? _phoneController.text.trim() : null,
+        altPhone: _altPhoneController.text.trim().isNotEmpty ? _altPhoneController.text.trim() : null,
+        email: _emailController.text.trim().isNotEmpty ? _emailController.text.trim() : null,
         address: _addressController.text.trim(),
         city: _cityController.text.trim(),
         pincode: _pincodeController.text.trim(),
       );
 
-      // Resolve names so the admin dashboard and notification show the
-      // actual product, not a generic fallback label.
+      final combinedNotes = [
+        if (_altPhoneController.text.trim().isNotEmpty) 'Alt Phone: ${_altPhoneController.text.trim()}',
+        if (_notesController.text.trim().isNotEmpty) _notesController.text.trim(),
+      ].join(' | ');
+
       for (final stoneId in _selectedStones) {
         final stone = _stones.where((s) => s.id == stoneId).firstOrNull;
         await sampleRepo.requestSample(
           stoneId: stoneId,
-          name: _nameController.text,
-          phone: _phoneController.text,
-          address: _addressController.text,
-          city: _cityController.text,
-          pincode: _pincodeController.text,
-          notes: _notesController.text.isNotEmpty ? _notesController.text : null,
+          name: _nameController.text.trim().isNotEmpty ? _nameController.text.trim() : 'Valued Client',
+          phone: _phoneController.text.trim().isNotEmpty ? _phoneController.text.trim() : (_altPhoneController.text.trim()),
+          address: _addressController.text.trim(),
+          city: _cityController.text.trim(),
+          pincode: _pincodeController.text.trim(),
+          notes: combinedNotes.isNotEmpty ? combinedNotes : null,
           stoneName: stone?.name,
         );
       }
       
       if (mounted) {
         setState(() => _isSubmitting = false);
-        showSuccessSnackbar(
-          context,
-          'Sample order for ${_selectedStones.length} stone(s) submitted successfully!',
-        );
-        context.pop();
+        final palette = ref.read(themePaletteProvider);
+        _showSuccessSheet(context, palette, _selectedStones.length);
       }
     } catch (e) {
       if (mounted) {
@@ -249,6 +325,109 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
         showErrorSnackbar(context, e);
       }
     }
+  }
+
+  void _showSuccessSheet(BuildContext context, LuxuryPalette palette, int count) {
+    showModalBottomSheet(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
+        decoration: BoxDecoration(
+          color: palette.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          border: Border.all(color: palette.primary.withValues(alpha: 0.3)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.35),
+              blurRadius: 30,
+              offset: const Offset(0, -8),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4), width: 1.5),
+              ),
+              child: const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 36),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              'Sample Kit Dispatched! 📦',
+              style: GoogleFonts.playfairDisplay(
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                color: palette.textPrimary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Your curated sample box with $count swatch(es) is scheduled for courier delivery to:\n${_addressController.text}, ${_cityController.text} - ${_pincodeController.text}',
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: palette.textSecondary,
+                height: 1.4,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      context.pop();
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: palette.textPrimary,
+                      side: BorderSide(color: palette.border),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: Text('Done', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      context.pushReplacement('/samples');
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: palette.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      elevation: 0,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.dashboard_outlined, size: 16),
+                        const SizedBox(width: 6),
+                        Text('Track on Dashboard', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -338,13 +517,46 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
                         ),
                         
                         const SizedBox(height: 24),
+
+                        // Cart Stones Auto-Selected Notice
+                        Builder(
+                          builder: (context) {
+                            final cartItems = ref.watch(cartProvider);
+                            if (cartItems.isEmpty) return const SizedBox.shrink();
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 14),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.35)),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 18),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      '${cartItems.length} stone swatch(es) from your cart have been auto-selected for sampling.',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: palette.textPrimary,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
                         
-                        // Stone selection
+                        // Selected Stone Swatches (Cart only)
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'SELECT STONE SWATCHES',
+                              'SAMPLE SWATCHES IN KIT',
                               style: GoogleFonts.inter(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
@@ -356,13 +568,13 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: palette.primary.withValues(alpha: 0.12),
+                                  color: const Color(0xFF10B981).withValues(alpha: 0.12),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(
-                                  '${_selectedStones.length} SELECTED',
+                                  '${_selectedStones.length} OF ${_stones.length} SELECTED',
                                   style: GoogleFonts.inter(
-                                    color: palette.primary,
+                                    color: const Color(0xFF10B981),
                                     fontSize: 10,
                                     fontWeight: FontWeight.w700,
                                     letterSpacing: 0.5,
@@ -372,117 +584,152 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        
-                        GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            crossAxisSpacing: 10,
-                            mainAxisSpacing: 10,
-                            childAspectRatio: 0.72,
-                          ),
-                          itemCount: _stones.length,
-                          itemBuilder: (context, i) {
-                            final stone = _stones[i];
-                            final isSelected = _selectedStones.contains(stone.id);
-                            return GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  if (isSelected) {
-                                    _selectedStones.remove(stone.id);
-                                  } else {
-                                    _selectedStones.add(stone.id);
-                                  }
-                                });
-                                HapticFeedback.selectionClick();
-                              },
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: palette.surface,
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(
-                                    color: isSelected ? palette.primary : palette.border,
-                                    width: isSelected ? 2 : 1,
+
+                        // Stone cards list (Only the stones user added to cart)
+                        ..._stones.map((stone) {
+                          final isSelected = _selectedStones.contains(stone.id);
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: palette.surface,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: isSelected ? palette.primary : palette.border,
+                                width: isSelected ? 1.5 : 1,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.02),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: SizedBox(
+                                    width: 58,
+                                    height: 58,
+                                    child: SmartStoneImage(
+                                      imageUrl: stone.imageUrl,
+                                      fit: BoxFit.cover,
+                                      palette: palette,
+                                    ),
                                   ),
                                 ),
-                                child: Stack(
-                                  children: [
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                                      children: [
-                                        Expanded(
-                                          child: ClipRRect(
-                                            borderRadius: const BorderRadius.vertical(
-                                              top: Radius.circular(13),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              stone.name,
+                                              style: GoogleFonts.playfairDisplay(
+                                                color: palette.textPrimary,
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
                                             ),
-                                            child: SmartStoneImage(
-                                               imageUrl: stone.imageUrl,
-                                               fit: BoxFit.cover,
-                                               palette: palette,
-                                             ),
                                           ),
-                                        ),
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                                          child: Text(
-                                            stone.name,
-                                            style: GoogleFonts.playfairDisplay(
-                                              color: palette.textPrimary,
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w700,
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                                              borderRadius: BorderRadius.circular(6),
                                             ),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                            textAlign: TextAlign.center,
+                                            child: Text(
+                                              'Cart Item',
+                                              style: GoogleFonts.inter(
+                                                fontSize: 9.5,
+                                                fontWeight: FontWeight.w700,
+                                                color: const Color(0xFF10B981),
+                                              ),
+                                            ),
                                           ),
-                                        ),
-                                      ],
-                                    ),
-                                    if (isSelected)
-                                      Positioned(
-                                        top: 6,
-                                        right: 6,
-                                        child: Container(
-                                          padding: const EdgeInsets.all(3),
-                                          decoration: BoxDecoration(
-                                            color: palette.primary,
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: const Icon(
-                                            Icons.check,
-                                            color: Colors.white,
-                                            size: 13,
-                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '4x4" Real Tactile Architectural Swatch',
+                                        style: GoogleFonts.inter(
+                                          color: palette.textSecondary,
+                                          fontSize: 11,
                                         ),
                                       ),
-                                  ],
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Checkbox(
+                                  value: isSelected,
+                                  activeColor: palette.primary,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                                  onChanged: (val) {
+                                    setState(() {
+                                      if (val == true) {
+                                        _selectedStones.add(stone.id);
+                                      } else {
+                                        if (_selectedStones.length > 1) {
+                                          _selectedStones.remove(stone.id);
+                                        } else {
+                                          showErrorSnackbar(context, Exception('At least 1 swatch is required in kit'));
+                                        }
+                                      }
+                                    });
+                                    HapticFeedback.selectionClick();
+                                  },
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                        
+                        const SizedBox(height: 24),
+                        
+                        // Delivery Address section
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'STUDIO / SITE DISPATCH ADDRESS',
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.6,
+                                color: palette.textTertiary,
+                              ),
+                            ),
+                            if (!_isEditingDetails && _addressController.text.isNotEmpty)
+                              ApplePressable(
+                                onTap: () => setState(() => _isEditingDetails = true),
+                                child: Text(
+                                  'Edit Address',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: palette.primary,
+                                  ),
                                 ),
                               ),
-                            );
-                          },
-                        ),
-                        
-                        const SizedBox(height: 28),
-                        
-                        // Shipping details
-                        Text(
-                          'STUDIO / SITE DISPATCH ADDRESS',
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.6,
-                            color: palette.textTertiary,
-                          ),
+                          ],
                         ),
                         const SizedBox(height: 12),
 
-                        if (!_isEditingDetails && _nameController.text.isNotEmpty && _addressController.text.isNotEmpty)
+                        if (!_isEditingDetails && _addressController.text.trim().isNotEmpty) ...[
+                          // Saved / Verified Address Card
                           Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
                               color: palette.surface,
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(18),
                               border: Border.all(color: palette.primary.withValues(alpha: 0.35)),
                               boxShadow: [
                                 BoxShadow(
@@ -500,14 +747,21 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
                                   children: [
                                     Row(
                                       children: [
-                                        Icon(Icons.verified_user_rounded, color: palette.primary, size: 16),
-                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.all(6),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 14),
+                                        ),
+                                        const SizedBox(width: 8),
                                         Text(
-                                          'VERIFIED RECIPIENT & SITE',
+                                          'SAVED DELIVERY LOCATION',
                                           style: GoogleFonts.inter(
-                                            fontSize: 10.5,
+                                            fontSize: 11,
                                             fontWeight: FontWeight.w700,
-                                            letterSpacing: 1.2,
+                                            letterSpacing: 1.1,
                                             color: palette.primary,
                                           ),
                                         ),
@@ -551,7 +805,7 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
                                             ),
                                           ),
                                         ),
-                                        const SizedBox(width: 6),
+                                        const SizedBox(width: 8),
                                         ApplePressable(
                                           onTap: () => setState(() => _isEditingDetails = true),
                                           child: Container(
@@ -566,7 +820,7 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
                                                 Icon(Icons.edit_outlined, size: 11, color: palette.primary),
                                                 const SizedBox(width: 4),
                                                 Text(
-                                                  'Change',
+                                                  'Edit',
                                                   style: GoogleFonts.inter(
                                                     fontSize: 11,
                                                     fontWeight: FontWeight.w600,
@@ -582,42 +836,33 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
                                   ],
                                 ),
                                 const SizedBox(height: 12),
-                                Text(
-                                  _nameController.text,
-                                  style: GoogleFonts.playfairDisplay(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: palette.textPrimary,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    Icon(Icons.phone_outlined, size: 13, color: palette.textSecondary),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      _phoneController.text,
-                                      style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary),
+                                if (_nameController.text.isNotEmpty)
+                                  Text(
+                                    _nameController.text,
+                                    style: GoogleFonts.playfairDisplay(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      color: palette.textPrimary,
                                     ),
-                                    if (_emailController.text.isNotEmpty) ...[
-                                      const SizedBox(width: 8),
-                                      Text('•', style: TextStyle(color: palette.textTertiary)),
-                                      const SizedBox(width: 8),
-                                      Flexible(
-                                        child: Text(
-                                          _emailController.text,
-                                          style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
+                                  ),
+                                if (_phoneController.text.isNotEmpty) ...[
+                                  const SizedBox(height: 3),
+                                  Row(
+                                    children: [
+                                      Icon(Icons.phone_outlined, size: 12, color: palette.textSecondary),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        _phoneController.text,
+                                        style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary),
                                       ),
                                     ],
-                                  ],
-                                ),
+                                  ),
+                                ],
                                 const SizedBox(height: 6),
                                 Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Icon(Icons.location_on_outlined, size: 13, color: palette.textSecondary),
+                                    Icon(Icons.location_on_outlined, size: 14, color: palette.primary),
                                     const SizedBox(width: 6),
                                     Expanded(
                                       child: Text(
@@ -626,15 +871,30 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
                                           _cityController.text,
                                           _pincodeController.text.isNotEmpty ? 'PIN: ${_pincodeController.text}' : null,
                                         ].where((e) => e != null && e.isNotEmpty).join(', '),
-                                        style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary),
+                                        style: GoogleFonts.inter(
+                                          fontSize: 12.5,
+                                          color: palette.textPrimary,
+                                          height: 1.35,
+                                        ),
                                       ),
                                     ),
                                   ],
                                 ),
                               ],
                             ),
-                          )
-                        else ...[
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Alternative Contact Number Field
+                          _buildTextField(
+                            palette,
+                            'Alternative Mobile Number (Optional)',
+                            _altPhoneController,
+                            null,
+                            Icons.phone_in_talk_outlined,
+                            keyboardType: TextInputType.phone,
+                          ),
+                        ] else ...[
                           // Auto-Detect Current GPS Location Action Card
                           Container(
                             margin: const EdgeInsets.only(bottom: 14),
@@ -682,7 +942,7 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
                                             Text(
                                               _isDetectingLocation
                                                   ? 'Detecting current location...'
-                                                  : 'Auto-Detect Current Location',
+                                                  : 'Auto-Detect Delivery Location',
                                               style: GoogleFonts.inter(
                                                 fontSize: 13,
                                                 fontWeight: FontWeight.w600,
@@ -693,7 +953,7 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
                                             Text(
                                               _detectedLocationLabel != null
                                                   ? '📍 Detected: $_detectedLocationLabel'
-                                                  : 'Tap to fetch city & pincode via phone GPS',
+                                                  : 'Tap to fetch address & city via GPS',
                                               style: GoogleFonts.inter(
                                                 fontSize: 11,
                                                 color: _detectedLocationLabel != null
@@ -726,27 +986,27 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
                           
                           _buildTextField(
                             palette,
-                            'Phone Number',
+                            'Primary Phone Number',
                             _phoneController,
                             Validators.validatePhone,
                             Icons.phone_outlined,
                             keyboardType: TextInputType.phone,
                           ),
                           const SizedBox(height: 14),
-                          
+
                           _buildTextField(
                             palette,
-                            'Email (Optional)',
-                            _emailController,
+                            'Alternative Mobile Number (Optional)',
+                            _altPhoneController,
                             null,
-                            Icons.email_outlined,
-                            keyboardType: TextInputType.emailAddress,
+                            Icons.phone_in_talk_outlined,
+                            keyboardType: TextInputType.phone,
                           ),
                           const SizedBox(height: 14),
                           
                           _buildTextField(
                             palette,
-                            'Studio / Project Address',
+                            'Studio / Project Delivery Address',
                             _addressController,
                             (v) => v?.isEmpty ?? true ? 'Address is required' : null,
                             Icons.location_on_outlined,
@@ -782,16 +1042,33 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
                               ),
                             ],
                           ),
-                          if (_nameController.text.isNotEmpty && _addressController.text.isNotEmpty) ...[
-                            const SizedBox(height: 6),
+                          if (_addressController.text.trim().isNotEmpty && _cityController.text.trim().isNotEmpty) ...[
+                            const SizedBox(height: 10),
                             Align(
                               alignment: Alignment.centerRight,
-                              child: TextButton.icon(
-                                onPressed: () => setState(() => _isEditingDetails = false),
-                                icon: const Icon(Icons.check_rounded, size: 15),
+                              child: ElevatedButton.icon(
+                                onPressed: () {
+                                  setState(() => _isEditingDetails = false);
+                                  StorageService.instance.saveClientProfile(
+                                    name: _nameController.text.trim().isNotEmpty ? _nameController.text.trim() : null,
+                                    phone: _phoneController.text.trim().isNotEmpty ? _phoneController.text.trim() : null,
+                                    altPhone: _altPhoneController.text.trim().isNotEmpty ? _altPhoneController.text.trim() : null,
+                                    address: _addressController.text.trim(),
+                                    city: _cityController.text.trim(),
+                                    pincode: _pincodeController.text.trim(),
+                                  );
+                                },
+                                icon: const Icon(Icons.check_rounded, size: 16),
                                 label: Text(
-                                  'Done Editing',
-                                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
+                                  'Save & Use Address',
+                                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: palette.primary,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  elevation: 0,
                                 ),
                               ),
                             ),

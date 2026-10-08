@@ -12,6 +12,7 @@ import 'package:grazia_stones/core/services/location_service.dart';
 import 'package:grazia_stones/core/services/storage_service.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 import 'package:grazia_stones/features/quotes/presentation/quotes_screen.dart' show quotesProvider;
+import 'package:grazia_stones/features/cart/presentation/cart_screen.dart' show cartProvider;
 
 /// Streamlined, frictionless quote request screen.
 /// Eliminates bloated 15-field forms and supports 1-tap client submission.
@@ -39,6 +40,7 @@ class _QuoteRequestSupabaseScreenState extends ConsumerState<QuoteRequestSupabas
   // 1-Tap Client Details
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _altPhoneController = TextEditingController();
   final _cityController = TextEditingController();
   final _sqftController = TextEditingController(text: '250');
   final _customNoteController = TextEditingController();
@@ -65,7 +67,6 @@ class _QuoteRequestSupabaseScreenState extends ConsumerState<QuoteRequestSupabas
   @override
   void initState() {
     super.initState();
-    _loadStones();
     _loadUserProfile();
 
     if (widget.preselectedStone != null) {
@@ -74,12 +75,30 @@ class _QuoteRequestSupabaseScreenState extends ConsumerState<QuoteRequestSupabas
       _selectedStoneIds.add(widget.preselectedStoneId!);
     }
     _selectedStoneIds.addAll(widget.preselectedStoneIds.where((id) => id.isNotEmpty));
+
+    // Auto-select all stones from cart if none were explicitly provided
+    final cartItems = ref.read(cartProvider);
+    if (_selectedStoneIds.isEmpty) {
+      for (final item in cartItems) {
+        _selectedStoneIds.add(item.stone.id);
+      }
+    }
+    // Calculate total sqft from cart
+    if (cartItems.isNotEmpty) {
+      final totalSqft = cartItems.fold<int>(0, (s, ci) => s + ci.quantity);
+      if (totalSqft > 0) {
+        _sqftController.text = totalSqft.toString();
+      }
+    }
+
+    _loadStones();
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
+    _altPhoneController.dispose();
     _cityController.dispose();
     _sqftController.dispose();
     _customNoteController.dispose();
@@ -96,10 +115,12 @@ class _QuoteRequestSupabaseScreenState extends ConsumerState<QuoteRequestSupabas
     final savedPhone = localProfile['phone']?.isNotEmpty == true
         ? localProfile['phone']!
         : (authState.userPhone ?? '');
+    final savedAltPhone = localProfile['alt_phone'] ?? '';
     final savedCity = localProfile['city'] ?? localProfile['address'] ?? '';
 
     if (savedName.isNotEmpty) _nameController.text = savedName;
     if (savedPhone.isNotEmpty) _phoneController.text = savedPhone;
+    if (savedAltPhone.isNotEmpty) _altPhoneController.text = savedAltPhone;
     if (savedCity.isNotEmpty) _cityController.text = savedCity;
 
     if (_nameController.text.trim().isNotEmpty && _phoneController.text.trim().isNotEmpty) {
@@ -113,18 +134,60 @@ class _QuoteRequestSupabaseScreenState extends ConsumerState<QuoteRequestSupabas
         _isEditingProfile = true;
       });
     }
+
+    // Auto-detect city if empty
+    if (_cityController.text.isEmpty) {
+      _autoDetectLocation();
+    }
   }
 
   Future<void> _loadStones() async {
     try {
+      final cartItems = ref.read(cartProvider);
+      final cartStones = cartItems.map((ci) => ci.stone).toList();
       final stoneRepo = ref.read(stoneRepositoryProvider);
-      final stones = await stoneRepo.getAllStones();
+
+      final targetStones = <Stone>[];
+      if (widget.preselectedStone != null) {
+        targetStones.add(widget.preselectedStone!);
+      } else if (widget.preselectedStoneId != null) {
+        try {
+          final s = await stoneRepo.getStoneById(widget.preselectedStoneId!);
+          targetStones.add(s);
+        } catch (_) {}
+      }
+
+      for (final id in widget.preselectedStoneIds) {
+        if (!targetStones.any((s) => s.id == id)) {
+          final s = cartStones.where((cs) => cs.id == id).firstOrNull;
+          if (s != null) {
+            targetStones.add(s);
+          } else {
+            try {
+              final remoteS = await stoneRepo.getStoneById(id);
+              targetStones.add(remoteS);
+            } catch (_) {}
+          }
+        }
+      }
+
+      for (final s in cartStones) {
+        if (!targetStones.any((x) => x.id == s.id)) {
+          targetStones.add(s);
+        }
+      }
+
+      // Only fallback to getAllStones() if ZERO stones exist from cart or selection
+      if (targetStones.isEmpty) {
+        targetStones.addAll(await stoneRepo.getAllStones());
+      }
+
       if (mounted) {
         setState(() {
-          _stones = stones;
+          _stones = targetStones;
           _isLoadingStones = false;
-          if (_selectedStoneIds.isEmpty && stones.isNotEmpty && !_isCustomDesign) {
-            _selectedStoneIds.add(stones.first.id);
+          for (final s in targetStones) {
+            _selectedStoneIds.add(s.id);
           }
         });
       }
@@ -180,6 +243,7 @@ class _QuoteRequestSupabaseScreenState extends ConsumerState<QuoteRequestSupabas
       await StorageService.instance.saveClientProfile(
         name: name,
         phone: phone,
+        altPhone: _altPhoneController.text.trim().isNotEmpty ? _altPhoneController.text.trim() : null,
         city: city,
       );
 
@@ -189,25 +253,29 @@ class _QuoteRequestSupabaseScreenState extends ConsumerState<QuoteRequestSupabas
           .map((s) => s.name)
           .join(', ');
 
+      final altContactInfo = _altPhoneController.text.trim().isNotEmpty
+          ? 'Alternate Contact: ${_altPhoneController.text.trim()}\n'
+          : '';
+
       final messageBody = _isCustomDesign
           ? '''
 [BESPOKE CUSTOM DESIGN REQUEST]
 Project Type: $_projectType
 Area: ${sqft.toStringAsFixed(0)} sq.ft.
 Location: ${city.isNotEmpty ? city : 'India'}
-Custom Specs / Note: ${_customNoteController.text.trim().isNotEmpty ? _customNoteController.text.trim() : 'Bespoke architectural layout requested'}
+${altContactInfo}Custom Specs / Note: ${_customNoteController.text.trim().isNotEmpty ? _customNoteController.text.trim() : 'Bespoke architectural layout requested'}
 '''.trim()
           : '''
 Project Type: $_projectType
 Area: ${sqft.toStringAsFixed(0)} sq.ft.
 Location: ${city.isNotEmpty ? city : 'India'}
-Selected Stones: $selectedStoneNames
+${altContactInfo}Selected Stones: $selectedStoneNames
 Notes: ${_customNoteController.text.trim()}
 '''.trim();
 
       await orderRepo.submitQuote(
         name: name,
-        phone: phone,
+        phone: _altPhoneController.text.trim().isNotEmpty ? '$phone (Alt: ${_altPhoneController.text.trim()})' : phone,
         stoneId: _isCustomDesign ? null : _selectedStoneIds.firstOrNull,
         stoneName: _isCustomDesign ? 'Bespoke Custom Design' : selectedStoneNames,
         areaSqft: sqft,
@@ -554,6 +622,35 @@ Notes: ${_customNoteController.text.trim()}
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Cart Stones Notice
+        Builder(
+          builder: (context) {
+            final cartItems = ref.watch(cartProvider);
+            if (cartItems.isEmpty) return const SizedBox.shrink();
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: _gold.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _gold.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle_rounded, color: _gold, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${cartItems.length} stone(s) from your cart are pre-selected for quotation.',
+                      style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: palette.textPrimary),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -582,6 +679,7 @@ Notes: ${_customNoteController.text.trim()}
             itemBuilder: (context, index) {
               final stone = _stones[index];
               final isSelected = _selectedStoneIds.contains(stone.id);
+              final isInCart = ref.watch(cartProvider).any((ci) => ci.stone.id == stone.id);
 
               return GestureDetector(
                 onTap: () {
@@ -607,42 +705,66 @@ Notes: ${_customNoteController.text.trim()}
                       width: isSelected ? 2 : 1,
                     ),
                   ),
-                  child: Column(
+                  child: Stack(
                     children: [
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                          child: SmartStoneImage(
-                            imageUrl: stone.imageUrl,
-                            palette: palette,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            if (isSelected) ...[
-                              const Icon(Icons.check_circle_rounded, color: _gold, size: 12),
-                              const SizedBox(width: 3),
-                            ],
-                            Flexible(
-                              child: Text(
-                                stone.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                                  color: isSelected ? _gold : palette.textPrimary,
-                                ),
+                      Column(
+                        children: [
+                          Expanded(
+                            child: ClipRRect(
+                              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                              child: SmartStoneImage(
+                                imageUrl: stone.imageUrl,
+                                palette: palette,
+                                fit: BoxFit.cover,
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                if (isSelected) ...[
+                                  const Icon(Icons.check_circle_rounded, color: _gold, size: 12),
+                                  const SizedBox(width: 3),
+                                ],
+                                Flexible(
+                                  child: Text(
+                                    stone.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 11,
+                                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                      color: isSelected ? _gold : palette.textPrimary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
+                      if (isInCart)
+                        Positioned(
+                          top: 5,
+                          left: 5,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: _gold,
+                              borderRadius: BorderRadius.circular(5),
+                            ),
+                            child: Text(
+                              'Cart',
+                              style: GoogleFonts.inter(
+                                fontSize: 8.5,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -804,71 +926,91 @@ Notes: ${_customNoteController.text.trim()}
   Widget _buildFrictionlessContactSection(LuxuryPalette palette) {
     // 1-Tap Saved Profile Card
     if (_hasSavedProfile && !_isEditingProfile) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: palette.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: _gold.withValues(alpha: 0.5)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: _gold.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.verified_user_rounded, color: _gold, size: 22),
+      return Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: palette.surface,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: _gold.withValues(alpha: 0.5)),
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: _gold.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.verified_user_rounded, color: _gold, size: 22),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        _nameController.text,
-                        style: GoogleFonts.inter(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: palette.textPrimary,
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            _nameController.text,
+                            style: GoogleFonts.inter(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: palette.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'Verified Client',
+                              style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.green),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          'Verified Client',
-                          style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.green),
-                        ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '+91 ${_phoneController.text}${_cityController.text.isNotEmpty ? ' • ${_cityController.text}' : ''}',
+                        style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '+91 ${_phoneController.text}${_cityController.text.isNotEmpty ? ' • ${_cityController.text}' : ''}',
-                    style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary),
-                  ),
-                ],
-              ),
+                ),
+                IconButton(
+                  onPressed: () => setState(() => _isEditingProfile = true),
+                  icon: Icon(Icons.edit_outlined, size: 18, color: palette.textSecondary),
+                  tooltip: 'Edit details',
+                ),
+              ],
             ),
-            IconButton(
-              onPressed: () => setState(() => _isEditingProfile = true),
-              icon: Icon(Icons.edit_outlined, size: 18, color: palette.textSecondary),
-              tooltip: 'Edit details',
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _altPhoneController,
+            keyboardType: TextInputType.phone,
+            style: GoogleFonts.inter(fontSize: 13, color: palette.textPrimary),
+            decoration: InputDecoration(
+              labelText: 'Alternative Mobile (Optional)',
+              labelStyle: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary),
+              prefixIcon: const Icon(Icons.phone_in_talk_outlined, color: _gold, size: 18),
+              filled: true,
+              fillColor: palette.surface,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: palette.border)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: palette.border)),
             ),
-          ],
-        ),
+          ),
+        ],
       );
     }
 
-    // Unsaved: Only 2 required fields
+    // Unsaved: With optional alternate phone
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -929,6 +1071,22 @@ Notes: ${_customNoteController.text.trim()}
               prefixIcon: const Icon(Icons.phone_outlined, color: _gold, size: 18),
               prefixText: '+91 ',
               prefixStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: palette.textPrimary),
+              filled: true,
+              fillColor: palette.background,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: palette.border)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: palette.border)),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _altPhoneController,
+            keyboardType: TextInputType.phone,
+            style: GoogleFonts.inter(fontSize: 14, color: palette.textPrimary),
+            decoration: InputDecoration(
+              labelText: 'Alternative Mobile (Optional)',
+              labelStyle: GoogleFonts.inter(fontSize: 13, color: palette.textSecondary),
+              prefixIcon: const Icon(Icons.phone_in_talk_outlined, color: _gold, size: 18),
               filled: true,
               fillColor: palette.background,
               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),

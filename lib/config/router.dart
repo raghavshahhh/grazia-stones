@@ -32,6 +32,8 @@ import '../shared/widgets/grazia_bottom_nav.dart';
 import '../features/ai_viz/presentation/ai_job_status_screen.dart';
 import '../features/catalogue/presentation/catalogue_screen.dart';
 import '../features/settings/presentation/permissions_screen.dart';
+import '../shared/theme/theme_provider.dart';
+import '../features/home/presentation/widgets/grazia_brand_launch_overlay.dart';
 
 import '../features/auth/presentation/forgot_password_screen.dart';
 import '../features/profile/presentation/edit_profile_screen.dart';
@@ -69,10 +71,16 @@ const _tabRoutes = [
   '/profile',
 ];
 
+/// Generates a unique, stable Page key that combines route pattern with exact URI
+/// to prevent duplicate key crashes in Navigator when navigating between parameterized routes (e.g. /stones/:id).
+LocalKey _pageKey(GoRouterState state) {
+  return ValueKey<String>('${state.pageKey.value}::${state.uri}');
+}
+
 /// Crossfade only — for bottom nav tab switches.
 CustomTransitionPage<void> _fadePage(Widget child, GoRouterState state) {
   return CustomTransitionPage<void>(
-    key: state.pageKey,
+    key: _pageKey(state),
     child: child,
     transitionsBuilder: (_, animation, _, child) =>
         FadeTransition(opacity: animation, child: child),
@@ -82,7 +90,7 @@ CustomTransitionPage<void> _fadePage(Widget child, GoRouterState state) {
 /// Slide up + fade — for detail screens pushing onto nav stack.
 CustomTransitionPage<void> _slideUpPage(Widget child, GoRouterState state) {
   return CustomTransitionPage<void>(
-    key: state.pageKey,
+    key: _pageKey(state),
     child: child,
     transitionsBuilder: (_, animation, _, child) {
       final curved = CurvedAnimation(
@@ -107,7 +115,7 @@ CustomTransitionPage<void> _slideUpPage(Widget child, GoRouterState state) {
 /// Slide from right — for auth / onboarding flows.
 CustomTransitionPage<void> _slideRightPage(Widget child, GoRouterState state) {
   return CustomTransitionPage<void>(
-    key: state.pageKey,
+    key: _pageKey(state),
     child: child,
     transitionsBuilder: (_, animation, _, child) {
       final curved = CurvedAnimation(
@@ -129,7 +137,7 @@ CustomTransitionPage<void> _slideRightPage(Widget child, GoRouterState state) {
 /// Scale + fade — for full-screen immersive screens (AR, AI viz).
 CustomTransitionPage<void> _scaleFadePage(Widget child, GoRouterState state) {
   return CustomTransitionPage<void>(
-    key: state.pageKey,
+    key: _pageKey(state),
     child: child,
     transitionsBuilder: (_, animation, _, child) {
       final curved = CurvedAnimation(
@@ -148,23 +156,42 @@ CustomTransitionPage<void> _scaleFadePage(Widget child, GoRouterState state) {
   );
 }
 
-/// Shell with floating GraziaBottomNav.
-class _ShellWithNav extends StatefulWidget {
+/// Shell with floating GraziaBottomNav and synchronized Apple brand launch flight.
+class _ShellWithNav extends ConsumerStatefulWidget {
   final Widget child;
-  const _ShellWithNav({required this.child});
+  final String location;
+  const _ShellWithNav({required this.child, required this.location});
 
   @override
-  State<_ShellWithNav> createState() => _ShellWithNavState();
+  ConsumerState<_ShellWithNav> createState() => _ShellWithNavState();
 }
 
-class _ShellWithNavState extends State<_ShellWithNav> {
+class _ShellWithNavState extends ConsumerState<_ShellWithNav> {
   int _currentTab = 0;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Update current tab based on current route
-    final location = GoRouterState.of(context).uri.path;
+  void initState() {
+    super.initState();
+    assert(() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ref.read(appLaunchCompleteProvider.notifier).state = false;
+        }
+      });
+      return true;
+    }());
+    _updateTab(widget.location);
+  }
+
+  @override
+  void didUpdateWidget(covariant _ShellWithNav oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.location != widget.location) {
+      _updateTab(widget.location);
+    }
+  }
+
+  void _updateTab(String location) {
     for (var i = 0; i < _tabRoutes.length; i++) {
       if (location.startsWith(_tabRoutes[i])) {
         if (_currentTab != i) {
@@ -184,17 +211,45 @@ class _ShellWithNavState extends State<_ShellWithNav> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = ref.watch(themePaletteProvider);
+    final isDark = ref.watch(themePaletteProvider.notifier).isDarkMode;
+    final isLaunchComplete = ref.watch(appLaunchCompleteProvider);
+    final showLaunchAnimation = !isLaunchComplete;
+
     return Scaffold(
       extendBody: true,
       body: Stack(
         children: [
           widget.child,
-          const FloatingGlassCartBar(),
+          if (!showLaunchAnimation) const FloatingGlassCartBar(),
+          // Full-screen launch overlay covering the entire viewport
+          if (showLaunchAnimation)
+            Positioned.fill(
+              child: GraziaBrandLaunchOverlay(
+                palette: palette,
+                isDark: isDark,
+                onComplete: () {
+                  if (mounted) {
+                    ref.read(appLaunchCompleteProvider.notifier).state = true;
+                  }
+                },
+              ),
+            ),
         ],
       ),
-      bottomNavigationBar: GraziaBottomNav(
-        currentIndex: _currentTab,
-        onTap: _onTabTap,
+      bottomNavigationBar: AnimatedSlide(
+        offset: showLaunchAnimation ? const Offset(0, 1.4) : Offset.zero,
+        duration: const Duration(milliseconds: 380),
+        curve: Curves.easeOutCubic,
+        child: AnimatedOpacity(
+          opacity: showLaunchAnimation ? 0.0 : 1.0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+          child: GraziaBottomNav(
+            currentIndex: _currentTab,
+            onTap: _onTabTap,
+          ),
+        ),
       ),
     );
   }
@@ -221,9 +276,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     initialLocation: '/home',
     refreshListenable: refresh,
     redirect: (context, state) {
-      // Admin routes require a genuinely authenticated session whose
-      // role is 'admin' in the backend profiles table. Non-admins are
-      // sent to login with a return-to path — never auto-elevated.
       final authState = ref.read(authRiverpodProvider);
       final isLocAdmin = state.uri.path.startsWith('/admin');
       if (isLocAdmin && !authState.isAdmin) {
@@ -265,7 +317,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // --- Bottom nav shell (floating pill + crossfade) ---
       ShellRoute(
-        builder: (context, state, child) => _ShellWithNav(child: child),
+        builder: (context, state, child) => _ShellWithNav(
+          location: state.uri.path,
+          child: child,
+        ),
         routes: [
           GoRoute(
             path: '/home',
@@ -299,12 +354,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/profile',
             pageBuilder: (context, state) =>
                 _fadePage(const ProfileScreen(), state),
-          ),
-          // Fallback tab alias to preserve backward compatibility
-          GoRoute(
-            path: '/cart',
-            pageBuilder: (context, state) =>
-                _fadePage(const CartScreen(), state),
           ),
         ],
       ),
@@ -389,6 +438,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
+        path: '/stone/:id',
+        redirect: (context, state) => '/stones/${state.pathParameters['id']}',
+      ),
+      GoRoute(
         path: '/wishlist',
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
@@ -400,6 +453,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _slideUpPage(
           SampleOrderScreen(
             preSelectedStoneId: state.uri.queryParameters['stoneId'],
+            preSelectedStoneIds: (state.uri.queryParameters['stoneIds'] ?? '')
+                .split(',')
+                .where((id) => id.isNotEmpty)
+                .toList(),
           ),
           state,
         ),
@@ -439,6 +496,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
             _slideUpPage(const OrdersScreen(), state),
+      ),
+      GoRoute(
+        path: '/cart',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const CartScreen(), state),
       ),
       // Quote-only launch: no order/payment checkout. Old deep links land on the cart.
       GoRoute(
@@ -592,13 +655,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/samples/request',
-        parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) => _slideUpPage(
-          SampleOrderScreen(
-            preSelectedStoneId: state.uri.queryParameters['stoneId'],
-          ),
-          state,
-        ),
+        redirect: (context, state) {
+          final q = state.uri.query;
+          return q.isNotEmpty ? '/sample-order?$q' : '/sample-order';
+        },
       ),
       GoRoute(
         path: '/ai-viz',

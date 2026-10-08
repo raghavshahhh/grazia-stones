@@ -270,9 +270,9 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
       final tileWFt = tw / 304.8;
       final tileHFt = th / 304.8;
       final tileArea = tileWFt * tileHFt;
-      const wastage = 10;
+      const wastage = 15;
       final baseQty = (wallArea / tileArea).ceil();
-      final recQty = (baseQty * 1.10).ceil();
+      final recQty = (baseQty * 1.15).ceil();
 
       result.addAll({
         'tileWidth': tileWFt.toStringAsFixed(2),

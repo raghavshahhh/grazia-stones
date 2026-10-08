@@ -330,7 +330,7 @@ class CartScreen extends ConsumerWidget {
                     title: Row(
                       children: [
                         Text(
-                          'Cart & Project',
+                          'Cart',
                           style: GoogleFonts.playfairDisplay(
                             fontSize: 22,
                             fontWeight: FontWeight.w700,
@@ -421,7 +421,7 @@ class CartScreen extends ConsumerWidget {
 
                     // Price Details Summary Card
                     SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                       sliver: SliverToBoxAdapter(
                         child: Container(
                           padding: const EdgeInsets.all(20),
@@ -465,6 +465,86 @@ class CartScreen extends ConsumerWidget {
                                 amount: total,
                                 palette: palette,
                                 isTotal: true,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Order Physical Samples Banner (Positioned directly under Total Price)
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                      sliver: SliverToBoxAdapter(
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: palette.surface,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: palette.primary.withValues(alpha: 0.3)),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
+                                blurRadius: 10,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: palette.primary.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Icon(Icons.inventory_2_outlined, color: palette.primary, size: 22),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Order Stone Samples',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                        color: palette.textPrimary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Order real tactile samples to review textures & color on-site before finalizing.',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11,
+                                        color: palette.textSecondary,
+                                        height: 1.3,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              ElevatedButton(
+                                onPressed: () {
+                                  HapticFeedback.mediumImpact();
+                                  context.push(
+                                    '/sample-order?stoneIds=${items.map((i) => i.stone.id).join(',')}',
+                                  );
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: palette.primary,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  elevation: 0,
+                                ),
+                                child: Text(
+                                  'Order Sample',
+                                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700),
+                                ),
                               ),
                             ],
                           ),
@@ -532,7 +612,7 @@ class CartScreen extends ConsumerWidget {
 
                     // Trust Badges
                     SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 240),
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 110),
                       sliver: SliverToBoxAdapter(
                         child: Row(
                           children: [
@@ -551,31 +631,29 @@ class CartScreen extends ConsumerWidget {
             ),
           ),
 
-          // Floating Glass Checkout Bar (Appears cleanly above GraziaBottomNav)
+          // Floating Glass Checkout Bar (Anchored properly at bottom safe area)
           if (items.isNotEmpty)
             Positioned(
-              left: 16,
-              right: 16,
-              bottom: (MediaQuery.of(context).viewPadding.bottom > 0
-                      ? MediaQuery.of(context).viewPadding.bottom + 6
-                      : 14) +
-                  64 +
-                  12,
+              left: 14,
+              right: 14,
+              bottom: MediaQuery.of(context).padding.bottom > 0
+                  ? MediaQuery.of(context).padding.bottom + 4
+                  : 14,
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 520),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(28),
+                    borderRadius: BorderRadius.circular(24),
                     child: BackdropFilter(
                       filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
                       child: Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                         decoration: BoxDecoration(
                           color: isDark
-                              ? const Color(0xFF1B1917).withValues(alpha: 0.92)
-                              : Colors.white.withValues(alpha: 0.92),
-                          borderRadius: BorderRadius.circular(28),
+                              ? const Color(0xFF1B1917).withValues(alpha: 0.94)
+                              : Colors.white.withValues(alpha: 0.95),
+                          borderRadius: BorderRadius.circular(24),
                           border: Border.all(
                             color: palette.primary.withValues(alpha: 0.35),
                             width: 1.0,
@@ -583,13 +661,14 @@ class CartScreen extends ConsumerWidget {
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.12),
-                              blurRadius: 24,
-                              offset: const Offset(0, 8),
+                              blurRadius: 20,
+                              offset: const Offset(0, 6),
                             ),
                           ],
                         ),
                         child: Row(
                           children: [
+                            // Total price column
                             Column(
                               mainAxisSize: MainAxisSize.min,
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -597,7 +676,7 @@ class CartScreen extends ConsumerWidget {
                                 Text(
                                   'Estimated Total',
                                   style: GoogleFonts.inter(
-                                    fontSize: 11,
+                                    fontSize: 10,
                                     color: palette.textSecondary,
                                     fontWeight: FontWeight.w500,
                                   ),
@@ -606,14 +685,56 @@ class CartScreen extends ConsumerWidget {
                                 Text(
                                   '₹${total.toInt()}',
                                   style: GoogleFonts.inter(
-                                    fontSize: 20,
+                                    fontSize: 17,
                                     color: palette.primary,
                                     fontWeight: FontWeight.w800,
+                                    letterSpacing: -0.3,
                                   ),
                                 ),
                               ],
                             ),
                             const Spacer(),
+                            // Order Sample Button
+                            ApplePressable(
+                              onTap: () {
+                                HapticFeedback.mediumImpact();
+                                context.push(
+                                  '/sample-order?stoneIds=${items.map((i) => i.stone.id).join(',')}',
+                                );
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: palette.primary.withValues(alpha: isDark ? 0.15 : 0.08),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: palette.primary.withValues(alpha: 0.45),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.inventory_2_outlined,
+                                      size: 14,
+                                      color: palette.primary,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Order Sample',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: palette.primary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            // Request Quote Button
                             ApplePressable(
                               onTap: () {
                                 HapticFeedback.mediumImpact();
@@ -622,7 +743,7 @@ class CartScreen extends ConsumerWidget {
                                 );
                               },
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 13),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                 decoration: BoxDecoration(
                                   gradient: LinearGradient(
                                     colors: [
@@ -630,12 +751,12 @@ class CartScreen extends ConsumerWidget {
                                       palette.primary.withValues(alpha: 0.85),
                                     ],
                                   ),
-                                  borderRadius: BorderRadius.circular(20),
+                                  borderRadius: BorderRadius.circular(14),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: palette.primary.withValues(alpha: 0.3),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 4),
+                                      color: palette.primary.withValues(alpha: 0.35),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
                                     ),
                                   ],
                                 ),
@@ -645,13 +766,17 @@ class CartScreen extends ConsumerWidget {
                                     Text(
                                       'Request Quote',
                                       style: GoogleFonts.inter(
-                                        fontSize: 14,
+                                        fontSize: 12,
                                         fontWeight: FontWeight.w700,
                                         color: Colors.white,
                                       ),
                                     ),
-                                    const SizedBox(width: 6),
-                                    const Icon(Icons.arrow_forward_rounded, size: 16, color: Colors.white),
+                                    const SizedBox(width: 4),
+                                    const Icon(
+                                      Icons.arrow_forward_rounded,
+                                      size: 13,
+                                      color: Colors.white,
+                                    ),
                                   ],
                                 ),
                               ),
@@ -746,7 +871,7 @@ class _EmptyCart extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             Text(
-              'Your Project Cart is Empty',
+              'Your Cart is Empty',
               style: GoogleFonts.playfairDisplay(
                 fontSize: 24,
                 fontWeight: FontWeight.w700,
@@ -916,7 +1041,6 @@ class _CartCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: palette.surface,
         borderRadius: BorderRadius.circular(20),
@@ -929,132 +1053,146 @@ class _CartCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: SmartStoneImage(
-              localAsset: item.stone.images.isNotEmpty ? item.stone.images.first : null,
-              width: 86,
-              height: 86,
-              fit: BoxFit.cover,
-              fallbackColor: palette.surfaceDark,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () {
+            HapticFeedback.lightImpact();
+            context.push('/stones/${item.stone.id}');
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        item.stone.name,
-                        style: GoogleFonts.playfairDisplay(
-                          color: palette.textPrimary,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    ApplePressable(
-                      onTap: onRemove,
-                      child: Container(
-                        padding: const EdgeInsets.all(5),
-                        decoration: BoxDecoration(
-                          color: palette.surfaceDark,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(Icons.close_rounded, color: palette.textTertiary, size: 14),
-                      ),
-                    ),
-                  ],
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: SmartStoneImage(
+                    localAsset: item.stone.images.isNotEmpty ? item.stone.images.first : null,
+                    width: 86,
+                    height: 86,
+                    fit: BoxFit.cover,
+                    fallbackColor: palette.surfaceDark,
+                  ),
                 ),
-                const SizedBox(height: 3),
-                Row(
-                  children: [
-                    Text(
-                      item.stone.collection,
-                      style: GoogleFonts.inter(fontSize: 11, color: palette.textSecondary),
-                    ),
-                    if (item.stone.finish.isNotEmpty) ...[
-                      Text(' • ', style: TextStyle(color: palette.textTertiary, fontSize: 10)),
-                      Text(
-                        item.stone.finish,
-                        style: GoogleFonts.inter(fontSize: 11, color: palette.textTertiary),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Apple-style tactile stepper
-                    Container(
-                      decoration: BoxDecoration(
-                        color: palette.surfaceDark,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: palette.border),
-                      ),
-                      child: Row(
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          ApplePressable(
-                            onTap: () => onUpdateQty(-1),
-                            child: Padding(
-                              padding: const EdgeInsets.all(7),
-                              child: Icon(Icons.remove, size: 14, color: palette.textPrimary),
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                          Expanded(
                             child: Text(
-                              '${item.quantity}',
-                              style: GoogleFonts.inter(
+                              item.stone.name,
+                              style: GoogleFonts.playfairDisplay(
                                 color: palette.textPrimary,
+                                fontSize: 16,
                                 fontWeight: FontWeight.w700,
-                                fontSize: 13,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           ApplePressable(
-                            onTap: () => onUpdateQty(1),
-                            child: Padding(
-                              padding: const EdgeInsets.all(7),
-                              child: Icon(Icons.add, size: 14, color: palette.textPrimary),
+                            onTap: onRemove,
+                            child: Container(
+                              padding: const EdgeInsets.all(5),
+                              decoration: BoxDecoration(
+                                color: palette.surfaceDark,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(Icons.close_rounded, color: palette.textTertiary, size: 14),
                             ),
                           ),
                         ],
                       ),
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          '₹${item.total.toInt()}',
-                          style: GoogleFonts.inter(
-                            color: palette.primary,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16,
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          Text(
+                            item.stone.collection,
+                            style: GoogleFonts.inter(fontSize: 11, color: palette.textSecondary),
                           ),
-                        ),
-                        Text(
-                          '₹${item.stone.pricePerSqFt.toInt()}/sqft',
-                          style: GoogleFonts.inter(color: palette.textTertiary, fontSize: 10),
-                        ),
-                      ],
-                    ),
-                  ],
+                          if (item.stone.finish.isNotEmpty) ...[
+                            Text(' • ', style: TextStyle(color: palette.textTertiary, fontSize: 10)),
+                            Text(
+                              item.stone.finish,
+                              style: GoogleFonts.inter(fontSize: 11, color: palette.textTertiary),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // Apple-style tactile stepper
+                          Container(
+                            decoration: BoxDecoration(
+                              color: palette.surfaceDark,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: palette.border),
+                            ),
+                            child: Row(
+                              children: [
+                                ApplePressable(
+                                  onTap: () => onUpdateQty(-1),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(7),
+                                    child: Icon(Icons.remove, size: 14, color: palette.textPrimary),
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                                  child: Text(
+                                    '${item.quantity}',
+                                    style: GoogleFonts.inter(
+                                      color: palette.textPrimary,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                                ApplePressable(
+                                  onTap: () => onUpdateQty(1),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(7),
+                                    child: Icon(Icons.add, size: 14, color: palette.textPrimary),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                '₹${item.total.toInt()}',
+                                style: GoogleFonts.inter(
+                                  color: palette.primary,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              Text(
+                                '₹${item.stone.pricePerSqFt.toInt()}/sqft',
+                                style: GoogleFonts.inter(color: palette.textTertiary, fontSize: 10),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }

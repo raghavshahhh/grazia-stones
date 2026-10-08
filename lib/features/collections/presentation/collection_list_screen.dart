@@ -28,6 +28,8 @@ class _CollectionListScreenState extends ConsumerState<CollectionListScreen> {
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
 
+  final ScrollController _scrollController = ScrollController();
+
   final List<String> _categories = [
     'All',
     'Stone Series',
@@ -38,6 +40,7 @@ class _CollectionListScreenState extends ConsumerState<CollectionListScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -49,73 +52,117 @@ class _CollectionListScreenState extends ConsumerState<CollectionListScreen> {
     return Scaffold(
       backgroundColor: palette.background,
       body: CustomScrollView(
+        controller: _scrollController,
         physics: const BouncingScrollPhysics(),
         slivers: [
-          // App Bar with search and title
+          // App Bar with prominent expanded header and pinned compact title on scroll
           SliverAppBar(
             backgroundColor: palette.background,
-            expandedHeight: 140,
+            surfaceTintColor: Colors.transparent,
+            expandedHeight: 165,
             pinned: true,
             elevation: 0,
+            scrolledUnderElevation: 2,
+            shadowColor: Colors.black.withValues(alpha: 0.08),
             automaticallyImplyLeading: false,
-            flexibleSpace: FlexibleSpaceBar(
-              background: Container(
-                color: palette.background,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 48, 20, 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: 16),
+                child: Center(
+                  child: IconButton(
+                    onPressed: () => context.push('/catalogue'),
+                    tooltip: 'Full Catalogue',
+                    icon: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: palette.surface,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: palette.border),
+                      ),
+                      child: Icon(Icons.menu_book_rounded, color: palette.primary, size: 20),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+            flexibleSpace: LayoutBuilder(
+              builder: (BuildContext context, BoxConstraints constraints) {
+                final top = constraints.biggest.height;
+                final statusBar = MediaQuery.of(context).padding.top;
+                final collapsedHeight = kToolbarHeight + statusBar;
+                const expandedHeight = 165.0;
+                final t = ((top - collapsedHeight) / (expandedHeight - collapsedHeight)).clamp(0.0, 1.0);
+
+                return Container(
+                  color: palette.background,
+                  child: SafeArea(
+                    bottom: false,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Stack(
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Collections',
-                                style: GoogleFonts.playfairDisplay(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.w700,
-                                  color: palette.textPrimary,
-                                ),
+                          // Expanded large header with title + subtitle
+                          Positioned(
+                            left: 0,
+                            bottom: 14,
+                            child: Opacity(
+                              opacity: t,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'Collections',
+                                    style: GoogleFonts.playfairDisplay(
+                                      fontSize: 30,
+                                      fontWeight: FontWeight.w700,
+                                      color: palette.textPrimary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    collectionsAsync.when(
+                                      data: (c) => '${c.length} Authentic Cultured Series',
+                                      loading: () => 'Loading...',
+                                      error: (_, _) => '',
+                                    ),
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: palette.primary,
+                                      letterSpacing: 1.0,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(height: 2),
-                              Text(
-                                collectionsAsync.when(
-                                  data: (c) => '${c.length} Authentic Cultured Series',
-                                  loading: () => 'Loading...',
-                                  error: (_, _) => '',
-                                ),
-                                style: GoogleFonts.inter(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: palette.primary,
-                                  letterSpacing: 1.0,
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
-                          IconButton(
-                            onPressed: () => context.push('/catalogue'),
-                            tooltip: 'Full Catalogue',
-                            icon: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: palette.surface,
-                                shape: BoxShape.circle,
-                                border: Border.all(color: palette.border),
+                          // Collapsed compact title (visible in app bar when scrolled)
+                          Positioned(
+                            left: 0,
+                            top: 0,
+                            bottom: 0,
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Opacity(
+                                opacity: (1.0 - t * 2.0).clamp(0.0, 1.0),
+                                child: Text(
+                                  'Collections',
+                                  style: GoogleFonts.playfairDisplay(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w700,
+                                    color: palette.textPrimary,
+                                  ),
+                                ),
                               ),
-                              child: Icon(Icons.menu_book_rounded, color: palette.primary, size: 20),
                             ),
                           ),
                         ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
+                );
+              },
             ),
           ),
 

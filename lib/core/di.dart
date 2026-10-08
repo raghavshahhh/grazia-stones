@@ -124,3 +124,8 @@ final quoteRiverpodProvider = StateNotifierProvider<QuoteRiverpodNotifier, Quote
 final orderRiverpodProvider = StateNotifierProvider<OrderRiverpodNotifier, OrderRiverpodState>((ref) {
   return OrderRiverpodNotifier(ref.watch(orderRepositoryProvider));
 });
+
+/// Indicates whether the initial brand launch animation has completed.
+/// Allows HomeScreen to delay the interactive tour until the launch overlay finishes.
+final appLaunchCompleteProvider = StateProvider<bool>((ref) => false);
+
