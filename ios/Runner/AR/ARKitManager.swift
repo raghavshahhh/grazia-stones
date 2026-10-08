@@ -207,6 +207,18 @@ import MetalKit
         }
     }
     
+    /// The catalogue photos show a patch of finished wall (many stones), not a
+    /// single tile. Repeat that patch at a realistic physical size instead of
+    /// stretching one photo over the whole wall, which is what looked fake.
+    // ponytail: assumed real height of one catalogue photo; add a per-stone value when the client supplies photo sizes.
+    private static let texturePatchHeightM: Float = 0.9
+
+    private func applyPatchScale(to material: SCNMaterial, texture: MTLTexture, wallWidth: Float, wallHeight: Float) {
+        let patchH = ARKitManager.texturePatchHeightM
+        let patchW = patchH * Float(texture.width) / Float(max(texture.height, 1))
+        material.diffuse.contentsTransform = SCNMatrix4MakeScale(wallWidth / patchW, wallHeight / patchH, 1)
+    }
+
     private func updateTextureOnNode(_ texture: MTLTexture) {
         guard let textureNode = textureNode else { return }
         
@@ -216,6 +228,9 @@ import MetalKit
             material.diffuse.wrapS = .repeat
             material.diffuse.wrapT = .repeat
             material.isDoubleSided = true
+            if let plane = textureNode.geometry as? SCNPlane {
+                applyPatchScale(to: material, texture: texture, wallWidth: Float(plane.width), wallHeight: Float(plane.height))
+            }
         }
     }
     
@@ -405,6 +420,7 @@ import MetalKit
             material.diffuse.wrapS = .repeat
             material.diffuse.wrapT = .repeat
             material.isDoubleSided = true
+            applyPatchScale(to: material, texture: texture, wallWidth: Float(width), wallHeight: Float(height))
             planeGeometry.materials = [material]
         } else {
             // Placeholder material

@@ -20,6 +20,7 @@ import io.github.sceneview.ar.ARSceneView
 import io.github.sceneview.ar.node.AnchorNode
 import io.github.sceneview.math.Position
 import io.github.sceneview.math.Size
+import dev.romainguy.kotlin.math.Float2
 import io.github.sceneview.node.Node
 import io.github.sceneview.node.PlaneNode
 import io.github.sceneview.node.SphereNode
@@ -41,6 +42,8 @@ import kotlin.math.sqrt
 class ARCoreManager private constructor(context: Context) {
 
     companion object {
+        // ponytail: assumed real height of one catalogue photo; add a per-stone value when the client supplies photo sizes.
+        const val TEXTURE_PATCH_HEIGHT_M = 0.9f
         private const val TAG = "ARCoreManager"
 
         @Volatile
@@ -85,6 +88,8 @@ class ARCoreManager private constructor(context: Context) {
     private var selectedWallId: String? = null
     private var wallNode: Node? = null
     private var pendingTexture: MaterialInstance? = null
+    // Width / height of the current texture photo, so tiling keeps its proportions.
+    private var textureAspect = 1f
 
     // Measurement
     private val measurementAnchors = LinkedHashMap<String, Anchor>()
@@ -250,6 +255,7 @@ class ARCoreManager private constructor(context: Context) {
             TextureHelper.setBitmap(view.engine, texture, 0, bitmap)
             texture.generateMipmaps(view.engine)
             pendingTexture = view.materialLoader.createTextureInstance(texture)
+            textureAspect = bitmap.width.toFloat() / bitmap.height.coerceAtLeast(1)
             updateWallVisualization()
         } catch (e: Exception) {
             Log.e(TAG, "setTexture failed", e)
@@ -289,9 +295,15 @@ class ARCoreManager private constructor(context: Context) {
 
         val material = pendingTexture
             ?: view.materialLoader.createColorInstance(android.graphics.Color.argb(128, 255, 215, 0))
+        // The catalogue photos show a patch of finished wall (many stones), not a
+        // single tile. Repeat that patch at a realistic physical size instead of
+        // stretching one photo over the whole wall, which is what looked fake.
+        val patchH = TEXTURE_PATCH_HEIGHT_M
+        val patchW = patchH * textureAspect
         val quad = PlaneNode(
             engine = view.engine,
             size = Size(x = plane.extentX, y = plane.extentZ),
+            uvScale = Float2(plane.extentX / patchW, plane.extentZ / patchH),
             materialInstance = material,
         )
         anchorNode.addChildNode(quad)
