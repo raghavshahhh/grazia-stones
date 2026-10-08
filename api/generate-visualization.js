@@ -3,6 +3,7 @@
 // pattern as api/wall-detect.js (which handles room *analysis* only).
 
 const { verifyRequestAuth } = require('./_supabaseAuth');
+const credits = require('./_aiCredits');
 
 const GEMINI_URL =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent';
@@ -60,8 +61,11 @@ RULES:
 // of picking a catalog stone by name — the two images are sent to Gemini
 // together so the *real* uploaded texture is what gets applied, not a text
 // guess at what "marble" or "granite" might look like.
-function _buildCompositePrompt({ color, finish, variantIndex } = {}) {
+function _buildCompositePrompt({ color, finish, designSpec } = {}) {
   const colorInstruction = color ? `Adapt the material with a ${color} color tone/finish.` : '';
+  const specInstruction = designSpec
+    ? `REAL PRODUCT SIZE: ${designSpec}. Scale the pattern so one tile/piece is that real size relative to doors, furniture and the room, and keep the joints and relief pattern exactly as in the SECOND image.`
+    : 'Keep the tile/pattern scale realistic relative to doors and furniture.';
   return `You are an expert architectural visualization AI and photorealistic inpainting engine.
 
 You are given two images:
@@ -80,7 +84,12 @@ STRICT OCCLUSION & FOREGROUND PRESERVATION RULES:
 3. REALISTIC CONTACT LIGHTING & DEPTH:
    - Render natural ambient occlusion and subtle contact shadows behind the sofa backrest and along corners onto the stone wall.
    - Retain existing directional lighting (such as ceiling downlights and natural window light) so the stone looks physically installed in the actual room.
-4. Output a single pristine photorealistic architectural photograph.`;
+4. KEEP THE PHOTO IDENTICAL EXCEPT THE WALL:
+   - Do NOT regenerate, restyle, recolour, crop, zoom, or re-light the room. Same camera angle, same framing, same furniture, same floor, ceiling, windows, curtains and decor, pixel for pixel outside the wall surface.
+   - Do NOT add, remove, move or invent any object, person, text or logo.
+   - Only the wall surface changes, and it must show the design from the SECOND image, not a similar-looking new design.
+5. ${specInstruction}
+6. Output a single pristine photorealistic photograph with the same resolution and aspect ratio as the FIRST image.`;
 }
 
 module.exports = async (req, res) => {
@@ -121,6 +130,13 @@ module.exports = async (req, res) => {
     return;
   }
 
+  // Generation is the expensive call, so it needs a real account: credits are
+  // per user (12 on signup, max 3 per day).
+  if (!auth.authenticated) {
+    res.status(401).json({ error: 'Please log in to use AI Studio', code: 'login_required' });
+    return;
+  }
+
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
   const rateLimitKey = auth.authenticated ? `user:${auth.userId}` : `guest:${ip}`;
   const rateLimitMax = auth.authenticated ? RATE_LIMIT_MAX_AUTH : RATE_LIMIT_MAX_GUEST;
@@ -135,7 +151,7 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const { image, designImage, stoneName, color, finish, variantIndex } = req.body || {};
+  const { image, designImage, stoneName, color, finish, variantIndex, designSpec } = req.body || {};
   if (!image || typeof image !== 'string' || !image.startsWith('data:image/')) {
     res.status(400).json({ error: 'image must be a data:image/... base64 URL' });
     return;
@@ -173,9 +189,32 @@ module.exports = async (req, res) => {
     }
   }
 
+  let spent;
   try {
+    spent = await credits.consume(auth.userId);
+  } catch (err) {
+    console.error('[generate-visualization] credits unavailable', err.message);
+    res.status(503).json({ error: 'AI credits are not available right now', code: 'credits_unavailable' });
+    return;
+  }
+  if (!spent.ok) {
+    res.status(429).json({
+      error:
+        spent.reason === 'daily_limit'
+          ? 'You have used all 3 AI renders for today. Try again tomorrow.'
+          : 'You have used all your free AI credits. Contact Grazia to get more.',
+      code: spent.reason,
+      creditsRemaining: spent.creditsRemaining,
+      dailyRemaining: spent.dailyRemaining,
+    });
+    return;
+  }
+  const refundCredit = () => credits.refund(auth.userId).catch((e) => console.error('[generate-visualization] refund failed', e.message));
+
+  try {
+    const safeSpec = typeof designSpec === 'string' ? designSpec.slice(0, 200) : '';
     const prompt = hasDesignImage
-      ? _buildCompositePrompt({ color, finish, variantIndex: variant })
+      ? _buildCompositePrompt({ color, finish, designSpec: safeSpec })
       : _buildPrompt({ stoneName, color, finish, variantIndex: variant });
 
     const requestParts = hasDesignImage
@@ -199,6 +238,7 @@ module.exports = async (req, res) => {
 
     if (!geminiRes.ok) {
       const errText = await geminiRes.text().catch(() => '');
+      await refundCredit();
       res.status(502).json({ error: `Gemini request failed: ${geminiRes.status} ${errText.slice(0, 200)}` });
       return;
     }
@@ -209,6 +249,7 @@ module.exports = async (req, res) => {
     const inline = imagePart?.inline_data || imagePart?.inlineData;
 
     if (!inline?.data) {
+      await refundCredit();
       res.status(502).json({ error: 'Gemini did not return an image' });
       return;
     }
@@ -216,8 +257,11 @@ module.exports = async (req, res) => {
     res.status(200).json({
       resultImage: `data:${inline.mime_type || inline.mimeType || 'image/png'};base64,${inline.data}`,
       variantIndex: variant,
+      creditsRemaining: spent.creditsRemaining,
+      dailyRemaining: spent.dailyRemaining,
     });
   } catch (err) {
+    await refundCredit();
     res.status(500).json({ error: `Generation failed: ${err.message}` });
   }
 };

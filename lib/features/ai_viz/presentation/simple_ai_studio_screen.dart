@@ -195,6 +195,8 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
   String? _roomLabel;
   Uint8List? _designBytes;
   String? _preSelectedStoneName;
+  // Real catalogue size of the chosen stone, sent so the render scales the pattern correctly.
+  String? _preSelectedStoneSpec;
   bool _loadingPreSelectedStone = false;
 
   StudioColorVariant get _activeVariant => _studioColorVariants.first;
@@ -227,6 +229,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
         setState(() {
           _designBytes = null;
           _preSelectedStoneName = null;
+          _preSelectedStoneSpec = null;
         });
       }
     }
@@ -264,6 +267,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
         if (mounted) {
           setState(() {
             _preSelectedStoneName = stone!.name;
+            _preSelectedStoneSpec = _specFor(stone);
           });
         }
         return;
@@ -288,6 +292,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
       setState(() {
         _designBytes = bytes;
         _preSelectedStoneName = stone!.name;
+        _preSelectedStoneSpec = _specFor(stone);
         _resultImage = null;
         _error = null;
       });
@@ -327,6 +332,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
           } else {
             _designBytes = bytes;
             _preSelectedStoneName = label;
+            _preSelectedStoneSpec = null;
           }
           _resultImage = null;
           _error = null;
@@ -368,6 +374,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
       setState(() {
         _designBytes = bytes;
         _preSelectedStoneName = stone.name;
+        _preSelectedStoneSpec = _specFor(stone);
         _resultImage = null;
         _error = null;
       });
@@ -422,6 +429,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
         } else {
           _designBytes = bytes;
           _preSelectedStoneName = 'Custom Stone Texture';
+          _preSelectedStoneSpec = null;
         }
         _resultImage = null;
         _error = null;
@@ -463,6 +471,17 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
     }
   }
 
+  /// "Size 490x195 mm, thickness 35 mm" from the catalogue, or null if unknown.
+  String? _specFor(Stone stone) {
+    final size = stone.size.trim();
+    final thickness = stone.thickness.trim();
+    if (size.isEmpty && thickness.isEmpty) return null;
+    return [
+      if (size.isNotEmpty) 'size $size',
+      if (thickness.isNotEmpty) 'thickness $thickness',
+    ].join(', ');
+  }
+
   Future<void> _generate() async {
     if (_roomBytes == null || _designBytes == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -493,6 +512,8 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
     String? generatedB64;
     String statusNote = 'Quick preview • ${_activeVariant.name} (AI render unavailable, try again shortly)';
     var fromAi = false;
+    // Set when the server refuses (login needed / limit reached): no fake preview then.
+    String? blockedMessage;
 
     // Start background inference (via Vercel AI proxy or local high-res compositor)
     final inferenceFuture = () async {
@@ -504,15 +525,28 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
           'image': roomDataUrl,
           'designImage': designDataUrl,
           'stoneName': _preSelectedStoneName ?? 'Natural Stone',
+          if (_preSelectedStoneSpec != null) 'designSpec': _preSelectedStoneSpec,
         });
 
         final returnedImage = data['resultImage'] as String?;
         if (returnedImage != null && returnedImage.isNotEmpty) {
           generatedB64 = returnedImage;
-          statusNote = 'Rendered via Google Gemini 2.5 Flash';
+          final left = data['creditsRemaining'];
+          final today = data['dailyRemaining'];
+          statusNote = left is int && today is int
+              ? 'AI render • $left credits left ($today more today)'
+              : 'AI render';
           fromAi = true;
           return;
         }
+      } on DioException catch (e) {
+        final code = e.response?.statusCode;
+        final body = e.response?.data;
+        if ((code == 401 || code == 429) && body is Map && body['error'] is String) {
+          blockedMessage = body['error'] as String;
+          return;
+        }
+        debugPrint('[AIStudio] generate-visualization failed, using local preview: $e');
       } catch (e) {
         debugPrint('[AIStudio] generate-visualization failed, using local preview: $e');
       }
@@ -551,6 +585,14 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
 
     await Future.delayed(const Duration(milliseconds: 350));
     if (!mounted) return;
+
+    if (blockedMessage != null) {
+      setState(() {
+        _generating = false;
+        _error = blockedMessage;
+      });
+      return;
+    }
 
     if (generatedB64 != null) {
       setState(() {
