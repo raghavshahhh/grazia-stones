@@ -182,3 +182,80 @@ extension CollectionBannerExtension on Collection {
 }
 
 
+
+/// Client catalogue structure (Grazia hand-written lists, 1 Oct 2026).
+/// Group chip labels, in the order the client wants them shown.
+class CatalogueGroups {
+  static const exclusivePatina = 'Exclusive Patina';
+  static const premiumCnc = 'Premium CNC';
+  static const premium3d = 'Premium 3D Surface';
+  static const designSurface = 'Design Surface';
+  static const brick = 'Brick Series';
+  static const ledge = 'Ledge Series';
+
+  static const all = [exclusivePatina, premiumCnc, premium3d, designSurface, brick, ledge];
+}
+
+// key = normalized DB name (without "series"/"collection"/"ledge"), then the
+// client's exact title and group. List order = the client's display order.
+const _kCatalogue = <(String, String, String)>[
+  ('exclusive', 'Exclusive Patina Series', CatalogueGroups.exclusivePatina),
+  ('florentine', 'Florentine Series', CatalogueGroups.premiumCnc),
+  ('foliage', 'Foliage Series', CatalogueGroups.premiumCnc),
+  ('flora', 'Flora Series', CatalogueGroups.premiumCnc),
+  ('vine', 'Vine Series', CatalogueGroups.premiumCnc),
+  ('hexa', 'Hexa Series', CatalogueGroups.premiumCnc),
+  ('modena', 'Modena Series', CatalogueGroups.premiumCnc),
+  ('cave', 'Cave Series', CatalogueGroups.premiumCnc),
+  ('egyptian', 'Egyptian Series', CatalogueGroups.premiumCnc),
+  ('weave', 'Weave Series', CatalogueGroups.premiumCnc),
+  ('milano', 'Milano Series', CatalogueGroups.premiumCnc),
+  ('alpine', 'Alpine Series', CatalogueGroups.premiumCnc),
+  ('premium surface', 'Premium 3D Surface Collection', CatalogueGroups.premium3d),
+  ('veines', 'Veines Series', CatalogueGroups.designSurface),
+  ('travertine', 'Travertino Series', CatalogueGroups.designSurface),
+  ('sleepwood', 'Sleeper Wood Series', CatalogueGroups.designSurface),
+  ('sierra', 'Sierra Series', CatalogueGroups.designSurface),
+  ('fossile rock', 'Fossil Rock Series', CatalogueGroups.designSurface),
+  ('tevoli', 'Tivoli Series', CatalogueGroups.designSurface),
+  ('rustic brick', 'Rustic Brick Series', CatalogueGroups.brick),
+  ('tarnished brick', 'Tarnished Brick Series', CatalogueGroups.brick),
+  ('colonial brick', 'Colonial Brick Series', CatalogueGroups.brick),
+  ('lakhori brick', 'Lakhori Brick Series', CatalogueGroups.brick),
+  ('grande', 'Grande Ledge Series', CatalogueGroups.ledge),
+  ('country', 'Country Ledge Series', CatalogueGroups.ledge),
+  ('mountain', 'Mountain Ledge Series', CatalogueGroups.ledge),
+  ('classic', 'Classic Ledge Series', CatalogueGroups.ledge),
+  ('opus', 'Opus Ledge Series', CatalogueGroups.ledge),
+  ('vantage', 'Vantage Ledge Series', CatalogueGroups.ledge),
+  ('rockface linear', 'Rockface Ledge Series', CatalogueGroups.ledge),
+  ('rockface', 'Rockface Series', CatalogueGroups.ledge),
+  ('castle', 'Castle Ledge Series', CatalogueGroups.ledge),
+  ('cuarzo', 'Cuarzo Ledge Series', CatalogueGroups.ledge),
+  ('venetian', 'Venecia Ledge Series', CatalogueGroups.ledge),
+  ('andorra', 'Andora Ledge Series', CatalogueGroups.ledge),
+  ('european stack', 'European Stack Series', CatalogueGroups.ledge),
+];
+
+extension CollectionCatalogueExtension on Collection {
+  int get _catalogueIndex {
+    final key = name
+        .toLowerCase()
+        .replaceAll(RegExp(r'\b(series|collection|ledge)\b'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    final i = _kCatalogue.indexWhere((e) => e.$1 == key);
+    if (i >= 0) return i;
+    // "Premium Surface Collection" keeps its word "surface" in the key.
+    return _kCatalogue.indexWhere((e) => e.$1 == name.toLowerCase().replaceAll(RegExp(r'\s*(series|collection)$'), '').trim());
+  }
+
+  /// Title exactly as the client wrote it (falls back to the stored name).
+  String get displayName => _catalogueIndex >= 0 ? _kCatalogue[_catalogueIndex].$2 : name;
+
+  /// Client group (chip label), or null for collections not in the client list.
+  String? get catalogueGroup => _catalogueIndex >= 0 ? _kCatalogue[_catalogueIndex].$3 : null;
+
+  /// Sort rank in the client's order; unknown collections go last.
+  int get catalogueRank => _catalogueIndex >= 0 ? _catalogueIndex : _kCatalogue.length;
+}

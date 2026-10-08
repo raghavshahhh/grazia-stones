@@ -1,8 +1,6 @@
-import 'dart:convert';
-import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:grazia_stones/core/models/stone.dart';
+import 'package:grazia_stones/core/services/ai_endpoint_client.dart';
 
 class MayaChatMessage {
   final String id;
@@ -44,30 +42,6 @@ class MayaAIService {
   static final MayaAIService instance = MayaAIService._();
   MayaAIService._();
 
-  static const String _defaultGeminiKeyB64 =
-      'QVEuQWI4Uk42Si1wQV9aUzBsejhGNVZKN3BpUnR2a2ZJcG1wQlBVMzdrVEVWYUx2dG02V3c=';
-
-  String get _geminiApiKey {
-    final direct = dotenv.maybeGet('GEMINI_API_KEY');
-    if (direct != null && direct.trim().isNotEmpty) {
-      return direct.trim();
-    }
-    final b64 = dotenv.maybeGet('GEMINI_API_KEY_B64') ?? _defaultGeminiKeyB64;
-    try {
-      return utf8.decode(base64.decode(b64.trim()));
-    } catch (_) {
-      return '';
-    }
-  }
-
-  final Dio _dio = Dio(
-    BaseOptions(
-      connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 30),
-      headers: {'Content-Type': 'application/json'},
-    ),
-  );
-
   /// Main conversation method: Queries Gemini with catalogue grounding & returns
   /// tailored architectural advice with matching Stone models.
   Future<MayaChatMessage> askMaya({
@@ -75,90 +49,49 @@ class MayaAIService {
     required List<Stone> catalogueStones,
     List<MayaChatMessage> history = const [],
   }) async {
-    final queryLower = userQuery.toLowerCase();
-
     // 1. Find matching stones based on query semantics (Hindi & English keywords)
     final matchedStones = _filterMatchingStones(userQuery, catalogueStones);
 
-    // 2. Prepare catalogue summary for Gemini prompt
-    final catalogueSummary = _buildCatalogueSummary(matchedStones.isNotEmpty ? matchedStones : catalogueStones.take(15).toList());
+    // 2. Live catalogue facts for grounding (brand knowledge + persona live
+    // on the server in api/maya.js, so the Gemini key never ships in the app).
+    final catalogueSummary = _buildCatalogueSummary(
+      matchedStones.isNotEmpty ? matchedStones : catalogueStones.take(15).toList(),
+    );
 
-    final systemInstruction = '''
-You are "Maya", the elite AI Luxury Architectural & Natural Stone Sales Consultant for Grazia Stones (Unit of BNK Stones).
-You advise high-net-worth homeowners, interior designers, and architects on bespoke natural stone wall claddings, 3D fluted panels, and split-face ledges.
-
-MANDATORY RULES:
-1. DEFAULT LANGUAGE: Speak in elegant, sophisticated ENGLISH by default.
-   - If and only if the user specifically writes in Hindi or Hinglish, transition naturally into polite, fluent Hinglish/Hindi.
-2. CONCISE & PUNCHY: Keep answers SHORT (2 to 4 sentences max!). Never write long lectures or bulky essays.
-3. LUXURY SALES PSYCHOLOGY:
-   - Position Grazia natural stone as an elite statement of permanent architectural luxury, tactile depth, and lasting property value.
-   - Decisively recommend 1 or 2 specific collections from the catalogue below (bold their names with **Collection Name**).
-   - Close with a high-converting, low-friction psychological CTA (e.g. previewing in Live AR, trying the 4K AI Room Studio, or ordering a sample box to feel the hand-chiselled stone grain).
-4. FORMATTING: Do NOT use markdown headers (# or ##). Use clean short paragraphs or 1-2 bullet points with **bold** highlights.
-
-GRAZIA CATALOGUE GROUNDING:
-$catalogueSummary
-''';
-
-    // 3. Attempt Gemini API Call
+    // 3. Ask Maya (Gemini via the Vercel proxy)
     try {
-      final apiKey = _geminiApiKey;
-      final url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey';
-
-      final contents = <Map<String, dynamic>>[];
-
-      // Append recent history (up to last 4 turns)
-      final recentHistory = history.where((m) => !m.isLoading).take(4).toList();
-      for (final msg in recentHistory) {
-        contents.add({
-          'role': msg.isUser ? 'user' : 'model',
-          'parts': [{'text': msg.text}],
-        });
+      final recentHistory = history.where((m) => !m.isLoading).toList();
+      // The chat screen already appended the current question; the server
+      // adds it itself, so don't send it twice.
+      if (recentHistory.isNotEmpty &&
+          recentHistory.last.isUser &&
+          recentHistory.last.text.trim() == userQuery.trim()) {
+        recentHistory.removeLast();
       }
+      final tail = recentHistory.length > 6
+          ? recentHistory.sublist(recentHistory.length - 6)
+          : recentHistory;
 
-      // Append current user prompt
-      contents.add({
-        'role': 'user',
-        'parts': [{'text': userQuery}],
+      final data = await AIEndpointClient.post('/api/maya', {
+        'message': userQuery,
+        'history': [
+          for (final m in tail) {'role': m.isUser ? 'user' : 'model', 'text': m.text},
+        ],
+        'catalogue': catalogueSummary,
       });
 
-      final response = await _dio.post(
-        url,
-        data: {
-          'system_instruction': {
-            'parts': [{'text': systemInstruction}],
-          },
-          'contents': contents,
-          'generationConfig': {
-            'temperature': 0.7,
-            'maxOutputTokens': 500,
-          },
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final data = response.data;
-        final candidates = data['candidates'] as List?;
-        if (candidates != null && candidates.isNotEmpty) {
-          final content = candidates[0]['content'];
-          final parts = content?['parts'] as List?;
-          if (parts != null && parts.isNotEmpty) {
-            final text = parts[0]['text'] as String?;
-            if (text != null && text.trim().isNotEmpty) {
-              return MayaChatMessage(
-                id: DateTime.now().millisecondsSinceEpoch.toString(),
-                text: text.trim(),
-                isUser: false,
-                timestamp: DateTime.now(),
-                recommendedStones: matchedStones.take(4).toList(),
-              );
-            }
-          }
-        }
+      final text = (data['text'] as String?)?.trim() ?? '';
+      if (text.isNotEmpty) {
+        return MayaChatMessage(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          text: text,
+          isUser: false,
+          timestamp: DateTime.now(),
+          recommendedStones: matchedStones.take(4).toList(),
+        );
       }
     } catch (e) {
-      debugPrint('⚠️ [MayaAIService] Gemini direct call error or fallback needed: $e');
+      debugPrint('⚠️ [MayaAIService] Maya proxy error, using local fallback: $e');
     }
 
     // 4. Intelligent Offline/Local Architectural Engine Fallback

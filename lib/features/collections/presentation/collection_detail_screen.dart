@@ -238,7 +238,7 @@ class CollectionDetailScreen extends ConsumerWidget {
             flexibleSpace: FlexibleSpaceBar(
               titlePadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
               title: Text(
-                collection.name,
+                collection.displayName,
                 style: GoogleFonts.playfairDisplay(
                   fontSize: 19,
                   fontWeight: FontWeight.w800,

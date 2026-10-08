@@ -30,12 +30,7 @@ class _CollectionListScreenState extends ConsumerState<CollectionListScreen> {
 
   final ScrollController _scrollController = ScrollController();
 
-  final List<String> _categories = [
-    'All',
-    'Stone Series',
-    'Brick Series',
-    'Designer 3D',
-  ];
+  final List<String> _categories = ['All', ...CatalogueGroups.all];
 
   @override
   void dispose() {
@@ -307,17 +302,15 @@ class _CollectionListScreenState extends ConsumerState<CollectionListScreen> {
               // Filter by category
               final categoryFiltered = baseList.where((c) {
                 if (_selectedCategory == 'All') return true;
-                final cat = c.categoryType;
-                if (_selectedCategory == 'Stone Series') return cat.contains('Cultured Stone');
-                if (_selectedCategory == 'Brick Series') return cat.contains('Brick');
-                if (_selectedCategory == 'Designer 3D') return cat.contains('Designer 3D');
-                return true;
-              }).toList();
+                return c.catalogueGroup == _selectedCategory;
+              }).toList()
+                ..sort((a, b) => a.catalogueRank.compareTo(b.catalogueRank));
 
               // Filter by search query
               final displayList = categoryFiltered.where((c) {
                 if (_searchQuery.isEmpty) return true;
-                return c.name.toLowerCase().contains(_searchQuery) ||
+                return c.displayName.toLowerCase().contains(_searchQuery) ||
+                       c.name.toLowerCase().contains(_searchQuery) ||
                        c.description.toLowerCase().contains(_searchQuery) ||
                        c.dimensionSpec.toLowerCase().contains(_searchQuery);
               }).toList();
@@ -517,7 +510,7 @@ class _CollectionCard extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  collection.name,
+                                  collection.displayName,
                                   style: GoogleFonts.playfairDisplay(
                                     color: Colors.white,
                                     fontSize: 21,
