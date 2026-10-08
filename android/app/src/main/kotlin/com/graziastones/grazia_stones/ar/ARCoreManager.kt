@@ -130,10 +130,17 @@ class ARCoreManager private constructor(context: Context) {
             Log.e(TAG, "AR session failed", e)
             onError?.invoke(e.message ?: "AR session failed")
         }
-        view.sessionConfiguration = { _, config ->
+        view.sessionConfiguration = { session, config ->
             config.planeFindingMode = Config.PlaneFindingMode.VERTICAL
             config.updateMode = Config.UpdateMode.LATEST_CAMERA_IMAGE
             config.focusMode = Config.FocusMode.AUTO
+            // Depth (where the phone supports it) gives steadier wall hits on
+            // plain/white walls; phones without it keep the plane-only path.
+            if (session.isDepthModeSupported(Config.DepthMode.AUTOMATIC)) {
+                config.depthMode = Config.DepthMode.AUTOMATIC
+            }
+            // Match the overlay's brightness to the room's real lighting.
+            config.lightEstimationMode = Config.LightEstimationMode.ENVIRONMENTAL_HDR
         }
     }
 
