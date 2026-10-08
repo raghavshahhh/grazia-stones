@@ -212,43 +212,33 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
     String? company,
   }) async {
     state = state.copyWith(isLoading: true, error: null);
-    final cleanEmail = email.trim();
-    // Save to local registered accounts immediately for guaranteed login
-    await _storage.saveRegisteredAccount(
-      email: cleanEmail,
-      password: password,
-      name: name.trim(),
-      phone: phone,
-      role: role ?? 'architect',
-      company: company,
-    );
-
     try {
       final user = await _repo.register(
         name: name.trim(),
-        email: cleanEmail,
+        email: email.trim(),
         password: password,
         phone: phone,
       );
+      if (user == null) {
+        // Supabase created the account but wants the email confirmed before
+        // it issues a session. Never fake a login without a real session —
+        // orders/quotes need a real user behind RLS.
+        state = state.copyWith(
+          isLoading: false,
+          error: AuthRepository.emailConfirmationRequired,
+        );
+        return;
+      }
       await _saveAndSetState(user);
     } catch (e) {
-      // Supabase registration might require email verification or hit rate limit/offline.
-      // We still log the user in locally so registration is 100% working and never blocks testing:
-      final user = User(
-        id: 'user_${cleanEmail.hashCode.abs()}',
-        name: name.trim(),
-        email: cleanEmail,
-        phone: phone,
-        role: role ?? 'architect',
-        createdAt: DateTime.now(),
-      );
-      await _saveAndSetState(user);
+      state = state.copyWith(isLoading: false, error: e.toString());
+      debugPrint('❌ Register error: $e');
     }
   }
 
   /// Sign in with Google
   Future<void> signInWithGoogle() async {
-    if (!EnvConfig().isGoogleOAuthConfigured) {
+    if (!kIsWeb && !EnvConfig().isGoogleOAuthConfigured) {
       state = state.copyWith(
         isLoading: false,
         error: 'CONFIGURATION REQUIRED: Google OAuth Client IDs (GOOGLE_IOS_CLIENT_ID / GOOGLE_WEB_CLIENT_ID) are missing.',
@@ -258,6 +248,10 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final user = await _repo.signInWithGoogle();
+      if (user == null) {
+        state = state.copyWith(isLoading: false);
+        return;
+      }
       await _saveAndSetState(user);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());

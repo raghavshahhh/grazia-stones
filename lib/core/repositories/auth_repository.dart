@@ -1,3 +1,6 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:google_sign_in/google_sign_in.dart';
+import '../config/env_config.dart';
 import '../models/user.dart';
 import '../services/supabase_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
@@ -33,8 +36,13 @@ class AuthRepository {
     return _userFromSession()!;
   }
 
-  /// Sign up with email and password
-  Future<User> register({
+  /// Marker error text for "account created, email confirmation pending".
+  static const emailConfirmationRequired = 'email_confirmation_required';
+
+  /// Sign up with email and password.
+  /// Returns null when the account was created but Supabase requires the
+  /// email to be confirmed first (no session yet).
+  Future<User?> register({
     required String name,
     required String email,
     required String password,
@@ -42,6 +50,7 @@ class AuthRepository {
   }) async {
     final res = await _sb.signUp(email, password, fullName: name);
     if (res.user == null) throw Exception('Registration failed');
+    if (res.session == null) return null;
     // Update phone in profile if provided
     if (phone != null) {
       await _sb.updateProfile({'phone': phone});
@@ -56,10 +65,37 @@ class AuthRepository {
     return _userFromSession()!;
   }
 
-  /// Sign in with Google
-  Future<User> signInWithGoogle() async {
-    final success = await _sb.signInWithOAuth(OAuthProvider.google);
-    if (!success) throw Exception('Google sign-in failed');
+  /// Sign in with Google.
+  /// Mobile: native Google SDK -> ID token -> Supabase (returns the user).
+  /// Web: Supabase OAuth redirect; the page navigates away and the session
+  /// is restored on return, so this returns null.
+  Future<User?> signInWithGoogle() async {
+    if (kIsWeb) {
+      final launched = await _sb.signInWithOAuth(OAuthProvider.google);
+      if (!launched) throw Exception('Google sign-in failed');
+      return null;
+    }
+
+    final env = EnvConfig();
+    final google = GoogleSignIn(
+      clientId: env.googleIosClientId.isEmpty ? null : env.googleIosClientId,
+      serverClientId:
+          env.googleWebClientId.isEmpty ? null : env.googleWebClientId,
+      scopes: const ['email', 'profile'],
+    );
+    final account = await google.signIn();
+    if (account == null) throw Exception('Google sign-in was cancelled');
+
+    final tokens = await account.authentication;
+    final idToken = tokens.idToken;
+    if (idToken == null) throw Exception('Google did not return an ID token');
+
+    final res = await _sb.signInWithIdToken(
+      OAuthProvider.google,
+      idToken,
+      accessToken: tokens.accessToken,
+    );
+    if (res.user == null) throw Exception('Google sign-in failed');
     return _userFromSession()!;
   }
 

@@ -81,8 +81,20 @@ class UserFriendlyError {
       );
     }
 
+    // 4b. Email confirmation pending (checked before the AI branch: "email"
+    // contains "ai" and used to be mislabelled as a room-visualization error)
+    if (errStr.contains('email_confirmation_required') ||
+        errStr.contains('email_not_confirmed') ||
+        errStr.contains('email not confirmed')) {
+      return const UserFriendlyError(
+        title: 'Confirm Your Email',
+        message: 'Please confirm your email using the link we sent you, then sign in.',
+        actionLabel: 'Sign In',
+      );
+    }
+
     // 5. AI Visualization Errors
-    if (errStr.contains('ai') ||
+    if (RegExp(r'\bai\b').hasMatch(errStr) ||
         errStr.contains('segmentation') ||
         errStr.contains('wall not detected') ||
         errStr.contains('replicate') ||

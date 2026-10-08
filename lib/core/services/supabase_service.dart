@@ -109,6 +109,19 @@ class SupabaseService {
     return await _withAuthRetryBool(() => auth.signInWithOAuth(provider));
   }
 
+  /// Sign in with a Google ID token obtained from the native SDK (iOS/Android)
+  Future<AuthResponse> signInWithIdToken(
+    OAuthProvider provider,
+    String idToken, {
+    String? accessToken,
+  }) async {
+    return await _withAuthRetry(() => auth.signInWithIdToken(
+          provider: provider,
+          idToken: idToken,
+          accessToken: accessToken,
+        ));
+  }
+
   /// Sign out
   Future<void> signOut() async {
     await _withAuthRetryVoid(() => auth.signOut());
