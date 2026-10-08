@@ -1,5 +1,8 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' as sb;
+import '../../../core/services/supabase_service.dart';
 import '../../../core/models/user.dart';
 import '../../../core/repositories/auth_repository.dart';
 import '../../../core/services/storage_service.dart';
@@ -84,8 +87,34 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
   final AuthRepository _repo;
   final StorageService _storage = StorageService.instance;
 
+  StreamSubscription<sb.AuthState>? _authSub;
+
   AuthRiverpodNotifier(this._repo) : super(AuthRiverpodState()) {
     _loadPersistedState();
+    _listenForDeepLinkSignIn();
+  }
+
+  /// Email-confirmation / magic links reopen the app with a session that
+  /// supabase_flutter restores on its own. Mirror it into our auth state so
+  /// the user is signed in without having to type credentials again.
+  void _listenForDeepLinkSignIn() {
+    final auth = SupabaseService.instance.authOrNull;
+    if (auth == null) return;
+    _authSub = auth.onAuthStateChange.listen((data) async {
+      if (data.event != sb.AuthChangeEvent.signedIn) return;
+      if (data.session == null || state.isLoggedIn) return;
+      try {
+        await _saveAndSetState(await _repo.getProfile());
+      } catch (e) {
+        debugPrint('❌ Deep-link sign-in sync failed: $e');
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadPersistedState() async {

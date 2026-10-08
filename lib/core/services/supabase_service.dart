@@ -7,6 +7,9 @@ class SupabaseService {
   SupabaseService._();
   static final SupabaseService instance = SupabaseService._();
 
+  /// Deep link the app registers on iOS (Info.plist) and Android (manifest).
+  static const String authCallbackUrl = 'graziastones://auth-callback';
+
   SupabaseClient? get clientOrNull {
     try {
       return Supabase.instance.client;
@@ -96,6 +99,9 @@ class SupabaseService {
       email: email,
       password: password,
       data: {'full_name': fullName},
+      // Mobile: the confirmation link reopens the app instead of a browser
+      // page. Must also be allow-listed in Supabase Auth -> URL Configuration.
+      emailRedirectTo: kIsWeb ? null : authCallbackUrl,
     ));
   }
 

@@ -66,6 +66,19 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.graziastones.auth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>graziastones</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Grazia Stones needs camera access to visualize stones in your space using augmented reality.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
