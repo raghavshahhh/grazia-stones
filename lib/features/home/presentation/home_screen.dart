@@ -992,7 +992,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                'Search 36+ collections, ledges, flutes, marble...',
+                'Search 35 collections, ledges, flutes, marble...',
                 style: GoogleFonts.inter(
                   fontSize: 13,
                   fontWeight: FontWeight.w400,
@@ -1573,7 +1573,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             ),
                             const SizedBox(width: 5),
                             Text(
-                              '36 SIGNATURE COLLECTIONS',
+                              '35 SIGNATURE COLLECTIONS',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 9.5,
                                 fontWeight: FontWeight.w700,

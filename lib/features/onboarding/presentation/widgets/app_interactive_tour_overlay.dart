@@ -62,7 +62,7 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
       'badge': '24/7 AI GUIDE',
       'title': 'Meet Maya — Your AI Design Consultant',
       'subtitle':
-          'Namaste! Main hoon Maya — Grazia Stones ki 24/7 AI Architectural Consultant. Poochiye mujhse Hindi ya English me — "living room ke liye premium stone designs", "villa exterior cladding", ya "budget estimates". Main 36 collections me se perfect design recommend karungi!',
+          'Namaste! Main hoon Maya — Grazia Stones ki 24/7 AI Architectural Consultant. Poochiye mujhse Hindi ya English me — "living room ke liye premium stone designs", "villa exterior cladding", ya "budget estimates". Main 35 collections me se perfect design recommend karungi!',
       'icon': Icons.smart_toy_rounded,
       'targetType': 'maya_app_bar',
       'targetLabel': 'Maya AI in Top Navigation Bar',
@@ -71,14 +71,14 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
     {
       'stepNum': '3 OF 4',
       'category': 'CURATED ARCHITECTURE',
-      'badge': '36 SERIES',
-      'title': '36+ Curated Design Collections',
+      'badge': '35 SERIES',
+      'title': '35 Curated Design Collections',
       'subtitle':
-          'Explore all 36 bespoke design series — from 3D fluted relief and monolithic split ledges to Egyptian and Roman heritage stones.',
+          'Explore all 35 bespoke design series — from 3D fluted relief and monolithic split ledges to Egyptian and Roman heritage stones.',
       'icon': Icons.grid_view_rounded,
       'targetType': 'curated_collections',
-      'targetLabel': 'Curated Collections (36 Series)',
-      'chips': ['🏛️ 36 Bespoke Series', '🏺 Heritage Split Ledge', '📐 Monolithic Flutes'],
+      'targetLabel': 'Curated Collections (35 Series)',
+      'chips': ['🏛️ 35 Bespoke Series', '🏺 Heritage Split Ledge', '📐 Monolithic Flutes'],
     },
     {
       'stepNum': '4 OF 4',
@@ -202,7 +202,7 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
         );
 
       case 2:
-        // Step 3: Curated Collections (36 Series)
+        // Step 3: Curated Collections (35 Series)
         final box = (widget.collectionsKey ?? GraziaBottomNav.collectionsKey).currentContext?.findRenderObject() as RenderBox?;
         if (box != null && box.hasSize) {
           final pos = box.localToGlobal(Offset.zero);
@@ -708,7 +708,7 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
             border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           ),
           child: Text(
-            'Poochiye Maya se Hindi ya English me — "living room ke liye premium stone designs", "villa exterior facades", ya "budget calculation". Maya aapko Grazia ke 36 collections me se perfect design recommend karegi!',
+            'Poochiye Maya se Hindi ya English me — "living room ke liye premium stone designs", "villa exterior facades", ya "budget calculation". Maya aapko Grazia ke 35 collections me se perfect design recommend karegi!',
             style: GoogleFonts.inter(
               fontSize: 12.5,
               color: const Color(0xFFE4DFD3),

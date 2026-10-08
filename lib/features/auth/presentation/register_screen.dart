@@ -143,7 +143,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
             name: name,
             email: email,
             phone: phone,
-            company: 'Grazia ${_selectedRole} Studio',
+            company: 'Grazia $_selectedRole Studio',
           ));
 
           ScaffoldMessenger.of(context).showSnackBar(

@@ -43,7 +43,7 @@ class _MayaAIChatScreenState extends ConsumerState<MayaAIChatScreen> {
       MayaChatMessage(
         id: 'welcome',
         text:
-            'Hello! I am **Maya**, Grazia Stones’ Luxury Architectural & Natural Stone Consultant.\n\nI can help you curate the perfect surface for your space from our 36 signature collections — whether it is a grand living room feature wall, modern 3D fluted panels, or weather-resilient exterior ledges.\n\nWhat architectural vision are you creating today? (Feel free to ask in English or Hindi!)',
+            'Hello! I am **Maya**, Grazia Stones’ Luxury Architectural & Natural Stone Consultant.\n\nI can help you curate the perfect surface for your space from our 35 signature collections — whether it is a grand living room feature wall, modern 3D fluted panels, or weather-resilient exterior ledges.\n\nWhat architectural vision are you creating today? (Feel free to ask in English or Hindi!)',
         isUser: false,
         timestamp: DateTime.now(),
       ),

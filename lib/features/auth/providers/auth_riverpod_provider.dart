@@ -212,7 +212,8 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
       await _saveAndSetState(user);
     } catch (e) {
       // Check local registered accounts (including pre-seeded architect@graziastones.com)
-      final localAcc = _storage.findRegisteredAccount(email.trim(), password);
+      // Debug builds only: store builds must authenticate against Supabase.
+      final localAcc = kReleaseMode ? null : _storage.findRegisteredAccount(email.trim(), password);
       if (localAcc != null) {
         final user = User(
           id: 'user_${email.trim().hashCode.abs()}',

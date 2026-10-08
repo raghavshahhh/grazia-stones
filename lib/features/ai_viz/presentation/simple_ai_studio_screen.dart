@@ -2086,7 +2086,7 @@ class _SourceSelectorSheetState extends ConsumerState<_SourceSelectorSheet> {
                     if (!widget.isRoom) ...[
                       const SizedBox(height: 20),
                       Text(
-                        'BROWSE CATALOGUE (36 SERIES):',
+                        'BROWSE CATALOGUE (35 SERIES):',
                         style: GoogleFonts.inter(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,

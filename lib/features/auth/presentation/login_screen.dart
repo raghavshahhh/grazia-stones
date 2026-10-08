@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -290,6 +291,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                           ),
                         ),
                         // Quick Demo Fill Action Chip
+                        if (!kReleaseMode)
                         GestureDetector(
                           onTap: _fillDemoCredentials,
                           child: Container(

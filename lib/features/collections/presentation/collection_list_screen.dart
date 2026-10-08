@@ -117,7 +117,10 @@ class _CollectionListScreenState extends ConsumerState<CollectionListScreen> {
                                   const SizedBox(height: 4),
                                   Text(
                                     collectionsAsync.when(
-                                      data: (c) => '${c.length} Authentic Cultured Series',
+                                      data: (c) {
+                                        final listed = c.where((x) => x.isListed).length;
+                                        return '${listed == 0 ? c.length : listed} Authentic Cultured Series';
+                                      },
                                       loading: () => 'Loading...',
                                       error: (_, _) => '',
                                     ),
@@ -176,7 +179,7 @@ class _CollectionListScreenState extends ConsumerState<CollectionListScreen> {
                   onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
                   style: GoogleFonts.inter(fontSize: 14, color: palette.textPrimary),
                   decoration: InputDecoration(
-                    hintText: 'Search 36+ collections (e.g. Mountain, Rustic, Hexa)...',
+                    hintText: 'Search 35 collections (e.g. Mountain, Rustic, Hexa)...',
                     hintStyle: GoogleFonts.inter(fontSize: 13, color: palette.textTertiary),
                     prefixIcon: Icon(Icons.search_rounded, color: palette.primary, size: 20),
                     suffixIcon: _searchQuery.isNotEmpty
@@ -292,12 +295,7 @@ class _CollectionListScreenState extends ConsumerState<CollectionListScreen> {
               ),
             ),
             data: (collections) {
-              final nonTest = collections.where((c) {
-                final name = c.name.toLowerCase();
-                return !name.startsWith('test') &&
-                    !name.contains('test collection') &&
-                    !c.isCatalogueDuplicate;
-              }).toList();
+              final nonTest = collections.where((c) => c.isListed).toList();
 
               final baseList = nonTest.isEmpty ? collections : nonTest;
 

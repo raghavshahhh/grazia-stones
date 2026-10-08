@@ -120,6 +120,12 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
     super.dispose();
   }
 
+  // Stones without a catalogue sqft/box fall back to a rough estimate, shown as such.
+  String get _sqftPerBoxLabel {
+    final v = _selectedStone?.sqftPerBox ?? 0;
+    return v > 0 ? '~$v sqft/box' : '~10.5 sqft/box (estimate)';
+  }
+
   void _calculate({bool silent = false}) {
     final l = double.tryParse(_lengthController.text.trim()) ?? 0.0;
     final w = double.tryParse(_widthController.text.trim()) ?? 0.0;
@@ -584,7 +590,7 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
                     ),
                     const SizedBox(height: 1),
                     Text(
-                      '~${_selectedStone?.sqftPerBox ?? 10.5} sqft/box',
+                      _sqftPerBoxLabel,
                       style: GoogleFonts.inter(
                         fontSize: 9.5,
                         color: palette.textTertiary,
@@ -1661,7 +1667,7 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
           _buildBreakdownRow('Cut & Edge Wastage (${_wastageController.text}%)', '+${_wastageAreaSqFt.toStringAsFixed(1)} sq ft', palette),
           _buildBreakdownRow('Total Gross Coverage Needed', '${_grossAreaSqFt.toStringAsFixed(1)} sq ft', palette, isBold: true),
           const Divider(height: 20),
-          _buildBreakdownRow('Packaging Boxes Required', '$_boxCount Boxes (~${_selectedStone?.sqftPerBox ?? 10.5} sqft/box)', palette),
+          _buildBreakdownRow('Packaging Boxes Required', '$_boxCount Boxes ($_sqftPerBoxLabel)', palette),
           _buildBreakdownRow('Estimated Slab Tiles ($_selectedTileSize)', '$_tileCount Units', palette),
           _buildBreakdownRow('Adhesive (20kg polymer bag)', '$_adhesiveBags Bags (~40 sqft/bag)', palette),
           _buildBreakdownRow('Epoxy / Cement Grout', '$_groutKg kg (~25 sqft/kg)', palette),

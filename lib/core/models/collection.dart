@@ -248,6 +248,12 @@ extension CollectionCatalogueExtension on Collection {
   /// only (nothing is deleted).
   bool get isCatalogueDuplicate => _catalogueKey == 'rockface';
 
+  /// Shown in the collections list: not a test row and not the hidden duplicate.
+  bool get isListed {
+    final n = name.toLowerCase();
+    return !n.startsWith('test') && !n.contains('test collection') && !isCatalogueDuplicate;
+  }
+
   int get _catalogueIndex {
     final key = _catalogueKey;
     final i = _kCatalogue.indexWhere((e) => e.$1 == key);
