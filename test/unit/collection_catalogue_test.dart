@@ -8,12 +8,12 @@ void main() {
     const live = [
       'Grande Ledge Series', 'Country Ledge Series', 'Mountain Ledge Series',
       'Opus Ledge Series', 'Classic Ledge Series', 'Vantage Series',
-      'Castle Ledge Series', 'Cuarzo Series',
+      'Rockface Linear Series', 'Castle Ledge Series', 'Cuarzo Series',
       'Venetian Series', 'Andorra Series', 'Rustic Brick Series',
       'European Stack Series', 'Tarnished Brick Series', 'Florentine Series',
       'Veines Series', 'Foliage Series', 'Travertine Series', 'Hexa Series',
       'Sleepwood Series', 'Milano Series', 'Sierra Series', 'Alpine Series',
-      'Fossile Rock Series', 'Rockface Series', 'Tevoli Series',
+      'Fossile Rock Series', 'Tevoli Series',
       'Colonial Brick Series', 'Lakhori Brick Series', 'Flora Series',
       'Vine Series', 'Modena Series', 'Cave Series', 'Egyptian Series',
       'Weave Series', 'Premium Surface Collection', 'Exclusive Collection',
@@ -25,11 +25,11 @@ void main() {
     expect(live.map((n) => _c(n).catalogueRank).toSet().length, live.length);
   });
 
-  test('client lists one Rockface: Linear is hidden, plain one is titled', () {
-    expect(_c('Rockface Linear Series').isCatalogueDuplicate, isTrue);
-    expect(_c('Rockface Series').isCatalogueDuplicate, isFalse);
-    expect(_c('Rockface Series').displayName, 'Rockface Ledge Series');
-    expect(_c('Rockface Series').catalogueGroup, CatalogueGroups.ledge);
+  test('client lists one Rockface: Linear is shown, plain is hidden', () {
+    expect(_c('Rockface Series').isCatalogueDuplicate, isTrue);
+    expect(_c('Rockface Linear Series').isCatalogueDuplicate, isFalse);
+    expect(_c('Rockface Linear Series').displayName, 'Rockface Linear Series');
+    expect(_c('Rockface Linear Series').catalogueGroup, CatalogueGroups.ledge);
   });
 
   test('titles follow the client handwriting', () {

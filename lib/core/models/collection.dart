@@ -228,7 +228,7 @@ const _kCatalogue = <(String, String, String)>[
   ('classic', 'Classic Ledge Series', CatalogueGroups.ledge),
   ('opus', 'Opus Ledge Series', CatalogueGroups.ledge),
   ('vantage', 'Vantage Ledge Series', CatalogueGroups.ledge),
-  ('rockface', 'Rockface Ledge Series', CatalogueGroups.ledge),
+  ('rockface linear', 'Rockface Linear Series', CatalogueGroups.ledge),
   ('castle', 'Castle Ledge Series', CatalogueGroups.ledge),
   ('cuarzo', 'Cuarzo Ledge Series', CatalogueGroups.ledge),
   ('venetian', 'Venecia Ledge Series', CatalogueGroups.ledge),
@@ -243,9 +243,10 @@ extension CollectionCatalogueExtension on Collection {
       .replaceAll(RegExp(r'\s+'), ' ')
       .trim();
 
-  /// The client lists a single "Rockface"; the DB also has "Rockface Linear".
-  /// Hidden from the collections list only (nothing is deleted).
-  bool get isCatalogueDuplicate => _catalogueKey == 'rockface linear';
+  /// The client lists a single Rockface, which is the catalogue's "Rockface
+  /// Linear"; the plain "Rockface Series" is hidden from the collections list
+  /// only (nothing is deleted).
+  bool get isCatalogueDuplicate => _catalogueKey == 'rockface';
 
   int get _catalogueIndex {
     final key = _catalogueKey;
