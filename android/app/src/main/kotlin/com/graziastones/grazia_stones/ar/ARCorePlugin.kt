@@ -129,7 +129,7 @@ class ARCorePlugin : FlutterPlugin, MethodCallHandler, StreamHandler {
             "setTexture" -> {
                 val imageData = call.argument<ByteArray>("imageData")
                 imageData?.let {
-                    arCoreManager?.setTexture(it)
+                    arCoreManager?.setTexture(it, call.argument<Double>("patchHeightM")?.toFloat())
                     result.success(null)
                 } ?: result.error("INVALID_ARGS", "Missing imageData", null)
             }

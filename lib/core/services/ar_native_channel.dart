@@ -198,9 +198,12 @@ class ARNativeChannel {
   // MARK: - Texture Management
   
   /// Set the texture for the selected wall
-  static Future<void> setTexture(Uint8List imageData) async {
+  static Future<void> setTexture(Uint8List imageData, {double? patchHeightM}) async {
     try {
-      await _channel.invokeMethod('setTexture', {'imageData': imageData});
+      await _channel.invokeMethod('setTexture', {
+        'imageData': imageData,
+        'patchHeightM': ?patchHeightM,
+      });
       debugPrint('[ARNativeChannel] Texture set (${imageData.length} bytes)');
     } on PlatformException catch (e) {
       debugPrint('[ARNativeChannel] Failed to set texture: ${e.message}');

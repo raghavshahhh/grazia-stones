@@ -1,3 +1,4 @@
+import '../data/catalogue_specs.dart';
 class Stone {
   final String id;
   final String name;
@@ -213,11 +214,16 @@ class Stone {
       sizeStr = '$lengthStr x $widthStr';
     }
 
+    // The stones table carries no size/thickness/box data; fill it from the client's PDFs.
+    final spec = CatalogueSpecs.forStone(collectionName, (map['name'] ?? '').toString());
+    if (sizeStr.isEmpty && spec?.size != null) sizeStr = spec!.size!;
+    if (thicknessStr.isEmpty && spec?.thickness != null) thicknessStr = spec!.thickness!;
+
     final rawPrice = (map['price_per_sqft'] ?? map['pricePerSqFt'] ?? 0).toDouble();
     final effectivePrice = rawPrice > 0 ? rawPrice : 385.0;
 
     final rawCoverage = (map['coverage_sqft'] ?? map['sqftPerBox'] ?? 0).toDouble();
-    final effectiveCoverage = rawCoverage > 0 ? rawCoverage : 10.5;
+    final effectiveCoverage = rawCoverage > 0 ? rawCoverage : (spec?.sqftPerBox ?? 10.5);
 
     return Stone(
       id: map['id']?.toString() ?? '',
@@ -229,7 +235,7 @@ class Stone {
       description: map['description'] ?? map['short_description'] ?? '',
       images: imageList,
       mainImageUrl: mainImg,
-      arTexture: map['ar_texture'] ?? map['arTexture'],
+      arTexture: map['ar_texture'] ?? map['arTexture'] ?? spec?.arTexture,
       rating: (map['rating'] ?? 0).toDouble(),
       reviewCount: (map['review_count'] ?? map['reviewCount'] ?? 0) is int
           ? (map['review_count'] ?? map['reviewCount'] ?? 0)
@@ -239,7 +245,7 @@ class Stone {
       thickness: thicknessStr,
       size: sizeStr,
       sqftPerBox: effectiveCoverage,
-      piecesPerBox: map['pieces_per_box'] ?? map['piecesPerBox'] ?? 8,
+      piecesPerBox: map['pieces_per_box'] ?? map['piecesPerBox'] ?? spec?.piecesPerBox ?? 8,
       finish: map['finish'] ?? '',
       texture: map['material'] ?? map['texture'] ?? '',
       availableColors: List<String>.from(map['colors'] ?? map['availableColors'] ?? []),

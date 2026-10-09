@@ -315,6 +315,31 @@ class _CollectionListScreenState extends ConsumerState<CollectionListScreen> {
                        c.dimensionSpec.toLowerCase().contains(_searchQuery);
               }).toList();
 
+              // Client's handwritten structure: the collections page shows six boxes,
+              // each opening its own series. Chips and search still show series cards.
+              if (_selectedCategory == 'All' && _searchQuery.isEmpty && nonTest.isNotEmpty) {
+                return SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 140),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final group = CatalogueGroups.all[index];
+                        final members = nonTest.where((c) => c.catalogueGroup == group).toList()
+                          ..sort((a, b) => a.catalogueRank.compareTo(b.catalogueRank));
+                        if (members.isEmpty) return const SizedBox.shrink();
+                        return _GroupBox(
+                          group: group,
+                          members: members,
+                          palette: palette,
+                          onOpenGroup: () => setState(() => _selectedCategory = group),
+                        );
+                      },
+                      childCount: CatalogueGroups.all.length,
+                    ),
+                  ),
+                );
+              }
+
               if (displayList.isEmpty) {
                 return SliverFillRemaining(
                   hasScrollBody: false,
@@ -361,6 +386,147 @@ class _CollectionListScreenState extends ConsumerState<CollectionListScreen> {
             },
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// One of the client's six collection boxes. A group with a single collection
+/// (Exclusive Patina, Premium 3D Surface) opens that collection directly; the
+/// others open their series list.
+class _GroupBox extends StatelessWidget {
+  final String group;
+  final List<Collection> members;
+  final LuxuryPalette palette;
+  final VoidCallback onOpenGroup;
+
+  const _GroupBox({
+    required this.group,
+    required this.members,
+    required this.palette,
+    required this.onOpenGroup,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final single = members.length == 1;
+    final image = members.first.effectiveBannerImage;
+    final designs = members.fold<int>(0, (sum, c) => sum + c.stoneCount);
+    final subtitle = single
+        ? '$designs designs'
+        : '${members.length} series • ${members.map((c) => c.displayName.replaceAll(RegExp(r' (Ledge )?Series$'), '')).take(4).join(', ')}…';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      height: 184,
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: palette.border, width: 0.8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(19),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              if (single) {
+                context.push('/collections/${members.first.id}');
+              } else {
+                onOpenGroup();
+              }
+            },
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                SmartStoneImage(
+                  imageUrl: image.startsWith('http') ? image : null,
+                  localAsset: !image.startsWith('http') ? image : null,
+                  fit: BoxFit.cover,
+                  alignment: Alignment.center,
+                  fallbackColor: palette.surfaceDark,
+                ),
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.20),
+                        Colors.black.withValues(alpha: 0.60),
+                        Colors.black.withValues(alpha: 0.94),
+                      ],
+                      stops: const [0.0, 0.40, 1.0],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              CatalogueGroups.boxTitle(group),
+                              style: GoogleFonts.playfairDisplay(
+                                color: Colors.white,
+                                fontSize: 21,
+                                fontWeight: FontWeight.w800,
+                                height: 1.15,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              subtitle,
+                              style: GoogleFonts.inter(
+                                color: Colors.white.withValues(alpha: 0.85),
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: palette.primary,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: palette.primary.withValues(alpha: 0.4),
+                              blurRadius: 10,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(Icons.arrow_forward_rounded, color: Colors.black, size: 18),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -487,6 +653,7 @@ class _CollectionCard extends StatelessWidget {
                                         ),
                                       ),
                                     ),
+                                    if (collection.coverageSpec.isNotEmpty)
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                       decoration: BoxDecoration(

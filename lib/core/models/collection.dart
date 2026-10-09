@@ -116,6 +116,9 @@ extension CollectionBannerExtension on Collection {
     if (n.contains('sierra')) return 'Multi-Piece × 35mm';
     if (n.contains('tivoli')) return '600 × 150 × 30mm';
     if (n.contains('fossil')) return 'Multi-Piece × 50mm';
+    // Ranges below are from the client's PDFs (22 surface designs / 39 patina designs).
+    if (n.contains('premium surface')) return 'Tile size varies by design';
+    if (n.contains('exclusive')) return 'Panel size varies by design';
     if (n.contains('verona') || n.contains('athena') || n.contains('designer')) return '600 × 600 × 25-30mm';
     return 'Architectural Custom Size';
   }
@@ -156,6 +159,8 @@ extension CollectionBannerExtension on Collection {
     if (n.contains('sierra')) return '6.50 Sqft / Box';
     if (n.contains('tivoli')) return '7.42 Sqft / Box';
     if (n.contains('fossil')) return '5.50 Sqft / Box';
+    if (n.contains('premium surface')) return '4-13 Sqft / Box';
+    if (n.contains('exclusive')) return ''; // the Patina PDF gives no box coverage
     if (n.contains('verona') || n.contains('athena') || n.contains('designer')) return '12.00 Sqft / Box';
     return '8.00 Sqft / Box';
   }
@@ -170,6 +175,8 @@ extension CollectionBannerExtension on Collection {
     if (n.contains('classic') || n.contains('venetian') || n.contains('venecia') || n.contains('florentine') || n.contains('flora') || n.contains('hexa') || n.contains('egyptian') || n.contains('alpine')) return '20 mm';
     if (n.contains('veines') || n.contains('travertino') || n.contains('tarnished') || n.contains('colonial') || n.contains('foliage') || n.contains('modena') || n.contains('cave')) return '15 mm';
     if (n.contains('rustic')) return '10 mm';
+    if (n.contains('premium surface')) return '25-70 mm';
+    if (n.contains('exclusive')) return '15-35 mm';
     return '20-30 mm';
   }
 
@@ -194,6 +201,15 @@ class CatalogueGroups {
   static const ledge = 'Ledge Series';
 
   static const all = [exclusivePatina, premiumCnc, premium3d, designSurface, brick, ledge];
+
+  /// Box title exactly as the client wrote it on the collections page list.
+  static String boxTitle(String group) => switch (group) {
+        exclusivePatina => 'Exclusive Patina Series',
+        premiumCnc => 'Premium CNC Collection',
+        premium3d => 'Premium 3D Surface Collection',
+        designSurface => 'Design Surface Collection',
+        _ => group, // 'Brick Series', 'Ledge Series'
+      };
 }
 
 // key = normalized DB name (without "series"/"collection"/"ledge"), then the

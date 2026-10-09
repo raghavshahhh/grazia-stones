@@ -1,3 +1,4 @@
+import 'package:grazia_stones/core/data/catalogue_specs.dart';
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
@@ -162,7 +163,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     if (stone == null) return;
     final path = stone.arTextureUrl ?? stone.mainImageUrl;
     if (path != null) {
-      ARCameraView.updateStone(path, _textureOpacity);
+      ARCameraView.updateStone(path, _textureOpacity, patchHeightM: _patchHeightFor(stone));
       
       // Preload adjacent carousel textures for instant switching
       final int currentIndex = _selectedStoneIndex;
@@ -269,6 +270,10 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
   // ── Quantity Calculation ─────────────────────────────────────────────────
 
+  /// Real height (m) of the stone's texture photo, from the catalogue PDFs.
+  double? _patchHeightFor(Stone? stone) =>
+      stone == null ? null : CatalogueSpecs.forStone(stone.collection, stone.name)?.patchHeightM;
+
   /// Parses "WWWxHHH mm" style stone size strings into (width, height) mm.
   (double, double)? _tileDimensionsMm() {
     final stone = _selectedStone;
@@ -361,7 +366,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
         _updateFilteredStones(stones);
         final path = _selectedStone?.arTextureUrl ?? _selectedStone?.mainImageUrl;
         if (path != null && _cameraReady) {
-          ARCameraView.updateStone(path, _textureOpacity);
+          ARCameraView.updateStone(path, _textureOpacity, patchHeightM: _patchHeightFor(_selectedStone));
         }
       }
     });
@@ -925,7 +930,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
           if (!mounted) return;
           setState(() => _cameraReady = true);
           if (assetPath != null) {
-            ARCameraView.updateStone(assetPath, _textureOpacity);
+            ARCameraView.updateStone(assetPath, _textureOpacity, patchHeightM: _patchHeightFor(_selectedStone));
             // Set tile dimensions for accurate pattern generation
             final stone = _selectedStone;
             if (stone != null) {

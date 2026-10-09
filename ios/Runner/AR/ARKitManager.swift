@@ -59,6 +59,7 @@ import MetalKit
     
     // Texture management
     private var currentTexture: MTLTexture?
+    private var currentPatchHeightM: Float = ARKitManager.texturePatchHeightM
     private var preloadedTextures: [String: MTLTexture] = [:]
     private let textureQueue = DispatchQueue(label: "com.graziastones.ar.texture", qos: .userInitiated)
     
@@ -175,7 +176,9 @@ import MetalKit
     
     // MARK: - Texture Management
     
-    @objc public func setTexture(_ imageData: Data) {
+    /// patchHeightM: real height of the texture photo in metres; 0 = use the default.
+    @objc public func setTexture(_ imageData: Data, patchHeightM: Double = 0) {
+        self.currentPatchHeightM = patchHeightM > 0 ? Float(patchHeightM) : ARKitManager.texturePatchHeightM
         textureQueue.async { [weak self] in
             guard let self = self,
                   let texture = self.createMetalTexture(from: imageData) else { return }
@@ -214,7 +217,7 @@ import MetalKit
     private static let texturePatchHeightM: Float = 0.9
 
     private func applyPatchScale(to material: SCNMaterial, texture: MTLTexture, wallWidth: Float, wallHeight: Float) {
-        let patchH = ARKitManager.texturePatchHeightM
+        let patchH = currentPatchHeightM
         let patchW = patchH * Float(texture.width) / Float(max(texture.height, 1))
         material.diffuse.contentsTransform = SCNMatrix4MakeScale(wallWidth / patchW, wallHeight / patchH, 1)
     }

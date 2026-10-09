@@ -48,4 +48,15 @@ void main() {
     expect(c.displayName, 'Brand New Series');
     expect(c.catalogueGroup, isNull);
   });
+
+  test('collections page boxes use the client titles, in the client order', () {
+    expect(CatalogueGroups.all.map(CatalogueGroups.boxTitle).toList(), [
+      'Exclusive Patina Series',
+      'Premium CNC Collection',
+      'Premium 3D Surface Collection',
+      'Design Surface Collection',
+      'Brick Series',
+      'Ledge Series',
+    ]);
+  });
 }

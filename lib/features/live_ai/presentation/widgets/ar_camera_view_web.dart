@@ -125,7 +125,7 @@ class ARCameraView extends StatefulWidget {
 
   // ── Static control API (callable from anywhere in the screen) ──
 
-  static void updateStone(String? assetPath, double opacity) {
+  static void updateStone(String? assetPath, double opacity, {double? patchHeightM}) {
     if (assetPath == null) {
       _jsEval('GraziaAR.setTexture(null)');
       return;

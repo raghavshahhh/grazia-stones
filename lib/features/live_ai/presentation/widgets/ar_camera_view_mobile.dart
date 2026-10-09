@@ -38,7 +38,11 @@ class ARCameraView extends StatefulWidget {
   // Static control API - delegates to native channel
   static final _controller = StreamController<_ARUpdate>.broadcast();
 
-  static void updateStone(String? assetPath, double opacity) {
+  /// Real-world height (m) of the current texture photo, from the catalogue PDFs.
+  static double? _patchHeightM;
+
+  static void updateStone(String? assetPath, double opacity, {double? patchHeightM}) {
+    _patchHeightM = patchHeightM;
     _controller.add(_ARUpdate(stone: assetPath, opacity: opacity));
     if (assetPath != null) {
       _loadAndSendTexture(assetPath, opacity);
@@ -59,7 +63,7 @@ class ARCameraView extends StatefulWidget {
         final ByteData data = await rootBundle.load(assetPath);
         bytes = data.buffer.asUint8List();
       }
-      await ARNativeChannel.setTexture(bytes);
+      await ARNativeChannel.setTexture(bytes, patchHeightM: _patchHeightM);
     } catch (e) {
       debugPrint('[ARCameraView] Failed to load texture: $e');
     }

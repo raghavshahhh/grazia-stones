@@ -113,7 +113,7 @@ extension ARKitPlugin {
         case "setTexture":
             if let args = call.arguments as? [String: Any],
                let imageData = args["imageData"] as? FlutterStandardTypedData {
-                arKitManager.setTexture(imageData.data)
+                arKitManager.setTexture(imageData.data, patchHeightM: (args["patchHeightM"] as? Double) ?? 0)
                 result(nil)
             } else {
                 result(FlutterError(code: "INVALID_ARGS", message: "Missing imageData", details: nil))
