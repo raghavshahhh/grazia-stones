@@ -404,53 +404,92 @@ import MetalKit
         guard let wallId = selectedWallId,
               let plane = wallPlanes[wallId] else { return }
         
-        // Create plane geometry matching wall dimensions
+        // ARPlaneAnchor.extent is (width, 0, length): the wall's size is x by z (y is always 0).
         let width = CGFloat(plane.extent.x)
-        let height = CGFloat(plane.extent.y)
-        
+        let height = CGFloat(plane.extent.z)
+        guard width > 0.05, height > 0.05 else { return }
+
         let planeGeometry = SCNPlane(width: width, height: height)
-        planeGeometry.cornerRadius = 0.02
-        
+
         let node = SCNNode(geometry: planeGeometry)
-        node.position = SCNVector3(plane.center.x, plane.center.y, plane.center.z)
-        node.eulerAngles = SCNVector3(-Float.pi / 2, 0, 0) // Rotate to vertical
-        node.transform = SCNMatrix4(plane.transform)
-        
-        // Apply texture if available
+        node.simdTransform = wallFrame(for: plane)
+
         if let texture = currentTexture {
             let material = SCNMaterial()
             material.diffuse.contents = texture
             material.diffuse.wrapS = .repeat
             material.diffuse.wrapT = .repeat
             material.isDoubleSided = true
+            material.lightingModel = .constant   // the photo already carries its own lighting
             applyPatchScale(to: material, texture: texture, wallWidth: Float(width), wallHeight: Float(height))
             planeGeometry.materials = [material]
         } else {
-            // Placeholder material
             let material = SCNMaterial()
             material.diffuse.contents = UIColor.systemYellow.withAlphaComponent(0.5)
             planeGeometry.materials = [material]
         }
-        
-        // Add wireframe outline
-        let outlineGeometry = SCNPlane(width: width + 0.02, height: height + 0.02)
-        outlineGeometry.cornerRadius = 0.03
-        let outlineNode = SCNNode(geometry: outlineGeometry)
-        outlineNode.position = node.position
-        outlineNode.eulerAngles = node.eulerAngles
-        outlineNode.transform = node.transform
-        
-        let outlineMaterial = SCNMaterial()
-        outlineMaterial.diffuse.contents = UIColor.systemYellow
-        outlineMaterial.fillMode = .lines
-        outlineGeometry.materials = [outlineMaterial]
-        
-        arSceneView.scene.rootNode.addChildNode(outlineNode)
+
+        node.renderingOrder = 0   // after the LiDAR occluders (-10), so furniture hides the overlay
         arSceneView.scene.rootNode.addChildNode(node)
-        
+
         textureNode = node
     }
     
+    /// World transform of a quad lying on the wall: x = right, y = world-up projected onto the wall,
+    /// z = wall normal facing the camera, nudged 1.2 cm off the wall so it never z-fights the LiDAR mesh.
+    private func wallFrame(for plane: ARPlaneAnchor) -> simd_float4x4 {
+        let t = plane.transform
+        let c4 = t * simd_float4(plane.center.x, plane.center.y, plane.center.z, 1)
+        let center = simd_float3(c4.x, c4.y, c4.z)
+        var n = simd_normalize(simd_float3(t.columns.1.x, t.columns.1.y, t.columns.1.z))
+        if let cam = arSceneView.pointOfView?.simdWorldPosition, simd_dot(n, cam - center) < 0 { n = -n }
+        var up = simd_float3(0, 1, 0) - n * n.y
+        if simd_length(up) < 0.1 {   // wall is not upright: fall back to the anchor's own axis
+            up = -simd_float3(t.columns.2.x, t.columns.2.y, t.columns.2.z)
+        }
+        up = simd_normalize(up)
+        let right = simd_normalize(simd_cross(up, n))
+        let pos = center + n * 0.012
+        return simd_float4x4(columns: (simd_float4(right, 0), simd_float4(up, 0), simd_float4(n, 0), simd_float4(pos, 1)))
+    }
+
+    /// LiDAR furniture occlusion: classified mesh faces (sofa, TV, table, door...) are drawn into the
+    /// depth buffer only, so the wall overlay is hidden behind them. Wall/floor/ceiling/unclassified
+    /// faces are skipped on purpose: they would sit on the overlay and hide it.
+    @available(iOS 13.4, *)
+    fileprivate func updateOccluder(_ meshAnchor: ARMeshAnchor, on node: SCNNode) {
+        let mesh = meshAnchor.geometry
+        guard let cls = mesh.classification else { return }
+        let faces = mesh.faces
+        var indices = [UInt32]()
+        indices.reserveCapacity(faces.count * 3)
+        for i in 0..<faces.count {
+            let raw = cls.buffer.contents().advanced(by: cls.offset + cls.stride * i).assumingMemoryBound(to: UInt8.self).pointee
+            guard let kind = ARMeshClassification(rawValue: Int(raw)) else { continue }
+            if kind == .none || kind == .wall || kind == .floor || kind == .ceiling { continue }
+            for j in 0..<3 {
+                let at = (i * 3 + j) * faces.bytesPerIndex
+                indices.append(faces.buffer.contents().advanced(by: at).assumingMemoryBound(to: UInt32.self).pointee)
+            }
+        }
+        guard !indices.isEmpty else { node.geometry = nil; return }
+
+        let v = mesh.vertices
+        let source = SCNGeometrySource(buffer: v.buffer, vertexFormat: v.format, semantic: .vertex,
+                                       vertexCount: v.count, dataOffset: v.offset, dataStride: v.stride)
+        let element = SCNGeometryElement(data: Data(bytes: indices, count: indices.count * MemoryLayout<UInt32>.size),
+                                         primitiveType: .triangles, primitiveCount: indices.count / 3,
+                                         bytesPerIndex: MemoryLayout<UInt32>.size)
+        let geometry = SCNGeometry(sources: [source], elements: [element])
+        let material = SCNMaterial()
+        material.colorBufferWriteMask = []     // invisible...
+        material.writesToDepthBuffer = true    // ...but hides what is behind it
+        material.isDoubleSided = true
+        geometry.materials = [material]
+        node.geometry = geometry
+        node.renderingOrder = -10
+    }
+
     private func planeToDictionary(_ plane: ARPlaneAnchor) -> [String: Any] {
         let center = plane.center
         let extent = plane.extent
@@ -678,6 +717,10 @@ import MetalKit
 extension ARKitManager: ARSCNViewDelegate {
     
     public func renderer(_ renderer: SCNSceneRenderer, didAdd node: SCNNode, for anchor: ARAnchor) {
+        if #available(iOS 13.4, *), let meshAnchor = anchor as? ARMeshAnchor {
+            updateOccluder(meshAnchor, on: node)
+            return
+        }
         guard let planeAnchor = anchor as? ARPlaneAnchor else { return }
         
         // Only track vertical planes (walls)
@@ -700,6 +743,10 @@ extension ARKitManager: ARSCNViewDelegate {
     }
     
     public func renderer(_ renderer: SCNSceneRenderer, didUpdate node: SCNNode, for anchor: ARAnchor) {
+        if #available(iOS 13.4, *), let meshAnchor = anchor as? ARMeshAnchor {
+            updateOccluder(meshAnchor, on: node)
+            return
+        }
         guard let planeAnchor = anchor as? ARPlaneAnchor,
               planeAnchor.alignment == .vertical else { return }
         
