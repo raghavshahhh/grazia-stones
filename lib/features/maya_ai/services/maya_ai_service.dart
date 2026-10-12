@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:grazia_stones/core/models/stone.dart';
+import 'package:grazia_stones/core/models/collection.dart';
 import 'package:grazia_stones/core/services/ai_endpoint_client.dart';
+import 'package:grazia_stones/core/services/mock_data_service.dart';
 
 class MayaChatMessage {
   final String id;
@@ -8,6 +10,7 @@ class MayaChatMessage {
   final bool isUser;
   final DateTime timestamp;
   final List<Stone> recommendedStones;
+  final List<Collection> recommendedCollections;
   final bool isLoading;
 
   const MayaChatMessage({
@@ -16,6 +19,7 @@ class MayaChatMessage {
     required this.isUser,
     required this.timestamp,
     this.recommendedStones = const [],
+    this.recommendedCollections = const [],
     this.isLoading = false,
   });
 
@@ -25,6 +29,7 @@ class MayaChatMessage {
     bool? isUser,
     DateTime? timestamp,
     List<Stone>? recommendedStones,
+    List<Collection>? recommendedCollections,
     bool? isLoading,
   }) {
     return MayaChatMessage(
@@ -33,6 +38,7 @@ class MayaChatMessage {
       isUser: isUser ?? this.isUser,
       timestamp: timestamp ?? this.timestamp,
       recommendedStones: recommendedStones ?? this.recommendedStones,
+      recommendedCollections: recommendedCollections ?? this.recommendedCollections,
       isLoading: isLoading ?? this.isLoading,
     );
   }
@@ -43,26 +49,31 @@ class MayaAIService {
   MayaAIService._();
 
   /// Main conversation method: Queries Gemini with catalogue grounding & returns
-  /// tailored architectural advice with matching Stone models.
+  /// tailored architectural advice with matching Architectural Collections & Design Suites.
   Future<MayaChatMessage> askMaya({
     required String userQuery,
     required List<Stone> catalogueStones,
+    List<Collection> allCollections = const [],
     List<MayaChatMessage> history = const [],
   }) async {
-    // 1. Find matching stones based on query semantics (Hindi & English keywords)
-    final matchedStones = _filterMatchingStones(userQuery, catalogueStones);
+    // 1. Ensure stones & collections available (fallback to authentic offline catalogue if empty)
+    final pool = catalogueStones.isNotEmpty ? catalogueStones : MockDataService.stones;
+    final collectionPool = allCollections.isNotEmpty ? allCollections : MockDataService.collections;
 
-    // 2. Live catalogue facts for grounding (brand knowledge + persona live
+    // 2. Find matching collections & stones based on query semantics (Hindi & English keywords)
+    final matchedCollections = _filterMatchingCollections(userQuery, collectionPool);
+    final matchedStones = _filterMatchingStones(userQuery, pool);
+
+    // 3. Live catalogue facts for grounding (brand knowledge + persona live
     // on the server in api/maya.js, so the Gemini key never ships in the app).
     final catalogueSummary = _buildCatalogueSummary(
-      matchedStones.isNotEmpty ? matchedStones : catalogueStones.take(15).toList(),
+      matchedCollections,
+      matchedStones.isNotEmpty ? matchedStones : pool.take(15).toList(),
     );
 
-    // 3. Ask Maya (Gemini via the Vercel proxy)
+    // 4. Ask Aarna (Gemini via the Vercel proxy)
     try {
       final recentHistory = history.where((m) => !m.isLoading).toList();
-      // The chat screen already appended the current question; the server
-      // adds it itself, so don't send it twice.
       if (recentHistory.isNotEmpty &&
           recentHistory.last.isUser &&
           recentHistory.last.text.trim() == userQuery.trim()) {
@@ -80,13 +91,15 @@ class MayaAIService {
         'catalogue': catalogueSummary,
       });
 
-      final text = (data['text'] as String?)?.trim() ?? '';
-      if (text.isNotEmpty) {
+      final rawText = (data['text'] as String?)?.trim() ?? '';
+      if (rawText.isNotEmpty) {
+        final sanitizedText = _sanitizeResponse(rawText, matchedCollections, matchedStones);
         return MayaChatMessage(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
-          text: text,
+          text: sanitizedText,
           isUser: false,
           timestamp: DateTime.now(),
+          recommendedCollections: matchedCollections.take(3).toList(),
           recommendedStones: matchedStones.take(4).toList(),
         );
       }
@@ -94,46 +107,206 @@ class MayaAIService {
       debugPrint('⚠️ [MayaAIService] Maya proxy error, using local fallback: $e');
     }
 
-    // 4. Intelligent Offline/Local Architectural Engine Fallback
+    // 5. Intelligent Offline/Local Architectural Engine Fallback
     // Guaranteed instant, high-quality consultation in English or Hindi!
-    final fallbackResponse = _generateLocalArchitecturalAdvice(userQuery, matchedStones);
+    final fallbackResponse = _generateLocalArchitecturalAdvice(userQuery, matchedCollections, matchedStones);
 
     return MayaChatMessage(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       text: fallbackResponse,
       isUser: false,
       timestamp: DateTime.now(),
+      recommendedCollections: matchedCollections.take(3).toList(),
       recommendedStones: matchedStones.take(4).toList(),
     );
   }
 
+  /// Filters architectural collections by multilingual keywords
+  List<Collection> _filterMatchingCollections(String query, List<Collection> collections) {
+    if (collections.isEmpty) {
+      collections = MockDataService.collections;
+    }
+    final q = query.toLowerCase().trim();
+
+    final isCombo = q.contains('combo') ||
+        q.contains('combination') ||
+        q.contains('pair') ||
+        q.contains('mix') ||
+        q.contains('match') ||
+        q.contains('finish') ||
+        q.contains('together') ||
+        q.contains('contrast') ||
+        q.contains('interiors') ||
+        q.contains('modern');
+
+    final isLivingRoom = q.contains('living') ||
+        q.contains('hall') ||
+        q.contains('drawing') ||
+        q.contains('sofa') ||
+        q.contains('tv') ||
+        q.contains('lounge');
+
+    final isExterior = q.contains('exterior') ||
+        q.contains('bahar') ||
+        q.contains('elevation') ||
+        q.contains('boundary') ||
+        q.contains('facade') ||
+        q.contains('outdoor') ||
+        q.contains('villa') ||
+        q.contains('balcony') ||
+        q.contains('patio');
+
+    final is3D = q.contains('3d') ||
+        q.contains('fluted') ||
+        q.contains('panel') ||
+        q.contains('relief') ||
+        q.contains('carved') ||
+        q.contains('groove') ||
+        q.contains('cnc');
+
+    final isPatina = q.contains('patina') ||
+        q.contains('metal') ||
+        q.contains('metallic') ||
+        q.contains('brass') ||
+        q.contains('bronze') ||
+        q.contains('copper') ||
+        q.contains('turquoise') ||
+        q.contains('gold');
+
+    final isBrick = q.contains('brick') ||
+        q.contains('vintage') ||
+        q.contains('rustic') ||
+        q.contains('colonial') ||
+        q.contains('lakhori');
+
+    final matches = <Collection>[];
+
+    for (final c in collections) {
+      if (!c.isListed) continue;
+      final name = c.displayName.toLowerCase();
+      final desc = c.description.toLowerCase();
+      final group = (c.catalogueGroup ?? '').toLowerCase();
+      int score = 0;
+
+      if (q.contains(name)) score += 10;
+      if (isCombo) {
+        if (group.contains('patina') || name.contains('patina')) score += 6;
+        if (group.contains('ledge') || name.contains('ledge')) score += 5;
+        if (group.contains('3d') || name.contains('3d') || group.contains('cnc')) score += 5;
+      }
+      if (isPatina && (group.contains('patina') || name.contains('patina') || desc.contains('patina'))) score += 8;
+      if (is3D && (group.contains('3d') || group.contains('cnc') || name.contains('3d') || desc.contains('3d'))) score += 8;
+      if (isExterior && (group.contains('ledge') || name.contains('ledge') || name.contains('mountain') || name.contains('country'))) score += 7;
+      if (isLivingRoom && (group.contains('patina') || group.contains('3d') || name.contains('veines') || name.contains('travertin') || name.contains('grande'))) score += 6;
+      if (isBrick && (group.contains('brick') || name.contains('brick') || desc.contains('brick'))) score += 8;
+
+      if (score > 0) {
+        matches.add(c);
+      }
+    }
+
+    if (matches.isNotEmpty) {
+      matches.sort((a, b) => b.stoneCount.compareTo(a.stoneCount));
+      return matches.take(4).toList();
+    }
+
+    // Default curated architectural collections
+    final curated = <Collection>[];
+    for (final c in collections) {
+      final n = c.displayName.toLowerCase();
+      if (n.contains('exclusive patina') ||
+          n.contains('grande ledge') ||
+          n.contains('premium 3d') ||
+          n.contains('rustic brick') ||
+          n.contains('florentine')) {
+        curated.add(c);
+      }
+    }
+    if (curated.isNotEmpty) return curated.take(3).toList();
+    return collections.where((c) => c.isListed).take(3).toList();
+  }
+
   /// Filters stones by multilingual keywords (Hindi, Hinglish, English)
   List<Stone> _filterMatchingStones(String query, List<Stone> stones) {
-    if (stones.isEmpty) return [];
-    final q = query.toLowerCase();
+    if (stones.isEmpty) {
+      stones = MockDataService.stones;
+    }
+    final q = query.toLowerCase().trim();
 
-    final isHindi = q.contains('chahiye') ||
-        q.contains('hai') ||
-        q.contains('karo') ||
-        q.contains('batao') ||
-        q.contains('desinge') ||
-        q.contains('kamra') ||
-        q.contains('ghar') ||
-        q.contains('deewar') ||
+    final isCombo = q.contains('combo') ||
+        q.contains('combination') ||
+        q.contains('pair') ||
+        q.contains('mix') ||
+        q.contains('match') ||
+        q.contains('finish') ||
+        q.contains('together') ||
+        q.contains('contrast') ||
+        q.contains('interiors') ||
+        q.contains('modern');
+
+    final isLivingRoom = q.contains('living') ||
+        q.contains('hall') ||
+        q.contains('drawing') ||
+        q.contains('sofa') ||
+        q.contains('tv') ||
+        q.contains('lounge');
+
+    final isExterior = q.contains('exterior') ||
         q.contains('bahar') ||
-        q.contains('andar');
+        q.contains('elevation') ||
+        q.contains('boundary') ||
+        q.contains('facade') ||
+        q.contains('outdoor') ||
+        q.contains('villa') ||
+        q.contains('balcony') ||
+        q.contains('patio');
+
+    final isFireplace = q.contains('fire') || q.contains('hearth') || q.contains('chimney');
+    final isBedroom = q.contains('bedroom') ||
+        q.contains('bed') ||
+        q.contains('kamra') ||
+        q.contains('sleep') ||
+        q.contains('calm');
+
+    final is3DOrFluted = q.contains('3d') ||
+        q.contains('fluted') ||
+        q.contains('panel') ||
+        q.contains('texture') ||
+        q.contains('groove') ||
+        q.contains('linear') ||
+        q.contains('carved') ||
+        q.contains('relief');
+
+    final isRusticOrRugged = q.contains('rustic') ||
+        q.contains('rugged') ||
+        q.contains('natural') ||
+        q.contains('ledge') ||
+        q.contains('quarry') ||
+        q.contains('stack') ||
+        q.contains('brick');
+
+    final isDarkOrBlack = q.contains('black') ||
+        q.contains('dark') ||
+        q.contains('charcoal') ||
+        q.contains('noir') ||
+        q.contains('kala');
+
+    final isWhiteOrLight = q.contains('white') ||
+        q.contains('light') ||
+        q.contains('bianco') ||
+        q.contains('cream') ||
+        q.contains('beige') ||
+        q.contains('safed');
+
+    final isPatinaOrMetal = q.contains('patina') ||
+        q.contains('metal') ||
+        q.contains('brass') ||
+        q.contains('bronze') ||
+        q.contains('copper') ||
+        q.contains('turquoise') ||
+        q.contains('gold');
 
     final matches = <Stone>[];
-
-    // Check specific spaces
-    final isLivingRoom = q.contains('living') || q.contains('hall') || q.contains('drawing') || q.contains('sofa') || q.contains('tv');
-    final isExterior = q.contains('exterior') || q.contains('bahar') || q.contains('elevation') || q.contains('boundary') || q.contains('facade') || q.contains('outdoor');
-    final isFireplace = q.contains('fire') || q.contains('hearth') || q.contains('chimney');
-    final isBedroom = q.contains('bedroom') || q.contains('bed') || q.contains('kamra') || q.contains('sleep');
-    final is3DOrFluted = q.contains('3d') || q.contains('fluted') || q.contains('panel') || q.contains('texture') || q.contains('groove') || q.contains('linear');
-    final isRusticOrRugged = q.contains('rustic') || q.contains('rugged') || q.contains('natural') || q.contains('ledge') || q.contains('quarry') || q.contains('stack');
-    final isDarkOrBlack = q.contains('black') || q.contains('dark') || q.contains('charcoal') || q.contains('noir') || q.contains('kala');
-    final isWhiteOrLight = q.contains('white') || q.contains('light') || q.contains('bianco') || q.contains('cream') || q.contains('beige') || q.contains('safed');
 
     for (final s in stones) {
       final name = s.name.toLowerCase();
@@ -144,18 +317,26 @@ class MayaAIService {
 
       int score = 0;
 
-      // Direct name or collection hit
-      if (q.contains(name) || q.contains(collection)) score += 5;
+      // Exact name or collection hit
+      if (q.contains(name)) score += 8;
+      if (q.contains(collection)) score += 6;
 
-      if (isLivingRoom && (ideal.contains('living') || desc.contains('living') || name.contains('grande') || name.contains('classic'))) score += 3;
-      if (isExterior && (ideal.contains('exterior') || desc.contains('exterior') || name.contains('mountain') || name.contains('rockface') || name.contains('country'))) score += 4;
-      if (isFireplace && (ideal.contains('fire') || desc.contains('fire') || name.contains('ledge'))) score += 3;
-      if (isBedroom && (ideal.contains('bedroom') || name.contains('athena') || name.contains('verona'))) score += 3;
+      if (isCombo) {
+        if (collection.contains('patina') || name.contains('turquoise') || name.contains('scallop')) score += 5;
+        if (collection.contains('ledge') || name.contains('grande') || name.contains('mountain')) score += 5;
+        if (category.contains('3d') || name.contains('athena') || name.contains('verona')) score += 4;
+      }
 
-      if (is3DOrFluted && (category.contains('3d') || name.contains('3d') || name.contains('athena') || name.contains('verona') || name.contains('fluted'))) score += 4;
-      if (isRusticOrRugged && (category.contains('ledge') || name.contains('ledge') || desc.contains('rugged') || desc.contains('stack'))) score += 3;
-      if (isDarkOrBlack && (name.contains('noir') || name.contains('charcoal') || desc.contains('dark') || desc.contains('black'))) score += 3;
-      if (isWhiteOrLight && (name.contains('bianco') || name.contains('carrara') || desc.contains('white') || desc.contains('light'))) score += 3;
+      if (isLivingRoom && (ideal.contains('living') || desc.contains('living') || category.contains('3d') || collection.contains('patina') || name.contains('grande') || name.contains('classic'))) score += 4;
+      if (isExterior && (ideal.contains('exterior') || desc.contains('exterior') || collection.contains('ledge') || name.contains('mountain') || name.contains('rockface') || name.contains('country'))) score += 5;
+      if (isFireplace && (ideal.contains('fire') || desc.contains('fire') || collection.contains('ledge'))) score += 4;
+      if (isBedroom && (ideal.contains('bedroom') || name.contains('athena') || name.contains('verona') || collection.contains('veines') || collection.contains('travertin'))) score += 4;
+
+      if (is3DOrFluted && (category.contains('3d') || name.contains('3d') || name.contains('athena') || name.contains('verona') || name.contains('fluted') || name.contains('toran'))) score += 5;
+      if (isRusticOrRugged && (collection.contains('ledge') || collection.contains('brick') || name.contains('ledge') || desc.contains('rugged') || desc.contains('stack'))) score += 4;
+      if (isDarkOrBlack && (name.contains('noir') || name.contains('charcoal') || desc.contains('dark') || desc.contains('black') || ideal.contains('dark'))) score += 4;
+      if (isWhiteOrLight && (name.contains('bianco') || name.contains('carrara') || desc.contains('white') || desc.contains('light') || desc.contains('cream'))) score += 4;
+      if (isPatinaOrMetal && (collection.contains('patina') || name.contains('turquoise') || name.contains('scallop') || desc.contains('metallic') || desc.contains('brass'))) score += 5;
 
       if (score > 0) {
         matches.add(s);
@@ -164,23 +345,87 @@ class MayaAIService {
 
     if (matches.isNotEmpty) {
       matches.sort((a, b) => b.rating.compareTo(a.rating));
-      return matches;
+      return matches.take(6).toList();
     }
 
-    // Default fallback: return top rated/trending stones
-    return stones.where((s) => s.isTrending || s.isFeatured).take(6).toList();
+    // Curated high-impact fallback guaranteed to never be empty
+    final curated = <Stone>[];
+    for (final s in stones) {
+      if (s.name.contains('Turquoise') ||
+          s.name.contains('Grande') ||
+          s.name.contains('Athena') ||
+          s.name.contains('Mountain') ||
+          s.name.contains('Rustic') ||
+          s.name.contains('Verona') ||
+          s.isFeatured ||
+          s.isTrending) {
+        curated.add(s);
+      }
+    }
+    if (curated.isNotEmpty) {
+      return curated.take(4).toList();
+    }
+    return stones.take(4).toList();
   }
 
-  String _buildCatalogueSummary(List<Stone> stones) {
+  String _buildCatalogueSummary(List<Collection> collections, List<Stone> stones) {
     final buffer = StringBuffer();
-    for (final s in stones.take(12)) {
+    buffer.writeln('Architectural Collections:');
+    for (final c in collections.take(5)) {
+      buffer.writeln('- ${c.displayName} (${c.categoryType}): ${c.stoneCount} designs. Dimensions: ${c.dimensionSpec}. ${c.description}');
+    }
+    buffer.writeln('\nFlagship Stone Surfaces:');
+    for (final s in stones.take(8)) {
       buffer.writeln('- ${s.name} (${s.collection}): ₹${s.pricePerSqFt}/sq.ft, Finish: ${s.finish}, Category: ${s.category}, Best for: ${s.idealFor.join(", ")}');
     }
     return buffer.toString();
   }
 
+  /// Ensures AI text finishes sentences cleanly with zero dangling cutoffs.
+  static String _sanitizeResponse(String rawText, List<Collection> collections, List<Stone> stones) {
+    var t = rawText.trim();
+    if (t.isEmpty) return t;
+
+    var cleanBase = t;
+    while (cleanBase.endsWith('.') || cleanBase.endsWith(',') || cleanBase.endsWith(':') || cleanBase.endsWith('-')) {
+      cleanBase = cleanBase.substring(0, cleanBase.length - 1).trim();
+    }
+
+    final trailingCutoffs = [
+      ' of',
+      ' like',
+      ' such as',
+      ' including',
+      ' with',
+      ' and',
+      ' or',
+      ' for example',
+      ' textures of',
+      ' our grazia app\'s',
+      ' grazia app\'s',
+      ' app\'s',
+      ' in our app',
+      ' our app',
+      ' the app',
+    ];
+
+    for (final cutoff in trailingCutoffs) {
+      if (cleanBase.toLowerCase().endsWith(cutoff)) {
+        final c1 = collections.isNotEmpty ? collections[0].displayName : 'Exclusive Patina Series';
+        final c2 = collections.length > 1 ? collections[1].displayName : 'Grande Ledge Series';
+        t = '${cleanBase.substring(0, cleanBase.length - cutoff.length)}. I recommend exploring **$c1** and **$c2** curated below for your space!';
+        return t;
+      }
+    }
+
+    if (!t.endsWith('.') && !t.endsWith('!') && !t.endsWith('?')) {
+      t = '$t.';
+    }
+    return t;
+  }
+
   /// High-fidelity sales-architectural generator when offline or fallback
-  String _generateLocalArchitecturalAdvice(String query, List<Stone> stones) {
+  String _generateLocalArchitecturalAdvice(String query, List<Collection> collections, List<Stone> stones) {
     final q = query.toLowerCase();
     final isHindi = q.contains('chahiye') ||
         q.contains('hai') ||
@@ -194,28 +439,48 @@ class MayaAIService {
         q.contains('kaisa') ||
         q.contains('kitna');
 
-    final primaryStone = stones.isNotEmpty ? stones.first.name : 'Toran 3D Relief';
-    final secondStone = stones.length > 1 ? stones[1].name : 'Grande Ledge Series';
+    final primaryCollection = collections.isNotEmpty ? collections.first.displayName : 'Exclusive Patina Series';
+    final secondCollection = collections.length > 1 ? collections[1].displayName : 'Grande Ledge Series';
+
+    final isQuote = q.contains('quote') || q.contains('price') || q.contains('rate') || q.contains('cost') || q.contains('kitna');
+    final isTech = q.contains('tech') || q.contains('spec') || q.contains('size') || q.contains('detail') || q.contains('dimension') || q.contains('weight') || q.contains('maintenance');
+    final isCombo = q.contains('combo') || q.contains('combination') || q.contains('match') || q.contains('pair') || q.contains('together') || q.contains('finish') || q.contains('interiors');
+    final isGreeting = q == 'hello' || q == 'hi' || q == 'namaste' || q.startsWith('hello') || q.startsWith('hi aarna');
+
+    if (isGreeting) {
+      return isHindi
+          ? 'Namaste! Main hoon **Aarna** — Grazia Stones ki AI design consultant.\n\n*AARNA — Your Vision, My Intelligence.*\n\nAapke space ke liye authentic architectural design suites neeche curate kiye gaye hain. Living room, facade ya TV wall kiske liye collection explore karein?'
+          : 'Hello! I\'m **Aarna**, your AI architectural consultant for Grazia Stones.\n\n*AARNA — Your Vision, My Intelligence.*\n\nHere are authentic architectural design suites curated for you below. Tap any collection to explore all designs or preview in Live AR!';
+    }
+
+    if (isQuote) {
+      return isHindi
+          ? 'Apni wall ka size (e.g. 10x12 ft) batayein! Main turant square footage calculate kar doongi. Recommended design suite **$primaryCollection** ₹385/sq.ft se start hoti hai.'
+          : 'Share your approximate wall dimensions (e.g. 10x12 ft)! I\'ll calculate square footage and boxes instantly. Recommended design suite **$primaryCollection** starts at ₹385/sq.ft.';
+    }
+
+    if (isTech) {
+      return isHindi
+          ? 'Grazia ke engineered design suites lightweight natural composite se bane hain — zero grout lines, fire-resistant aur 100% weather-proof! **$primaryCollection** ke technical specs aur coverage neeche check karein.'
+          : 'Grazia collections feature interlocking precision cuts with zero visible grout lines. They are lightweight, fire-rated, and fully weatherproof. Inspect architectural specifications for **$primaryCollection** below.';
+    }
+
+    if (isCombo) {
+      return isHindi
+          ? 'Modern interiors ke liye luxury combination: **$primaryCollection** ke metallic patina accents ko **$secondCollection** ke rugged split-face texture ke saath pair kijiye! Dono collections neeche explore karein.'
+          : 'For elegant and modern interiors, pair **$primaryCollection** with **$secondCollection**. The blend of metallic patina accents and rugged split-face texture creates striking depth!';
+    }
 
     if (isHindi) {
       if (q.contains('bahar') || q.contains('exterior') || q.contains('elevation')) {
-        return 'Exterior elevation ke liye **Mountain Ledge** aur **Rockface Series** perfect choice hain. Ye weather-proof natural split stones ghar ko timeless royal look dete hain.\n\n*Next Step:* Neeche diye gaye stones par tap karke unhe **Live AR** me apni facade par test kijiye!';
+        return 'Exterior elevation ke liye **$primaryCollection** aur **$secondCollection** top choice hain — completely weather-proof aur natural royal masonry look! Explore collections below.';
       }
-      if (q.contains('3d') || q.contains('fluted') || q.contains('modern') || q.contains('tv')) {
-        return 'Modern TV lounge ke liye hamari **$primaryStone** aur **Cosmic Flutes** sabse trending hain. Inka 3D linear relief spotlight ke under luxury depth create karta hai.\n\n*Action:* Kya aap iska texture feel karne ke liye **Sample Box** order karna chahenge?';
-      }
-      return 'Aapke space ke liye maine Grazia ki signature **$primaryStone** aur **$secondStone** select ki hain. Ye authentic natural texture ke saath aati hain jo space ki perceived value ko turant badha deti hain.\n\n*Next Step:* Inhe seedha **AI Room Studio** me decorate karke dekhiye!';
+      return 'Aapke space ke liye hamari recommended choice hai **$primaryCollection** aur **$secondCollection**. Inhe seedha neeche explore karein ya **Live AR** me decorate karke dekhiye!';
     } else {
       if (q.contains('exterior') || q.contains('elevation') || q.contains('facade')) {
-        return 'For a striking exterior elevation, **Mountain Ledge** and **Rockface Series** offer unmatched weather resistance and textural grandeur. They instantly elevate the curb appeal and long-term value of your villa.\n\n*Next Step:* Tap below to preview these slabs at true scale on your wall using **Live AR**.';
+        return 'For exteriors and facades, **$primaryCollection** and **$secondCollection** offer superior weather endurance and natural masonry grandeur. Explore collections below!';
       }
-      if (q.contains('3d') || q.contains('fluted') || q.contains('modern') || q.contains('tv')) {
-        return 'For modern luxury spaces, **$primaryStone** and **Cosmic Flutes** are our top architectural picks. Their acoustic relief creates captivating light-and-shadow dynamics under ambient lighting.\n\n*Action:* Would you like to visualize this on your wall in **AI Studio**, or order a physical sample tile?';
-      }
-      if (q.contains('living') || q.contains('hall') || q.contains('feature')) {
-        return 'For a grand living room feature wall, **$primaryStone** paired with **$secondStone** creates an indelible statement of bespoke luxury that flat paint or ordinary tiles simply cannot match.\n\n*Action:* Feel the hand-chiselled stone grain by ordering a complimentary **Sample Kit** below.';
-      }
-      return 'Based on your design vision, I recommend **$primaryStone** and **$secondStone**. Both feature seamless interlocking stone masonry that conceals grout lines for a monolithic architectural finish.\n\n*Next Step:* Tap below to inspect technical specs or view in **Live AR**.';
+      return 'I recommend **$primaryCollection** and **$secondCollection** for your space — both deliver rich architectural presence and seamless elegance. Tap below to explore!';
     }
   }
 }

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:grazia_stones/core/theme/grazia_theme.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/config/router.dart';
+import 'package:grazia_stones/core/utils/responsive.dart';
 
 class GraziaApp extends ConsumerWidget {
   const GraziaApp({super.key});
@@ -28,6 +29,7 @@ class GraziaApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: isDark ? GraziaTheme.dark(palette) : GraziaTheme.light(palette),
       routerConfig: router,
+      builder: (context, child) => ResponsiveFrame(child: child ?? const SizedBox.shrink()),
     );
   }
 }

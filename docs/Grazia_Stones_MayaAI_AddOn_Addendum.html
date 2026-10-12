@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>RAGSPRO — Add-On Addendum — Grazia Stones</title>
+<style>
+@page { size: A4; margin: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root { --ink:#16110c; --gold:#b8934a; --gold-l:#e6d3a3; --cream:#faf6ec; --line:#e8dfca; --mute:#7a6c52; }
+body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; color:#2b241c; font-size:9.6pt; line-height:1.55; }
+.page { width:210mm; height:297mm; position:relative; overflow:hidden; page-break-after:always; background:#fff; }
+.page:last-child { page-break-after:auto; }
+.serif { font-family: Georgia, "Times New Roman", serif; }
+
+.hero { background:var(--ink); color:#f3ead9; height:38mm; padding:0 16mm; display:flex; align-items:center; justify-content:space-between; border-bottom:1.2mm solid var(--gold); }
+.hero.slim { height:26mm; }
+.brand { display:flex; align-items:center; gap:4mm; }
+.brand img { width:15mm; height:15mm; border-radius:50%; border:0.4mm solid var(--gold); }
+.brand h1 { font-family:Georgia,serif; font-size:17pt; letter-spacing:3pt; font-weight:400; color:#fff; }
+.brand p { font-size:6.8pt; letter-spacing:3.2pt; text-transform:uppercase; color:var(--gold); margin-top:1mm; }
+.tag { text-align:right; }
+.tag h2 { font-family:Georgia,serif; font-size:19pt; font-weight:400; letter-spacing:2.5pt; color:var(--gold-l); }
+.tag p { font-size:7.6pt; letter-spacing:1.2pt; color:#b9ab8c; margin-top:1.5mm; }
+
+.body { padding:7mm 16mm 0; }
+.meta { display:flex; gap:4mm; margin-bottom:5mm; }
+.card { flex:1; border:0.3mm solid var(--line); border-top:0.9mm solid var(--gold); background:var(--cream); padding:3mm 4.5mm; }
+.card h3 { font-size:6.6pt; letter-spacing:2pt; text-transform:uppercase; color:var(--mute); margin-bottom:1.6mm; font-weight:600; }
+.card .n { font-family:Georgia,serif; font-size:11pt; color:var(--ink); }
+.card p { font-size:8.4pt; color:#5a4d38; line-height:1.45; }
+.intro { font-size:9.2pt; color:#40362a; margin-bottom:5mm; }
+
+h3.sec { font-family:Georgia,serif; font-weight:400; font-size:13pt; color:var(--ink); margin:0 0 2.5mm; display:flex; align-items:center; gap:3mm; }
+h3.sec:before { content:""; width:1.2mm; height:6mm; background:var(--gold); display:block; }
+h3.sec small { font-family:"Helvetica Neue",Arial,sans-serif; font-size:6.8pt; letter-spacing:1.6pt; text-transform:uppercase; color:var(--ink); background:var(--gold-l); padding:0.8mm 2.6mm; margin-left:auto; font-weight:700; }
+
+.feat { display:flex; gap:4mm; padding:2mm 0; border-bottom:0.25mm solid var(--line); }
+.feat:last-of-type { border-bottom:none; }
+.feat .i { flex:0 0 7mm; height:7mm; border-radius:50%; background:var(--ink); color:var(--gold-l); font-family:Georgia,serif; font-size:8.5pt; text-align:center; line-height:7mm; }
+.feat b { display:block; color:var(--ink); font-size:9.6pt; }
+.feat span { font-size:8.5pt; color:#5a4d38; }
+.note { font-size:7.9pt; color:var(--mute); font-style:italic; margin-top:2.5mm; }
+
+table.t { width:100%; border-collapse:collapse; margin-top:1mm; }
+table.t th { background:var(--ink); color:var(--gold-l); font-size:7.4pt; letter-spacing:1.6pt; text-transform:uppercase; text-align:left; padding:2.6mm 4.5mm; font-weight:600; }
+table.t th.r, table.t td.r { text-align:right; }
+table.t td { padding:2.8mm 4.5mm; border-bottom:0.25mm solid var(--line); font-size:9pt; vertical-align:top; }
+table.t td.r { white-space:nowrap; font-family:Georgia,serif; font-size:10.5pt; }
+table.t tr.tot td { background:var(--cream); border-top:0.5mm solid var(--gold); border-bottom:none; font-weight:700; color:var(--ink); }
+
+.due { background:var(--ink); border:0.4mm solid var(--gold); text-align:center; padding:9mm 10mm; margin-top:7mm; position:relative; }
+.due:before { content:""; position:absolute; inset:1.6mm; border:0.2mm solid rgba(184,147,74,.45); }
+.due .l { font-size:7.2pt; letter-spacing:3pt; text-transform:uppercase; color:var(--gold); }
+.due .a { font-family:Georgia,serif; font-size:34pt; color:#fff; margin:2mm 0 1.5mm; letter-spacing:1pt; }
+.due .s { font-size:8.4pt; color:#cfc3a8; }
+
+.sum { margin-top:1mm; }
+.sum .row { display:flex; justify-content:space-between; padding:3.4mm 0; border-bottom:0.25mm solid var(--line); font-size:9.4pt; color:#4a3f2e; }
+.sum .row b { font-family:Georgia,serif; font-weight:400; font-size:10.5pt; color:var(--ink); }
+.sum .total { display:flex; justify-content:space-between; align-items:center; margin-top:2mm; padding:4.5mm 5mm; background:var(--cream); border-top:0.6mm solid var(--gold); border-bottom:0.25mm solid var(--line); }
+.sum .total span { font-size:8pt; letter-spacing:1.8pt; text-transform:uppercase; color:var(--ink); font-weight:700; }
+.sum .total b { font-family:Georgia,serif; font-size:19pt; color:var(--ink); font-weight:400; }
+
+.pay { display:flex; gap:4mm; margin-top:6mm; }
+.pay .card { background:#fff; }
+.pay .card p b { color:var(--ink); }
+
+.accept p { font-size:9pt; color:#40362a; margin-bottom:4mm; }
+.sign { display:flex; gap:10mm; margin-top:14mm; }
+.sign div { flex:1; border-top:0.35mm solid var(--ink); padding-top:2mm; font-size:7.8pt; color:var(--mute); letter-spacing:.3pt; }
+.sign div b { display:block; color:var(--ink); font-size:8.6pt; letter-spacing:0; }
+
+.foot { position:absolute; left:16mm; right:16mm; bottom:9mm; border-top:0.3mm solid var(--gold); padding-top:2.6mm; display:flex; justify-content:space-between; font-size:7.2pt; letter-spacing:.6pt; color:var(--mute); }
+.gs { display:flex; align-items:center; gap:3mm; }
+.gs img { height:12mm; }
+</style></head>
+<body>
+
+<!-- PAGE 1 -->
+<div class="page">
+  <div class="hero">
+    <div class="brand"><img src="file:///Users/raghavshah/02_BUSINESS/03_CLIENTS/16_GRAZIA_STONES/04_ASSETS/logos/ragspro-logo.png"><div><h1>RAGSPRO</h1><p>Digital Solutions</p></div></div>
+    <div class="tag"><h2>ADD-ON ADDENDUM</h2><p>PROJECT REF &nbsp;GRAZIA-AI-AR-2026-08</p></div>
+  </div>
+  <div class="body">
+    <div class="meta">
+      <div class="card"><h3>Prepared For</h3><div class="n">Grazia Stones</div><p>Kanpur, Uttar Pradesh</p></div>
+      <div class="card"><h3>Prepared By</h3><div class="n">RAGSPRO</div><p>Raghav Shah, Founder<br>raghav@ragspro.com<br>+91 87000 48490</p></div>
+      <div class="card"><h3>Date</h3><div class="n">10 October 2026</div><p>AI Smart Estimator — App</p></div>
+    </div>
+    <p class="intro">At your request, <b>Maya AI</b> has been added to the Grazia Stones app. This addendum records that addition, the Kanpur visit expense you asked us to share, and the updated commercials. It forms part of the Service Agreement for this project; every other term of that Agreement is unchanged.</p>
+
+    <h3 class="sec">Add-On at Client Request — Maya AI Design Consultant <small>Delivered</small></h3>
+    <div class="feat"><div class="i">1</div><div><b>In-app AI chat consultant</b><span>A dedicated Maya screen, reachable from the Home banner and top bar, where customers ask for stone/tile suggestions by room, style or budget.</span></div></div>
+    <div class="feat"><div class="i">2</div><div><b>Grounded in Grazia's own catalogue</b><span>Maya knows Grazia's six collections and company profile, and recommends real products from the live catalogue as tappable cards (open product, or open AR/tools directly).</span></div></div>
+    <div class="feat"><div class="i">3</div><div><b>English and Hinglish replies</b><span>Answers in the customer's language; says so honestly when it doesn't know and points to the Grazia team instead of inventing prices or specs.</span></div></div>
+    <div class="feat"><div class="i">4</div><div><b>Secure server-side AI</b><span>The AI key and brand knowledge stay on the server, never inside the app, with per-user rate limiting and login-aware limits.</span></div></div>
+    <div class="feat"><div class="i">5</div><div><b>Quick-start prompts</b><span>One-tap suggestions such as exterior facades, fireplace textures and budget-based picks.</span></div></div>
+    <p class="note">Maya's AI usage runs on the same Google Gemini account and usage-based billing described in the Agreement, billed directly to Grazia Stones with no RAGSPRO margin.</p>
+
+    <h3 class="sec" style="margin-top:5mm;">Additional Charges Under This Addendum</h3>
+    <table class="t">
+      <tr><th>Item</th><th class="r">Amount</th></tr>
+      <tr><td>Maya AI Design Consultant — development and integration <i>(client-requested add-on)</i></td><td class="r">₹30,000</td></tr>
+      <tr><td>Kanpur visit — travel (to and fro) expenses, shared at actual as requested</td><td class="r">₹6,000</td></tr>
+      <tr class="tot"><td>Total additional under this addendum</td><td class="r">₹36,000</td></tr>
+    </table>
+  </div>
+  <div class="foot"><span>RAGSPRO &nbsp;|&nbsp; ragspro.com &nbsp;|&nbsp; raghav@ragspro.com</span><span>Page 1 of 2</span></div>
+</div>
+
+<!-- PAGE 2 -->
+<div class="page">
+  <div class="hero slim">
+    <div class="brand"><img src="file:///Users/raghavshah/02_BUSINESS/03_CLIENTS/16_GRAZIA_STONES/04_ASSETS/logos/ragspro-logo.png" style="width:11mm;height:11mm"><div><h1 style="font-size:14pt">RAGSPRO</h1><p>Digital Solutions</p></div></div>
+    <div class="tag"><h2 style="font-size:14pt">ADD-ON ADDENDUM</h2><p>GRAZIA-AI-AR-2026-08</p></div>
+  </div>
+  <div class="body" style="padding-top:10mm;">
+    <div class="due" style="margin-top:0;">
+      <div class="l">Additional Amount Due</div>
+      <div class="a">₹36,000</div>
+      <div class="s">₹30,000 Maya AI &nbsp;+&nbsp; ₹6,000 Kanpur travel &nbsp;·&nbsp; payable together with Milestone 3 (on delivery)</div>
+    </div>
+
+    <h3 class="sec" style="margin-top:10mm;">Updated Commercial Summary</h3>
+    <div class="sum">
+      <div class="row"><span>Core development (deal locked, milestones unchanged)</span><b>₹1,40,000</b></div>
+      <div class="row"><span>Add-on: Maya AI Design Consultant</span><b>₹30,000</b></div>
+      <div class="row"><span>Kanpur visit travel expenses</span><b>₹6,000</b></div>
+      <div class="total"><span>Revised Project Total (excl. GST)</span><b>₹1,76,000</b></div>
+    </div>
+    <p class="note">The ₹15,000 Play Console + Apple Developer setup and the monthly Gemini usage remain separate third-party costs, exactly as in the Agreement, and are not part of ₹1,76,000. GST is charged extra @ 18% if applicable.</p>
+
+    <div class="pay">
+      <div class="card"><h3>Payment Modes</h3><p><b>UPI</b> raghav@ragspro<br><b>Bank</b> NEFT / RTGS</p></div>
+      <div class="card"><h3>Applies To</h3><p>Service Agreement<br><b>GRAZIA-AI-AR-2026-08</b></p></div>
+      <div class="card"><h3>Terms</h3><p>All other terms of the Agreement remain unchanged</p></div>
+    </div>
+
+    <h3 class="sec accept-h" style="margin-top:10mm;">Acceptance</h3>
+    <div class="accept">
+      <p>By signing below, both parties agree to add Maya AI and the travel expense above to the Service Agreement (Ref GRAZIA-AI-AR-2026-08).</p>
+      <div class="sign">
+        <div><b>For Grazia Stones</b>Name, Signature &amp; Date</div>
+        <div><b>For RAGSPRO Digital Solutions</b>Raghav Shah, Founder</div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>RAGSPRO &nbsp;|&nbsp; ragspro.com &nbsp;|&nbsp; raghav@ragspro.com</span><span>Page 2 of 2</span></div>
+</div>
+</body></html>

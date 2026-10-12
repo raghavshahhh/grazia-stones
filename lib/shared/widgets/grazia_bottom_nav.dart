@@ -176,15 +176,9 @@ class _GraziaBottomNavState extends ConsumerState<GraziaBottomNav> {
     required bool isActive,
     required LuxuryPalette palette,
   }) {
-    Key? targetKey;
-    if (index == 1) targetKey = GraziaBottomNav.collectionsKey;
-    if (index == 2) targetKey = GraziaBottomNav.aiStudioKey;
-    if (index == 3) targetKey = GraziaBottomNav.arKey;
-
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        key: targetKey,
         onTap: () {
           HapticFeedback.lightImpact();
           widget.onTap(index);

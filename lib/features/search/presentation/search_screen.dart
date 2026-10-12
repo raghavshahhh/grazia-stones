@@ -1,3 +1,4 @@
+import 'package:grazia_stones/core/utils/responsive.dart';
 import 'package:grazia_stones/features/wishlist/wishlist_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -6,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/models/collection.dart';
+import 'package:grazia_stones/core/services/mock_data_service.dart';
 import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
@@ -29,8 +31,9 @@ class SearchScreen extends ConsumerStatefulWidget {
   ConsumerState<SearchScreen> createState() => _SearchScreenState();
 }
 
-class _SearchScreenState extends ConsumerState<SearchScreen> {
+class _SearchScreenState extends ConsumerState<SearchScreen> with SingleTickerProviderStateMixin {
   final _searchController = TextEditingController();
+  late final TabController _tabController;
   List<Stone> _stones = [];
   List<Collection> _collections = [];
   bool _isLoading = true;
@@ -70,12 +73,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     _loadInitialData();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _tabController.dispose();
     super.dispose();
   }
 
@@ -84,8 +89,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       setState(() => _isLoading = true);
       
       final stoneRepo = ref.read(stoneRepositoryProvider);
-      final collections = await stoneRepo.getCollections();
-      final stones = await stoneRepo.getAllStones();
+      var collections = await stoneRepo.getCollections();
+      if (collections.isEmpty) {
+        collections = MockDataService.collections;
+      }
+      var stones = await stoneRepo.getAllStones();
+      if (stones.isEmpty) {
+        stones = MockDataService.stones;
+      }
 
       if (mounted) {
         setState(() {
@@ -97,11 +108,24 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = e.toString();
+          _collections = MockDataService.collections;
+          _stones = MockDataService.stones;
           _isLoading = false;
         });
       }
     }
+  }
+
+  List<Collection> get _filteredCollections {
+    final list = _collections.where((c) => c.isListed).toList();
+    if (_searchQuery.isEmpty) return list;
+    final q = _searchQuery.toLowerCase();
+    return list.where((c) {
+      return c.displayName.toLowerCase().contains(q) ||
+          c.description.toLowerCase().contains(q) ||
+          c.categoryType.toLowerCase().contains(q) ||
+          (c.catalogueGroup ?? '').toLowerCase().contains(q);
+    }).toList();
   }
 
   Future<void> _performSearch() async {
@@ -110,6 +134,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     try {
       final stoneRepo = ref.read(stoneRepositoryProvider);
       var results = await stoneRepo.getAllStones();
+      if (results.isEmpty) results = MockDataService.stones;
 
       // Apply filters
       results = results.where((stone) {
@@ -538,9 +563,59 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ? ErrorHandlerWidget(error: Exception(_error), onRetry: _loadInitialData)
           : Column(
               children: [
-                // Filter bar
+                // Luxury Tabs: Collections & Suites vs All Stones
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: palette.surface,
+                    border: Border(bottom: BorderSide(color: palette.border, width: 0.8)),
+                  ),
+                  child: TabBar(
+                    controller: _tabController,
+                    indicatorColor: const Color(0xFFD4AF37),
+                    indicatorWeight: 2.5,
+                    labelColor: const Color(0xFFD4AF37),
+                    unselectedLabelColor: palette.textSecondary,
+                    labelPadding: const EdgeInsets.symmetric(horizontal: 10),
+                    labelStyle: GoogleFonts.plusJakartaSans(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.3,
+                    ),
+                    unselectedLabelStyle: GoogleFonts.plusJakartaSans(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    tabs: [
+                      Tab(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.collections_bookmark_rounded, size: 15),
+                            const SizedBox(width: 5),
+                            Text('Collections (${_filteredCollections.length})'),
+                          ],
+                        ),
+                      ),
+                      Tab(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.grid_view_rounded, size: 15),
+                            const SizedBox(width: 5),
+                            Text('Stones (${_stones.length})'),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Filter & Sort bar
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   decoration: BoxDecoration(
                     color: palette.surface,
                     border: Border(bottom: BorderSide(color: palette.border)),
@@ -551,7 +626,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         child: GestureDetector(
                           onTap: () => _showFilterBottomSheet(palette),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                             decoration: BoxDecoration(
                               color: palette.background,
                               borderRadius: BorderRadius.circular(12),
@@ -559,18 +634,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                             ),
                             child: Row(
                               children: [
-                                Icon(Icons.tune_rounded, size: 18, color: palette.primary),
+                                Icon(Icons.tune_rounded, size: 16, color: palette.primary),
                                 const SizedBox(width: 8),
                                 Text(
                                   activeFilterCount > 0 ? 'Filters ($activeFilterCount)' : 'Filters',
                                   style: GoogleFonts.inter(
-                                    fontSize: 13,
+                                    fontSize: 12.5,
                                     fontWeight: FontWeight.w600,
                                     color: palette.textPrimary,
                                   ),
                                 ),
                                 const Spacer(),
-                                Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: palette.textSecondary),
+                                Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: palette.textSecondary),
                               ],
                             ),
                           ),
@@ -589,42 +664,263 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   ),
                 ),
 
-                // Results
+                // Tab Content
                 Expanded(
                   child: _isLoading || _isSearching
                       ? Center(child: CircularProgressIndicator(color: palette.primary))
-                      : _stones.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.search_off_rounded, size: 64, color: palette.textTertiary),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'No stones found',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: palette.textPrimary,
+                      : TabBarView(
+                          controller: _tabController,
+                          children: [
+                            // 1. Collections & Design Suites (DEFAULT & FIRST)
+                            _buildCollectionsView(palette),
+
+                            // 2. Individual Stones (Second tab)
+                            _stones.isEmpty
+                                ? Center(
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.search_off_rounded, size: 64, color: palette.textTertiary),
+                                        const SizedBox(height: 16),
+                                        Text(
+                                          'No stones found',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                            color: palette.textPrimary,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Try adjusting your filters',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 13,
+                                            color: palette.textSecondary,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Try adjusting your filters',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 13,
-                                      color: palette.textSecondary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : _isGridView
-                              ? _buildGridView(palette, wishlistState)
-                              : _buildListView(palette, wishlistState),
+                                  )
+                                : _isGridView
+                                    ? _buildGridView(palette, wishlistState)
+                                    : _buildListView(palette, wishlistState),
+                          ],
+                        ),
                 ),
               ],
             ),
+    );
+  }
+
+  Widget _buildCollectionsView(LuxuryPalette palette) {
+    final collections = _filteredCollections;
+    if (collections.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.category_outlined, size: 56, color: palette.textTertiary),
+            const SizedBox(height: 14),
+            Text(
+              'No collections found',
+              style: GoogleFonts.playfairDisplay(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: palette.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Try searching for "Patina", "3D", "Ledge", or "Brick"',
+              style: GoogleFonts.inter(fontSize: 13, color: palette.textSecondary),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      physics: const BouncingScrollPhysics(),
+      itemCount: collections.length,
+      itemBuilder: (context, idx) {
+        final col = collections[idx];
+        return _buildCollectionCard(col, palette);
+      },
+    );
+  }
+
+  Widget _buildCollectionCard(Collection col, LuxuryPalette palette) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: palette.border, width: 0.8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            context.push('/collections/${col.id}');
+          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Architectural Wall/Room Banner
+              SizedBox(
+                height: 170,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Image.asset(
+                      col.effectiveBannerImage,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => SmartStoneImage(
+                        imageUrl: col.imageUrl,
+                        fit: BoxFit.cover,
+                        palette: palette,
+                      ),
+                    ),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.7),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // Category badge
+                    Positioned(
+                      top: 12,
+                      left: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.75),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: const Color(0xFFD4AF37).withValues(alpha: 0.5),
+                          ),
+                        ),
+                        child: Text(
+                          col.categoryType.toUpperCase(),
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFFD4AF37),
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Designs badge
+                    Positioned(
+                      bottom: 12,
+                      right: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFD4AF37),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '${col.stoneCount > 0 ? col.stoneCount : 12}+ Designs Available',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Title and details
+              Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            col.displayName,
+                            style: GoogleFonts.playfairDisplay(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                              color: palette.textPrimary,
+                            ),
+                          ),
+                        ),
+                        const Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 14,
+                          color: Color(0xFFD4AF37),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      col.description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: palette.textSecondary,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Icon(Icons.straighten_rounded, size: 14, color: palette.textTertiary),
+                        const SizedBox(width: 4),
+                        Text(
+                          col.dimensionSpec,
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: palette.textSecondary,
+                          ),
+                        ),
+                        const Spacer(),
+                        TextButton.icon(
+                          onPressed: () => context.push('/collections/${col.id}'),
+                          icon: const Icon(Icons.visibility_rounded, size: 14, color: Color(0xFFD4AF37)),
+                          label: Text(
+                            'View Suite',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFFD4AF37),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -632,8 +928,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return GridView.builder(
       padding: const EdgeInsets.all(16),
       physics: const BouncingScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: gridColumns(context, phone: 2),
         childAspectRatio: 0.7,
         crossAxisSpacing: 14,
         mainAxisSpacing: 14,

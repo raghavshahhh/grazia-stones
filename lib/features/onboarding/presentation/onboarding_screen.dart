@@ -281,16 +281,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                               color: const Color(0xFF141210),
                             ),
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'UNIT OF BNK STONES',
-                            style: GoogleFonts.inter(
-                              fontSize: 9.5,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 1.2,
-                              color: const Color(0xFF8C8275),
-                            ),
-                          ),
                           const SizedBox(height: 8),
                           // Indicators
                           Row(

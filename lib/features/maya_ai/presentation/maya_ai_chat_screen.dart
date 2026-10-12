@@ -5,11 +5,14 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/models/stone.dart';
-import 'package:grazia_stones/core/providers/stone_providers.dart' show allStonesProvider;
+import 'package:grazia_stones/core/models/collection.dart';
+import 'package:grazia_stones/core/providers/stone_providers.dart' show allStonesProvider, allCollectionsProvider;
 import 'package:grazia_stones/features/maya_ai/services/maya_ai_service.dart';
+import 'package:grazia_stones/core/services/mock_data_service.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
+import 'package:grazia_stones/shared/widgets/aarna_living_avatar.dart';
 
 class MayaAIChatScreen extends ConsumerStatefulWidget {
   const MayaAIChatScreen({super.key});
@@ -18,11 +21,66 @@ class MayaAIChatScreen extends ConsumerStatefulWidget {
   ConsumerState<MayaAIChatScreen> createState() => _MayaAIChatScreenState();
 }
 
+class _AarnaCapability {
+  final String title;
+  final String subtitle;
+  final String imagePath;
+  final String prompt;
+  final AarnaPose pose;
+
+  const _AarnaCapability({
+    required this.title,
+    required this.subtitle,
+    required this.imagePath,
+    required this.prompt,
+    required this.pose,
+  });
+}
+
 class _MayaAIChatScreenState extends ConsumerState<MayaAIChatScreen> {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final List<MayaChatMessage> _messages = [];
   bool _isTyping = false;
+  AarnaPose _activeHeroPose = AarnaPose.idle;
+
+  final List<_AarnaCapability> _capabilities = const [
+    _AarnaCapability(
+      title: 'Hello!',
+      subtitle: 'Introduction',
+      imagePath: 'assets/images/aarna/aarna_card_hello.png',
+      prompt: 'Hello Aarna! Introduce yourself and how you help with Grazia Stones.',
+      pose: AarnaPose.waving,
+    ),
+    _AarnaCapability(
+      title: 'Find designs',
+      subtitle: 'Living & Facades',
+      imagePath: 'assets/images/aarna/aarna_card_designs.png',
+      prompt: 'Find luxury stone designs for my living room feature wall.',
+      pose: AarnaPose.searching,
+    ),
+    _AarnaCapability(
+      title: 'Combinations',
+      subtitle: 'Stone Pairings',
+      imagePath: 'assets/images/aarna/aarna_card_combinations.png',
+      prompt: 'Show elegant stone combinations and finishes for modern interiors.',
+      pose: AarnaPose.combinations,
+    ),
+    _AarnaCapability(
+      title: 'Technical info',
+      subtitle: 'Specs & Care',
+      imagePath: 'assets/images/aarna/aarna_card_technical.png',
+      prompt: 'What are the technical specs and maintenance for Grazia Stones?',
+      pose: AarnaPose.technical,
+    ),
+    _AarnaCapability(
+      title: 'Get a quote',
+      subtitle: 'Instant Estimate',
+      imagePath: 'assets/images/aarna/aarna_card_quote.png',
+      prompt: 'Help me calculate quantity and get a quote for my project.',
+      pose: AarnaPose.quote,
+    ),
+  ];
 
   final List<String> _quickPrompts = [
     'Living room luxury feature wall ideas',
@@ -39,13 +97,20 @@ class _MayaAIChatScreenState extends ConsumerState<MayaAIChatScreen> {
   }
 
   void _addInitialGreeting() {
+    final curatedSuites = MockDataService.collections
+        .where((c) => c.isListed)
+        .take(3)
+        .toList();
+
     _messages.add(
       MayaChatMessage(
         id: 'welcome',
         text:
-            'Hello! I am **Maya**, Grazia Stones’ Luxury Architectural & Natural Stone Consultant.\n\nI can help you curate the perfect surface for your space from our 35 signature collections — whether it is a grand living room feature wall, modern 3D fluted panels, or weather-resilient exterior ledges.\n\nWhat architectural vision are you creating today? (Feel free to ask in English or Hindi!)',
+            'Hello! I am **Aarna**, your 3D AI architectural consultant for Grazia Stones.\n\n*AARNA — Your Vision, My Intelligence.*\n\nExplore our complete architectural suites and design collections curated below. Tap any collection to view all designs, or ask me for personalized space pairings!',
         isUser: false,
         timestamp: DateTime.now(),
+        recommendedCollections: curatedSuites,
+        recommendedStones: const [],
       ),
     );
   }
@@ -89,30 +154,64 @@ class _MayaAIChatScreenState extends ConsumerState<MayaAIChatScreen> {
     });
     _scrollToBottom();
 
-    // Fetch catalogue stones for grounding
+    // Fetch catalogue collections & stones for grounding
     List<Stone> catalogue = [];
+    List<Collection> collections = [];
     try {
       final stonesAsync = ref.read(allStonesProvider);
       catalogue = stonesAsync.value ?? [];
       if (catalogue.isEmpty) {
-        catalogue = await ref.read(stoneRepositoryProvider).getStones(limit: 50);
+        catalogue = await ref.read(stoneRepositoryProvider).getStones(limit: 100);
       }
     } catch (_) {}
+    if (catalogue.isEmpty) {
+      catalogue = MockDataService.stones;
+    }
+
+    try {
+      final colsAsync = ref.read(allCollectionsProvider);
+      collections = colsAsync.value ?? [];
+      if (collections.isEmpty) {
+        collections = await ref.read(stoneRepositoryProvider).getCollections();
+      }
+    } catch (_) {}
+    if (collections.isEmpty) {
+      collections = MockDataService.collections;
+    }
 
     try {
       final aiResponse = await MayaAIService.instance.askMaya(
         userQuery: trimmed,
         catalogueStones: catalogue,
+        allCollections: collections,
         history: _messages,
       );
 
       if (!mounted) return;
+      final fullText = aiResponse.text;
+      final placeholder = aiResponse.copyWith(text: '');
       setState(() {
-        _messages.add(aiResponse);
+        _messages.add(placeholder);
         _isTyping = false;
       });
-      HapticFeedback.mediumImpact();
+      HapticFeedback.lightImpact();
       _scrollToBottom();
+
+      // Smooth streaming typewriter effect (3-8 characters per tick)
+      final msgIndex = _messages.length - 1;
+      int charIdx = 0;
+      final step = (fullText.length / 35).ceil().clamp(3, 8);
+      while (charIdx < fullText.length && mounted) {
+        charIdx = (charIdx + step).clamp(0, fullText.length);
+        await Future.delayed(const Duration(milliseconds: 22));
+        if (!mounted) return;
+        setState(() {
+          _messages[msgIndex] = placeholder.copyWith(
+            text: fullText.substring(0, charIdx),
+          );
+        });
+        _scrollToBottom();
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -120,9 +219,10 @@ class _MayaAIChatScreenState extends ConsumerState<MayaAIChatScreen> {
           MayaChatMessage(
             id: DateTime.now().millisecondsSinceEpoch.toString(),
             text:
-                'Shama kijiye, abhi response generate karne me dikkat aayi. Aap kripya dubara poochiye ya hamara curated catalogue explore kijiye.',
+                'Shama kijiye, abhi response generate karne me dikkat aayi. Aap kripya dubara poochiye ya hamare architectural collections explore kijiye.',
             isUser: false,
             timestamp: DateTime.now(),
+            recommendedCollections: collections.where((c) => c.isListed).take(3).toList(),
           ),
         );
         _isTyping = false;
@@ -154,57 +254,13 @@ class _MayaAIChatScreenState extends ConsumerState<MayaAIChatScreen> {
         ),
         title: Row(
           children: [
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: const Color(0xFFD4AF37),
-                      width: 1.5,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFD4AF37).withValues(alpha: isDark ? 0.35 : 0.25),
-                        blurRadius: 8,
-                        spreadRadius: 0.5,
-                      ),
-                    ],
-                  ),
-                  child: ClipOval(
-                    child: Image.asset(
-                      'assets/images/maya_avatar.jpg',
-                      width: 40,
-                      height: 40,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => const Icon(
-                        Icons.auto_awesome_rounded,
-                        color: Color(0xFFD4AF37),
-                        size: 20,
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  bottom: 1,
-                  right: 1,
-                  child: Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2E7D32),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: palette.surface,
-                        width: 1.5,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+            AarnaLivingAvatar(
+              size: 38,
+              pose: _isTyping ? AarnaPose.searching : _activeHeroPose,
+              isSearching: _isTyping || _activeHeroPose == AarnaPose.searching,
+              showRadarRings: _isTyping,
+              showSparkle: true,
+              showOnlineBadge: true,
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -214,7 +270,7 @@ class _MayaAIChatScreenState extends ConsumerState<MayaAIChatScreen> {
                   Row(
                     children: [
                       Text(
-                        'Maya AI',
+                        'Aarna AI',
                         style: GoogleFonts.playfairDisplay(
                           color: palette.textPrimary,
                           fontSize: 17,
@@ -281,13 +337,18 @@ class _MayaAIChatScreenState extends ConsumerState<MayaAIChatScreen> {
               child: ListView.builder(
                 controller: _scrollController,
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                itemCount: _messages.length + (_isTyping ? 1 : 0),
+                itemCount: 1 + _messages.length + (_isTyping ? 1 : 0),
                 itemBuilder: (context, index) {
-                  if (index == _messages.length && _isTyping) {
+                  if (index == 0) {
+                    return _buildAarnaHeroCard(palette, isDark);
+                  }
+
+                  final msgIndex = index - 1;
+                  if (msgIndex == _messages.length && _isTyping) {
                     return _buildTypingIndicator();
                   }
 
-                  final msg = _messages[index];
+                  final msg = _messages[msgIndex];
                   return _buildMessageItem(msg, palette, isDark);
                 },
               ),
@@ -362,7 +423,7 @@ class _MayaAIChatScreenState extends ConsumerState<MayaAIChatScreen> {
                         textInputAction: TextInputAction.send,
                         onSubmitted: _handleSubmitted,
                         decoration: InputDecoration(
-                          hintText: 'Ask Maya in English or Hindi (e.g. living room wall)...',
+                          hintText: 'Ask Aarna in English or Hindi (e.g. living room wall)...',
                           hintStyle: GoogleFonts.plusJakartaSans(
                             color: const Color(0xFF707076),
                             fontSize: 13,
@@ -439,35 +500,13 @@ class _MayaAIChatScreenState extends ConsumerState<MayaAIChatScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 32,
-                height: 32,
-                margin: const EdgeInsets.only(top: 2, right: 10),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: const Color(0xFFD4AF37),
-                    width: 1.2,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFD4AF37).withValues(alpha: isDark ? 0.3 : 0.2),
-                      blurRadius: 6,
-                    ),
-                  ],
-                ),
-                child: ClipOval(
-                  child: Image.asset(
-                    'assets/images/maya_avatar.jpg',
-                    width: 32,
-                    height: 32,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => const Icon(
-                      Icons.auto_awesome_rounded,
-                      color: Color(0xFFD4AF37),
-                      size: 16,
-                    ),
-                  ),
+              const Padding(
+                padding: EdgeInsets.only(top: 2, right: 10),
+                child: AarnaLivingAvatar(
+                  size: 32,
+                  pose: AarnaPose.idle,
+                  showSparkle: false,
+                  showOnlineBadge: true,
                 ),
               ),
               Expanded(
@@ -496,8 +535,55 @@ class _MayaAIChatScreenState extends ConsumerState<MayaAIChatScreen> {
             ],
           ),
 
-          // Recommended Stones Carousel
-          if (msg.recommendedStones.isNotEmpty) ...[
+          // Real-World Action Shortcuts ("Chize kare real type mei")
+          Padding(
+            padding: const EdgeInsets.only(left: 42, top: 10),
+            child: _buildActionShortcuts(palette, isDark),
+          ),
+
+          // Recommended Architectural Collections & Design Suites
+          if (msg.recommendedCollections.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.only(left: 42),
+              child: Row(
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Color(0xFFD4AF37),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'CURATED ARCHITECTURAL SUITES & COLLECTIONS',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? const Color(0xFFD4AF37) : const Color(0xFF8B6B23),
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              height: 230,
+              margin: const EdgeInsets.only(left: 42),
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: msg.recommendedCollections.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 14),
+                itemBuilder: (context, idx) {
+                  final col = msg.recommendedCollections[idx];
+                  return _buildCollectionSuiteCard(col, palette, isDark);
+                },
+              ),
+            ),
+          ] else if (msg.recommendedStones.isNotEmpty) ...[
             const SizedBox(height: 12),
             Padding(
               padding: const EdgeInsets.only(left: 42),
@@ -526,7 +612,7 @@ class _MayaAIChatScreenState extends ConsumerState<MayaAIChatScreen> {
             ),
             const SizedBox(height: 8),
             Container(
-              height: 204,
+              height: 218,
               margin: const EdgeInsets.only(left: 42),
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
@@ -701,9 +787,209 @@ class _MayaAIChatScreenState extends ConsumerState<MayaAIChatScreen> {
     return spans;
   }
 
+  Widget _buildCollectionSuiteCard(Collection collection, LuxuryPalette palette, bool isDark) {
+    return Container(
+      width: 220,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E22) : palette.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? const Color(0xFFD4AF37).withValues(alpha: 0.35) : palette.border,
+          width: 0.9,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isDark ? Colors.black.withValues(alpha: 0.35) : const Color(0xFF2C2416).withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            context.push('/collections/${collection.id}');
+          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Luxury Architectural Room/Wall Banner
+              Expanded(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Image.asset(
+                      collection.effectiveBannerImage,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => SmartStoneImage(
+                        imageUrl: collection.imageUrl,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    // Gradient overlay for contrast
+                    Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withValues(alpha: 0.1),
+                              Colors.black.withValues(alpha: 0.65),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Suite Category Badge
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.75),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: const Color(0xFFD4AF37).withValues(alpha: 0.5),
+                            width: 0.8,
+                          ),
+                        ),
+                        child: Text(
+                          collection.categoryType.toUpperCase(),
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 8,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFFD4AF37),
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Design Count Badge
+                    Positioned(
+                      bottom: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFD4AF37),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '${collection.stoneCount > 0 ? collection.stoneCount : 12}+ Designs',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Suite Details & Dual Actions
+              Padding(
+                padding: const EdgeInsets.all(10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      collection.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: palette.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      collection.dimensionSpec,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 9.5,
+                        color: palette.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(8),
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              context.push('/collections/${collection.id}');
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              decoration: BoxDecoration(
+                                color: isDark ? const Color(0xFF2B2B30) : palette.surfaceDark,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  'Explore Suite',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: palette.textPrimary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(8),
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              context.push('/live-ai');
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFD4AF37),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  'Live AR',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildStoneCard(Stone stone, LuxuryPalette palette, bool isDark) {
     return Container(
-      width: 180,
+      width: 184,
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E1E22) : palette.surface,
         borderRadius: BorderRadius.circular(16),
@@ -717,129 +1003,139 @@ class _MayaAIChatScreenState extends ConsumerState<MayaAIChatScreen> {
         ],
       ),
       clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Stone Image
-          Expanded(
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                SmartStoneImage(
-                  imageUrl: stone.mainImageUrl ?? (stone.images.isNotEmpty ? stone.images.first : null),
-                  fit: BoxFit.cover,
-                ),
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.75),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFFD4AF37).withValues(alpha: 0.4)),
-                    ),
-                    child: Text(
-                      '₹${stone.pricePerSqFt.toInt()}/sq.ft',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFFD4AF37),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Details & Actions
-          Padding(
-            padding: const EdgeInsets.all(10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  stone.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                    color: palette.textPrimary,
-                  ),
-                ),
-                Text(
-                  stone.collection,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 10,
-                    color: palette.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            context.push('/stones/${stone.id}');
+          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Stone Image
+              Expanded(
+                child: Stack(
+                  fit: StackFit.expand,
                   children: [
-                    Expanded(
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(8),
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          context.push('/stones/${stone.id}');
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 6),
-                          decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF2B2B30) : palette.surfaceDark,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Center(
-                            child: Text(
-                              'View',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: palette.textPrimary,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
+                    SmartStoneImage(
+                      imageUrl: stone.mainImageUrl ?? (stone.images.isNotEmpty ? stone.images.first : null),
+                      fit: BoxFit.cover,
                     ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(8),
-                        onTap: () {
-                          HapticFeedback.selectionClick();
-                          context.push('/tools?stoneId=${stone.id}');
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 6),
-                          decoration: BoxDecoration(
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.75),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFD4AF37).withValues(alpha: 0.4)),
+                        ),
+                        child: Text(
+                          '₹${stone.pricePerSqFt.toInt()}/sq.ft',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w700,
                             color: const Color(0xFFD4AF37),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Center(
-                            child: Text(
-                              'AI Studio',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.black,
-                              ),
-                            ),
                           ),
                         ),
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+
+              // Details & Actions
+              Padding(
+                padding: const EdgeInsets.all(9),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      stone.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: palette.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      stone.collection,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 9.5,
+                        color: palette.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(8),
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              context.push('/stones/${stone.id}');
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              decoration: BoxDecoration(
+                                color: isDark ? const Color(0xFF2B2B30) : palette.surfaceDark,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  'Specs',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: palette.textPrimary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(8),
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              context.push('/live-ai?stoneId=${Uri.encodeComponent(stone.id)}');
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFD4AF37),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  'Live AR',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -850,16 +1146,13 @@ class _MayaAIChatScreenState extends ConsumerState<MayaAIChatScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Container(
-            width: 28,
-            height: 28,
-            margin: const EdgeInsets.only(right: 10),
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              color: Color(0xFFD4AF37),
-            ),
-            child: const Center(
-              child: Icon(Icons.auto_awesome_rounded, color: Colors.black, size: 14),
+          const Padding(
+            padding: EdgeInsets.only(right: 10),
+            child: AarnaLivingAvatar(
+              size: 32,
+              pose: AarnaPose.searching,
+              isSearching: true,
+              showRadarRings: true,
             ),
           ),
           Container(
@@ -882,7 +1175,7 @@ class _MayaAIChatScreenState extends ConsumerState<MayaAIChatScreen> {
                 ),
                 const SizedBox(width: 10),
                 Text(
-                  'Maya is analyzing architectural options...',
+                  'Aarna is analyzing architectural options...',
                   style: GoogleFonts.plusJakartaSans(
                     color: const Color(0xFF8E8E93),
                     fontSize: 12,
@@ -892,6 +1185,335 @@ class _MayaAIChatScreenState extends ConsumerState<MayaAIChatScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAarnaHeroCard(LuxuryPalette palette, bool isDark) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? [
+                  const Color(0xFF1E1E24),
+                  const Color(0xFF141418),
+                ]
+              : [
+                  const Color(0xFFFAF8F5),
+                  const Color(0xFFF0ECE1),
+                ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFFD4AF37).withValues(alpha: isDark ? 0.35 : 0.45),
+          width: 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFD4AF37).withValues(alpha: isDark ? 0.1 : 0.06),
+            blurRadius: 18,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Top character profile & brand introduction
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                AarnaLivingAvatar(
+                  size: 100,
+                  shape: BoxShape.rectangle,
+                  borderRadius: BorderRadius.circular(18),
+                  pose: _isTyping ? AarnaPose.searching : _activeHeroPose,
+                  isSearching: _isTyping,
+                  showRadarRings: _isTyping,
+                  onTap: () {
+                    setState(() {
+                      _activeHeroPose = _activeHeroPose == AarnaPose.waving
+                          ? AarnaPose.idle
+                          : AarnaPose.waving;
+                    });
+                  },
+                ),
+                const SizedBox(width: 14),
+                // Text details
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Tagline badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFD4AF37).withValues(alpha: isDark ? 0.2 : 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: const Color(0xFFD4AF37).withValues(alpha: isDark ? 0.5 : 0.3),
+                            width: 0.8,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.auto_awesome, color: Color(0xFFD4AF37), size: 10),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                'AARNA — Your Vision, My Intelligence.',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 8.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: isDark ? const Color(0xFFE8C868) : const Color(0xFF8B6B23),
+                                  letterSpacing: 0.4,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Meet Aarna',
+                        style: GoogleFonts.playfairDisplay(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w700,
+                          color: palette.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Your 3D Architectural AI Consultant for Grazia natural stones, 3D relief walls, finishes & quotes.',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11.5,
+                          height: 1.35,
+                          color: palette.textSecondary,
+                        ),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Divider
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Divider(
+              color: isDark ? const Color(0xFF2C2C34) : palette.border,
+              height: 1,
+            ),
+          ),
+
+          // Capabilities Title
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Row(
+              children: [
+                const Icon(Icons.touch_app_rounded, color: Color(0xFFD4AF37), size: 13),
+                const SizedBox(width: 6),
+                Text(
+                  'CAPABILITIES — TAP ANY TO ASK AARNA',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                    color: isDark ? const Color(0xFFD4AF37) : const Color(0xFF8B6B23),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // 5 Character Pose Cards (Horizontal Scroll)
+          SizedBox(
+            height: 132,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: _capabilities.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 10),
+              itemBuilder: (context, idx) {
+                final cap = _capabilities[idx];
+                return _buildCapabilityCard(cap, palette, isDark);
+              },
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCapabilityCard(_AarnaCapability cap, LuxuryPalette palette, bool isDark) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () {
+        HapticFeedback.mediumImpact();
+        setState(() => _activeHeroPose = cap.pose);
+        _handleSubmitted(cap.prompt);
+      },
+      child: Container(
+        width: 110,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF18181D) : palette.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isDark ? const Color(0xFF33333C) : palette.border,
+            width: 0.8,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Character Pose Image
+            Expanded(
+              child: Container(
+                color: isDark ? const Color(0xFF121215) : const Color(0xFFF5F3ED),
+                child: Image.asset(
+                  cap.imagePath,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, _, _) => const Center(
+                    child: Icon(Icons.auto_awesome, color: Color(0xFFD4AF37), size: 24),
+                  ),
+                ),
+              ),
+            ),
+            // Caption
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              color: isDark ? const Color(0xFF1E1E24) : palette.surface,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    cap.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: palette.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    cap.subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 8.5,
+                      color: palette.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionShortcuts(LuxuryPalette palette, bool isDark) {
+    final actions = [
+      (
+        icon: Icons.view_in_ar_rounded,
+        label: 'Live AR',
+        route: '/ar-view',
+        color: const Color(0xFFD4AF37),
+      ),
+      (
+        icon: Icons.inventory_2_outlined,
+        label: 'Sample Kit',
+        route: '/samples/request',
+        color: const Color(0xFFE5A93B),
+      ),
+      (
+        icon: Icons.straighten_rounded,
+        label: 'Wall Calc',
+        route: '/wall-calc',
+        color: const Color(0xFF81C784),
+      ),
+      (
+        icon: Icons.request_quote_outlined,
+        label: 'Get Quote',
+        route: '/quotes/new',
+        color: const Color(0xFF64B5F6),
+      ),
+      (
+        icon: Icons.auto_awesome_rounded,
+        label: 'AI Studio',
+        route: '/tools',
+        color: const Color(0xFFBA68C8),
+      ),
+    ];
+
+    return SizedBox(
+      height: 32,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: actions.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final a = actions[i];
+          return InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () {
+              HapticFeedback.lightImpact();
+              context.push(a.route);
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF222226) : palette.surfaceDark,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF333338) : palette.border,
+                  width: 0.8,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(a.icon, size: 13, color: a.color),
+                  const SizedBox(width: 5),
+                  Text(
+                    a.label,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: palette.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(width: 3),
+                  Icon(Icons.arrow_forward_ios_rounded,
+                      size: 9, color: palette.textSecondary),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }

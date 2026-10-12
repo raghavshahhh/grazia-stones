@@ -29,16 +29,13 @@ class SmartStoneImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final activePalette = palette ?? GLuxuryPalettes.gold;
 
-    // Prefer localAsset if provided
-    final effectiveAsset = localAsset ?? imageUrl;
+    final hasNetworkUrl = imageUrl != null &&
+        (imageUrl!.startsWith('http://') || imageUrl!.startsWith('https://'));
+    final hasLocalAsset = localAsset != null && localAsset!.isNotEmpty;
 
-    if (effectiveAsset == null || effectiveAsset.isEmpty) {
-      return _buildPlaceholder(activePalette);
-    }
-
-    if (effectiveAsset.startsWith('http://') || effectiveAsset.startsWith('https://')) {
+    if (hasNetworkUrl) {
       return CachedNetworkImage(
-        imageUrl: effectiveAsset,
+        imageUrl: imageUrl!,
         fit: fit,
         alignment: alignment,
         width: width,
@@ -47,14 +44,39 @@ class SmartStoneImage extends StatelessWidget {
         memCacheHeight: height != null && height!.isFinite && height! > 0 ? (height! * 2).toInt() : null,
         fadeInDuration: const Duration(milliseconds: 280),
         fadeInCurve: Curves.easeOutCubic,
-        placeholder: (context, url) => _buildPlaceholder(activePalette),
-        errorWidget: (context, url, error) => _buildPlaceholder(activePalette),
+        placeholder: (context, url) => hasLocalAsset
+            ? Image.asset(
+                localAsset!,
+                fit: fit,
+                alignment: alignment,
+                width: width,
+                height: height,
+              )
+            : _buildPlaceholder(activePalette),
+        errorWidget: (context, url, error) => hasLocalAsset
+            ? Image.asset(
+                localAsset!,
+                fit: fit,
+                alignment: alignment,
+                width: width,
+                height: height,
+                errorBuilder: (_, _, _) => _buildPlaceholder(activePalette),
+              )
+            : _buildPlaceholder(activePalette),
       );
+    }
+
+    final effectiveLocal = (imageUrl != null && imageUrl!.isNotEmpty && !imageUrl!.startsWith('http'))
+        ? imageUrl!
+        : (hasLocalAsset ? localAsset! : null);
+
+    if (effectiveLocal == null || effectiveLocal.isEmpty) {
+      return _buildPlaceholder(activePalette);
     }
 
     // Local asset
     return Image.asset(
-      effectiveAsset,
+      effectiveLocal,
       fit: fit,
       alignment: alignment,
       width: width,

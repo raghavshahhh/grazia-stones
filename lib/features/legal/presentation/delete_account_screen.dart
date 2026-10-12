@@ -76,7 +76,7 @@ class DeleteAccountScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Grazia Stones app · developer: Grazia Stones (Unit of BNK Stones), Kanpur, India. '
+                  'Grazia Stones app · developer: Grazia Stones, Kanpur, India. '
                   'You can delete your account and its data yourself, or ask us to do it.',
                   style: GoogleFonts.inter(fontSize: 13, color: palette.textSecondary, height: 1.55),
                 ),

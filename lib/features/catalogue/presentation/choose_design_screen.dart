@@ -1,3 +1,4 @@
+import 'package:grazia_stones/core/utils/responsive.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -158,8 +159,8 @@ class _ChooseDesignScreenState extends ConsumerState<ChooseDesignScreen> {
             child: GridView.builder(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
               physics: const BouncingScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: gridColumns(context, phone: 2),
                 crossAxisSpacing: 14,
                 mainAxisSpacing: 16,
                 childAspectRatio: 0.85,

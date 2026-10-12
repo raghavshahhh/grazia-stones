@@ -58,14 +58,14 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
     },
     {
       'stepNum': '2 OF 4',
-      'category': 'MEET MAYA • ARCHITECTURAL CONSULTANT',
+      'category': 'MEET AARNA • ARCHITECTURAL CONSULTANT',
       'badge': '24/7 AI GUIDE',
-      'title': 'Meet Maya — Your AI Design Consultant',
+      'title': 'Meet Aarna — Your AI Design Consultant',
       'subtitle':
-          'Namaste! Main hoon Maya — Grazia Stones ki 24/7 AI Architectural Consultant. Poochiye mujhse Hindi ya English me — "living room ke liye premium stone designs", "villa exterior cladding", ya "budget estimates". Main 35 collections me se perfect design recommend karungi!',
+          'Namaste! Main hoon Aarna — Grazia Stones ki 24/7 AI Architectural Consultant. Poochiye mujhse Hindi ya English me — "living room ke liye premium stone designs", "villa exterior cladding", ya "budget estimates". Main 35 collections me se perfect design recommend karungi!',
       'icon': Icons.smart_toy_rounded,
       'targetType': 'maya_app_bar',
-      'targetLabel': 'Maya AI in Top Navigation Bar',
+      'targetLabel': 'Aarna AI in Top Navigation Bar',
       'chips': ['🛋️ Living Room Wall', '🏛️ Villa Facade', '📐 3D Fluted Panels'],
     },
     {
@@ -602,14 +602,18 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
                   ),
                   child: ClipOval(
                     child: Image.asset(
-                      'assets/images/maya_avatar.jpg',
+                      'assets/images/aarna/aarna_avatar_head.png',
                       width: 50,
                       height: 50,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Icon(
-                        Icons.auto_awesome_rounded,
-                        color: gold,
-                        size: 26,
+                      errorBuilder: (_, _, _) => Image.asset(
+                        'assets/images/aarna_avatar.png',
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => Icon(
+                          Icons.auto_awesome_rounded,
+                          color: gold,
+                          size: 26,
+                        ),
                       ),
                     ),
                   ),
@@ -646,7 +650,7 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
                   Row(
                     children: [
                       Text(
-                        'MAYA AI ARCHITECT',
+                        'AARNA AI ARCHITECT',
                         style: GoogleFonts.inter(
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
@@ -675,7 +679,7 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Meet Maya AI Consultant',
+                    'Meet Aarna AI Consultant',
                     style: GoogleFonts.playfairDisplay(
                       fontSize: 17.5,
                       fontWeight: FontWeight.w700,
@@ -684,11 +688,11 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
                     ),
                   ),
                   Text(
-                    'Bilingual • Hindi & English Voice/Chat',
+                    'AARNA — Your Vision, My Intelligence.',
                     style: GoogleFonts.inter(
                       fontSize: 10.5,
-                      fontWeight: FontWeight.w500,
-                      color: const Color(0xFFB0AAA0),
+                      fontWeight: FontWeight.w600,
+                      color: gold,
                     ),
                   ),
                 ],
@@ -708,7 +712,7 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
             border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           ),
           child: Text(
-            'Poochiye Maya se Hindi ya English me — "living room ke liye premium stone designs", "villa exterior facades", ya "budget calculation". Maya aapko Grazia ke 35 collections me se perfect design recommend karegi!',
+            'Poochiye Aarna se Hindi ya English me — "living room ke liye premium stone designs", "villa exterior facades", ya "budget calculation". Aarna aapko Grazia ke 35 collections me se perfect design recommend karegi!',
             style: GoogleFonts.inter(
               fontSize: 12.5,
               color: const Color(0xFFE4DFD3),
@@ -732,7 +736,7 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
 
         const SizedBox(height: 16),
 
-        // 4. Action Row (Back, Chat with Maya Now & Next Step)
+        // 4. Action Row (Back, Chat with Aarna Now & Next Step)
         Row(
           children: [
             // Back Button
@@ -741,7 +745,7 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
               const SizedBox(width: 8),
             ],
 
-            // Chat with Maya Now (Primary Luxury Action)
+            // Chat with Aarna Now (Primary Luxury Action)
             Expanded(
               flex: 6,
               child: SizedBox(
@@ -765,7 +769,7 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
                         const Icon(Icons.chat_bubble_rounded, size: 14, color: Colors.black),
                         const SizedBox(width: 5),
                         Text(
-                          'Talk to Maya Now',
+                          'Talk to Aarna Now',
                           style: GoogleFonts.inter(
                             fontSize: 12.5,
                             fontWeight: FontWeight.w700,

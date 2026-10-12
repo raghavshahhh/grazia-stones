@@ -172,14 +172,6 @@ class _ShellWithNavState extends ConsumerState<_ShellWithNav> {
   @override
   void initState() {
     super.initState();
-    assert(() {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          ref.read(appLaunchCompleteProvider.notifier).state = false;
-        }
-      });
-      return true;
-    }());
     _updateTab(widget.location);
   }
 
@@ -214,7 +206,8 @@ class _ShellWithNavState extends ConsumerState<_ShellWithNav> {
     final palette = ref.watch(themePaletteProvider);
     final isDark = ref.watch(themePaletteProvider.notifier).isDarkMode;
     final isLaunchComplete = ref.watch(appLaunchCompleteProvider);
-    final showLaunchAnimation = !isLaunchComplete;
+    final isHomeTab = widget.location == '/home';
+    final showLaunchAnimation = !isLaunchComplete && isHomeTab;
 
     return Scaffold(
       extendBody: true,

@@ -61,3 +61,4 @@ firebase_options.dart
 **/key.properties
 key.properties
 .env*
+.gstack/

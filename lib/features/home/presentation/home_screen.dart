@@ -19,8 +19,10 @@ import 'package:grazia_stones/core/repositories/notification_repository.dart';
 import 'package:grazia_stones/core/services/storage_service.dart';
 import 'package:grazia_stones/features/onboarding/presentation/widgets/app_interactive_tour_overlay.dart';
 import 'package:grazia_stones/shared/widgets/grazia_bottom_nav.dart';
-import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 import 'package:grazia_stones/core/providers/stone_providers.dart' show allStonesProvider;
+import 'package:grazia_stones/features/home/presentation/widgets/aarna_ai_prompt_pill.dart';
+import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
+import 'package:grazia_stones/shared/widgets/aarna_living_avatar.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -43,6 +45,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   late final ScrollController _scrollController;
   Timer? _heroTimer;
   int _currentHeroIndex = 0;
+  bool _isUserTouchingHero = false;
 
   @override
   void initState() {
@@ -90,12 +93,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void _startHeroTimer(int itemCount) {
     _heroTimer?.cancel();
     if (itemCount <= 1) return;
-    _heroTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
-      if (!mounted || !_heroPageController.hasClients) return;
+    _heroTimer = Timer.periodic(const Duration(seconds: 6), (timer) {
+      if (!mounted || !_heroPageController.hasClients || _isUserTouchingHero) return;
       final nextIndex = (_currentHeroIndex + 1) % itemCount;
       _heroPageController.animateToPage(
         nextIndex,
-        duration: const Duration(milliseconds: 600),
+        duration: const Duration(milliseconds: 650),
         curve: Curves.easeInOutCubic,
       );
     });
@@ -130,12 +133,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           _collections = collections;
           _isLoading = false;
         });
-        debugPrint('🔍 Home screen loaded: ${_trendingStones?.length} stones, ${_collections?.length} collections');
-        for (final c in _collections ?? []) {
-          debugPrint('📂 COLLECTION: id=${c.id}, name=${c.name}');
-        }
         if (_trendingStones != null && _trendingStones!.isNotEmpty) {
-          _startHeroTimer(6);
+          _startHeroTimer(_editorialHeroConfigs.length);
         }
         if (!StorageService.instance.hasSeenAppTour() && ref.read(appLaunchCompleteProvider)) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -177,7 +176,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         automaticallyImplyLeading: false,
-        titleSpacing: 14,
+        titleSpacing: 10,
         centerTitle: false,
         title: Opacity(
           opacity: isLaunchComplete ? 1.0 : 0.0,
@@ -188,60 +187,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               HapticFeedback.heavyImpact();
               ref.read(appLaunchCompleteProvider.notifier).state = false;
             },
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Image.asset(
-                'assets/brand/grazia-emblem-gold.png',
-                height: 22,
-                width: 22,
-                fit: BoxFit.contain,
-              ),
-              const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'GRAZIA',
-                        style: GoogleFonts.playfairDisplay(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.8,
-                          color: isDark ? const Color(0xFFD4AF37) : const Color(0xFF8B6B23),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'STONES',
-                        style: GoogleFonts.inter(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1.5,
-                          color: isDark ? const Color(0xFFD4AF37) : const Color(0xFF8B6B23),
-                        ),
-                      ),
-                    ],
+                  Image.asset(
+                    'assets/brand/grazia-emblem-gold.png',
+                    height: 22,
+                    width: 22,
+                    fit: BoxFit.contain,
                   ),
+                  const SizedBox(width: 5),
                   Text(
-                    'UNIT OF BNK STONES',
-                    style: GoogleFonts.inter(
-                      fontSize: 7.5,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.2,
-                      color: palette.textSecondary,
+                    'GRAZIA STONES',
+                    style: GoogleFonts.playfairDisplay(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.0,
+                      color: isDark ? const Color(0xFFD4AF37) : const Color(0xFF8B6B23),
                     ),
                   ),
                 ],
               ),
-            ],
+            ),
           ),
         ),
-      ),
       actions: [
           _buildMayaAppBarActionBtn(palette, isDark),
           _buildAppBarActionBtn(
@@ -395,119 +368,98 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     context.push('/stones/$stoneId');
   }
 
-  String? _findStoneImageUrl(String stoneId, {String? fallback}) {
-    final allStones = ref.watch(allStonesProvider).value ?? _trendingStones;
-    if (allStones != null) {
-      for (final s in allStones) {
-        if (s.id == stoneId) {
-          final img = s.mainImageUrl ?? (s.images.isNotEmpty ? s.images.first : null);
-          if (img != null && img.isNotEmpty) return img;
-        }
-      }
-    }
-    return fallback;
-  }
+  static const _editorialHeroConfigs = <_HeroSlideData>[
+    // Slide 1: Turquoise Floral Heritage (Exclusive Collection)
+    _HeroSlideData(
+      stoneId: '8c599c3a-d101-4618-a2a4-c566f6b8234b',
+      badge: 'EXCLUSIVE COLLECTION',
+      title: 'Turquoise Floral Heritage',
+      subtitle: 'Intricate handcrafted floral bas-relief panels in vintage turquoise brass',
+      fallbackNetworkUrl: 'https://jrrmjtbauimrrxwjvmzh.supabase.co/storage/v1/object/public/stones/catalogue/exclusive-collection/turquoise-floral-heritage/1.jpg',
+      localAsset: 'assets/ar_textures/ex_turquoise_floral_heritage.jpg',
+      collectionName: 'Exclusive Collection',
+    ),
+    // Slide 2: Cosmic Flutes (Premium Surface Collection)
+    _HeroSlideData(
+      stoneId: '55427fc9-f86f-4c97-b955-fd42be60be7e',
+      badge: 'PREMIUM SURFACE',
+      title: 'Cosmic Flutes',
+      subtitle: 'Contemporary sculptural fluted panels with ambient architectural shadows',
+      fallbackNetworkUrl: 'https://jrrmjtbauimrrxwjvmzh.supabase.co/storage/v1/object/public/stones/catalogue/premium-surface/cosmic-flutes/1.jpg',
+      localAsset: 'assets/ar_textures/3d_cosmic_flutes.jpg',
+      collectionName: 'Premium Surface Collection',
+    ),
+    // Slide 3: Turquoise Lava Panel (Exclusive Collection)
+    _HeroSlideData(
+      stoneId: '736c7850-cf60-4345-ab1c-88e6812ea287',
+      badge: 'EXCLUSIVE COLLECTION',
+      title: 'Turquoise Lava Panel',
+      subtitle: 'Oxidized copper & turquoise patina composite metallic relief panel',
+      fallbackNetworkUrl: 'https://jrrmjtbauimrrxwjvmzh.supabase.co/storage/v1/object/public/stones/catalogue/exclusive-collection/turquoise-lava-panel/1.jpg',
+      localAsset: 'assets/ar_textures/ex_turquoise_lava_panel.jpg',
+      collectionName: 'Exclusive Collection',
+    ),
+    // Slide 4: Midnight Scallop Mosaic (Exclusive Collection)
+    _HeroSlideData(
+      stoneId: '6f6bd01c-a23e-4912-8656-65717cdfae38',
+      badge: 'EXCLUSIVE COLLECTION',
+      title: 'Midnight Scallop Mosaic',
+      subtitle: 'Handcrafted midnight brass scallop wall with architectural luster',
+      fallbackNetworkUrl: 'https://jrrmjtbauimrrxwjvmzh.supabase.co/storage/v1/object/public/stones/catalogue/exclusive-collection/midnight-scallop-mosaic/1.jpg',
+      localAsset: 'assets/ar_textures/ex_midnight_scallop_mosaic.jpg',
+      collectionName: 'Exclusive Collection',
+    ),
+    // Slide 5: Grande Ledge Series (Cultured Stone Series)
+    _HeroSlideData(
+      stoneId: 'bbf2cb9e-cae5-464e-984a-7cc2f61e7cd2',
+      badge: 'CULTURED STONE SERIES',
+      title: 'Grande Ledge Series',
+      subtitle: 'Deep textured natural split-face stone panels for luxury feature walls',
+      fallbackNetworkUrl: 'https://jrrmjtbauimrrxwjvmzh.supabase.co/storage/v1/object/public/stones/catalogue/grande-ledge-series/1.jpg',
+      localAsset: 'assets/images/grande_ledge_ta02.png',
+      collectionName: 'Grande Ledge Series',
+    ),
+    // Slide 6: Pietra Luxe Panel (Premium Surface Collection)
+    _HeroSlideData(
+      stoneId: 'eacef3fe-34d2-4d6b-b86a-9803d97db55e',
+      badge: 'PREMIUM SURFACE',
+      title: 'Pietra Luxe Panel',
+      subtitle: 'Architectural monolithic surface with timeless understated elegance',
+      fallbackNetworkUrl: 'https://jrrmjtbauimrrxwjvmzh.supabase.co/storage/v1/object/public/stones/catalogue/premium-surface/pietra/1.jpg',
+      localAsset: 'assets/ar_textures/3d_pietra.jpg',
+      collectionName: 'Premium Surface Collection',
+    ),
+  ];
 
   // ── 1. Auto-Looping Editorial Hero Carousel (Top Premium Stones & Signature Series) ──
   Widget _buildEditorialHero(LuxuryPalette palette) {
     final screenSize = MediaQuery.of(context).size;
     final heroHeight = (screenSize.height * 0.48).clamp(385.0, 420.0);
 
-    final slides = <Widget>[
-      // Slide 1: Turquoise Lava Panel (Exclusive Collection)
-      _buildLuxuryEditorialSlide(
-        badge: 'EXCLUSIVE COLLECTION',
-        title: 'Turquoise Lava Panel',
-        subtitle: 'Oxidized copper & turquoise patina composite metallic relief panel',
-        imagePath: 'assets/images/hero_luxury_dining_fluted.jpg',
-        networkImageUrl: _findStoneImageUrl(
-          '736c7850-cf60-4345-ab1c-88e6812ea287',
-          fallback: 'https://jrrmjtbauimrrxwjvmzh.supabase.co/storage/v1/object/public/stone-images/exclusive_collection/turquoise_lava_panel.jpg',
-        ),
+    final allStones = ref.watch(allStonesProvider).value ?? _trendingStones;
+
+    final slides = _editorialHeroConfigs.map((config) {
+      final stone = allStones?.where((s) => s.id == config.stoneId).firstOrNull;
+      final networkUrl = stone?.mainImageUrl ??
+          (stone?.images.isNotEmpty == true ? stone!.images.first : null) ??
+          config.fallbackNetworkUrl;
+      final targetCollection = (stone != null && stone.collection.isNotEmpty)
+          ? stone.collection
+          : config.collectionName;
+
+      return _buildLuxuryEditorialSlide(
+        badge: config.badge,
+        title: (stone != null && stone.name.isNotEmpty) ? stone.name : config.title,
+        subtitle: (stone != null && stone.description.isNotEmpty) ? stone.description : config.subtitle,
+        imagePath: config.localAsset,
+        networkImageUrl: networkUrl,
         ctaText: 'View Stone & Specs',
         onTap: () => _openFeaturedStone(
-          stoneId: '736c7850-cf60-4345-ab1c-88e6812ea287',
-          collectionIdOrName: 'Exclusive Collection',
+          stoneId: config.stoneId,
+          collectionIdOrName: targetCollection,
         ),
-      ),
-      // Slide 2: Midnight Scallop Mosaic (Exclusive Collection)
-      _buildLuxuryEditorialSlide(
-        badge: 'EXCLUSIVE COLLECTION',
-        title: 'Midnight Scallop Mosaic',
-        subtitle: 'Handcrafted midnight brass scallop wall with architectural luster',
-        imagePath: 'assets/images/auth_luxury_background.jpg',
-        networkImageUrl: _findStoneImageUrl(
-          '6f6bd01c-a23e-4912-8656-65717cdfae38',
-          fallback: 'https://jrrmjtbauimrrxwjvmzh.supabase.co/storage/v1/object/public/stone-images/exclusive_collection/midnight_scallop_mosaic.jpg',
-        ),
-        ctaText: 'View Stone & Specs',
-        onTap: () => _openFeaturedStone(
-          stoneId: '6f6bd01c-a23e-4912-8656-65717cdfae38',
-          collectionIdOrName: 'Exclusive Collection',
-        ),
-      ),
-      // Slide 3: Turquoise Floral Heritage (Exclusive Collection)
-      _buildLuxuryEditorialSlide(
-        badge: 'EXCLUSIVE COLLECTION',
-        title: 'Turquoise Floral Heritage',
-        subtitle: 'Intricate handcrafted floral bas-relief panels in vintage turquoise brass',
-        imagePath: 'assets/images/hero_luxury_bedroom.jpg',
-        networkImageUrl: _findStoneImageUrl(
-          '8c599c3a-d101-4618-a2a4-c566f6b8234b',
-          fallback: 'https://jrrmjtbauimrrxwjvmzh.supabase.co/storage/v1/object/public/stone-images/exclusive_collection/turquoise_floral_heritage.jpg',
-        ),
-        ctaText: 'View Stone & Specs',
-        onTap: () => _openFeaturedStone(
-          stoneId: '8c599c3a-d101-4618-a2a4-c566f6b8234b',
-          collectionIdOrName: 'Exclusive Collection',
-        ),
-      ),
-      // Slide 4: Cosmic Flutes (Premium Surface Collection)
-      _buildLuxuryEditorialSlide(
-        badge: 'PREMIUM SURFACE',
-        title: 'Cosmic Flutes',
-        subtitle: 'Contemporary sculptural fluted panels with ambient architectural shadows',
-        imagePath: 'assets/images/hero_luxury_dining_fluted.jpg',
-        networkImageUrl: _findStoneImageUrl(
-          '55427fc9-f86f-4c97-b955-fd42be60be7e',
-        ),
-        ctaText: 'View Stone & Specs',
-        onTap: () => _openFeaturedStone(
-          stoneId: '55427fc9-f86f-4c97-b955-fd42be60be7e',
-          collectionIdOrName: 'Premium Surface Collection',
-        ),
-      ),
-      // Slide 5: Grande Ledge Slate (Cultured Stone Series)
-      _buildLuxuryEditorialSlide(
-        badge: 'CULTURED STONE SERIES',
-        title: 'Grande Ledge Series',
-        subtitle: 'Deep textured natural split-face stone panels for luxury feature walls',
-        imagePath: 'assets/images/hero_luxury_fireplace.jpg',
-        networkImageUrl: _findStoneImageUrl(
-          'bbf2cb9e-cae5-464e-984a-7cc2f61e7cd2',
-        ),
-        ctaText: 'View Stone & Specs',
-        onTap: () => _openFeaturedStone(
-          stoneId: 'bbf2cb9e-cae5-464e-984a-7cc2f61e7cd2',
-          collectionIdOrName: 'Grande Ledge Series',
-        ),
-      ),
-      // Slide 6: Pietra Luxe Panel (Premium Surface Collection)
-      _buildLuxuryEditorialSlide(
-        badge: 'PREMIUM SURFACE',
-        title: 'Pietra Luxe Panel',
-        subtitle: 'Architectural monolithic surface with timeless understated elegance',
-        imagePath: 'assets/images/onboarding_hero_room.jpg',
-        networkImageUrl: _findStoneImageUrl(
-          'eacef3fe-34d2-4d6b-b86a-9803d97db55e',
-        ),
-        ctaText: 'View Stone & Specs',
-        onTap: () => _openFeaturedStone(
-          stoneId: 'eacef3fe-34d2-4d6b-b86a-9803d97db55e',
-          collectionIdOrName: 'Premium Surface Collection',
-        ),
-      ),
-    ];
+      );
+    }).toList();
 
     final isDark = ref.watch(themePaletteProvider.notifier).isDarkMode;
 
@@ -540,13 +492,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            PageView.builder(
-              controller: _heroPageController,
-              itemCount: slides.length,
-              onPageChanged: (idx) {
-                setState(() => _currentHeroIndex = idx);
+            Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerDown: (_) {
+                _isUserTouchingHero = true;
+                _heroTimer?.cancel();
               },
-              itemBuilder: (context, index) => slides[index],
+              onPointerUp: (_) {
+                _isUserTouchingHero = false;
+                _startHeroTimer(slides.length);
+              },
+              onPointerCancel: (_) {
+                _isUserTouchingHero = false;
+                _startHeroTimer(slides.length);
+              },
+              child: PageView.builder(
+                controller: _heroPageController,
+                itemCount: slides.length,
+                onPageChanged: (idx) {
+                  setState(() => _currentHeroIndex = idx);
+                },
+                itemBuilder: (context, index) => slides[index],
+              ),
             ),
 
             // Top Right Indicator Pill Overlay
@@ -857,9 +824,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         onTap();
       },
       child: Container(
-        width: 36,
-        height: 36,
-        margin: const EdgeInsets.only(right: 6),
+        width: 34,
+        height: 34,
+        margin: const EdgeInsets.only(right: 4),
         decoration: BoxDecoration(
           color: palette.surface,
           shape: BoxShape.circle,
@@ -887,68 +854,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildMayaAppBarActionBtn(LuxuryPalette palette, bool isDark) {
-    return GestureDetector(
+    return Padding(
       key: _mayaAppBarKey,
-      onTap: () {
-        HapticFeedback.lightImpact();
-        context.push('/maya-ai');
-      },
-      child: Container(
-        width: 38,
-        height: 38,
-        margin: const EdgeInsets.only(right: 6),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: const Color(0xFFD4AF37),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFD4AF37).withValues(alpha: isDark ? 0.35 : 0.25),
-                    blurRadius: 8,
-                    spreadRadius: 0.5,
-                  ),
-                ],
-              ),
-              child: ClipOval(
-                child: Image.asset(
-                  'assets/images/maya_avatar.jpg',
-                  width: 36,
-                  height: 36,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => Icon(
-                    Icons.auto_awesome_rounded,
-                    color: isDark ? const Color(0xFFD4AF37) : const Color(0xFF8B6B23),
-                    size: 18,
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: 1,
-              right: 1,
-              child: Container(
-                width: 9,
-                height: 9,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2E7D32),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: palette.surface,
-                    width: 1.5,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+      padding: const EdgeInsets.only(right: 6),
+      child: AarnaLivingAvatar(
+        size: 36,
+        pose: AarnaPose.waving,
+        showSparkle: true,
+        showOnlineBadge: true,
+        onTap: () {
+          HapticFeedback.lightImpact();
+          context.push('/maya-ai');
+        },
       ),
     );
   }
@@ -1322,176 +1239,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Widget _buildMayaAiBanner(LuxuryPalette palette) {
     final isDark = ref.watch(themePaletteProvider.notifier).isDarkMode;
-    return Container(
+    return KeyedSubtree(
       key: _mayaBannerKey,
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isDark
-              ? const [Color(0xFF1E1E22), Color(0xFF141416)]
-              : const [Color(0xFFFFFFFF), Color(0xFFFBF8F2)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: isDark ? const Color(0xFFD4AF37).withValues(alpha: 0.4) : palette.border,
-          width: 1.0,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: isDark
-                ? const Color(0xFFD4AF37).withValues(alpha: 0.08)
-                : const Color(0xFF2C2416).withValues(alpha: 0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: () {
-            HapticFeedback.lightImpact();
-            context.push('/maya-ai');
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: [
-                // Glowing Maya Avatar Character
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: const Color(0xFFD4AF37),
-                          width: 1.6,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFFD4AF37).withValues(alpha: isDark ? 0.35 : 0.25),
-                            blurRadius: 10,
-                            spreadRadius: 1,
-                          ),
-                        ],
-                      ),
-                      child: ClipOval(
-                        child: Image.asset(
-                          'assets/images/maya_avatar.jpg',
-                          width: 48,
-                          height: 48,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => const Icon(
-                            Icons.auto_awesome_rounded,
-                            color: Color(0xFFD4AF37),
-                            size: 22,
-                          ),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: Container(
-                        width: 11,
-                        height: 11,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2E7D32),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: isDark ? const Color(0xFF1E1E22) : Colors.white,
-                            width: 2,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(width: 12),
-
-                // Text Description
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            'Maya AI Assistant',
-                            style: GoogleFonts.playfairDisplay(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: palette.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFD4AF37).withValues(alpha: isDark ? 0.2 : 0.12),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              'HINDI / ENG',
-                              style: GoogleFonts.inter(
-                                fontSize: 8.5,
-                                fontWeight: FontWeight.w700,
-                                color: isDark ? const Color(0xFFD4AF37) : const Color(0xFF8B6B23),
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Poochiye: Living room, exterior ya 3D stone design suggestions',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(
-                          fontSize: 11.5,
-                          color: palette.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-
-                // Pill Action Button
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFD4AF37),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Chat',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.black,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      const Icon(Icons.arrow_forward_rounded, size: 12, color: Colors.black),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+      child: AarnaAiPromptPill(
+        palette: palette,
+        isDark: isDark,
+        onTap: () {
+          HapticFeedback.lightImpact();
+          context.push('/maya-ai');
+        },
       ),
     );
   }
@@ -1878,7 +1634,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
           // Copyright
           Text(
-            '© 2026 Grazia Stones Private Limited • Unit of BNK Stones',
+            '© 2026 Grazia Stones Private Limited',
             style: GoogleFonts.inter(
               fontSize: 9.5,
               color: palette.textTertiary,
@@ -2143,5 +1899,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (diff.inDays < 7) return '${diff.inDays}d ago';
     return '${createdAt.day}/${createdAt.month}/${createdAt.year}';
   }
+}
+
+class _HeroSlideData {
+  final String stoneId;
+  final String badge;
+  final String title;
+  final String subtitle;
+  final String fallbackNetworkUrl;
+  final String localAsset;
+  final String collectionName;
+
+  const _HeroSlideData({
+    required this.stoneId,
+    required this.badge,
+    required this.title,
+    required this.subtitle,
+    required this.fallbackNetworkUrl,
+    required this.localAsset,
+    required this.collectionName,
+  });
 }
 

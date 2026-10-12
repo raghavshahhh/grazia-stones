@@ -1,3 +1,4 @@
+import 'package:grazia_stones/core/utils/responsive.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -1182,8 +1183,8 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: gridColumns(context, phone: 3),
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
         childAspectRatio: 0.82,
@@ -1859,8 +1860,8 @@ class _AIVizScreenState extends ConsumerState<AIVizScreen> {
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: gridColumns(context, phone: 2),
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
         childAspectRatio: 0.85,

@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -52,66 +51,65 @@ class _GraziaBrandLaunchOverlayState extends State<GraziaBrandLaunchOverlay>
   static const Color _goldRadiant = Color(0xFFD4AF37);
   static const Color _goldLuminous = Color(0xFFFFD700);
 
-  // Exact geometry of the unscaled AppBar brand unit:
-  // Emblem (22) + Gap (8) + Typography (~128) ≈ 158px width, ~31px height.
-  static const double _baseUnitWidth = 158.0;
-  static const double _baseUnitHeight = 31.0;
-  static const double _startScale = 1.95;
+  // Final destination matches HomeScreen AppBar title:
+  // TitleSpacing: 10, Emblem: 22x22, gap: 5, Text('GRAZIA STONES', 15.0px Playfair)
+  static const double _destEmblemSize = 22.0;
+  static const double _startEmblemSize = 76.0;
 
   @override
   void initState() {
     super.initState();
 
-    // Fast, responsive 1100ms total duration (energetic, silky & premium)
+    // 1200ms total duration for luxurious Apple-like reveal and docking
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1100),
+      duration: const Duration(milliseconds: 1200),
     );
 
     // Radiant gold aura bloom expanding from center
     _powerOnBloom = Tween<double>(begin: 0.1, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.0, 0.32, curve: Curves.easeOutCubic),
+        curve: const Interval(0.0, 0.35, curve: Curves.easeOutCubic),
       ),
     );
 
-    // Brand unit spring awakening (0.88 -> 1.04 -> 1.0)
-    _awakenScale = Tween<double>(begin: 0.88, end: 1.0).animate(
+    // Initial scale awakening
+    _awakenScale = Tween<double>(begin: 0.85, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.0, 0.32, curve: Curves.easeOutBack),
+        curve: const Interval(0.0, 0.35, curve: Curves.easeOutBack),
       ),
     );
 
-    // Specular light sweep across metallic emblem & gold wordmark
-    _shimmerSweep = Tween<double>(begin: -0.6, end: 1.8).animate(
+    // Light shimmer sweep
+    _shimmerSweep = Tween<double>(begin: -0.8, end: 2.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.06, 0.38, curve: Curves.easeInOutCubic),
+        curve: const Interval(0.08, 0.45, curve: Curves.easeInOutCubic),
       ),
     );
 
-    // Apple fluid flight curve (fast confident takeoff, ultra-soft gradual dock)
+    // Flight curve: starts gliding up around 0.38
     _flightCurve = CurvedAnimation(
       parent: _controller,
       curve: const Interval(
-        0.32,
-        0.95,
-        curve: Cubic(0.20, 0.0, 0.05, 1.0), // Signature iOS fluid motion curve
+        0.36,
+        0.96,
+        curve: Cubic(0.20, 0.0, 0.05, 1.0),
       ),
     );
 
-    // Obsidian backdrop dissolves smoothly during flight
+    // Backdrop fades out as it docks
     _backdropFade = Tween<double>(begin: 1.0, end: 0.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.42, 0.90, curve: Curves.easeOut),
+        curve: const Interval(0.48, 0.92, curve: Curves.easeOut),
       ),
     );
 
     _controller.addListener(() {
-      if (_flightCurve.value > 0.90 && !_dockHapticPlayed) {
+      if (_flightCurve.value > 0.92 && !_dockHapticPlayed) {
         _dockHapticPlayed = true;
         HapticFeedback.selectionClick();
       }
@@ -148,15 +146,13 @@ class _GraziaBrandLaunchOverlayState extends State<GraziaBrandLaunchOverlay>
     final size = media.size;
 
     // Destination: exactly where HomeScreen's AppBar title is rendered:
-    // In AppBar: titleSpacing = 14.0, kToolbarHeight = 56.0.
-    // Center title vertically: (56.0 - 31.0) / 2 = 12.5 ≈ 13.0.
-    const destX = 14.0;
-    final destY = topPadding + 13.0;
+    // AppBar: titleSpacing = 10.0, kToolbarHeight = 56.0.
+    // Center title vertically: topPadding + (56.0 - 24.0) / 2 = topPadding + 16.0
+    const destX = 10.0;
+    final destY = topPadding + 16.0;
 
-    // Start: Centered horizontally and optical center vertically (0.44 height)
-    final centerY = size.height * 0.44;
-    final startX = (size.width - (_baseUnitWidth * _startScale)) / 2;
-    final startY = centerY - ((_baseUnitHeight * _startScale) / 2);
+    // Start center:
+    final centerY = size.height * 0.42;
 
     final targetGoldColor =
         widget.isDark ? const Color(0xFFD4AF37) : const Color(0xFF8B6B23);
@@ -174,29 +170,17 @@ class _GraziaBrandLaunchOverlayState extends State<GraziaBrandLaunchOverlay>
           return const SizedBox.shrink();
         }
 
-        // Calculate synchronous position and scale
-        final double curScale;
-        final double curX;
-        final double curY;
-
-        if (flight == 0.0) {
-          curScale = _startScale * awaken;
-          curX = (size.width - (_baseUnitWidth * curScale)) / 2;
-          curY = centerY - ((_baseUnitHeight * curScale) / 2);
-        } else {
-          curScale = Tween<double>(begin: _startScale, end: 1.0).transform(flight);
-          curX = Tween<double>(begin: startX, end: destX).transform(flight);
-          curY = Tween<double>(begin: startY, end: destY).transform(flight);
-        }
-
         final curGoldColor =
             Color.lerp(_goldRadiant, targetGoldColor, flight) ?? _goldRadiant;
-        final curSubtitleColor = Color.lerp(
-              const Color(0xFFA0A0A0),
-              widget.palette.textSecondary,
-              flight,
-            ) ??
-            widget.palette.textSecondary;
+
+        // Size and gap interpolation
+        final emblemSize = Tween<double>(begin: _startEmblemSize, end: _destEmblemSize).transform(flight) * (flight == 0 ? awaken : 1.0);
+        final fontSize = Tween<double>(begin: 24.0, end: 15.0).transform(flight);
+        final letterSpacing = Tween<double>(begin: 3.5, end: 1.0).transform(flight);
+
+        // Position coordinates
+        final curX = Tween<double>(begin: (size.width - 240) / 2, end: destX).transform(flight);
+        final curY = Tween<double>(begin: centerY - 60, end: destY).transform(flight);
 
         final haloAlpha = (bloom * (1.0 - flight * 1.6)).clamp(0.0, 1.0);
 
@@ -205,7 +189,7 @@ class _GraziaBrandLaunchOverlayState extends State<GraziaBrandLaunchOverlay>
           behavior: HitTestBehavior.opaque,
           child: Stack(
             children: [
-              // 1. Deep Obsidian Background (#151413) - 1:1 match with native launch screen
+              // 1. Deep Obsidian Background (#151413)
               if (bgOpacity > 0.0)
                 Positioned.fill(
                   child: Opacity(
@@ -215,7 +199,7 @@ class _GraziaBrandLaunchOverlayState extends State<GraziaBrandLaunchOverlay>
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
-                          // Radiant ambient gold bloom behind center (powers on with energy)
+                          // Radiant ambient gold bloom behind center
                           Container(
                             width: size.width * 1.15,
                             height: size.width * 1.15,
@@ -241,133 +225,83 @@ class _GraziaBrandLaunchOverlayState extends State<GraziaBrandLaunchOverlay>
                   ),
                 ),
 
-              // 2. UNIFIED BRAND UNIT (Emblem + Wordmark locked in perfect harmony)
+              // 2. Center/Docking Brand Unit
               Positioned(
                 left: curX,
                 top: curY,
-                child: Transform.scale(
-                  scale: curScale,
-                  alignment: Alignment.topLeft,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      // The pristine brand lockup (1:1 structural match to AppBar title)
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          // Gold Monogram with soft luminous halo
-                          Stack(
-                            clipBehavior: Clip.none,
-                            alignment: Alignment.center,
-                            children: [
-                              // Concentric golden energy halo
-                              if (haloAlpha > 0.02)
-                                Container(
-                                  width: 26,
-                                  height: 26,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: _goldLuminous.withValues(
-                                          alpha: 0.55 * haloAlpha,
+                child: flight < 0.35
+                    // CENTER STAGE: Logo on top, GRAZIA STONES underneath, centered
+                    ? SizedBox(
+                        width: 240,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            // Glowing Center Emblem
+                            Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                if (haloAlpha > 0.02)
+                                  Container(
+                                    width: emblemSize * 1.3,
+                                    height: emblemSize * 1.3,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: _goldLuminous.withValues(alpha: 0.55 * haloAlpha),
+                                          blurRadius: 28,
+                                          spreadRadius: 4,
                                         ),
-                                        blurRadius: 20,
-                                        spreadRadius: 3,
-                                      ),
-                                      BoxShadow(
-                                        color: _goldRadiant.withValues(
-                                          alpha: 0.35 * haloAlpha,
-                                        ),
-                                        blurRadius: 40,
-                                        spreadRadius: 7,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              Image.asset(
-                                'assets/brand/grazia-emblem-gold.png',
-                                height: 22,
-                                width: 22,
-                                fit: BoxFit.contain,
-                              ),
-                            ],
-                          ),
-
-                          const SizedBox(width: 8),
-
-                          // Brand Typography
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    'GRAZIA',
-                                    style: GoogleFonts.playfairDisplay(
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 1.8,
-                                      color: curGoldColor,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'STONES',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 9.5,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 1.5,
-                                      color: curGoldColor,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Text(
-                                'UNIT OF BNK STONES',
-                                style: GoogleFonts.inter(
-                                  fontSize: 7.5,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: 1.2,
-                                  color: curSubtitleColor,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-
-                      // Metallic Specular Shimmer Beam across the entire lockup
-                      if (flight < 0.25 && shimmerVal > -0.4 && shimmerVal < 1.4)
-                        Positioned.fill(
-                          child: ClipRect(
-                            child: Transform.translate(
-                              offset: Offset(shimmerVal * _baseUnitWidth, 0),
-                              child: Transform.rotate(
-                                angle: math.pi / 5,
-                                child: Container(
-                                  width: 24,
-                                  height: _baseUnitHeight * 2.5,
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        Colors.white.withValues(alpha: 0.0),
-                                        Colors.white.withValues(alpha: 0.45),
-                                        Colors.white.withValues(alpha: 0.0),
                                       ],
                                     ),
                                   ),
+                                Image.asset(
+                                  'assets/brand/grazia-emblem-gold.png',
+                                  height: emblemSize,
+                                  width: emblemSize,
+                                  fit: BoxFit.contain,
                                 ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            // Text underneath in center
+                            Text(
+                              'GRAZIA STONES',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.playfairDisplay(
+                                fontSize: fontSize,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: letterSpacing,
+                                color: curGoldColor,
                               ),
                             ),
-                          ),
+                          ],
                         ),
-                    ],
-                  ),
-                ),
+                      )
+                    // FLIGHT & DOCKING STAGE: Glides up and smoothly transforms into AppBar Row
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Image.asset(
+                            'assets/brand/grazia-emblem-gold.png',
+                            height: emblemSize,
+                            width: emblemSize,
+                            fit: BoxFit.contain,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            'GRAZIA STONES',
+                            style: GoogleFonts.playfairDisplay(
+                              fontSize: fontSize,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: letterSpacing,
+                              color: curGoldColor,
+                            ),
+                          ),
+                        ],
+                      ),
               ),
             ],
           ),
