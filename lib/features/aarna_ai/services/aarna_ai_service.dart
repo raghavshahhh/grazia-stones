@@ -4,7 +4,7 @@ import 'package:grazia_stones/core/models/collection.dart';
 import 'package:grazia_stones/core/services/ai_endpoint_client.dart';
 import 'package:grazia_stones/core/services/mock_data_service.dart';
 
-class MayaChatMessage {
+class AarnaChatMessage {
   final String id;
   final String text;
   final bool isUser;
@@ -13,7 +13,7 @@ class MayaChatMessage {
   final List<Collection> recommendedCollections;
   final bool isLoading;
 
-  const MayaChatMessage({
+  const AarnaChatMessage({
     required this.id,
     required this.text,
     required this.isUser,
@@ -23,7 +23,7 @@ class MayaChatMessage {
     this.isLoading = false,
   });
 
-  MayaChatMessage copyWith({
+  AarnaChatMessage copyWith({
     String? id,
     String? text,
     bool? isUser,
@@ -32,7 +32,7 @@ class MayaChatMessage {
     List<Collection>? recommendedCollections,
     bool? isLoading,
   }) {
-    return MayaChatMessage(
+    return AarnaChatMessage(
       id: id ?? this.id,
       text: text ?? this.text,
       isUser: isUser ?? this.isUser,
@@ -44,17 +44,17 @@ class MayaChatMessage {
   }
 }
 
-class MayaAIService {
-  static final MayaAIService instance = MayaAIService._();
-  MayaAIService._();
+class AarnaAIService {
+  static final AarnaAIService instance = AarnaAIService._();
+  AarnaAIService._();
 
   /// Main conversation method: Queries Gemini with catalogue grounding & returns
   /// tailored architectural advice with matching Architectural Collections & Design Suites.
-  Future<MayaChatMessage> askMaya({
+  Future<AarnaChatMessage> askAarna({
     required String userQuery,
     required List<Stone> catalogueStones,
     List<Collection> allCollections = const [],
-    List<MayaChatMessage> history = const [],
+    List<AarnaChatMessage> history = const [],
   }) async {
     // 1. Ensure stones & collections available (fallback to authentic offline catalogue if empty)
     final pool = catalogueStones.isNotEmpty ? catalogueStones : MockDataService.stones;
@@ -65,7 +65,7 @@ class MayaAIService {
     final matchedStones = _filterMatchingStones(userQuery, pool);
 
     // 3. Live catalogue facts for grounding (brand knowledge + persona live
-    // on the server in api/maya.js, so the Gemini key never ships in the app).
+    // on the server in api/aarna.js, so the Gemini key never ships in the app).
     final catalogueSummary = _buildCatalogueSummary(
       matchedCollections,
       matchedStones.isNotEmpty ? matchedStones : pool.take(15).toList(),
@@ -83,7 +83,7 @@ class MayaAIService {
           ? recentHistory.sublist(recentHistory.length - 6)
           : recentHistory;
 
-      final data = await AIEndpointClient.post('/api/maya', {
+      final data = await AIEndpointClient.post('/api/aarna', {
         'message': userQuery,
         'history': [
           for (final m in tail) {'role': m.isUser ? 'user' : 'model', 'text': m.text},
@@ -94,7 +94,7 @@ class MayaAIService {
       final rawText = (data['text'] as String?)?.trim() ?? '';
       if (rawText.isNotEmpty) {
         final sanitizedText = _sanitizeResponse(rawText, matchedCollections, matchedStones);
-        return MayaChatMessage(
+        return AarnaChatMessage(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
           text: sanitizedText,
           isUser: false,
@@ -104,14 +104,14 @@ class MayaAIService {
         );
       }
     } catch (e) {
-      debugPrint('⚠️ [MayaAIService] Maya proxy error, using local fallback: $e');
+      debugPrint('⚠️ [AarnaAIService] Aarna proxy error, using local fallback: $e');
     }
 
     // 5. Intelligent Offline/Local Architectural Engine Fallback
     // Guaranteed instant, high-quality consultation in English or Hindi!
     final fallbackResponse = _generateLocalArchitecturalAdvice(userQuery, matchedCollections, matchedStones);
 
-    return MayaChatMessage(
+    return AarnaChatMessage(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       text: fallbackResponse,
       isUser: false,

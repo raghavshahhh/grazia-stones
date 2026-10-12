@@ -107,6 +107,7 @@ dependencies:
   video_player: ^2.9.2  # splash brand animation
 
   flutter_cache_manager: any
+  webview_flutter: ^4.14.1
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -161,6 +162,7 @@ flutter:
     - assets/ar_textures/
     - assets/icons/
     - assets/lottie/
+    - assets/3d/
     - assets/catalogues/
     - assets/video/
     - assets/fonts/

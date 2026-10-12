@@ -17,7 +17,7 @@ class AppInteractiveTourOverlay extends StatefulWidget {
   final LuxuryPalette palette;
   final GlobalKey? arKey;
   final GlobalKey? addKey;
-  final GlobalKey? mayaKey;
+  final GlobalKey? aarnaKey;
   final GlobalKey? collectionsKey;
 
   const AppInteractiveTourOverlay({
@@ -26,7 +26,7 @@ class AppInteractiveTourOverlay extends StatefulWidget {
     required this.palette,
     this.arKey,
     this.addKey,
-    this.mayaKey,
+    this.aarnaKey,
     this.collectionsKey,
   });
 
@@ -64,7 +64,7 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
       'subtitle':
           'Namaste! Main hoon Aarna — Grazia Stones ki 24/7 AI Architectural Consultant. Poochiye mujhse Hindi ya English me — "living room ke liye premium stone designs", "villa exterior cladding", ya "budget estimates". Main 35 collections me se perfect design recommend karungi!',
       'icon': Icons.smart_toy_rounded,
-      'targetType': 'maya_app_bar',
+      'targetType': 'aarna_app_bar',
       'targetLabel': 'Aarna AI in Top Navigation Bar',
       'chips': ['🛋️ Living Room Wall', '🏛️ Villa Facade', '📐 3D Fluted Panels'],
     },
@@ -135,10 +135,10 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
     }
   }
 
-  void _openMaya() {
+  void _openAarna() {
     HapticFeedback.mediumImpact();
     _finishTour();
-    context.push('/maya-ai');
+    context.push('/aarna-ai');
   }
 
   /// Calculates the spotlight punch-out rect for the active step.
@@ -175,8 +175,8 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
         );
 
       case 1:
-        // Step 2: Maya AI Assistant Avatar in top AppBar
-        final box = widget.mayaKey?.currentContext?.findRenderObject() as RenderBox?;
+        // Step 2: Aarna AI Assistant Avatar in top AppBar
+        final box = widget.aarnaKey?.currentContext?.findRenderObject() as RenderBox?;
         if (box != null && box.hasSize) {
           final pos = box.localToGlobal(Offset.zero);
           final center = Offset(pos.dx + box.size.width / 2, pos.dy + box.size.height / 2);
@@ -319,14 +319,14 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
   }
 
   Widget _buildTopHeaderBar(double topPadding) {
-    final isMayaStep = _currentStep == 1;
+    final isAarnaStep = _currentStep == 1;
 
     return Positioned(
       top: topPadding + 10,
       left: 16,
-      right: isMayaStep ? null : 16,
+      right: isAarnaStep ? null : 16,
       child: Row(
-        mainAxisAlignment: isMayaStep ? MainAxisAlignment.start : MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: isAarnaStep ? MainAxisAlignment.start : MainAxisAlignment.spaceBetween,
         children: [
           // Frosted Glass Guide Pill
           ClipRRect(
@@ -369,7 +369,7 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
             ),
           ),
 
-          if (isMayaStep) const SizedBox(width: 8),
+          if (isAarnaStep) const SizedBox(width: 8),
 
           // Skip Tour Button
           ClipRRect(
@@ -428,7 +428,7 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
     required Color gold,
   }) {
     final isAbove = target.tooltipPosition == _TooltipPlacement.aboveTarget;
-    final isMayaStep = _currentStep == 1;
+    final isAarnaStep = _currentStep == 1;
 
     double? cardTop;
     double? cardBottom;
@@ -511,8 +511,8 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
                   },
                   child: KeyedSubtree(
                     key: ValueKey<int>(_currentStep),
-                    child: isMayaStep
-                        ? _buildMayaCardContent(gold)
+                    child: isAarnaStep
+                        ? _buildAarnaCardContent(gold)
                         : _buildStandardCardContent(step, isLast, gold),
                   ),
                 ),
@@ -570,8 +570,8 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
     );
   }
 
-  /// Specialized Luxury Card for Introducing Maya AI
-  Widget _buildMayaCardContent(Color gold) {
+  /// Specialized Luxury Card for Introducing Aarna AI
+  Widget _buildAarnaCardContent(Color gold) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -580,7 +580,7 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
         _buildSegmentedProgressBar(gold),
         const SizedBox(height: 14),
 
-        // 1. Maya Identity Header with Glowing Portrait & Active Status
+        // 1. Aarna Identity Header with Glowing Portrait & Active Status
         Row(
           children: [
             Stack(
@@ -751,7 +751,7 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
               child: SizedBox(
                 height: 44,
                 child: ElevatedButton(
-                  onPressed: _openMaya,
+                  onPressed: _openAarna,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: gold,
                     foregroundColor: Colors.black,
@@ -821,7 +821,7 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
 
   Widget _buildSamplePromptChip(String text, Color gold) {
     return GestureDetector(
-      onTap: _openMaya,
+      onTap: _openAarna,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(

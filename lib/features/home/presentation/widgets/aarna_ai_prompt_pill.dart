@@ -140,7 +140,7 @@ class _AarnaAiPromptPillState extends State<AarnaAiPromptPill>
     if (widget.onTap != null) {
       widget.onTap!();
     } else {
-      context.push('/maya-ai');
+      context.push('/aarna-ai');
     }
   }
 

@@ -38,8 +38,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _isLoading = true;
   Object? _loadError;
 
-  final GlobalKey _mayaBannerKey = GlobalKey();
-  final GlobalKey _mayaAppBarKey = GlobalKey();
+  final GlobalKey _aarnaBannerKey = GlobalKey();
+  final GlobalKey _aarnaAppBarKey = GlobalKey();
 
   late PageController _heroPageController;
   late final ScrollController _scrollController;
@@ -68,7 +68,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       pageBuilder: (dialogContext, animation, secondaryAnimation) {
         return AppInteractiveTourOverlay(
           palette: palette,
-          mayaKey: _mayaAppBarKey,
+          aarnaKey: _aarnaAppBarKey,
           collectionsKey: GraziaBottomNav.collectionsKey,
           onDismiss: () {
             StorageService.instance.setHasSeenAppTour(true);
@@ -216,7 +216,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ),
       actions: [
-          _buildMayaAppBarActionBtn(palette, isDark),
+          _buildAarnaAppBarActionBtn(palette, isDark),
           _buildAppBarActionBtn(
             icon: Icon(
               isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
@@ -318,9 +318,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
                       const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
-                      // 1.5 Maya AI Interactive Architectural Consultation Bar
+                      // 1.5 Aarna AI Interactive Architectural Consultation Bar
                       SliverToBoxAdapter(
-                        child: _buildMayaAiBanner(palette),
+                        child: _buildAarnaAiBanner(palette),
                       ),
 
                       const SliverToBoxAdapter(child: SizedBox(height: 20)),
@@ -853,9 +853,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _buildMayaAppBarActionBtn(LuxuryPalette palette, bool isDark) {
+  Widget _buildAarnaAppBarActionBtn(LuxuryPalette palette, bool isDark) {
     return Padding(
-      key: _mayaAppBarKey,
+      key: _aarnaAppBarKey,
       padding: const EdgeInsets.only(right: 6),
       child: AarnaLivingAvatar(
         size: 36,
@@ -864,7 +864,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         showOnlineBadge: true,
         onTap: () {
           HapticFeedback.lightImpact();
-          context.push('/maya-ai');
+          context.push('/aarna-ai');
         },
       ),
     );
@@ -1237,16 +1237,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _buildMayaAiBanner(LuxuryPalette palette) {
+  Widget _buildAarnaAiBanner(LuxuryPalette palette) {
     final isDark = ref.watch(themePaletteProvider.notifier).isDarkMode;
     return KeyedSubtree(
-      key: _mayaBannerKey,
+      key: _aarnaBannerKey,
       child: AarnaAiPromptPill(
         palette: palette,
         isDark: isDark,
         onTap: () {
           HapticFeedback.lightImpact();
-          context.push('/maya-ai');
+          context.push('/aarna-ai');
         },
       ),
     );

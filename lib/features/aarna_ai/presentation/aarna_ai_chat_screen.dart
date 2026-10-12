@@ -7,18 +7,18 @@ import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/models/collection.dart';
 import 'package:grazia_stones/core/providers/stone_providers.dart' show allStonesProvider, allCollectionsProvider;
-import 'package:grazia_stones/features/maya_ai/services/maya_ai_service.dart';
+import 'package:grazia_stones/features/aarna_ai/services/aarna_ai_service.dart';
 import 'package:grazia_stones/core/services/mock_data_service.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 import 'package:grazia_stones/shared/widgets/aarna_living_avatar.dart';
 
-class MayaAIChatScreen extends ConsumerStatefulWidget {
-  const MayaAIChatScreen({super.key});
+class AarnaAIChatScreen extends ConsumerStatefulWidget {
+  const AarnaAIChatScreen({super.key});
 
   @override
-  ConsumerState<MayaAIChatScreen> createState() => _MayaAIChatScreenState();
+  ConsumerState<AarnaAIChatScreen> createState() => _AarnaAIChatScreenState();
 }
 
 class _AarnaCapability {
@@ -37,10 +37,10 @@ class _AarnaCapability {
   });
 }
 
-class _MayaAIChatScreenState extends ConsumerState<MayaAIChatScreen> {
+class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final List<MayaChatMessage> _messages = [];
+  final List<AarnaChatMessage> _messages = [];
   bool _isTyping = false;
   AarnaPose _activeHeroPose = AarnaPose.idle;
 
@@ -103,7 +103,7 @@ class _MayaAIChatScreenState extends ConsumerState<MayaAIChatScreen> {
         .toList();
 
     _messages.add(
-      MayaChatMessage(
+      AarnaChatMessage(
         id: 'welcome',
         text:
             'Hello! I am **Aarna**, your 3D AI architectural consultant for Grazia Stones.\n\n*AARNA — Your Vision, My Intelligence.*\n\nExplore our complete architectural suites and design collections curated below. Tap any collection to view all designs, or ask me for personalized space pairings!',
@@ -141,7 +141,7 @@ class _MayaAIChatScreenState extends ConsumerState<MayaAIChatScreen> {
     _textController.clear();
     HapticFeedback.lightImpact();
 
-    final userMsg = MayaChatMessage(
+    final userMsg = AarnaChatMessage(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       text: trimmed,
       isUser: true,
@@ -180,7 +180,7 @@ class _MayaAIChatScreenState extends ConsumerState<MayaAIChatScreen> {
     }
 
     try {
-      final aiResponse = await MayaAIService.instance.askMaya(
+      final aiResponse = await AarnaAIService.instance.askAarna(
         userQuery: trimmed,
         catalogueStones: catalogue,
         allCollections: collections,
@@ -216,7 +216,7 @@ class _MayaAIChatScreenState extends ConsumerState<MayaAIChatScreen> {
       if (!mounted) return;
       setState(() {
         _messages.add(
-          MayaChatMessage(
+          AarnaChatMessage(
             id: DateTime.now().millisecondsSinceEpoch.toString(),
             text:
                 'Shama kijiye, abhi response generate karne me dikkat aayi. Aap kripya dubara poochiye ya hamare architectural collections explore kijiye.',
@@ -466,7 +466,7 @@ class _MayaAIChatScreenState extends ConsumerState<MayaAIChatScreen> {
     );
   }
 
-  Widget _buildMessageItem(MayaChatMessage msg, LuxuryPalette palette, bool isDark) {
+  Widget _buildMessageItem(AarnaChatMessage msg, LuxuryPalette palette, bool isDark) {
     if (msg.isUser) {
       return Align(
         alignment: Alignment.centerRight,
@@ -491,7 +491,7 @@ class _MayaAIChatScreenState extends ConsumerState<MayaAIChatScreen> {
       );
     }
 
-    // Maya Message
+    // Aarna Message
     return Container(
       margin: const EdgeInsets.only(bottom: 18),
       child: Column(
@@ -1229,7 +1229,8 @@ class _MayaAIChatScreenState extends ConsumerState<MayaAIChatScreen> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 AarnaLivingAvatar(
-                  size: 100,
+                  size: 120,
+                  greetOnLoad: true,
                   shape: BoxShape.rectangle,
                   borderRadius: BorderRadius.circular(18),
                   pose: _isTyping ? AarnaPose.searching : _activeHeroPose,

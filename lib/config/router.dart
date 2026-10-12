@@ -56,7 +56,7 @@ import '../features/legal/presentation/terms_of_service_screen.dart';
 import '../features/support/presentation/help_support_screen.dart';
 import '../features/measure/presentation/boq_calculator_screen.dart';
 import '../features/custom_design/presentation/custom_design_screen.dart';
-import '../features/maya_ai/presentation/maya_ai_chat_screen.dart';
+import '../features/aarna_ai/presentation/aarna_ai_chat_screen.dart';
 import '../core/di.dart';
 import '../core/models/stone.dart';
 
@@ -601,16 +601,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
 
       GoRoute(
-        path: '/maya-ai',
+        path: '/aarna-ai',
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => _slideUpPage(
-          const MayaAIChatScreen(),
+          const AarnaAIChatScreen(),
           state,
         ),
       ),
       GoRoute(
         path: '/ai-chat',
-        redirect: (context, state) => '/maya-ai',
+        redirect: (context, state) => '/aarna-ai',
       ),
       GoRoute(
         path: '/studio',

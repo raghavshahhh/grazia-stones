@@ -11,7 +11,7 @@ import 'package:grazia_stones/core/services/storage_service.dart';
 import 'package:grazia_stones/core/services/supabase_service.dart';
 
 const _stops = <(String, String)>[
-  ('app-maya', '/maya-ai'),
+  ('app-aarna', '/aarna-ai'),
 ];
 
 void main() async {
@@ -25,9 +25,10 @@ void main() async {
 
   final router = container.read(appRouterProvider);
   await Future<void>.delayed(const Duration(seconds: 12));
+  debugPrint('REC_START');
   for (final (name, path) in _stops) {
     router.go(path);
-    await Future<void>.delayed(const Duration(seconds: 10));
+    await Future<void>.delayed(const Duration(seconds: 28));
     debugPrint('SHOT:$name');
     await Future<void>.delayed(const Duration(seconds: 3));
   }
