@@ -171,6 +171,9 @@ class ARCoreManager private constructor(context: Context) {
     }
 
     fun destroy() {
+        // INITIALIZED -> DESTROYED is an illegal transition; if AR never started
+        // there is nothing to tear down and moving the state crashes the Activity.
+        if (lifecycleOwner.registry.currentState == Lifecycle.State.INITIALIZED) return
         lifecycleOwner.registry.currentState = Lifecycle.State.DESTROYED
     }
 
