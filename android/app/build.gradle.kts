@@ -96,6 +96,8 @@ kotlin {
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
+
     // ARCore
     implementation("com.google.ar:core:1.38.0")
 

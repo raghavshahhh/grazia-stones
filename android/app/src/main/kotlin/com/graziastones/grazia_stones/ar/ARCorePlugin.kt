@@ -235,6 +235,15 @@ class ARCorePlugin : FlutterPlugin, MethodCallHandler, StreamHandler {
                     result.error("INVALID_ARGS", "Missing screen coordinates", null)
                 }
             }
+            "detectObjectAtScreenPoint" -> {
+                val screenX = call.argument<Double>("screenX")?.toFloat()
+                val screenY = call.argument<Double>("screenY")?.toFloat()
+                if (screenX != null && screenY != null) {
+                    result.success(arCoreManager?.detectObjectAtScreenPoint(screenX, screenY) ?: mapOf("error" to "no_manager"))
+                } else {
+                    result.error("INVALID_ARGS", "Missing screen coordinates", null)
+                }
+            }
             "projectMeasurementAnchors" -> {
                 val ids = call.argument<List<String>>("ids") ?: emptyList()
                 result.success(arCoreManager?.projectMeasurementAnchors(ids) ?: emptyList<Map<String, Any>>())

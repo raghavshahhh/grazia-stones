@@ -269,6 +269,21 @@ class ARNativeChannel {
     }
   }
 
+  /// Auto ruler: outlines the object under [screenPoint] and pins its 4 corners. Returns `{ids, world, screen}`, or
+  /// `{error: ...}` ('no_object', 'no_surface', 'not_tracking', ...) when it could not be measured. Android only.
+  static Future<Map<String, dynamic>> detectObjectAtScreenPoint(Offset screenPoint) async {
+    try {
+      final p = _toNativeScreenPoint(screenPoint);
+      final result = await _channel.invokeMethod('detectObjectAtScreenPoint', {'screenX': p.dx, 'screenY': p.dy});
+      return Map<String, dynamic>.from(result as Map);
+    } on PlatformException catch (e) {
+      debugPrint('[ARNativeChannel] detectObject failed: ${e.message}');
+      return {'error': 'failed'};
+    } on MissingPluginException {
+      return {'error': 'unsupported'};
+    }
+  }
+
   /// Where the ruler pins are on screen right now (logical pixels), so pins and lines stay on the real
   /// object while the phone moves. An entry is null when that pin is behind the camera or not tracked.
   static Future<List<Offset?>> projectMeasurementAnchors(List<String> anchorIds) async {

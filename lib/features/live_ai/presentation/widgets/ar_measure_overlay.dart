@@ -68,6 +68,8 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
   Duration _lastTick = Duration.zero;
   bool _ticking = false;
   String _unit = 'cm';
+  bool _closed =
+      false; // Auto mode: the 4 pins form a closed outline (last pin joins the first)
   bool _busy = false;
 
   // Shutter Flash Animation
@@ -143,7 +145,7 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
 
   /// Length of the live segment from the last pin to whatever the reticle is on (null until both exist).
   double? get _liveMeters {
-    if (_worldPoints.isEmpty || _probeWorld == null) return null;
+    if (_closed || _worldPoints.isEmpty || _probeWorld == null) return null;
     return _dist(_worldPoints.last, _probeWorld!);
   }
 
@@ -247,9 +249,75 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
     });
   }
 
+  static const _autoErrors = {
+    'no_object':
+        'Could not outline an object. Keep ONE object centered, with a clear edge against its background.',
+    'no_surface':
+        'Could not read the surface under the corners. Move the phone slowly and try again.',
+    'not_tracking':
+        'Camera is still finding its position. Move your phone slowly and try again.',
+    'unsupported':
+        'Auto outline is not available on this device yet. Use + to place points.',
+  };
+
+  /// Outlines the object under the reticle and measures all 4 sides at once (A4 sheet, tile, panel, table top).
+  Future<void> _autoDetect() async {
+    if (_busy) return;
+    HapticFeedback.mediumImpact();
+    setState(() => _busy = true);
+    final r = await ARNativeChannel.detectObjectAtScreenPoint(
+      _centerReticleOffset,
+    );
+    if (!mounted) return;
+    final err = r['error'] as String?;
+    if (err != null) {
+      setState(() => _busy = false);
+      LuxuryToast.show(
+        context,
+        message: _autoErrors[err] ?? 'Could not measure that. Try again.',
+      );
+      return;
+    }
+    final ids = List<String>.from(r['ids'] as List);
+    final world = [
+      for (final w in r['world'] as List)
+        [for (final v in w as List) (v as num).toDouble()],
+    ];
+    final screen = [
+      for (final p in r['screen'] as List)
+        Offset((p['x'] as num).toDouble(), (p['y'] as num).toDouble()),
+    ];
+    setState(() {
+      _anchorIds
+        ..clear()
+        ..addAll(ids);
+      _worldPoints
+        ..clear()
+        ..addAll(world);
+      _segmentMeters
+        ..clear()
+        ..addAll([
+          for (var i = 0; i < world.length; i++)
+            _dist(world[i], world[(i + 1) % world.length]),
+        ]);
+      _pinScreen = screen;
+      _pinShown = List.of(screen);
+      _pinBornMs
+        ..clear()
+        ..addAll(List.filled(ids.length, _clock.elapsedMilliseconds));
+      _closed = true;
+      _liveShown = null;
+      _busy = false;
+    });
+  }
+
   void _undoPoint() {
     if (_anchorIds.isEmpty) return;
     HapticFeedback.selectionClick();
+    if (_closed) {
+      _clearAllPoints();
+      return;
+    }
     // The native anchor of the removed pin is dropped with the rest on Clear; a stale one is never drawn
     // because the overlay only projects ids it still holds.
     setState(() {
@@ -269,6 +337,7 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
 
   void _clearAllPoints() {
     HapticFeedback.heavyImpact();
+    _closed = false;
     ARNativeChannel.clearMeasurement();
     setState(() {
       _anchorIds.clear();
@@ -387,6 +456,7 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
                   unit: () => _unit,
                   segmentMeters: () => _segmentMeters,
                   liveMeters: () => _liveShown,
+                  closed: () => _closed,
                 ),
                 size: Size.infinite,
               ),
@@ -423,6 +493,9 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
 
             // 5. Triple Action Deck (Undo, '+', Shutter)
             _buildActionControlDeck(),
+
+            // 5b. Auto: outline the object under the reticle and measure all its sides
+            if (_currentMode == _MeasureMode.measure) _buildAutoButton(),
 
             // 6. Bottom Segmented Capsule (Measure | Level)
             _buildBottomSegmentedPill(),
@@ -609,6 +682,53 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
   }
 
   // ── Triple Action Deck (Undo, '+', Shutter) ──────────────────────────
+
+  Widget _buildAutoButton() {
+    final bottom = MediaQuery.of(context).padding.bottom + 76 + 76 + 14;
+    return Positioned(
+      bottom: bottom,
+      right: 20,
+      child: ApplePressable(
+        onTap: _busy ? null : _autoDetect,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(22),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C1C1E).withValues(alpha: 0.82),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(
+                  color: const Color(0xFFC8A53C).withValues(alpha: 0.7),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.crop_free_rounded,
+                    color: Color(0xFFC8A53C),
+                    size: 18,
+                  ),
+                  const SizedBox(width: 7),
+                  Text(
+                    'Auto',
+                    style: GoogleFonts.inter(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _buildActionControlDeck() {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
@@ -1054,7 +1174,6 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
         66 +
         48; // below the top bar and the Back button
     final live = _liveMeters;
-    final reading = live ?? (_anchorIds.isEmpty ? _probeDistance : null);
     return Positioned(
       top: top,
       left: 16,
@@ -1111,8 +1230,8 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
           Text(
             live != null
                 ? 'Tap + to add the next point'
-                : (reading != null
-                      ? 'Surface ${formatMeasureLength(reading, _unit)} away'
+                : (_probeDistance != null
+                      ? 'Surface ${formatMeasureLength(_probeDistance!, _unit)} away'
                       : 'Searching for a surface...'),
             style: GoogleFonts.inter(
               color: Colors.white,
@@ -1220,6 +1339,7 @@ class _AppleRulerPainter extends CustomPainter {
   final String Function() unit;
   final List<double> Function() segmentMeters;
   final double? Function() liveMeters;
+  final bool Function() closed;
 
   _AppleRulerPainter({
     required Listenable repaint,
@@ -1230,6 +1350,7 @@ class _AppleRulerPainter extends CustomPainter {
     required this.unit,
     required this.segmentMeters,
     required this.liveMeters,
+    required this.closed,
   }) : super(repaint: repaint);
 
   @override
@@ -1249,9 +1370,10 @@ class _AppleRulerPainter extends CustomPainter {
       ..strokeWidth = 4.4
       ..strokeCap = StrokeCap.round;
 
-    for (var i = 0; i < pts.length - 1; i++) {
+    final isClosed = closed() && pts.length > 2;
+    for (var i = 0; i < (isClosed ? pts.length : pts.length - 1); i++) {
       final a = pts[i];
-      final b = pts[i + 1];
+      final b = pts[(i + 1) % pts.length];
       if (a == null || b == null || i >= segs.length) continue;
       _segment(
         canvas,
@@ -1264,7 +1386,7 @@ class _AppleRulerPainter extends CustomPainter {
       );
     }
     // Live segment: last pin -> reticle
-    final last = pts.isNotEmpty ? pts.last : null;
+    final last = pts.isNotEmpty && !isClosed ? pts.last : null;
     if (last != null && ret != null && live != null) {
       _segment(canvas, last, ret, live, linePaint, shadow, isLive: true);
     }

@@ -13,6 +13,7 @@ import android.opengl.Matrix
 import com.google.ar.core.Anchor
 import com.google.ar.core.ArCoreApk
 import com.google.ar.core.Config
+import com.google.ar.core.Coordinates2d
 import com.google.ar.core.Plane
 import com.google.ar.core.Pose
 import com.google.ar.core.Session
@@ -702,6 +703,79 @@ class ARCoreManager private constructor(context: Context) {
                 }
             }
         }
+    }
+
+    /**
+     * "Auto" ruler: outlines the object under the reticle (A4 sheet, tile, book, panel) from the camera image, drops a
+     * measurement anchor on each of its 4 corners (hit-tested on the real surface, like a manual pin) and returns the
+     * corners in order. Returns a reason string under "error" when nothing could be outlined or measured.
+     */
+    fun detectObjectAtScreenPoint(screenX: Float, screenY: Float): Map<String, Any> {
+        val view = sceneView ?: return mapOf("error" to "no_view")
+        val frame = view.frame ?: return mapOf("error" to "no_frame")
+        val cam = frame.camera
+        if (cam.trackingState != TrackingState.TRACKING) return mapOf("error" to "not_tracking")
+        val image = try {
+            frame.acquireCameraImage()
+        } catch (e: Exception) {
+            Log.w(TAG, "AUTO acquireCameraImage failed: ${e.message}")
+            return mapOf("error" to "no_image")
+        }
+        val corners: List<Pair<Float, Float>>
+        val iw: Int
+        val ih: Int
+        try {
+            val plane = image.planes[0]
+            val buf = plane.buffer
+            val rowStride = plane.rowStride
+            iw = image.width
+            ih = image.height
+            // Half resolution is plenty for an outline and keeps the flood fill fast
+            val gw = iw / 2
+            val gh = ih / 2
+            val gray = ByteArray(gw * gh)
+            for (y in 0 until gh) {
+                val rowStart = y * 2 * rowStride
+                for (x in 0 until gw) gray[y * gw + x] = buf.get(rowStart + x * 2)
+            }
+            val seedView = floatArrayOf(screenX, screenY)
+            val seedImg = FloatArray(2)
+            frame.transformCoordinates2d(Coordinates2d.VIEW, seedView, Coordinates2d.IMAGE_PIXELS, seedImg)
+            val found = ObjectOutline.find(gray, gw, gh, (seedImg[0] / 2).toInt(), (seedImg[1] / 2).toInt())
+                ?: run {
+                    Log.i(TAG, "AUTO no_object seed=(${seedImg[0].toInt()},${seedImg[1].toInt()}) img=${iw}x$ih")
+                    return mapOf("error" to "no_object")
+                }
+            Log.i(TAG, "AUTO outline found seed=(${seedImg[0].toInt()},${seedImg[1].toInt()}) img=${iw}x$ih")
+            corners = found.map { Pair(it.first * 2, it.second * 2) }
+        } finally {
+            image.close()
+        }
+
+        val worlds = ArrayList<FloatArray>()
+        val screens = ArrayList<Map<String, Double>>()
+        for ((cx, cy) in corners) {
+            val imgPt = floatArrayOf(cx, cy)
+            val viewPt = FloatArray(2)
+            frame.transformCoordinates2d(Coordinates2d.IMAGE_PIXELS, imgPt, Coordinates2d.VIEW, viewPt)
+            val hit = rulerHit(view, viewPt[0], viewPt[1]) ?: run {
+                Log.i(TAG, "AUTO no_surface at corner view=(${viewPt[0].toInt()},${viewPt[1].toInt()})")
+                return mapOf("error" to "no_surface")
+            }
+            worlds.add(floatArrayOf(hit.hitPose.tx(), hit.hitPose.ty(), hit.hitPose.tz()))
+            screens.add(mapOf("x" to viewPt[0].toDouble(), "y" to viewPt[1].toDouble()))
+        }
+        startMeasurement()
+        val ids = worlds.map { addMeasurementPoint(it[0], it[1], it[2]) }
+        Log.i(TAG, "AUTO corners=${corners.size} sides=" + (0 until 4).joinToString { i ->
+            val a = worlds[i]; val b = worlds[(i + 1) % 4]
+            "%.3f".format(sqrt((a[0]-b[0])*(a[0]-b[0]) + (a[1]-b[1])*(a[1]-b[1]) + (a[2]-b[2])*(a[2]-b[2])))
+        })
+        return mapOf(
+            "ids" to ids,
+            "world" to worlds.map { listOf(it[0].toDouble(), it[1].toDouble(), it[2].toDouble()) },
+            "screen" to screens,
+        )
     }
 
     fun getMeasurementDistance(): Float? {

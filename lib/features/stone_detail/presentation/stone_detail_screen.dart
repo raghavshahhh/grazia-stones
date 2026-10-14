@@ -388,37 +388,48 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                         onPageChanged: (i) =>
                             setState(() => _currentImageIndex = i),
                         itemBuilder: (context, i) {
-                          // The whole photo is shown (contain) over a blurred copy of itself, so a close-up of
-                          // one tile is never cropped into something that looks like a single big piece.
+                          // Slide 1 is the hero/room photo: full-bleed like before. Later slides are close-ups of one
+                          // shade: the whole photo is shown over a blurred copy so a single tile is never zoomed
+                          // into something that looks like one huge piece.
                           return GestureDetector(
                             onTap: () => _openViewer(stone, images, i),
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                ImageFiltered(
-                                  imageFilter: ui.ImageFilter.blur(
-                                    sigmaX: 24,
-                                    sigmaY: 24,
-                                  ),
-                                  child: SmartStoneImage(
+                            child: i == 0
+                                ? SmartStoneImage(
                                     imageUrl: images[i],
                                     fit: BoxFit.cover,
                                     palette: palette,
+                                  )
+                                : Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      ImageFiltered(
+                                        imageFilter: ui.ImageFilter.blur(
+                                          sigmaX: 24,
+                                          sigmaY: 24,
+                                        ),
+                                        child: SmartStoneImage(
+                                          imageUrl: images[i],
+                                          fit: BoxFit.cover,
+                                          palette: palette,
+                                        ),
+                                      ),
+                                      ColoredBox(
+                                        color: Colors.black.withValues(
+                                          alpha: 0.28,
+                                        ),
+                                      ),
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 56,
+                                        ),
+                                        child: SmartStoneImage(
+                                          imageUrl: images[i],
+                                          fit: BoxFit.contain,
+                                          palette: palette,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                                ColoredBox(
-                                  color: Colors.black.withValues(alpha: 0.28),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 56),
-                                  child: SmartStoneImage(
-                                    imageUrl: images[i],
-                                    fit: BoxFit.contain,
-                                    palette: palette,
-                                  ),
-                                ),
-                              ],
-                            ),
                           );
                         },
                       ),
