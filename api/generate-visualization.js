@@ -5,8 +5,9 @@
 const { verifyRequestAuth } = require('./_supabaseAuth');
 const credits = require('./_aiCredits');
 
-const GEMINI_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent';
+// Tried in order; a busy or retired model falls through to the next one.
+const GEMINI_IMAGE_MODELS = ['gemini-3.1-flash-image', 'gemini-2.5-flash-image', 'gemini-3-pro-image'];
+const geminiUrl = (model) => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 const MAX_IMAGE_LENGTH = 5_000_000;
 const ALLOWED_ORIGINS = [
   'https://grazia-stones.vercel.app',
@@ -228,13 +229,23 @@ module.exports = async (req, res) => {
           { inline_data: { mime_type: mimeType, data: base64Data } },
         ];
 
-    const geminiRes = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: requestParts }],
-      }),
+    const body = JSON.stringify({
+      contents: [{ parts: requestParts }],
+      generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
     });
+    let geminiRes;
+    for (const model of GEMINI_IMAGE_MODELS) {
+      try {
+        geminiRes = await fetch(geminiUrl(model), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+          body,
+        });
+      } catch (_) {
+        continue; // network blip: try the next model
+      }
+      if (geminiRes.ok || ![404, 429, 500, 503].includes(geminiRes.status)) break;
+    }
 
     if (!geminiRes.ok) {
       const errText = await geminiRes.text().catch(() => '');

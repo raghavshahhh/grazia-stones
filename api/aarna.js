@@ -5,8 +5,9 @@
 const { verifyRequestAuth } = require('./_supabaseAuth');
 const CATALOGUE_FACTS = require('./_aarnaKnowledge');
 
-const GEMINI_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+// Tried in order; Google retires/overloads models often, so a busy or retired one falls through to the next.
+const GEMINI_MODELS = ['gemini-3-flash-preview', 'gemini-flash-latest', 'gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+const geminiUrl = (model) => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 const ALLOWED_ORIGINS = [
   'https://grazia-stones.vercel.app',
   'http://localhost:3000',
@@ -161,16 +162,25 @@ module.exports = async (req, res) => {
   const systemText = `${SYSTEM_PROMPT}\n\nCATALOGUE FACTS (from Grazia's PDF catalogues):\n${CATALOGUE_FACTS}\n\nCATALOGUE CONTEXT (live app data, may be empty):\n${context || '(none)'}`;
 
   try {
-    const geminiRes = await fetch(GEMINI_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: systemText }] },
-        contents,
-        generationConfig: { temperature: 0.7, maxOutputTokens: 600 },
-      }),
+    const body = JSON.stringify({
+      system_instruction: { parts: [{ text: systemText }] },
+      contents,
+      generationConfig: { temperature: 0.7, maxOutputTokens: 1500 },
     });
-    if (!geminiRes.ok) {
+    let geminiRes;
+    for (const model of GEMINI_MODELS) {
+      try {
+        geminiRes = await fetch(geminiUrl(model), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+          body,
+        });
+      } catch (_) {
+        continue; // network blip: try the next model
+      }
+      if (geminiRes.ok || ![404, 429, 500, 503].includes(geminiRes.status)) break;
+    }
+    if (!geminiRes || !geminiRes.ok) {
       res.status(502).json({ error: `Aarna is unavailable (upstream ${geminiRes.status})` });
       return;
     }

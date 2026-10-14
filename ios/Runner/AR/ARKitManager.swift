@@ -321,35 +321,46 @@ import MetalKit
         return nil
     }
 
-    @objc public func hitTestWallAtScreenPoint(_ screenPoint: CGPoint) -> [String: Any]? {
-        guard let point = verticalWorldPoint(at: screenPoint) else { return nil }
-
-        let anchorId = addMeasurementPoint(point)
-        addMeasurementMarkerNode(at: point, anchorId: anchorId)
-
-        return [
-            "anchorId": anchorId,
-            "x": point.x,
-            "y": point.y,
-            "z": point.z,
-        ]
+    /// Nearest real surface of ANY orientation under a screen point (table, flower pot, tile, wall, floor).
+    /// Raycast order: existing plane geometry first (most precise), then depth-driven estimated planes.
+    private func surfacePoint(at screenPoint: CGPoint) -> simd_float3? {
+        for target in [ARRaycastQuery.Target.existingPlaneGeometry, .estimatedPlane] {
+            guard let query = arSceneView.raycastQuery(from: screenPoint, allowing: target, alignment: .any),
+                  let hit = arSceneView.session.raycast(query).first else { continue }
+            let t = hit.worldTransform
+            return simd_float3(t.columns.3.x, t.columns.3.y, t.columns.3.z)
+        }
+        return nil
     }
 
-    private func addMeasurementMarkerNode(at point: simd_float3, anchorId: String) {
-        guard let uuid = UUID(uuidString: anchorId) else { return }
+    @objc public func hitTestWallAtScreenPoint(_ screenPoint: CGPoint) -> [String: Any]? {
+        guard let point = surfacePoint(at: screenPoint) else { return nil }
+        // Pins and lines are drawn by the Flutter overlay from projectMeasurementAnchors, so no 3D marker here.
+        let anchorId = addMeasurementPoint(point)
+        return ["anchorId": anchorId, "x": point.x, "y": point.y, "z": point.z]
+    }
 
-        let sphere = SCNSphere(radius: 0.012)
-        sphere.firstMaterial?.diffuse.contents = UIColor.white
-        sphere.firstMaterial?.emission.contents = UIColor.white.withAlphaComponent(0.4)
-        let node = SCNNode(geometry: sphere)
-        node.position = SCNVector3(point.x, point.y, point.z)
+    /// Live crosshair probe: same raycast as placing a point, but creates no anchor.
+    @objc public func probeSurfaceAtScreenPoint(_ screenPoint: CGPoint) -> [String: Any]? {
+        guard let point = surfacePoint(at: screenPoint),
+              let cam = arSession.currentFrame?.camera.transform else { return nil }
+        let camPos = simd_float3(cam.columns.3.x, cam.columns.3.y, cam.columns.3.z)
+        return ["x": point.x, "y": point.y, "z": point.z, "distanceM": simd_distance(camPos, point)]
+    }
 
-        arSceneView.scene.rootNode.addChildNode(node)
-        measurementNodes[uuid] = node
-
-        // If this is the second point, draw a connecting line and cache the distance.
-        if let start = measurementStartPoint, let end = measurementEndPoint {
-            drawMeasurementLine(from: start, to: end)
+    /// Current screen position (view points) of measurement anchors; `visible` is false when behind the camera.
+    @objc public func projectMeasurementAnchors(_ ids: [String]) -> [[String: Any]] {
+        guard let frame = arSession.currentFrame else { return [] }
+        let inverseCam = simd_inverse(frame.camera.transform)
+        return ids.map { id in
+            guard let uuid = UUID(uuidString: id), let anchor = measurementAnchors[uuid] else {
+                return ["visible": false, "x": 0.0, "y": 0.0]
+            }
+            let c = anchor.transform.columns.3
+            let inCam = simd_mul(inverseCam, simd_float4(c.x, c.y, c.z, 1))
+            guard inCam.z < -0.01 else { return ["visible": false, "x": 0.0, "y": 0.0] }
+            let p = arSceneView.projectPoint(SCNVector3(c.x, c.y, c.z))
+            return ["visible": true, "x": Double(p.x), "y": Double(p.y)]
         }
     }
 

@@ -582,7 +582,7 @@ class ARCoreManager private constructor(context: Context) {
         if (measurementStart == null) measurementStart = floatArrayOf(x, y, z)
         else if (measurementEnd == null) measurementEnd = floatArrayOf(x, y, z)
 
-        addMeasurementMarkerNode(x, y, z)
+        // Pins and lines are drawn by the Flutter overlay (projectMeasurementAnchors), no 3D marker, so Undo is clean.
         return id
     }
 

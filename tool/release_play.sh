@@ -26,7 +26,7 @@ json.dump({"package":"com.graziastones.grazia_stones","aab":"build/app/outputs/b
  "title":l["title"],"short":l["short"],"full":l["full"],"notes":l["notes"]},open(out,'w'))
 PY
 }
-TMP="$(mktemp -d)"
+TMP="$(mktemp -d "${PLAY_TMP:-${TMPDIR:-/tmp}}/play.XXXXXX")"
 cfg internal null "$TMP/internal.json"
 $PLAY publish "$TMP/internal.json"
 echo "Internal testing updated."

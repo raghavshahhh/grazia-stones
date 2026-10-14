@@ -5,11 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:grazia_stones/core/services/ar_native_channel.dart';
+import 'package:grazia_stones/core/utils/measure_format.dart';
 import 'package:grazia_stones/core/widgets/animated_widgets.dart';
 import 'package:grazia_stones/shared/widgets/luxury_toast.dart';
 import 'package:grazia_stones/features/live_ai/presentation/widgets/real_level_tool.dart';
 
 enum _MeasureMode { measure, level }
+
 enum _TrackingGuideState { ready, searching, lost }
 
 /// Authentic Apple iOS Measure App experience for Grazia Stones.
@@ -45,11 +47,19 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
   _TrackingGuideState _trackingState = _TrackingGuideState.ready;
 
   // Active Points & Measurements
-  final List<Offset> _screenPoints = [];
-  // Real-world (metres) position of each point, from the native wall hit-test
+  // Native anchor id + real-world (metres) position of each pin, from the native hit-test
+  final List<String> _anchorIds = [];
   final List<List<double>> _worldPoints = [];
   final List<double> _segmentMeters = [];
-  String _unit = 'cm'; // Default 'cm' to match Apple Measure screenshots
+  // Where each pin is on screen right now (null = behind the camera / not tracked), refreshed every ~60 ms
+  List<Offset?> _pinScreen = [];
+  // Live probe under the reticle: surface point and distance from the camera, null when no surface is found
+  List<double>? _probeWorld;
+  Offset? _probeScreen;
+  double? _probeDistance;
+  Timer? _tick;
+  bool _ticking = false;
+  String _unit = 'cm';
   bool _busy = false;
 
   // Shutter Flash Animation
@@ -60,7 +70,6 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
   late AnimationController _reticleController;
   late Animation<double> _reticleScale;
 
-
   @override
   void initState() {
     super.initState();
@@ -70,9 +79,10 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
       duration: const Duration(milliseconds: 320),
       value: 1.0, // resting state = flash finished (transparent)
     );
-    _flashAnimation = Tween<double>(begin: 0.85, end: 0.0).animate(
-      CurvedAnimation(parent: _flashController, curve: Curves.easeOut),
-    );
+    _flashAnimation = Tween<double>(
+      begin: 0.85,
+      end: 0.0,
+    ).animate(CurvedAnimation(parent: _flashController, curve: Curves.easeOut));
 
     _reticleController = AnimationController(
       vsync: this,
@@ -81,6 +91,11 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
 
     _reticleScale = Tween<double>(begin: 0.98, end: 1.03).animate(
       CurvedAnimation(parent: _reticleController, curve: Curves.easeInOut),
+    );
+
+    _tick = Timer.periodic(
+      const Duration(milliseconds: 60),
+      (_) => _refreshLive(),
     );
 
     // Listen to native wall tracking state changes
@@ -100,6 +115,7 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
 
   @override
   void dispose() {
+    _tick?.cancel();
     _flashController.dispose();
     _reticleController.dispose();
     ARNativeChannel.clearMeasurement();
@@ -113,21 +129,71 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
     return Offset(size.width / 2, size.height / 2);
   }
 
+  static double _dist(List<double> a, List<double> b) => math.sqrt(
+    math.pow(a[0] - b[0], 2) +
+        math.pow(a[1] - b[1], 2) +
+        math.pow(a[2] - b[2], 2),
+  );
+
+  /// Length of the live segment from the last pin to whatever the reticle is on (null until both exist).
+  double? get _liveMeters {
+    if (_worldPoints.isEmpty || _probeWorld == null) return null;
+    return _dist(_worldPoints.last, _probeWorld!);
+  }
+
+  double get _totalMeters => _segmentMeters.fold<double>(0, (a, b) => a + b);
+
+  /// Polls the native side: what real surface is under the reticle, and where each pin is on screen now.
+  Future<void> _refreshLive() async {
+    if (_ticking || !mounted || _currentMode != _MeasureMode.measure) return;
+    _ticking = true;
+    try {
+      final reticle = _centerReticleOffset;
+      final probe = await ARNativeChannel.probeSurfaceAtScreenPoint(reticle);
+      final pins = await ARNativeChannel.projectMeasurementAnchors(
+        List.of(_anchorIds),
+      );
+      if (!mounted) return;
+      setState(() {
+        _pinScreen = pins;
+        if (probe == null) {
+          _probeWorld = null;
+          _probeScreen = null;
+          _probeDistance = null;
+        } else {
+          _probeWorld = [
+            (probe['x'] as num).toDouble(),
+            (probe['y'] as num).toDouble(),
+            (probe['z'] as num).toDouble(),
+          ];
+          _probeScreen = reticle;
+          _probeDistance = (probe['distanceM'] as num?)?.toDouble();
+        }
+      });
+    } finally {
+      _ticking = false;
+    }
+  }
+
   Future<void> _addPointAtReticle() async {
     if (_busy) return;
     HapticFeedback.mediumImpact();
     setState(() => _busy = true);
 
-    final reticlePos = _centerReticleOffset;
-
-    // Raycast through native ARKit/ARCore (LiDAR mesh when available)
-    final hit = await ARNativeChannel.hitTestWallAtScreenPoint(reticlePos);
+    // Raycast through native ARKit/ARCore (LiDAR mesh when available) and pin an anchor on the real surface
+    final hit = await ARNativeChannel.hitTestWallAtScreenPoint(
+      _centerReticleOffset,
+    );
     if (!mounted) return;
 
     if (hit == null) {
-      // No real surface under the reticle: don't invent a distance
+      // No real surface under the reticle: never invent a distance
       setState(() => _busy = false);
-      LuxuryToast.show(context, message: 'No surface found. Aim at the wall and move your phone slowly.');
+      LuxuryToast.show(
+        context,
+        message:
+            'No surface found. Aim at the object and move your phone slowly.',
+      );
       return;
     }
 
@@ -138,25 +204,26 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
     ];
     setState(() {
       if (_worldPoints.isNotEmpty) {
-        final prev = _worldPoints.last;
-        _segmentMeters.add(math.sqrt(
-          math.pow(world[0] - prev[0], 2) + math.pow(world[1] - prev[1], 2) + math.pow(world[2] - prev[2], 2),
-        ));
+        _segmentMeters.add(_dist(world, _worldPoints.last));
       }
-      _screenPoints.add(reticlePos);
+      _anchorIds.add(hit['anchorId'] as String);
       _worldPoints.add(world);
+      _pinScreen = [..._pinScreen, _centerReticleOffset];
       _busy = false;
     });
   }
 
   void _undoPoint() {
-    if (_screenPoints.isEmpty) return;
+    if (_anchorIds.isEmpty) return;
     HapticFeedback.selectionClick();
+    // The native anchor of the removed pin is dropped with the rest on Clear; a stale one is never drawn
+    // because the overlay only projects ids it still holds.
     setState(() {
-      _screenPoints.removeLast();
-      if (_worldPoints.isNotEmpty) _worldPoints.removeLast();
-      if (_segmentMeters.isNotEmpty) {
-        _segmentMeters.removeLast();
+      _anchorIds.removeLast();
+      _worldPoints.removeLast();
+      if (_segmentMeters.isNotEmpty) _segmentMeters.removeLast();
+      if (_pinScreen.isNotEmpty) {
+        _pinScreen = _pinScreen.sublist(0, _pinScreen.length - 1);
       }
     });
   }
@@ -165,10 +232,20 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
     HapticFeedback.heavyImpact();
     ARNativeChannel.clearMeasurement();
     setState(() {
-      _screenPoints.clear();
+      _anchorIds.clear();
       _worldPoints.clear();
       _segmentMeters.clear();
+      _pinScreen = [];
     });
+  }
+
+  String get _measurementText {
+    final lines = [
+      for (var i = 0; i < _segmentMeters.length; i++)
+        'Segment ${i + 1}: ${formatMeasureLength(_segmentMeters[i], _unit)}',
+      'Total: ${formatMeasureLength(_totalMeters, _unit)}',
+    ];
+    return 'Grazia Stones AR measurement\n${lines.join('\n')}';
   }
 
   void _takeShutterSnapshot() {
@@ -180,13 +257,7 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
       return;
     }
     // Copy the real measurements so they can be pasted into WhatsApp / quote notes
-    final total = _segmentMeters.fold<double>(0, (a, b) => a + b);
-    final lines = [
-      for (var i = 0; i < _segmentMeters.length; i++) 'Segment ${i + 1}: ${_formatLength(_segmentMeters[i], _unit)}',
-      'Total: ${_formatLength(total, _unit)}',
-    ];
-    Clipboard.setData(ClipboardData(text: 'Grazia Stones AR measurement\n${lines.join('\n')}'));
-
+    Clipboard.setData(ClipboardData(text: _measurementText));
     LuxuryToast.show(
       context,
       message: 'Measurements copied',
@@ -195,62 +266,21 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
     );
   }
 
-  void _toggleUnit() {
+  void _setUnit(String unit) {
+    if (unit == _unit) return;
     HapticFeedback.selectionClick();
-    setState(() {
-      switch (_unit) {
-        case 'cm':
-          _unit = 'in';
-          break;
-        case 'in':
-          _unit = 'ft';
-          break;
-        case 'ft':
-          _unit = 'm';
-          break;
-        default:
-          _unit = 'cm';
-      }
-    });
+    setState(() => _unit = unit);
   }
 
-  double _convertMeters(double meters, String unit) {
-    switch (unit) {
-      case 'cm':
-        return meters * 100.0;
-      case 'in':
-        return meters * 39.3700787;
-      case 'ft':
-        return meters * 3.280839895;
-      case 'm':
-      default:
-        return meters;
-    }
-  }
+  static const _feetPerMeter = 3.280839895;
 
-  String _formatLength(double meters, String unit) {
-    final val = _convertMeters(meters, unit);
-    if (unit == 'cm') {
-      return '${val.round()} cm';
-    } else if (unit == 'in') {
-      return '${val.round()}"';
-    } else if (unit == 'ft') {
-      final feet = val.floor();
-      final inches = ((val - feet) * 12).round();
-      return '$feet\' $inches"';
-    } else {
-      return '${val.toStringAsFixed(2)} m';
-    }
-  }
+  /// Wall width x height needs two real segments; with fewer there is nothing honest to report.
+  bool get _canApplyAsWall => _segmentMeters.length >= 2;
 
   void _finishAndExport() {
-    if (_segmentMeters.isEmpty) return;
-    final totalMeters = _segmentMeters.fold<double>(0.0, (s, m) => s + m);
-    final width = _segmentMeters.isNotEmpty ? _segmentMeters.first : totalMeters;
-    final height = _segmentMeters.length > 1 ? _segmentMeters[1] : (width * 0.75);
-
-    final widthFt = _convertMeters(width, 'ft');
-    final heightFt = _convertMeters(height, 'ft');
+    if (!_canApplyAsWall) return;
+    final widthFt = _segmentMeters[0] * _feetPerMeter;
+    final heightFt = _segmentMeters[1] * _feetPerMeter;
     final wallArea = widthFt * heightFt;
 
     final result = <String, dynamic>{
@@ -259,7 +289,7 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
       'wallArea': wallArea.toStringAsFixed(2),
       'isCalibrated': true,
       'calibrationUnit': 'ft',
-      'totalLengthMeters': totalMeters,
+      'totalLengthMeters': _totalMeters,
     };
 
     final tw = widget.tileWidthMm;
@@ -307,11 +337,11 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
               // Ruler Painter: Ticks, Pins, and Connecting Lines
               CustomPaint(
                 painter: _AppleRulerPainter(
-                  points: _screenPoints,
-                  currentReticle: _centerReticleOffset,
+                  pins: _pinScreen,
+                  reticle: _probeScreen,
                   unit: _unit,
                   segmentMeters: _segmentMeters,
-                  onBadgeTap: _toggleUnit,
+                  liveMeters: _liveMeters,
                 ),
                 size: Size.infinite,
               ),
@@ -325,7 +355,8 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
               ),
 
               // Surface Guidance States
-              if (_trackingState == _TrackingGuideState.searching)
+              if (_trackingState == _TrackingGuideState.searching &&
+                  _probeWorld == null)
                 _buildSearchingGuidance(),
               if (_trackingState == _TrackingGuideState.lost)
                 _buildLostTrackingGuidance(),
@@ -336,6 +367,9 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
 
             // 3. Top Navigation Bar (List, Status, Trash, Close)
             _buildTopNavBar(),
+
+            // 3b. Unit chips + live distance to the surface under the reticle
+            if (_currentMode == _MeasureMode.measure) _buildUnitBar(),
 
             // 4. Floating Tooltip Balloon ("Add a point")
             if (_currentMode == _MeasureMode.measure &&
@@ -383,22 +417,22 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
 
           // Center: Close / Done Pill
           ApplePressable(
-            onTap: () {
-              if (_segmentMeters.isNotEmpty) {
-                _finishAndExport();
-              }
-              widget.onClose();
-            },
+            onTap: widget.onClose,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(20),
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 7,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF1C1C1E).withValues(alpha: 0.75),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.15),
+                    ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -413,7 +447,9 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        _currentMode == _MeasureMode.measure ? 'AR Ruler' : 'Spirit Level',
+                        _currentMode == _MeasureMode.measure
+                            ? 'AR Ruler'
+                            : 'Spirit Level',
                         style: GoogleFonts.inter(
                           color: Colors.white,
                           fontSize: 12,
@@ -421,7 +457,11 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
                         ),
                       ),
                       const SizedBox(width: 8),
-                      const Icon(Icons.close_rounded, color: Colors.white70, size: 14),
+                      const Icon(
+                        Icons.close_rounded,
+                        color: Colors.white70,
+                        size: 14,
+                      ),
                     ],
                   ),
                 ),
@@ -432,7 +472,7 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
           // Right: Trash / Clear Button
           _buildCircleIconButton(
             icon: Icons.delete_outline_rounded,
-            onTap: _screenPoints.isNotEmpty ? _clearAllPoints : null,
+            onTap: _anchorIds.isNotEmpty ? _clearAllPoints : null,
           ),
         ],
       ),
@@ -451,7 +491,9 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: const Color(0xFF1C1C1E).withValues(alpha: isEnabled ? 0.75 : 0.40),
+              color: const Color(
+                0xFF1C1C1E,
+              ).withValues(alpha: isEnabled ? 0.75 : 0.40),
               shape: BoxShape.circle,
               border: Border.all(
                 color: Colors.white.withValues(alpha: isEnabled ? 0.18 : 0.08),
@@ -474,8 +516,8 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
   Widget _buildAddPointTooltip() {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     String label = 'Add a point';
-    if (_screenPoints.length == 1) label = 'Aim & tap + for 2nd point';
-    if (_screenPoints.length >= 2) label = 'Tap + to add segment';
+    if (_anchorIds.length == 1) label = 'Aim & tap + for 2nd point';
+    if (_anchorIds.length >= 2) label = 'Tap + to add segment';
 
     return Positioned(
       bottom: bottomPadding + 152,
@@ -511,7 +553,9 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
             // Downward Pointer Arrow
             CustomPaint(
               size: const Size(12, 6),
-              painter: _TooltipArrowPainter(color: const Color(0xFF1C1C1E).withValues(alpha: 0.88)),
+              painter: _TooltipArrowPainter(
+                color: const Color(0xFF1C1C1E).withValues(alpha: 0.88),
+              ),
             ),
           ],
         ),
@@ -533,7 +577,7 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
         children: [
           // Left: Undo Button
           ApplePressable(
-            onTap: _screenPoints.isNotEmpty ? _undoPoint : null,
+            onTap: _anchorIds.isNotEmpty ? _undoPoint : null,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(28),
               child: BackdropFilter(
@@ -542,15 +586,21 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
                   width: 56,
                   height: 56,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1C1C1E).withValues(alpha: _screenPoints.isNotEmpty ? 0.85 : 0.45),
+                    color: const Color(
+                      0xFF1C1C1E,
+                    ).withValues(alpha: _anchorIds.isNotEmpty ? 0.85 : 0.45),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: _screenPoints.isNotEmpty ? 0.20 : 0.08),
+                      color: Colors.white.withValues(
+                        alpha: _anchorIds.isNotEmpty ? 0.20 : 0.08,
+                      ),
                     ),
                   ),
                   child: Icon(
                     Icons.undo_rounded,
-                    color: _screenPoints.isNotEmpty ? Colors.white : Colors.white30,
+                    color: _anchorIds.isNotEmpty
+                        ? Colors.white
+                        : Colors.white30,
                     size: 22,
                   ),
                 ),
@@ -560,7 +610,9 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
 
           // Center: Large Circular '+' Button
           ApplePressable(
-            onTap: _currentMode == _MeasureMode.measure ? _addPointAtReticle : null,
+            onTap: _currentMode == _MeasureMode.measure
+                ? _addPointAtReticle
+                : null,
             child: Container(
               width: 76,
               height: 76,
@@ -580,11 +632,7 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
                 ],
               ),
               child: const Center(
-                child: Icon(
-                  Icons.add_rounded,
-                  color: Colors.white,
-                  size: 40,
-                ),
+                child: Icon(Icons.add_rounded, color: Colors.white, size: 40),
               ),
             ),
           ),
@@ -633,7 +681,10 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
               decoration: BoxDecoration(
                 color: const Color(0xFF1C1C1E).withValues(alpha: 0.88),
                 borderRadius: BorderRadius.circular(30),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.15), width: 0.8),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  width: 0.8,
+                ),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -711,7 +762,11 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
   // ── Guidance States ──────────────────────────────────────────────────
 
   Widget _buildSearchingGuidance() {
-    return Center(
+    return Align(
+      alignment: const Alignment(
+        0,
+        0.25,
+      ), // below the reticle, never on top of it
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -737,7 +792,11 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
   }
 
   Widget _buildLostTrackingGuidance() {
-    return Center(
+    return Align(
+      alignment: const Alignment(
+        0,
+        0.25,
+      ), // below the reticle, never on top of it
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -789,10 +848,9 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
 
   void _showMeasurementsSummarySheet() {
     HapticFeedback.lightImpact();
-    final totalMeters = _segmentMeters.fold<double>(0.0, (s, m) => s + m);
-    final widthFt = _convertMeters(_segmentMeters.isNotEmpty ? _segmentMeters.first : totalMeters, 'ft');
-    final heightFt = _convertMeters(_segmentMeters.length > 1 ? _segmentMeters[1] : (widthFt * 0.75), 'ft');
-    final areaSqFt = widthFt * heightFt;
+    final areaSqFt = _canApplyAsWall
+        ? _segmentMeters[0] * _segmentMeters[1] * _feetPerMeter * _feetPerMeter
+        : null;
 
     showModalBottomSheet(
       context: context,
@@ -805,8 +863,12 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
             padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
             decoration: BoxDecoration(
               color: const Color(0xFF1C1C1E).withValues(alpha: 0.94),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-              border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.15))),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(28),
+              ),
+              border: Border(
+                top: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+              ),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -824,7 +886,7 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  'Measurements & Specifications',
+                  'Measurements',
                   style: GoogleFonts.playfairDisplay(
                     color: Colors.white,
                     fontSize: 20,
@@ -832,45 +894,204 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
                   ),
                 ),
                 const SizedBox(height: 16),
-                _buildSummaryRow('Wall Width', '${widthFt.toStringAsFixed(2)} ft (${_formatLength(widthFt / 3.2808, 'cm')})'),
-                _buildSummaryRow('Wall Height', '${heightFt.toStringAsFixed(2)} ft (${_formatLength(heightFt / 3.2808, 'cm')})'),
-                _buildSummaryRow('Total Surface Area', '${areaSqFt.toStringAsFixed(2)} sq.ft'),
-                _buildSummaryRow('Detected Segments', '${_screenPoints.length} points placed'),
-                const Divider(color: Colors.white12, height: 28),
+                if (_segmentMeters.isEmpty)
+                  Text(
+                    'Aim at an object, tap + for the first point, move, tap + again.',
+                    style: GoogleFonts.inter(
+                      color: Colors.white60,
+                      fontSize: 13,
+                    ),
+                  )
+                else ...[
+                  for (var i = 0; i < _segmentMeters.length; i++)
+                    _buildSummaryRow(
+                      'Segment ${i + 1}',
+                      formatMeasureLength(_segmentMeters[i], _unit),
+                    ),
+                  const Divider(color: Colors.white12, height: 24),
+                  _buildSummaryRow(
+                    'Total',
+                    formatMeasureLength(_totalMeters, _unit),
+                  ),
+                  for (final u in kMeasureUnits.where((u) => u != _unit))
+                    _buildSummaryRow('', formatMeasureLength(_totalMeters, u)),
+                  if (areaSqFt != null)
+                    _buildSummaryRow(
+                      'Area (seg 1 x seg 2)',
+                      '${areaSqFt.toStringAsFixed(2)} sq.ft',
+                    ),
+                ],
+                const SizedBox(height: 16),
                 Row(
                   children: [
                     Expanded(
-                      child: ApplePressable(
+                      child: _sheetButton(
+                        label: 'Copy',
+                        filled: false,
+                        enabled: _segmentMeters.isNotEmpty,
+                        onTap: () {
+                          Clipboard.setData(
+                            ClipboardData(text: _measurementText),
+                          );
+                          Navigator.pop(ctx);
+                          LuxuryToast.show(
+                            context,
+                            message: 'Measurements copied',
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _sheetButton(
+                        label: 'Use as wall (W x H)',
+                        filled: true,
+                        enabled: _canApplyAsWall,
                         onTap: () {
                           Navigator.pop(ctx);
                           _finishAndExport();
-                          widget.onClose();
                         },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFC8A53C),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Center(
-                            child: Text(
-                              'Apply to Project',
-                              style: GoogleFonts.inter(
-                                color: Colors.black,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ),
-                        ),
                       ),
                     ),
                   ],
                 ),
+                if (!_canApplyAsWall && _segmentMeters.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Text(
+                      'Measure width and then height (2 segments) to use it as a wall.',
+                      style: GoogleFonts.inter(
+                        color: Colors.white54,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _sheetButton({
+    required String label,
+    required bool filled,
+    required bool enabled,
+    required VoidCallback onTap,
+  }) {
+    return ApplePressable(
+      onTap: enabled ? onTap : null,
+      child: Opacity(
+        opacity: enabled ? 1 : 0.4,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: filled
+                ? const Color(0xFFC8A53C)
+                : Colors.white.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: GoogleFonts.inter(
+                color: filled ? Colors.black : Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Unit chips ───────────────────────────────────────────────────────
+
+  Widget _buildUnitBar() {
+    final top =
+        MediaQuery.of(context).padding.top +
+        66 +
+        48; // below the top bar and the Back button
+    final live = _liveMeters;
+    final reading = live ?? (_anchorIds.isEmpty ? _probeDistance : null);
+    return Positioned(
+      top: top,
+      left: 16,
+      right: 16,
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1C1C1E).withValues(alpha: 0.78),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.14),
+                width: 0.8,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final u in kMeasureUnits)
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => _setUnit(u),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 160),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 13,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: u == _unit
+                            ? const Color(0xFFC8A53C)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      child: Text(
+                        u == 'in'
+                            ? 'inch'
+                            : u == 'ft'
+                            ? 'feet'
+                            : u,
+                        style: GoogleFonts.inter(
+                          color: u == _unit ? Colors.black : Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            live != null
+                ? formatMeasureLength(live, _unit)
+                : (reading != null
+                      ? 'Surface ${formatMeasureLength(reading, _unit)} away'
+                      : 'Searching for a surface...'),
+            style: GoogleFonts.inter(
+              color: Colors.white,
+              fontSize: live != null ? 22 : 12.5,
+              fontWeight: FontWeight.w700,
+              shadows: const [Shadow(blurRadius: 8, color: Colors.black87)],
+            ),
+          ),
+          if (_segmentMeters.length > 1)
+            Text(
+              'Total ${formatMeasureLength(_totalMeters, _unit)}',
+              style: GoogleFonts.inter(
+                color: Colors.white70,
+                fontSize: 12,
+                shadows: const [Shadow(blurRadius: 8, color: Colors.black87)],
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -881,8 +1102,18 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: GoogleFonts.inter(color: Colors.white60, fontSize: 13)),
-          Text(value, style: GoogleFonts.inter(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+          Text(
+            label,
+            style: GoogleFonts.inter(color: Colors.white60, fontSize: 13),
+          ),
+          Text(
+            value,
+            style: GoogleFonts.inter(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ],
       ),
     );
@@ -900,9 +1131,7 @@ class _AppleReticleWidget extends StatelessWidget {
     return SizedBox(
       width: 140,
       height: 70,
-      child: CustomPaint(
-        painter: _ReticleShapePainter(),
-      ),
+      child: CustomPaint(painter: _ReticleShapePainter()),
     );
   }
 }
@@ -919,7 +1148,11 @@ class _ReticleShapePainter extends CustomPainter {
       ..strokeWidth = 2.8
       ..strokeCap = StrokeCap.round;
 
-    final rect = Rect.fromCenter(center: center, width: size.width - 6, height: size.height - 6);
+    final rect = Rect.fromCenter(
+      center: center,
+      width: size.width - 6,
+      height: size.height - 6,
+    );
     canvas.drawArc(rect, -0.4, 2.8, false, ringPaint);
     canvas.drawArc(rect, 2.7, 2.8, false, ringPaint);
 
@@ -932,128 +1165,120 @@ class _ReticleShapePainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-/// Ruler Painter: Draws tick marks, pins, and floating measurement badge
+/// Ruler painter: pins and lines glued to the real object (screen positions come from the native anchors),
+/// a live line from the last pin to the reticle, tick marks and a length badge per segment.
 class _AppleRulerPainter extends CustomPainter {
-  final List<Offset> points;
-  final Offset currentReticle;
+  final List<Offset?> pins;
+  final Offset? reticle; // null when no surface is under the reticle
   final String unit;
   final List<double> segmentMeters;
-  final VoidCallback onBadgeTap;
+  final double? liveMeters;
 
   _AppleRulerPainter({
-    required this.points,
-    required this.currentReticle,
+    required this.pins,
+    required this.reticle,
     required this.unit,
     required this.segmentMeters,
-    required this.onBadgeTap,
+    required this.liveMeters,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (points.isEmpty) return;
-
     final linePaint = Paint()
       ..color = Colors.white
       ..strokeWidth = 2.4
       ..strokeCap = StrokeCap.round;
+    final shadow = Paint()
+      ..color = Colors.black.withValues(alpha: 0.35)
+      ..strokeWidth = 4.4
+      ..strokeCap = StrokeCap.round;
 
+    for (var i = 0; i < pins.length - 1; i++) {
+      final a = pins[i];
+      final b = pins[i + 1];
+      if (a == null || b == null || i >= segmentMeters.length) continue;
+      _segment(canvas, a, b, segmentMeters[i], linePaint, shadow);
+    }
+    // Live segment: last pin -> reticle
+    final last = pins.isNotEmpty ? pins.last : null;
+    if (last != null && reticle != null && liveMeters != null) {
+      _segment(canvas, last, reticle!, liveMeters!, linePaint, shadow);
+    }
+    for (final p in pins) {
+      if (p == null) continue;
+      canvas.drawCircle(
+        p,
+        8,
+        Paint()..color = Colors.black.withValues(alpha: 0.35),
+      );
+      canvas.drawCircle(p, 6, Paint()..color = Colors.white);
+    }
+  }
+
+  void _segment(
+    Canvas canvas,
+    Offset p1,
+    Offset p2,
+    double meters,
+    Paint line,
+    Paint shadow,
+  ) {
+    canvas.drawLine(p1, p2, shadow);
+    canvas.drawLine(p1, p2, line);
+    final dist = (p2 - p1).distance;
+    if (dist < 24) return;
+    final dir = (p2 - p1) / dist;
+    final perp = Offset(-dir.dy, dir.dx);
     final tickPaint = Paint()
       ..color = Colors.white.withValues(alpha: 0.85)
       ..strokeWidth = 1.4;
-
-    final dotFill = Paint()..color = Colors.white;
-
-    // Draw lines between existing points
-    for (int i = 0; i < points.length; i++) {
-      final p1 = points[i];
-      final p2 = (i < points.length - 1) ? points[i + 1] : currentReticle;
-
-      // Draw connecting line
-      canvas.drawLine(p1, p2, linePaint);
-
-      // Draw ruler graduated tick marks along segment
-      final dist = (p2 - p1).distance;
-      if (dist > 20) {
-        final dir = (p2 - p1) / dist;
-        final perp = Offset(-dir.dy, dir.dx);
-        final numTicks = (dist / 14).clamp(3, 40).toInt();
-
-        for (int t = 1; t < numTicks; t++) {
-          final frac = t / numTicks;
-          final tickCenter = p1 + dir * (dist * frac);
-          final isMajor = (t % 5 == 0);
-          final tickLen = isMajor ? 7.0 : 4.0;
-          canvas.drawLine(
-            tickCenter - perp * tickLen,
-            tickCenter + perp * tickLen,
-            tickPaint,
-          );
-        }
-
-        // Draw Floating Measurement Capsule Badge in center
-        final midPoint = (p1 + p2) / 2;
-        final meters = (i < segmentMeters.length)
-            ? segmentMeters[i]
-            : (dist / 380.0);
-        final text = _formatLength(meters, unit);
-
-        _drawMeasurementBadge(canvas, midPoint, text);
-      }
-
-      // Draw endpoint dots
-      canvas.drawCircle(p1, 6.0, dotFill);
+    final numTicks = (dist / 14).clamp(3, 40).toInt();
+    for (var t = 1; t < numTicks; t++) {
+      final c = p1 + dir * (dist * t / numTicks);
+      final len = t % 5 == 0 ? 7.0 : 4.0;
+      canvas.drawLine(c - perp * len, c + perp * len, tickPaint);
     }
-  }
-
-  String _formatLength(double meters, String unit) {
-    switch (unit) {
-      case 'cm':
-        return '${(meters * 100).round()} cm >';
-      case 'in':
-        return '${(meters * 39.37).round()}" >';
-      case 'ft':
-        final ft = meters * 3.2808;
-        return '${ft.floor()}\' ${((ft - ft.floor()) * 12).round()}" >';
-      default:
-        return '${meters.toStringAsFixed(2)} m >';
-    }
+    _drawMeasurementBadge(
+      canvas,
+      (p1 + p2) / 2,
+      formatMeasureLength(meters, unit),
+    );
   }
 
   void _drawMeasurementBadge(Canvas canvas, Offset center, String text) {
-    final textSpan = TextSpan(
-      text: text,
-      style: const TextStyle(
-        color: Colors.black,
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
-        fontFamily: 'Inter',
-      ),
-    );
     final textPainter = TextPainter(
-      text: textSpan,
+      text: TextSpan(
+        text: text,
+        style: const TextStyle(
+          color: Colors.black,
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+          fontFamily: 'Inter',
+        ),
+      ),
       textDirection: TextDirection.ltr,
     )..layout();
 
-    final badgeWidth = textPainter.width + 18;
-    final badgeHeight = textPainter.height + 10;
     final rrect = RRect.fromRectAndRadius(
-      Rect.fromCenter(center: center, width: badgeWidth, height: badgeHeight),
+      Rect.fromCenter(
+        center: center,
+        width: textPainter.width + 18,
+        height: textPainter.height + 10,
+      ),
       const Radius.circular(16),
     );
-
-    // Pill white background
-    final badgePaint = Paint()..color = Colors.white;
-    canvas.drawRRect(rrect, badgePaint);
-
-    // Text inside badge
+    canvas.drawRRect(rrect, Paint()..color = Colors.white);
     textPainter.paint(
       canvas,
-      Offset(center.dx - textPainter.width / 2, center.dy - textPainter.height / 2),
+      Offset(
+        center.dx - textPainter.width / 2,
+        center.dy - textPainter.height / 2,
+      ),
     );
   }
 
   @override
-  bool shouldRepaint(covariant _AppleRulerPainter oldDelegate) => true;
+  bool shouldRepaint(covariant _AppleRulerPainter old) => true;
 }
 
 class _TooltipArrowPainter extends CustomPainter {
@@ -1094,12 +1319,24 @@ class _CornerBracketsPainter extends CustomPainter {
     canvas.drawLine(Offset(size.width, 0), Offset(size.width, len), paint);
 
     // Bottom-left
-    canvas.drawLine(Offset(0, size.height - len), Offset(0, size.height), paint);
+    canvas.drawLine(
+      Offset(0, size.height - len),
+      Offset(0, size.height),
+      paint,
+    );
     canvas.drawLine(Offset(0, size.height), Offset(len, size.height), paint);
 
     // Bottom-right
-    canvas.drawLine(Offset(size.width - len, size.height), Offset(size.width, size.height), paint);
-    canvas.drawLine(Offset(size.width, size.height), Offset(size.width, size.height - len), paint);
+    canvas.drawLine(
+      Offset(size.width - len, size.height),
+      Offset(size.width, size.height),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(size.width, size.height),
+      Offset(size.width, size.height - len),
+      paint,
+    );
   }
 
   @override
@@ -1139,4 +1376,3 @@ class _PerspectivePlanePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
-

@@ -149,6 +149,19 @@ extension ARKitPlugin {
                 result(FlutterError(code: "INVALID_ARGS", message: "Missing screen coordinates", details: nil))
             }
             
+        case "probeSurfaceAtScreenPoint":
+            if let args = call.arguments as? [String: Any],
+               let sx = args["screenX"] as? Double,
+               let sy = args["screenY"] as? Double {
+                result(arKitManager.probeSurfaceAtScreenPoint(CGPoint(x: sx, y: sy)))
+            } else {
+                result(FlutterError(code: "INVALID_ARGS", message: "Missing screen coordinates", details: nil))
+            }
+
+        case "projectMeasurementAnchors":
+            let ids = (call.arguments as? [String: Any])?["ids"] as? [String] ?? []
+            result(arKitManager.projectMeasurementAnchors(ids))
+
         case "getMeasurementDistance":
             if let distance = arKitManager.getMeasurementDistance() {
                 result(distance)

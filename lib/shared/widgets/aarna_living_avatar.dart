@@ -15,8 +15,9 @@ enum AarnaPose {
 }
 
 const _kGold = Color(0xFFD4AF37);
-const _kHeadPoster = 'assets/images/aarna/aarna_3d_head.png';
-const _kFullPoster = 'assets/images/aarna/aarna_3d_full.png';
+// The approved Aarna artwork (glowing eyes, marble veins, rose-gold trim): every size shows this exact image.
+const _kHeadPoster = 'assets/images/aarna/aarna_avatar_head.png';
+const _kFullPoster = 'assets/images/aarna/aarna_character_clean.png';
 
 /// Aarna, Grazia's AI consultant.
 ///
@@ -61,13 +62,11 @@ class AarnaLivingAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (size >= liveThreshold) {
-      return Aarna3DView(
-        size: size,
-        wave: pose == AarnaPose.waving,
-        greetOnLoad: greetOnLoad,
-        thinking: isSearching,
-        onTap: onTap,
+      final art = ClipRRect(
+        borderRadius: BorderRadius.circular(size * 0.12),
+        child: Image.asset(_kFullPoster, width: size, height: size, fit: BoxFit.cover, semanticLabel: 'Aarna'),
       );
+      return onTap == null ? art : GestureDetector(onTap: onTap, behavior: HitTestBehavior.opaque, child: art);
     }
     final busy = isSearching || showRadarRings;
     if (popOut) {
@@ -135,8 +134,7 @@ const _kSearchPose = 'assets/images/aarna/aarna_pose_designs.png';
 const _kRoseGold = Color(0xFFC98F7A);
 const _kCream = Color(0xFFFBF1E2);
 
-/// Header avatar: the transparent head render overflows the top of the ring (bow and ears
-/// outside the circle), bobs gently, and an arm comes out beside the ring when she is searching
+/// Header avatar: the artwork sits fully inside the ring, bobs gently, and an arm comes out beside the ring when she is searching
 /// (hand + magnifying glass sweeping) or greeting (wave).
 class _PopOutAvatar extends StatefulWidget {
   final double size;
@@ -199,19 +197,17 @@ class _PopOutAvatarState extends State<_PopOutAvatar> with SingleTickerProviderS
                   border: Border.all(color: _kGold.withValues(alpha: 0.65), width: 1.2),
                 ),
               ),
-              SizedBox(
-                width: s,
-                height: s,
-                child: ClipPath(
-                  clipper: _PopOutClipper(),
-                  child: OverflowBox(
-                    maxWidth: s * 1.4,
-                    maxHeight: s * 1.4,
-                    child: Transform.translate(
-                      offset: Offset(0, bob - s * 0.17),
-                      child: Transform.rotate(
-                        angle: tilt,
-                        child: Image.asset(_kHeadPoster, width: s * 1.05, fit: BoxFit.contain, semanticLabel: 'Aarna'),
+              ClipOval(
+                child: SizedBox(
+                  width: s,
+                  height: s,
+                  child: Transform.translate(
+                    offset: Offset(0, bob),
+                    child: Transform.rotate(
+                      angle: tilt,
+                      child: Transform.scale(
+                        scale: 1.12,
+                        child: Image.asset(_kHeadPoster, width: s, height: s, fit: BoxFit.cover, semanticLabel: 'Aarna'),
                       ),
                     ),
                   ),
@@ -252,20 +248,6 @@ class _PopOutAvatarState extends State<_PopOutAvatar> with SingleTickerProviderS
   }
 }
 
-/// Clips to the ring plus everything above its middle, so the head stays inside the circle at
-/// the bottom but overflows freely at the top and sides.
-class _PopOutClipper extends CustomClipper<Path> {
-  @override
-  Path getClip(Size size) {
-    final s = size.width;
-    return Path()
-      ..addOval(Rect.fromLTWH(0, 0, s, s))
-      ..addRect(Rect.fromLTRB(-s * 0.3, -s * 0.6, s * 1.3, s * 0.5));
-  }
-
-  @override
-  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
-}
 
 /// Arm + hand that reaches out of the ring. Searching: the hand sweeps a magnifying glass side to side.
 /// Waving: the hand is raised and rocks. Drawn with paths so it needs no extra art.
