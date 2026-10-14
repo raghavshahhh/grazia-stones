@@ -55,8 +55,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     _loadData();
   }
 
-  void _launchInteractiveTour() {
-    StorageService.instance.setHasSeenAppTour(true);
+  Future<void> _launchInteractiveTour() async {
+    await StorageService.instance.setHasSeenAppTour(true);
+    if (!mounted) return;
     debugPrint('🚀 [Tour] Launching interactive tour, marked as seen');
     final palette = ref.read(themePaletteProvider);
     showGeneralDialog(
@@ -176,13 +177,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         automaticallyImplyLeading: false,
+        toolbarHeight: 64,
         titleSpacing: 10,
         centerTitle: false,
         title: Opacity(
           opacity: isLaunchComplete ? 1.0 : 0.0,
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: _launchInteractiveTour,
+            // The tour is first-launch only; tapping the brand just brings you back to the top.
+            onTap: () {
+              HapticFeedback.selectionClick();
+              if (_scrollController.hasClients) {
+                _scrollController.animateTo(0, duration: const Duration(milliseconds: 350), curve: Curves.easeOutCubic);
+              }
+            },
             onLongPress: () {
               HapticFeedback.heavyImpact();
               ref.read(appLaunchCompleteProvider.notifier).state = false;
@@ -196,19 +204,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 children: [
                   Image.asset(
                     'assets/brand/grazia-emblem-gold.png',
-                    height: 22,
-                    width: 22,
+                    height: 36,
+                    width: 36,
                     fit: BoxFit.contain,
                   ),
-                  const SizedBox(width: 5),
-                  Text(
-                    'GRAZIA STONES',
-                    style: GoogleFonts.playfairDisplay(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.0,
-                      color: isDark ? const Color(0xFFD4AF37) : const Color(0xFF8B6B23),
-                    ),
+                  const SizedBox(width: 8),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'GRAZIA STONES',
+                        style: GoogleFonts.playfairDisplay(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.0,
+                          color: isDark ? const Color(0xFFD4AF37) : const Color(0xFF8B6B23),
+                        ),
+                      ),
+                      Text(
+                        'Unit of BNK Stones',
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0.6,
+                          color: (isDark ? const Color(0xFFD4AF37) : const Color(0xFF8B6B23)).withValues(alpha: 0.8),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -738,8 +761,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Tap to view hint
-                    Container(
+                    // Tap to view hint (shrinks first on narrow phones so the CTA never overflows)
+                    Flexible(
+                      child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.08),
@@ -751,17 +775,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         children: [
                           Icon(Icons.touch_app_outlined, size: 11, color: Colors.white.withValues(alpha: 0.7)),
                           const SizedBox(width: 4),
-                          Text(
-                            'Tap to view stone & specs',
-                            style: GoogleFonts.inter(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.white70,
+                          Flexible(
+                            child: Text(
+                              'Tap to view stone & specs',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white70,
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ),
+                    ),
+                    const SizedBox(width: 8),
 
                     // Gold Luxury CTA Pill Button
                     Container(
@@ -972,11 +1002,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         'route': '/live-ai',
       },
       {
-        'title': 'Scan Space',
-        'subtitle': 'Auto Dimension & BOQ',
-        'badge': 'CAD / BOQ',
+        'title': 'Measure',
+        'subtitle': 'Camera Wall Ruler',
+        'badge': 'AR RULER',
         'icon': Icons.straighten_rounded,
-        'route': '/measure',
+        'route': '/ar-measure',
       },
       {
         'title': 'Tile Visualizer',
@@ -993,11 +1023,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         'route': '/sample-order',
       },
       {
-        'title': 'Bespoke Atelier',
-        'subtitle': 'Custom CNC & Inlays',
-        'badge': 'BESPOKE',
-        'icon': Icons.architecture_rounded,
-        'route': '/custom-design',
+        'title': 'Aarna AI',
+        'subtitle': 'Chat with our design expert',
+        'badge': 'CHAT',
+        'icon': Icons.auto_awesome_rounded,
+        'route': '/aarna-ai',
       },
     ];
 
@@ -1070,7 +1100,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ],
               ),
               const SizedBox(height: 10),
-              // Pair 2: Scan Space & Tile Visualizer
+              // Pair 2: Measure (camera ruler) & Tile Visualizer
               Row(
                 children: [
                   Expanded(child: _buildLuxuryFeatureCard(features[2], goldAccent, palette, isDark)),
@@ -1079,7 +1109,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ],
               ),
               const SizedBox(height: 10),
-              // Pair 3: Sample Kit & Bespoke Atelier
+              // Pair 3: Sample Kit & Aarna AI
               Row(
                 children: [
                   Expanded(child: _buildLuxuryFeatureCard(features[4], goldAccent, palette, isDark)),
@@ -1382,24 +1412,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.auto_awesome_rounded,
-                            size: 14,
-                            color: isDark ? const Color(0xFFD4AF37) : const Color(0xFF8B6B23),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Curated Series Catalogue',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
+                      Flexible(
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.auto_awesome_rounded,
+                              size: 14,
                               color: isDark ? const Color(0xFFD4AF37) : const Color(0xFF8B6B23),
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                'Curated Series Catalogue',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? const Color(0xFFD4AF37) : const Color(0xFF8B6B23),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
+                      const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                         decoration: BoxDecoration(
@@ -1553,7 +1590,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               const SizedBox(width: 6),
               Expanded(
                 child: ApplePressable(
-                  onTap: () => _launchUrl('mailto:hello@graziastones.com'),
+                  onTap: () => _launchUrl('mailto:contactgraziastones@gmail.com'),
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
                     decoration: BoxDecoration(

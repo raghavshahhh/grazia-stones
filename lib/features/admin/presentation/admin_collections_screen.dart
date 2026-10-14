@@ -401,7 +401,9 @@ class _AdminCollectionsScreenState extends ConsumerState<AdminCollectionsScreen>
                                                                 overflow: TextOverflow.ellipsis,
                                                               ),
                                                             ),
-                                                            Container(
+                                                            const SizedBox(width: 6),
+                                                            Flexible(
+                                                              child: Container(
                                                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                                               decoration: BoxDecoration(
                                                                 color: palette.background,
@@ -410,12 +412,15 @@ class _AdminCollectionsScreenState extends ConsumerState<AdminCollectionsScreen>
                                                               ),
                                                               child: Text(
                                                                 c.id,
+                                                                maxLines: 1,
+                                                                overflow: TextOverflow.ellipsis,
                                                                 style: GoogleFonts.inter(
                                                                   fontSize: 10,
                                                                   fontWeight: FontWeight.w500,
                                                                   color: palette.textTertiary,
                                                                 ),
                                                               ),
+                                                            ),
                                                             ),
                                                           ],
                                                         ),

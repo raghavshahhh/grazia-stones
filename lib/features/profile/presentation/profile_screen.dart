@@ -7,6 +7,7 @@ import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/features/cart/presentation/cart_screen.dart';
 import 'package:grazia_stones/core/di.dart';
+import 'package:grazia_stones/shared/widgets/powered_by_ragspro.dart';
 import 'package:grazia_stones/features/wishlist/providers/wishlist_provider.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -238,6 +239,32 @@ class ProfileScreen extends ConsumerWidget {
                       },
                     ),
                   ),
+
+                  // Guests had no way to sign in from here: give them a clear primary action.
+                  if (!ref.watch(authRiverpodProvider.select((s) => s.isLoggedIn))) ...[
+                    const SizedBox(height: 12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: () {
+                            HapticFeedback.lightImpact();
+                            context.push('/login');
+                          },
+                          icon: const Icon(Icons.login_rounded, size: 18),
+                          label: const Text('Sign in or create account'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: palette.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            textStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
 
                    const SizedBox(height: 18),
 
@@ -534,14 +561,7 @@ class ProfileScreen extends ConsumerWidget {
 
                   const SizedBox(height: 24),
                   Center(
-                    child: Text(
-                      'Grazia Stones v1.0.0+1 (RC-2026.08)',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: palette.textTertiary,
-                      ),
-                    ),
+                    child: PoweredByRagspro(textColor: palette.textTertiary, accentColor: palette.primary),
                   ),
 
                   const SizedBox(height: 80),

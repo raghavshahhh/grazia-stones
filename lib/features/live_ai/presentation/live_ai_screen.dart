@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:grazia_stones/core/di.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:grazia_stones/core/models/collection.dart';
 import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/providers/stone_providers.dart';
 import 'package:grazia_stones/core/widgets/animated_widgets.dart';
@@ -20,7 +22,11 @@ import 'widgets/corner_adjust_overlay.dart';
 class LiveAIScreen extends ConsumerStatefulWidget {
   final String? initialStoneId;
 
-  const LiveAIScreen({super.key, this.initialStoneId});
+  /// Opens straight into the camera ruler (tap two points on a real wall), like the iPhone Measure
+  /// app: no stone texture on the wall, closing the ruler leaves the screen.
+  final bool measureOnly;
+
+  const LiveAIScreen({super.key, this.initialStoneId, this.measureOnly = false});
 
   @override
   ConsumerState<LiveAIScreen> createState() => _LiveAIScreenState();
@@ -36,6 +42,8 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
   // Camera state
   bool _cameraReady = false;
+  /// Measure screen opened on a device/simulator without an AR camera.
+  bool _noCamera = false;
 
   // Info card toggle (shown via the "i" button)
   bool _showInfoCard = false;
@@ -90,7 +98,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     });
     
     // Start polling wall state from AR engine only after camera is ready
-    _wallStateTimer = Timer.periodic(const Duration(milliseconds: 500), (_) async {
+    _wallStateTimer = Timer.periodic(const Duration(milliseconds: 200), (_) async {
       if (!mounted) return;
       if (!_cameraReady) return;
       final state = await ARCameraView.getWallState();
@@ -156,9 +164,253 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
       ? null
       : _filteredStones[_selectedStoneIndex % _filteredStones.length];
 
-  void _selectStone(int index) {
+  int _colourIndex = 0;
+  String _pickerGroup = 'All';
+
+  // Photo capture (camera feed + placed design)
+  bool _capturing = false;
+  String? _lastCapturePath;
+
+  Future<void> _captureAr() async {
+    if (_capturing || !_cameraReady) return;
+    setState(() => _capturing = true);
+    HapticFeedback.heavyImpact();
+    try {
+      final saved = await ARCameraView.captureSnapshot();
+      if (!mounted) return;
+      setState(() => _lastCapturePath = saved['path']);
+      LuxuryToast.show(context, message: 'Saved to Gallery (Pictures/Grazia). Tap Share to send it.');
+    } on Object catch (e) {
+      if (!mounted) return;
+      final msg = e is PlatformException ? (e.message ?? 'Capture failed') : 'Capture failed';
+      LuxuryToast.show(context, message: msg);
+    } finally {
+      if (mounted) setState(() => _capturing = false);
+    }
+  }
+
+  Future<void> _shareLastCapture() async {
+    final path = _lastCapturePath;
+    if (path == null) return;
+    final stone = _selectedStone;
+    await Share.shareXFiles(
+      [XFile(path)],
+      text: stone == null ? 'My Grazia Stones design' : '${stone.name} on my wall, Grazia Stones',
+    );
+  }
+
+  Widget _buildCaptureControls() {
+    final bottomInset = MediaQuery.of(context).padding.bottom;
+    final double navClearance = 58 + (bottomInset > 0 ? bottomInset + 6 : 14) + 8;
+    return Positioned(
+      right: 16,
+      bottom: widget.measureOnly ? bottomInset + 130 : navClearance + 270,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_lastCapturePath != null) ...[
+            GestureDetector(
+              onTap: _shareLastCapture,
+              child: Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white38),
+                ),
+                child: const Icon(Icons.ios_share_rounded, color: Colors.white, size: 21),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          GestureDetector(
+            onTap: _captureAr,
+            child: Container(
+              width: 66,
+              height: 66,
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 3)),
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _capturing ? AppColors.goldWarm : Colors.white,
+                ),
+                child: _capturing
+                    ? const Padding(
+                        padding: EdgeInsets.all(14),
+                        child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.black),
+                      )
+                    : null,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String? _groupOf(Stone s) => Collection(id: '', name: s.collection, description: '').catalogueGroup;
+
+  void _pickStone(Stone s) {
+    final i = _filteredStones.indexWhere((x) => x.id == s.id);
+    if (i < 0) return;
+    if (_stonePageController.hasClients) _stonePageController.jumpToPage(i);
+    _selectStone(i);
+  }
+
+  void _openDesignPicker() {
     HapticFeedback.selectionClick();
-    setState(() => _selectedStoneIndex = index);
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setSheet) {
+        final groups = ['All', ...CatalogueGroups.all];
+        final list = _filteredStones.where((s) => _pickerGroup == 'All' || _groupOf(s) == _pickerGroup).toList();
+        return DraggableScrollableSheet(
+          initialChildSize: 0.72,
+          minChildSize: 0.4,
+          maxChildSize: 0.95,
+          expand: false,
+          builder: (_, scroll) => Container(
+            decoration: const BoxDecoration(
+              color: Color(0xFF14110D),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              children: [
+                const SizedBox(height: 10),
+                Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+                const SizedBox(height: 14),
+                SizedBox(
+                  height: 38,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    scrollDirection: Axis.horizontal,
+                    itemCount: groups.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 8),
+                    itemBuilder: (_, i) {
+                      final on = groups[i] == _pickerGroup;
+                      return GestureDetector(
+                        onTap: () => setSheet(() => _pickerGroup = groups[i]),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: on ? AppColors.goldWarm : Colors.white10,
+                            borderRadius: BorderRadius.circular(19),
+                          ),
+                          child: Text(groups[i],
+                              style: TextStyle(color: on ? Colors.black : Colors.white70, fontSize: 12.5, fontWeight: FontWeight.w700)),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: GridView.builder(
+                    controller: scroll,
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: 130,
+                      childAspectRatio: 0.80,
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                    ),
+                    itemCount: list.length,
+                    itemBuilder: (_, i) {
+                      final s = list[i];
+                      final on = _selectedStone?.id == s.id;
+                      return GestureDetector(
+                        onTap: () {
+                          _pickStone(s);
+                          Navigator.of(ctx).pop();
+                        },
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: on ? AppColors.goldWarm : Colors.white12, width: on ? 2.5 : 1),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: SizedBox.expand(
+                                    child: SmartStoneImage(
+                                      imageUrl: s.images.isNotEmpty ? s.images.first : s.imageUrl,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(s.name,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
+  /// Applies another colour (image) of the same design to the AR wall.
+  void _selectColour(Stone stone, int i) {
+    if (i < 0 || i >= stone.images.length) return;
+    HapticFeedback.selectionClick();
+    setState(() => _colourIndex = i);
+    ARCameraView.updateStone(stone.images[i], _textureOpacity, patchHeightM: _patchHeightFor(stone));
+  }
+
+  Widget _buildColourStrip(Stone stone) {
+    return SizedBox(
+      height: 44,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        scrollDirection: Axis.horizontal,
+        itemCount: stone.images.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (_, i) {
+          final on = i == _colourIndex;
+          return GestureDetector(
+            onTap: () => _selectColour(stone, i),
+            child: Container(
+              width: 44,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: on ? AppColors.goldWarm : Colors.white24, width: on ? 2.5 : 1),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: SmartStoneImage(imageUrl: stone.images[i], fit: BoxFit.cover),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _selectStone(int index) {
+    if (widget.measureOnly) return;
+    HapticFeedback.selectionClick();
+    setState(() {
+      _selectedStoneIndex = index;
+      _colourIndex = 0;
+    });
     final stone = _selectedStone;
     if (stone == null) return;
     final path = stone.arTextureUrl ?? stone.mainImageUrl;
@@ -383,19 +635,33 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
           // 1. Full-screen camera feed
           _buildCamera(),
 
-          // 2. Top bar (always accessible for back navigation and controls)
-          _buildTopBar(),
+          // 2. Top bar (always accessible for back navigation and controls).
+          // Measure has its own bar inside the overlay, so it only gets a Back button.
+          if (widget.measureOnly) _buildMeasureBackButton() else _buildTopBar(),
 
           // 3. Bottom horizontal product carousel with CTAs (only in standard preview mode)
-          if (!isOverlayActive) _buildBottomProductCarousel(),
+          if (!isOverlayActive && !widget.measureOnly) _buildBottomProductCarousel(),
+
+          // 3b. Shutter: save the camera view with the placed design to the gallery (and share it)
+          if (!isOverlayActive && !widget.measureOnly) _buildCaptureControls(),
 
           // 4. Info button — product name/price + link to product page (only in standard preview mode)
-          if (!isOverlayActive) _buildInfoButton(),
+          if (!isOverlayActive && !widget.measureOnly) _buildInfoButton(),
 
           // 5. Tap-to-measure overlay
-          if (_measureMode)
+          if (_measureMode && !_noCamera)
             ArMeasureOverlay(
-              onClose: () => setState(() => _measureMode = false),
+              onClose: () {
+                if (widget.measureOnly) {
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    context.go('/home');
+                  }
+                  return;
+                }
+                setState(() => _measureMode = false);
+              },
               tileWidthMm: _tileDimensionsMm()?.$1,
               tileHeightMm: _tileDimensionsMm()?.$2,
               onComplete: (result) {
@@ -436,7 +702,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
     switch (_wallState) {
       case 'SEARCHING':
-        label = 'Point your camera at a wall';
+        label = 'Aim at a wall, then tap it to place the design';
         icon = Icons.crop_free_rounded;
         stateColor = const Color(0xFFD4AF37);
         break;
@@ -462,7 +728,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
         stateColor = const Color(0xFFFFB74D);
         break;
       default:
-        label = 'Point your camera at a wall';
+        label = 'Aim at a wall, then tap it to place the design';
         icon = Icons.crop_free_rounded;
         stateColor = const Color(0xFFD4AF37);
     }
@@ -919,16 +1185,20 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
   /// Camera feed
   Widget _buildCamera() {
-    final assetPath = _selectedStone?.arTextureUrl ?? _selectedStone?.mainImageUrl;
+    final assetPath = widget.measureOnly ? null : (_selectedStone?.arTextureUrl ?? _selectedStone?.mainImageUrl);
 
     return Positioned.fill(
       child: ARCameraView(
         key: const ValueKey('ar-camera-main'),
+        measureOnly: widget.measureOnly,
         stoneImagePath: assetPath,
         opacity: _textureOpacity,
         onReady: () {
           if (!mounted) return;
-          setState(() => _cameraReady = true);
+          setState(() {
+            _cameraReady = true;
+            if (widget.measureOnly) _measureMode = true;
+          });
           if (assetPath != null) {
             ARCameraView.updateStone(assetPath, _textureOpacity, patchHeightM: _patchHeightFor(_selectedStone));
             // Set tile dimensions for accurate pattern generation
@@ -943,7 +1213,48 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
             }
           }
         },
-        onError: () {},
+        onError: () {
+          if (mounted) setState(() => _noCamera = true);
+        },
+      ),
+    );
+  }
+
+  /// Measure screen: a clear Back button under the overlay's own top bar.
+  Widget _buildMeasureBackButton() {
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 66,
+      left: 16,
+      child: GestureDetector(
+        onTap: () {
+          if (context.canPop()) {
+            context.pop();
+          } else {
+            context.go('/home');
+          }
+        },
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(10, 8, 14, 8),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.55),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.22), width: 0.8),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.arrow_back_ios_new_rounded, size: 14, color: Colors.white),
+                  SizedBox(width: 6),
+                  Text('Back', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1009,7 +1320,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'GRAZIA AR',
+                  widget.measureOnly ? 'MEASURE' : 'GRAZIA AR',
                   style: TextStyle(
                     fontFamily: 'Playfair Display',
                     fontSize: 16,
@@ -1026,7 +1337,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'PRECISION SURFACE MAPPING',
+                  widget.measureOnly ? 'TAP TWO POINTS ON A WALL' : 'PRECISION SURFACE MAPPING',
                   style: TextStyle(
                     fontFamily: 'Inter',
                     fontSize: 9,
@@ -1039,52 +1350,6 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
             ),
 
             const Spacer(),
-
-            // Measure / ruler tool button
-            ClipRRect(
-              borderRadius: BorderRadius.circular(22),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                child: GestureDetector(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: _measureMode
-                          ? AppColors.goldWarm.withValues(alpha: 0.3)
-                          : Colors.black.withValues(alpha: 0.45),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: _measureMode
-                            ? AppColors.goldWarm
-                            : Colors.white.withValues(alpha: 0.22),
-                        width: _measureMode ? 1.2 : 0.8,
-                      ),
-                    ),
-                    child: IconButton(
-                      tooltip: 'Measure Surface',
-                      onPressed: () {
-                        if (!_cameraReady) {
-                          LuxuryToast.show(
-                            context,
-                            message: 'Camera must be active to start wall measurement.',
-                          );
-                          return;
-                        }
-                        HapticFeedback.selectionClick();
-                        setState(() => _measureMode = true);
-                      },
-                      icon: Icon(
-                        Icons.straighten_rounded,
-                        size: 17,
-                        color: _measureMode
-                            ? AppColors.goldWarm
-                            : Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
 
             // Settings button
             ClipRRect(
@@ -1120,15 +1385,59 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
   /// Bottom horizontal product carousel — swipe left/right to browse stones, tap to select.
   /// Premium commercial AR product style with product info and CTAs.
+  /// Shown instead of the designs carousel while the catalogue is loading or failed to load, so the
+  /// picker never silently disappears.
+  Widget _buildDesignsUnavailableBar() {
+    final state = ref.watch(allStonesProvider);
+    final bottomInset = MediaQuery.of(context).padding.bottom;
+    final double navClearance = 58 + (bottomInset > 0 ? bottomInset + 6 : 14) + 8;
+    final failed = state.hasError;
+    debugPrint('[LiveAI] designs unavailable: loading=${state.isLoading} error=${state.error} '
+        'value=${state.valueOrNull?.length}');
+    return Positioned(
+      left: 16,
+      right: 16,
+      bottom: widget.measureOnly ? bottomInset + 12 : navClearance,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.72),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Row(
+          children: [
+            if (!failed)
+              const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.goldWarm)),
+            if (!failed) const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                failed ? 'Could not load designs. Check your connection.' : 'Loading designs\u2026',
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+              ),
+            ),
+            if (failed)
+              GestureDetector(
+                onTap: () => ref.invalidate(allStonesProvider),
+                child: const Text('Retry', style: TextStyle(color: AppColors.goldWarm, fontWeight: FontWeight.w800)),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildBottomProductCarousel() {
-    if (_filteredStones.isEmpty) return const SizedBox.shrink();
+    if (_filteredStones.isEmpty) return _buildDesignsUnavailableBar();
 
     final bottomInset = MediaQuery.of(context).padding.bottom;
+    // The glass tab bar floats over this screen (58 high + its own bottom padding); sit above it.
+    final double navClearance = 58 + (bottomInset > 0 ? bottomInset + 6 : 14) + 8;
 
     return Positioned(
       left: 0,
       right: 0,
-      bottom: bottomInset,
+      bottom: widget.measureOnly ? bottomInset : navClearance,
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 640),
@@ -1149,6 +1458,44 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // All designs, grouped exactly like the Collections tab
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Row(
+                    children: [
+                      GestureDetector(
+                        onTap: _openDesignPicker,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                          decoration: BoxDecoration(
+                            color: AppColors.goldWarm,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            const Icon(Icons.grid_view_rounded, size: 15, color: Colors.black),
+                            const SizedBox(width: 6),
+                            Text('Designs  \u2022  ${_filteredStones.length}',
+                                style: const TextStyle(color: Colors.black, fontSize: 12, fontWeight: FontWeight.w800)),
+                          ]),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _selectedStone?.name ?? '',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Colours of the selected design (each image = one colour)
+                if (_selectedStone != null && _selectedStone!.images.length > 1) ...[
+                  _buildColourStrip(_selectedStone!),
+                  const SizedBox(height: 6),
+                ],
                 // Product carousel
                 SizedBox(
                   height: 90,

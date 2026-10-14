@@ -59,8 +59,11 @@ class _GraziaBottomNavState extends ConsumerState<GraziaBottomNav> {
     final isDark = ref.watch(themePaletteProvider.notifier).isDarkMode;
 
     // Compact floating dock sizing
+    // heightFactor 1: size to the dock itself. Without it Align fills the whole screen height, so the
+    // Scaffold reported a full-height bottom bar and every screen got padding.bottom == screen height.
     return Align(
       alignment: Alignment.bottomCenter,
+      heightFactor: 1.0,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 356),
         child: Padding(

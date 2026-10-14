@@ -123,7 +123,7 @@ class PrivacyPolicyScreen extends ConsumerWidget {
               palette,
               '5. DATA STORAGE & RETENTION',
               '• Your profile and saved designs are securely stored in Supabase PostgreSQL databases with Row-Level Security (RLS) policies.\n'
-              '• You may request permanent deletion of your account and saved designs at any time in the app (Profile → Delete Account) or from https://grazia-stones.vercel.app/delete-account, or by contacting hello@graziastones.com.',
+              '• You may request permanent deletion of your account and saved designs at any time in the app (Profile → Delete Account) or from https://grazia-stones.vercel.app/delete-account, or by contacting contactgraziastones@gmail.com.',
             ),
 
             const SizedBox(height: 18),
@@ -134,7 +134,7 @@ class PrivacyPolicyScreen extends ConsumerWidget {
               'For privacy inquiries or data access requests, contact our designated Grievance Officer:\n\n'
               'Grazia Stones Grievance Desk\n'
               '123/477, Kalpi Road, Fazalganj, Kanpur, UP - 208012\n'
-              'Email: privacy@graziastones.com / hello@graziastones.com\n'
+              'Email: contactgraziastones@gmail.com\n'
               'Helpline: +91 9839846105',
             ),
 

@@ -2,7 +2,7 @@
 
 Assets (1080×1920 phone screenshots, 1024×500 feature graphic, 512×512 icon) are generated from the web build and are **not** committed (size). Re-capture on a real phone before launch if you can. Upload: Play Console → Grow → Store presence → Main store listing.
 
-**Category:** House & Home · **Tags:** Home improvement, Interior design · **Contact email:** hello@graziastones.com · **Phone:** +91 98398 46105
+**Category:** House & Home · **Tags:** Home improvement, Interior design · **Contact email:** contactgraziastones@gmail.com · **Phone:** +91 98398 46105
 **Website:** https://grazia-stones.vercel.app · **Privacy policy:** https://grazia-stones.vercel.app/privacy · **Delete-account URL:** https://grazia-stones.vercel.app/delete-account
 
 ## App name (13/30)
@@ -42,7 +42,7 @@ GOOD TO KNOW
 ABOUT GRAZIA STONES
 Grazia Stones (a unit of BNK Stones) is an architectural stone brand based in Kanpur, Uttar Pradesh, crafting natural and cultured stone cladding for homes, hotels, restaurants and commercial projects across India.
 
-Questions? hello@graziastones.com · +91 98398 46105
+Questions? contactgraziastones@gmail.com · +91 98398 46105
 123/477, Kalpi Road, Fazalganj, Kanpur, UP - 208012
 
 ## What's new (first release)

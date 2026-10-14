@@ -108,6 +108,7 @@ dependencies:
 
   flutter_cache_manager: any
   webview_flutter: ^4.14.1
+  sensors_plus: ^7.1.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

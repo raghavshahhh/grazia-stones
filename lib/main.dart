@@ -26,6 +26,10 @@ void main() async {
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.presentError(details);
     debugPrint('🛡️ [Grazia Global Error Boundary]: ${details.exceptionAsString()}');
+    // Layout errors (e.g. RenderFlex overflow) carry the offending widget + file:line only in the
+    // full text, so keep a short slice of it for debugging.
+    final full = details.toString();
+    debugPrint(full.length > 900 ? full.substring(0, 900) : full);
   };
 
   PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {

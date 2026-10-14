@@ -428,6 +428,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             value: value,
             onChanged: onChanged,
             activeThumbColor: palette.primary,
+            inactiveThumbColor: palette.textTertiary,
+            inactiveTrackColor: palette.border.withValues(alpha: 0.5),
+            trackOutlineColor: WidgetStateProperty.resolveWith(
+              (states) => states.contains(WidgetState.selected) ? Colors.transparent : palette.border,
+            ),
           ),
         ],
       ),

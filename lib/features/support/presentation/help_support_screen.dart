@@ -196,7 +196,7 @@ class _HelpSupportScreenState extends ConsumerState<HelpSupportScreen> {
                           palette,
                           icon: Icons.mail_outline_rounded,
                           label: 'Email',
-                          onTap: () => _launchUrl('mailto:hello@graziastones.com'),
+                          onTap: () => _launchUrl('mailto:contactgraziastones@gmail.com'),
                         ),
                       ),
                     ],

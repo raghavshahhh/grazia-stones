@@ -200,7 +200,7 @@ class PDFService {
                     style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600),
                   ),
                   pw.SizedBox(height: 4),
-                  pw.Text('Kanpur, Uttar Pradesh | info@graziastones.com', style: _textStyle(9)),
+                  pw.Text('Kanpur, Uttar Pradesh | contactgraziastones@gmail.com', style: _textStyle(9)),
                 ],
               ),
               pw.Column(
@@ -486,7 +486,7 @@ class PDFService {
               style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
             ),
             pw.SizedBox(height: 8),
-            pw.Text('Email: info@graziastones.com', style: _textStyle(10)),
+            pw.Text('Email: contactgraziastones@gmail.com', style: _textStyle(10)),
             // Same helpline the Help, About and Privacy screens use.
             pw.Text('Phone: +91 98398 46105', style: _textStyle(10)),
           ],

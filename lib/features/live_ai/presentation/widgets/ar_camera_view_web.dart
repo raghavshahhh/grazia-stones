@@ -113,8 +113,11 @@ class ARCameraView extends StatefulWidget {
     this.scale = 1.0,
     this.position = Offset.zero,
     this.rotation = 0.0,
+    this.measureOnly = false,
   });
 
+  /// Accepted for API parity with the mobile widget; web has its own camera path.
+  final bool measureOnly;
   final VoidCallback? onReady;
   final VoidCallback? onError;
   final String? stoneImagePath;
@@ -154,7 +157,11 @@ class ARCameraView extends StatefulWidget {
     _jsEval('GraziaAR.showWallBoundary($show)');
   }
 
-  static void stopCamera() {
+  /// Gallery snapshot is a native-Android feature; the web camera has its own record button.
+ static Future<Map<String, String>> captureSnapshot() async =>
+     throw UnsupportedError('Photo capture is only available in the mobile app');
+
+ static void stopCamera() {
     _jsEval('GraziaAR.stopCamera()');
   }
 

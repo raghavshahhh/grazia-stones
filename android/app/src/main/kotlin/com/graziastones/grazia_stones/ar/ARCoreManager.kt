@@ -9,11 +9,14 @@ import androidx.lifecycle.LifecycleRegistry
 import com.google.android.filament.MaterialInstance
 import com.google.android.filament.Texture
 import com.google.android.filament.android.TextureHelper
+import android.opengl.Matrix
 import com.google.ar.core.Anchor
 import com.google.ar.core.ArCoreApk
 import com.google.ar.core.Config
 import com.google.ar.core.Plane
 import com.google.ar.core.Pose
+import com.google.ar.core.Session
+import com.google.ar.core.HitResult
 import com.google.ar.core.TrackingFailureReason
 import com.google.ar.core.TrackingState
 import io.github.sceneview.ar.ARSceneView
@@ -44,6 +47,15 @@ class ARCoreManager private constructor(context: Context) {
     companion object {
         // ponytail: assumed real height of one catalogue photo; add a per-stone value when the client supplies photo sizes.
         const val TEXTURE_PATCH_HEIGHT_M = 0.9f
+        // ponytail: default size of a tapped wall patch; a drag-to-resize handle would replace this.
+        // A wall hit nearer than 0.3 m or farther than 8 m is a tracking artefact, not a wall.
+        const val MIN_HIT_DISTANCE_M = 0.3f
+        const val MAX_HIT_DISTANCE_M = 8.0f
+        /** Ruler: ARCore is only trustworthy for hits in this range; outside it we say 'no surface' instead of guessing. */
+        const val MIN_MEASURE_M = 0.10f
+        const val MAX_MEASURE_M = 6.0f
+        const val PLACED_WALL_WIDTH_M = 3.0f
+        const val PLACED_WALL_HEIGHT_M = 2.7f
         private const val TAG = "ARCoreManager"
 
         @Volatile
@@ -87,6 +99,12 @@ class ARCoreManager private constructor(context: Context) {
     private val wallPlanes = LinkedHashMap<String, Plane>()
     private var selectedWallId: String? = null
     private var wallNode: Node? = null
+    // A wall the user placed by tapping it (depth / feature / plane hit). Independent of plane detection,
+    // so a plain wall works on the first frame instead of waiting for ARCore to find a plane.
+    private var placedAnchorNode: AnchorNode? = null
+    private var placedQuad: Node? = null
+    private var placedWidthM = PLACED_WALL_WIDTH_M
+    private var placedHeightM = PLACED_WALL_HEIGHT_M
     private var pendingTexture: MaterialInstance? = null
     // Width / height of the current texture photo, so tiling keeps its proportions.
     private var textureAspect = 1f
@@ -120,10 +138,22 @@ class ARCoreManager private constructor(context: Context) {
         view.lifecycle = lifecycleOwner.lifecycle
         view.planeRenderer.isEnabled = true
         view.planeRenderer.isVisible = true
-        view.onSessionUpdated = { _, frame ->
+        view.onSessionUpdated = { session, frame ->
+            // onSessionCreated / sessionConfiguration never fired on the OnePlus, but onSessionUpdated does,
+            // so the ARCore config is applied here, once per session, before anything else.
+            if (configuredSession !== session) {
+                configuredSession = session
+                try {
+                    applySessionConfig(session)
+                } catch (e: Exception) {
+                    Log.e(TAG, "AR_CONFIG failed: ${e.javaClass.simpleName}: ${e.message}", e)
+                    onError?.invoke("AR configuration failed: ${e.message}")
+                }
+            }
             val updated = frame.getUpdatedTrackables(Plane::class.java)
             onPlanesUpdated(updated)
             val camera = frame.camera
+            logTrackingDiagnostics(camera.trackingState, camera.trackingFailureReason, updated.size, view)
             onTrackingStateChanged?.invoke(
                 if (camera.trackingState == TrackingState.TRACKING) "TRACKING"
                 else mapTrackingFailure(camera.trackingFailureReason)
@@ -136,18 +166,35 @@ class ARCoreManager private constructor(context: Context) {
             Log.e(TAG, "AR session failed", e)
             onError?.invoke(e.message ?: "AR session failed")
         }
-        view.sessionConfiguration = { session, config ->
-            config.planeFindingMode = Config.PlaneFindingMode.VERTICAL
-            config.updateMode = Config.UpdateMode.LATEST_CAMERA_IMAGE
-            config.focusMode = Config.FocusMode.AUTO
-            // Depth (where the phone supports it) gives steadier wall hits on
-            // plain/white walls; phones without it keep the plane-only path.
-            if (session.isDepthModeSupported(Config.DepthMode.AUTOMATIC)) {
-                config.depthMode = Config.DepthMode.AUTOMATIC
-            }
-            // Match the overlay's brightness to the room's real lighting.
-            config.lightEstimationMode = Config.LightEstimationMode.ENVIRONMENTAL_HDR
-        }
+    }
+
+    private var configuredSession: Session? = null
+
+    private fun fillConfig(session: Session, config: Config) {
+        config.planeFindingMode = Config.PlaneFindingMode.HORIZONTAL_AND_VERTICAL
+        config.updateMode = Config.UpdateMode.LATEST_CAMERA_IMAGE
+        config.focusMode = Config.FocusMode.AUTO
+        // Depth is OFF. On the OnePlus NE2211 (ARCore 1.56) the Depth API reports "supported" but returns
+        // nonsense: hits 14-36 m away on a wall 2 m from the camera, and ARCore logs
+        // `spherical_rectifier.cc RET_CHECK ... unrectified_camera_model_type`. Plane and feature-point hits
+        // are real, so those are used; see AR_DIAG for the support flags.
+        config.depthMode = Config.DepthMode.DISABLED
+        // Match the overlay's brightness to the room's real lighting.
+        config.lightEstimationMode = Config.LightEstimationMode.ENVIRONMENTAL_HDR
+    }
+
+    private fun applySessionConfig(session: Session) {
+        val config = session.config
+        fillConfig(session, config)
+        session.configure(config)
+        val applied = session.config
+        Log.i(
+            TAG,
+            "AR_CONFIG applied planeFinding=${applied.planeFindingMode} depth=${applied.depthMode} " +
+                "light=${applied.lightEstimationMode} " +
+                "depthAutoSupported=${session.isDepthModeSupported(Config.DepthMode.AUTOMATIC)} " +
+                "rawDepthSupported=${session.isDepthModeSupported(Config.DepthMode.RAW_DEPTH_ONLY)}"
+        )
     }
 
     fun detachSceneView(view: ARSceneView) {
@@ -158,7 +205,13 @@ class ARCoreManager private constructor(context: Context) {
 
     // ── Session control ─────────────────────────────────────────────────
 
+    // Wall-detection latency, logged as `WALL_TIMING` so it can be read from logcat on a real phone.
+    private var sessionStartedAtMs = 0L
+    private var firstWallLogged = false
+
     fun startSession() {
+        sessionStartedAtMs = android.os.SystemClock.elapsedRealtime()
+        firstWallLogged = false
         lifecycleOwner.registry.currentState = Lifecycle.State.RESUMED
     }
 
@@ -203,6 +256,10 @@ class ARCoreManager private constructor(context: Context) {
                 planeIds[plane] = id
                 wallPlanes[id] = plane
                 Log.d(TAG, "Wall plane detected: $id extent: ${plane.extentX}x${plane.extentZ}")
+                if (!firstWallLogged) {
+                    firstWallLogged = true
+                    Log.i(TAG, "WALL_TIMING first wall after ${android.os.SystemClock.elapsedRealtime() - sessionStartedAtMs} ms, extent ${plane.extentX}x${plane.extentZ} m")
+                }
                 onWallDetected?.invoke(id, planeToMap(id, plane))
                 if (selectedWallId == null) {
                     selectedWallId = id
@@ -279,12 +336,19 @@ class ARCoreManager private constructor(context: Context) {
     }
 
     private fun clearWallNode() {
-        wallNode?.let { sceneView?.removeChildNode(it) }
+        wallNode?.let {
+            sceneView?.removeChildNode(it)
+            it.destroy()
+        }
         wallNode = null
     }
 
     private fun updateWallVisualization() {
         val view = sceneView ?: return
+        if (placedAnchorNode != null) {
+            rebuildPlacedQuad(view)
+            return
+        }
         clearWallNode()
 
         val wallId = selectedWallId ?: return
@@ -314,6 +378,188 @@ class ARCoreManager private constructor(context: Context) {
         anchorNode.addChildNode(quad)
         view.addChildNode(anchorNode)
         wallNode = anchorNode
+    }
+
+    // ── Tap-to-place wall ────────────────────────────────────────────────
+
+    private fun materialForWall(view: ARSceneView): MaterialInstance =
+        pendingTexture ?: view.materialLoader.createColorInstance(android.graphics.Color.argb(128, 255, 215, 0))
+
+    private fun rebuildPlacedQuad(view: ARSceneView) {
+        val node = placedAnchorNode ?: return
+        placedQuad?.let {
+            node.removeChildNode(it)
+            it.destroy()
+        }
+        val patchH = texturePatchHeightM
+        val patchW = patchH * textureAspect
+        val quad = PlaneNode(
+            engine = view.engine,
+            size = Size(x = placedWidthM, y = placedHeightM),
+            uvScale = Float2(placedWidthM / patchW, placedHeightM / patchH),
+            materialInstance = materialForWall(view),
+        )
+        node.addChildNode(quad)
+        placedQuad = quad
+    }
+
+    /**
+     * Places the selected design on the real surface under a screen tap. Every stage is logged under
+     * `PLACE` so a failure can be pinned to one step: native entry, tracking, hit list, per-hit verdict.
+     * Only real ARCore hits are accepted: a vertical Plane inside its polygon, or a Depth/feature point
+     * whose surface normal is roughly horizontal (a wall), never floors or ceilings.
+     */
+    fun placeWallAtScreenPoint(screenX: Float, screenY: Float): Map<String, Any>? {
+        val view = sceneView ?: run {
+            Log.w(TAG, "PLACE stage=native reason=no_scene_view")
+            return null
+        }
+        val frame = view.frame
+        val tracking = frame?.camera?.trackingState
+        val planes = view.session?.getAllTrackables(Plane::class.java).orEmpty()
+        Log.i(
+            TAG,
+            "PLACE stage=native px=(${screenX.toInt()},${screenY.toInt()}) view=${view.width}x${view.height} " +
+                "frame=${frame != null} tracking=$tracking planes=${planes.size} " +
+                planes.joinToString(prefix = "[", postfix = "]") {
+                    "${it.type}/${it.trackingState}/${"%.1f".format(it.extentX)}x${"%.1f".format(it.extentZ)}"
+                }
+        )
+        if (frame == null) return mapOf("placed" to false, "reason" to "no_frame")
+        if (tracking != TrackingState.TRACKING) return mapOf("placed" to false, "reason" to "not_tracking")
+
+        val hits = frame.hitTest(screenX, screenY)
+        Log.i(TAG, "PLACE stage=hits count=${hits.size}")
+        var chosen: HitResult? = null
+        var firstRejection = "no_hit"
+        hits.forEachIndexed { i, h ->
+            val t = h.trackable
+            val n = h.hitPose.getTransformedAxis(1, 1.0f) // surface normal in world space
+            val verdict = when {
+                h.distance < MIN_HIT_DISTANCE_M || h.distance > MAX_HIT_DISTANCE_M -> "implausible_distance"
+                t is com.google.ar.core.DepthPoint -> "depth_untrusted"
+                t is Plane && !t.isPoseInPolygon(h.hitPose) -> "outside_plane_polygon"
+                t is Plane && t.type != Plane.Type.VERTICAL -> "plane_${t.type}"
+                t is Plane -> "ok"
+                t is com.google.ar.core.Point &&
+                    t.orientationMode != com.google.ar.core.Point.OrientationMode.ESTIMATED_SURFACE_NORMAL -> "point_without_normal"
+                t is com.google.ar.core.DepthPoint || t is com.google.ar.core.Point ->
+                    if (kotlin.math.abs(n[1]) > 0.6f) "floor_or_ceiling" else "ok"
+                else -> "unsupported_${t.javaClass.simpleName}"
+            }
+            Log.i(
+                TAG,
+                "PLACE hit#$i ${t.javaClass.simpleName} dist=${"%.2f".format(h.distance)}m " +
+                    "normal=(${"%.2f".format(n[0])},${"%.2f".format(n[1])},${"%.2f".format(n[2])}) verdict=$verdict"
+            )
+            if (verdict == "ok" && chosen == null) chosen = h
+            else if (verdict != "ok" && firstRejection == "no_hit") firstRejection = verdict
+        }
+
+        val hit = chosen ?: run {
+            Log.i(TAG, "PLACE stage=result placed=false reason=$firstRejection")
+            return mapOf("placed" to false, "reason" to firstRejection)
+        }
+
+        clearPlacedWall()
+        val anchor = hit.createAnchor() ?: run {
+            Log.w(TAG, "PLACE stage=anchor reason=createAnchor_null")
+            return mapOf("placed" to false, "reason" to "anchor_failed")
+        }
+        val node = AnchorNode(engine = view.engine, anchor = anchor)
+        view.addChildNode(node)
+        placedAnchorNode = node
+        clearWallNode() // a placed wall replaces any plane-based overlay
+        rebuildPlacedQuad(view)
+        Log.i(TAG, "PLACE stage=result placed=true surface=${hit.trackable.javaClass.simpleName} dist=${"%.2f".format(hit.distance)}m")
+        return mapOf(
+            "placed" to true,
+            "surface" to hit.trackable.javaClass.simpleName,
+            "distanceM" to hit.distance,
+        )
+    }
+
+    fun clearPlacedWall() {
+        placedQuad = null
+        placedAnchorNode?.let {
+            sceneView?.removeChildNode(it)
+            it.destroy()
+        }
+        placedAnchorNode = null
+    }
+
+    // ── Snapshot ─────────────────────────────────────────────────────────
+
+    /**
+     * Captures what the AR view currently shows (camera feed + the placed design) with PixelCopy, saves
+     * it to Pictures/Grazia in the gallery and also to the app cache so Flutter can share it.
+     * [done] gets (galleryUri, cachePath) or (null, errorMessage). Always called on the main thread.
+     */
+    fun captureSnapshot(done: (Map<String, String>?, String?) -> Unit) {
+        val view = sceneView
+        if (view == null || view.width <= 0 || view.height <= 0) {
+            done(null, "AR view is not ready")
+            return
+        }
+        val bitmap = android.graphics.Bitmap.createBitmap(view.width, view.height, android.graphics.Bitmap.Config.ARGB_8888)
+        val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        android.view.PixelCopy.request(view, bitmap, { code ->
+            if (code != android.view.PixelCopy.SUCCESS) {
+                Log.w(TAG, "SNAPSHOT PixelCopy failed code=$code")
+                done(null, "Could not capture the camera view (code $code)")
+                return@request
+            }
+            Thread {
+                try {
+                    val name = "Grazia_AR_" + java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
+                    val cacheFile = java.io.File(appContext.cacheDir, "$name.jpg")
+                    cacheFile.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 92, it) }
+
+                    val values = android.content.ContentValues().apply {
+                        put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, "$name.jpg")
+                        put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                        put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Grazia")
+                        put(android.provider.MediaStore.Images.Media.IS_PENDING, 1)
+                    }
+                    val resolver = appContext.contentResolver
+                    val uri = resolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                        ?: throw java.io.IOException("MediaStore insert returned null")
+                    resolver.openOutputStream(uri)?.use { out -> cacheFile.inputStream().use { it.copyTo(out) } }
+                        ?: throw java.io.IOException("could not open gallery output stream")
+                    values.clear()
+                    values.put(android.provider.MediaStore.Images.Media.IS_PENDING, 0)
+                    resolver.update(uri, values, null, null)
+                    Log.i(TAG, "SNAPSHOT saved ${bitmap.width}x${bitmap.height} -> $uri")
+                    handler.post { done(mapOf("uri" to uri.toString(), "path" to cacheFile.absolutePath), null) }
+                } catch (e: Exception) {
+                    Log.e(TAG, "SNAPSHOT save failed", e)
+                    handler.post { done(null, "Could not save the photo: ${e.message}") }
+                }
+            }.start()
+        }, handler)
+    }
+
+    // ── Diagnostics ─────────────────────────────────────────────────────
+
+    private var lastTrackingState: TrackingState? = null
+    private var lastDiagAtMs = 0L
+
+    /** Logs tracking transitions plus a 5 s heartbeat so wall-detection problems are visible in logcat. */
+    private fun logTrackingDiagnostics(state: TrackingState, reason: TrackingFailureReason?, updatedPlanes: Int, view: ARSceneView) {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (state != lastTrackingState) {
+            lastTrackingState = state
+            Log.i(TAG, "TRACKING_STATE $state reason=$reason after ${now - sessionStartedAtMs} ms")
+        }
+        if (now - lastDiagAtMs > 5000) {
+            lastDiagAtMs = now
+            val depth = view.session?.config?.depthMode
+            val all = view.session?.getAllTrackables(Plane::class.java).orEmpty()
+            val byType = all.groupingBy { it.type.name }.eachCount()
+            val sess = view.session
+            val depthSupport = "auto=${sess?.isDepthModeSupported(Config.DepthMode.AUTOMATIC)} raw=${sess?.isDepthModeSupported(Config.DepthMode.RAW_DEPTH_ONLY)}"
+            Log.i(TAG, "AR_DIAG tracking=$state depthMode=$depth depthSupported[$depthSupport] allPlanes=$byType acceptedWalls=${wallPlanes.size} placed=${placedAnchorNode != null} updatedPlanes=$updatedPlanes")
+        }
     }
 
     // ── Measurement ──────────────────────────────────────────────────────
@@ -361,11 +607,10 @@ class ARCoreManager private constructor(context: Context) {
      */
     fun hitTestWallAtScreenPoint(screenX: Float, screenY: Float): Map<String, Any>? {
         val view = sceneView ?: return null
-        val hit = view.hitTestAR(
-            xPx = screenX,
-            yPx = screenY,
-            planeTypes = setOf(Plane.Type.VERTICAL),
-        ) ?: return null
+        // Like the iPhone Measure app: any real surface counts, not only an already-detected vertical
+        // plane. ARCore returns hits nearest-first across planes, depth points (phones with the Depth
+        // API) and feature points, so the ruler works on the first frame on plain walls too.
+        val hit = rulerHit(view, screenX, screenY) ?: return null
 
         val pose = hit.hitPose
         val anchorId = addMeasurementPoint(pose.tx(), pose.ty(), pose.tz())
@@ -374,7 +619,79 @@ class ARCoreManager private constructor(context: Context) {
             "x" to pose.tx(),
             "y" to pose.ty(),
             "z" to pose.tz(),
+            "surface" to hit.trackable.javaClass.simpleName,
+            "distanceM" to hit.distance,
         )
+    }
+
+    /** Nearest real surface (plane or oriented feature point) under a screen pixel, within ruler range. */
+    private fun rulerHit(view: ARSceneView, x: Float, y: Float): HitResult? {
+        val cam = view.frame?.camera ?: return null
+        if (cam.trackingState != TrackingState.TRACKING) return null
+        // Depth API output is not used: it returned 14-36 m for a 2 m wall on the test phone, and
+        // planes/feature points are what ARCore documents as metrically tracked on every ARCore device.
+        val hit = view.hitTestAR(
+            xPx = x,
+            yPx = y,
+            planeTypes = Plane.Type.values().toSet(),
+            point = true,
+            depthPoint = false,
+            instantPlacementPoint = false,
+        ) ?: return null
+        return if (hit.distance in MIN_MEASURE_M..MAX_MEASURE_M) hit else null
+    }
+
+    /** Live crosshair probe: same hit test as placing a point, but creates no anchor. */
+    fun probeSurfaceAtScreenPoint(screenX: Float, screenY: Float): Map<String, Any>? {
+        val view = sceneView ?: return null
+        val hit = rulerHit(view, screenX, screenY) ?: return null
+        val pose = hit.hitPose
+        return mapOf(
+            "x" to pose.tx(),
+            "y" to pose.ty(),
+            "z" to pose.tz(),
+            "distanceM" to hit.distance,
+            "surface" to hit.trackable.javaClass.simpleName,
+        )
+    }
+
+    /**
+     * Current screen position (native pixels) of measurement anchors, so pins and lines stay glued to the
+     * real object while the phone moves. `visible` is false when behind the camera or the anchor is not tracked.
+     */
+    fun projectMeasurementAnchors(ids: List<String>): List<Map<String, Any>> {
+        val view = sceneView ?: return emptyList()
+        val cam = view.frame?.camera ?: return emptyList()
+        val w = view.width.toFloat()
+        val h = view.height.toFloat()
+        if (w <= 0f || h <= 0f) return emptyList()
+        val proj = FloatArray(16)
+        val viewM = FloatArray(16)
+        val vp = FloatArray(16)
+        cam.getProjectionMatrix(proj, 0, 0.05f, 50f)
+        cam.getViewMatrix(viewM, 0)
+        Matrix.multiplyMM(vp, 0, proj, 0, viewM, 0)
+        return ids.map { id ->
+            val anchor = measurementAnchors[id]
+            if (anchor == null || anchor.trackingState != TrackingState.TRACKING) {
+                mapOf<String, Any>("visible" to false, "x" to 0.0, "y" to 0.0)
+            } else {
+                val p = anchor.pose
+                val clip = FloatArray(4)
+                Matrix.multiplyMV(clip, 0, vp, 0, floatArrayOf(p.tx(), p.ty(), p.tz(), 1f), 0)
+                if (clip[3] <= 0.0001f) {
+                    mapOf<String, Any>("visible" to false, "x" to 0.0, "y" to 0.0)
+                } else {
+                    val ndcX = clip[0] / clip[3]
+                    val ndcY = clip[1] / clip[3]
+                    mapOf<String, Any>(
+                        "visible" to true,
+                        "x" to ((ndcX * 0.5f + 0.5f) * w).toDouble(),
+                        "y" to ((1f - (ndcY * 0.5f + 0.5f)) * h).toDouble(),
+                    )
+                }
+            }
+        }
     }
 
     fun getMeasurementDistance(): Float? {
@@ -525,10 +842,32 @@ class ARCoreManager private constructor(context: Context) {
 
     // ── Wall state ───────────────────────────────────────────────────────
 
+    /** True when [pose] is inside roughly +-60 degrees of where the camera is looking. */
+    private fun inCameraView(pose: Pose): Boolean {
+        val cam = sceneView?.frame?.camera?.pose ?: return true
+        val fwd = cam.getTransformedAxis(2, -1.0f) // the camera looks down its -Z axis
+        val dx = pose.tx() - cam.tx()
+        val dy = pose.ty() - cam.ty()
+        val dz = pose.tz() - cam.tz()
+        val len = sqrt(dx * dx + dy * dy + dz * dz)
+        if (len < 1e-3f) return true
+        return (fwd[0] * dx + fwd[1] * dy + fwd[2] * dz) / len > 0.5f
+    }
+
+    /**
+     * "TRACKING" only while a wall is both tracked by ARCore and actually in front of the camera.
+     * A plane/anchor stays tracked after the camera turns away, so without the view test the UI kept
+     * saying "Wall detected" while pointing at the floor or a different room.
+     */
     fun getWallState(): String {
+        val placed = placedAnchorNode?.anchor
+        val selected = selectedWallId?.let { wallPlanes[it] }
         val state = when {
+            placed != null ->
+                if (placed.trackingState == TrackingState.TRACKING && inCameraView(placed.pose)) "TRACKING" else "LOST"
             wallPlanes.isEmpty() -> "SEARCHING"
-            selectedWallId != null && wallPlanes.containsKey(selectedWallId) -> "TRACKING"
+            selected != null ->
+                if (selected.trackingState == TrackingState.TRACKING && inCameraView(selected.centerPose)) "TRACKING" else "LOST"
             else -> "DETECTING"
         }
         onWallStateChanged?.invoke(state)

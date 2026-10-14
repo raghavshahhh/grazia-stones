@@ -334,6 +334,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
                     const Center(
                       child: GraziaLogo(
                         variant: GraziaLogoVariant.full,
+                        colorStyle: GraziaLogoColor.gold,
                         height: 76,
                         enableGlow: true,
                       ),

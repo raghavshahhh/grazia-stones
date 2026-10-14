@@ -42,6 +42,9 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
   final ScrollController _scrollController = ScrollController();
   final List<AarnaChatMessage> _messages = [];
   bool _isTyping = false;
+  // Id of the answer currently being typed out; its shortcuts/product cards stay hidden until the
+  // text is complete, so the answer always lands before the products.
+  String? _streamingId;
   AarnaPose _activeHeroPose = AarnaPose.idle;
 
   final List<_AarnaCapability> _capabilities = const [
@@ -193,6 +196,7 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
       setState(() {
         _messages.add(placeholder);
         _isTyping = false;
+        _streamingId = placeholder.id;
       });
       HapticFeedback.lightImpact();
       _scrollToBottom();
@@ -212,9 +216,13 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
         });
         _scrollToBottom();
       }
+      if (!mounted) return;
+      setState(() => _streamingId = null);
+      _scrollToBottom();
     } catch (e) {
       if (!mounted) return;
       setState(() {
+        _streamingId = null;
         _messages.add(
           AarnaChatMessage(
             id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -256,6 +264,7 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
           children: [
             AarnaLivingAvatar(
               size: 38,
+              popOut: true,
               pose: _isTyping ? AarnaPose.searching : _activeHeroPose,
               isSearching: _isTyping || _activeHeroPose == AarnaPose.searching,
               showRadarRings: _isTyping,
@@ -336,6 +345,8 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
             Expanded(
               child: ListView.builder(
                 controller: _scrollController,
+                // Dragging the chat or tapping outside the field closes the keyboard.
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
                 itemCount: 1 + _messages.length + (_isTyping ? 1 : 0),
                 itemBuilder: (context, index) {
@@ -422,6 +433,7 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
                         cursorColor: palette.primary,
                         textInputAction: TextInputAction.send,
                         onSubmitted: _handleSubmitted,
+                        onTapOutside: (_) => FocusScope.of(context).unfocus(),
                         decoration: InputDecoration(
                           hintText: 'Ask Aarna in English or Hindi (e.g. living room wall)...',
                           hintStyle: GoogleFonts.plusJakartaSans(
@@ -492,6 +504,7 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
     }
 
     // Aarna Message
+    final showExtras = msg.id != _streamingId;
     return Container(
       margin: const EdgeInsets.only(bottom: 18),
       child: Column(
@@ -535,14 +548,15 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
             ],
           ),
 
-          // Real-World Action Shortcuts ("Chize kare real type mei")
-          Padding(
-            padding: const EdgeInsets.only(left: 42, top: 10),
-            child: _buildActionShortcuts(palette, isDark),
-          ),
+          // Action shortcuts only travel with a product answer, never with small talk.
+          if (showExtras && (msg.recommendedCollections.isNotEmpty || msg.recommendedStones.isNotEmpty))
+            Padding(
+              padding: const EdgeInsets.only(left: 42, top: 10),
+              child: _buildActionShortcuts(palette, isDark),
+            ),
 
           // Recommended Architectural Collections & Design Suites
-          if (msg.recommendedCollections.isNotEmpty) ...[
+          if (showExtras && msg.recommendedCollections.isNotEmpty) ...[
             const SizedBox(height: 12),
             Padding(
               padding: const EdgeInsets.only(left: 42),
@@ -583,7 +597,7 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
                 },
               ),
             ),
-          ] else if (msg.recommendedStones.isNotEmpty) ...[
+          ] else if (showExtras && msg.recommendedStones.isNotEmpty) ...[
             const SizedBox(height: 12),
             Padding(
               padding: const EdgeInsets.only(left: 42),

@@ -71,7 +71,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     final palette = ref.watch(themePaletteProvider);
 
     return Scaffold(
-      backgroundColor: palette.background,
+      backgroundColor: GraziaAnimatedSplashLogo.backdrop,
       body: GestureDetector(
         onTap: _navigateNext,
         behavior: HitTestBehavior.opaque,

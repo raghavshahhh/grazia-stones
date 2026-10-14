@@ -676,6 +676,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         redirect: (context, state) => '/live-ai',
       ),
       GoRoute(
+        path: '/ar-measure',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideUpPage(const LiveAIScreen(measureOnly: true), state),
+      ),
+      GoRoute(
         path: '/measure',
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>

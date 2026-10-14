@@ -60,9 +60,11 @@ class AarnaAIService {
     final pool = catalogueStones.isNotEmpty ? catalogueStones : MockDataService.stones;
     final collectionPool = allCollections.isNotEmpty ? allCollections : MockDataService.collections;
 
-    // 2. Find matching collections & stones based on query semantics (Hindi & English keywords)
-    final matchedCollections = _filterMatchingCollections(userQuery, collectionPool);
-    final matchedStones = _filterMatchingStones(userQuery, pool);
+    // 2. Find matching collections & stones based on query semantics (Hindi & English keywords).
+    // Small talk ("hey", "thanks", "who are you") gets a plain conversational answer with no cards.
+    final wantsProducts = _wantsProducts(userQuery, collectionPool);
+    final matchedCollections = wantsProducts ? _filterMatchingCollections(userQuery, collectionPool) : <Collection>[];
+    final matchedStones = wantsProducts ? _filterMatchingStones(userQuery, pool) : <Stone>[];
 
     // 3. Live catalogue facts for grounding (brand knowledge + persona live
     // on the server in api/aarna.js, so the Gemini key never ships in the app).
@@ -119,6 +121,23 @@ class AarnaAIService {
       recommendedCollections: matchedCollections.take(3).toList(),
       recommendedStones: matchedStones.take(4).toList(),
     );
+  }
+
+  static final _productIntent = RegExp(
+    r'stone|pathar|patthar|wall|deewar|diwar|design|collection|series|panel|brick|ledge|cnc|3d|patina|tile|clad|'
+    r'elevation|facade|exterior|interior|living|bedroom|kitchen|bathroom|lobby|hotel|restaurant|office|villa|'
+    r'balcony|show me|dikha|recommend|suggest|option|combination|combo|match|texture|finish|colou?r|catalogue|'
+    r'sample|quote|price|rate|cost|sqft|sq ft|budget|size|thickness|fluted|travertin|marble|granite|sandstone',
+  );
+
+  /// True when the user is actually asking about stones/designs/rooms/prices (English, Hindi, Hinglish).
+  @visibleForTesting
+  bool wantsProducts(String query, List<Collection> collections) => _wantsProducts(query, collections);
+
+  bool _wantsProducts(String query, List<Collection> collections) {
+    final q = query.toLowerCase();
+    if (_productIntent.hasMatch(q)) return true;
+    return collections.any((c) => c.isListed && q.contains(c.displayName.toLowerCase()));
   }
 
   /// Filters architectural collections by multilingual keywords
@@ -445,18 +464,31 @@ class AarnaAIService {
     final isQuote = q.contains('quote') || q.contains('price') || q.contains('rate') || q.contains('cost') || q.contains('kitna');
     final isTech = q.contains('tech') || q.contains('spec') || q.contains('size') || q.contains('detail') || q.contains('dimension') || q.contains('weight') || q.contains('maintenance');
     final isCombo = q.contains('combo') || q.contains('combination') || q.contains('match') || q.contains('pair') || q.contains('together') || q.contains('finish') || q.contains('interiors');
-    final isGreeting = q == 'hello' || q == 'hi' || q == 'namaste' || q.startsWith('hello') || q.startsWith('hi aarna');
+    final qt = q.trim();
+    final isGreeting = RegExp(r'^(hello|hi+|hey+|hy|namaste|namaskar|good (morning|evening|afternoon))\b').hasMatch(qt);
+    final isThanks = RegExp(r'^(thanks|thank you|thx|shukriya|dhanyavad|ok+|okay|theek hai|thik hai)\b').hasMatch(qt);
+    final isHowAreYou = q.contains('how are you') || q.contains('kaise ho') || q.contains('kaisi ho') || q.contains('kya haal');
 
+    if (isThanks) {
+      return isHindi
+          ? 'Koi baat nahi! Aur kuch chahiye ho to bas bol dena, main yahin hoon.'
+          : 'Anytime! If you need anything else, just ask. I am right here.';
+    }
+    if (isHowAreYou) {
+      return isHindi
+          ? 'Main badhiya hoon, thanks for asking! Aap batao, kaunsa space plan kar rahe ho?'
+          : 'Doing great, thanks for asking! What space are you planning?';
+    }
     if (isGreeting) {
       return isHindi
-          ? 'Namaste! Main hoon **Aarna** — Grazia Stones ki AI design consultant.\n\n*AARNA — Your Vision, My Intelligence.*\n\nAapke space ke liye authentic architectural design suites neeche curate kiye gaye hain. Living room, facade ya TV wall kiske liye collection explore karein?'
-          : 'Hello! I\'m **Aarna**, your AI architectural consultant for Grazia Stones.\n\n*AARNA — Your Vision, My Intelligence.*\n\nHere are authentic architectural design suites curated for you below. Tap any collection to explore all designs or preview in Live AR!';
+          ? 'Hey! Main **Aarna** hoon, Grazia Stones ki team se. Aap kis space ke liye stone dekh rahe ho?'
+          : 'Hey! I am **Aarna** from the Grazia Stones team. What space are you thinking about?';
     }
 
     if (isQuote) {
       return isHindi
-          ? 'Apni wall ka size (e.g. 10x12 ft) batayein! Main turant square footage calculate kar doongi. Recommended design suite **$primaryCollection** ₹385/sq.ft se start hoti hai.'
-          : 'Share your approximate wall dimensions (e.g. 10x12 ft)! I\'ll calculate square footage and boxes instantly. Recommended design suite **$primaryCollection** starts at ₹385/sq.ft.';
+          ? 'Apni wall ka size (e.g. 10x12 ft) batayein! Main turant square footage calculate kar doongi. **$primaryCollection** is ke liye ek achha option ho sakta hai, final price hamari team confirm karegi.'
+          : 'Share your approximate wall dimensions (e.g. 10x12 ft)! I\'ll calculate square footage and boxes instantly. **$primaryCollection** could be a good fit, and our team will confirm the final price.';
     }
 
     if (isTech) {

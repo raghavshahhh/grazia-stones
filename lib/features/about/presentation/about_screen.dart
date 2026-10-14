@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/grazia_logo.dart';
+import 'package:grazia_stones/shared/widgets/powered_by_ragspro.dart';
 
 class AboutScreen extends ConsumerWidget {
   const AboutScreen({super.key});
@@ -249,8 +250,8 @@ class AboutScreen extends ConsumerWidget {
                     palette,
                     Icons.email_outlined,
                     'Official Correspondence',
-                    'hello@graziastones.com / info@graziastones.com',
-                    onTap: () => _launchUrl('mailto:hello@graziastones.com'),
+                    'contactgraziastones@gmail.com',
+                    onTap: () => _launchUrl('mailto:contactgraziastones@gmail.com'),
                   ),
                   const Divider(height: 20),
                   _buildContactRow(
@@ -299,6 +300,8 @@ class AboutScreen extends ConsumerWidget {
               ],
             ),
 
+            const SizedBox(height: 32),
+            Center(child: PoweredByRagspro(textColor: palette.textTertiary, accentColor: palette.primary)),
             const SizedBox(height: 48),
           ],
         ),

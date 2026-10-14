@@ -90,7 +90,7 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
       'icon': Icons.view_in_ar_rounded,
       'targetType': 'ar_tab',
       'targetLabel': 'AR Tab in Bottom Navigation',
-      'chips': ['📱 Real-Scale 3D', '📐 LiDAR Wall Detection', '🔄 360° Material Rotation'],
+      'chips': ['📱 Real-Scale 3D', '📐 Smart Wall Detection', '🔄 360° Material Rotation'],
     },
   ];
 

@@ -226,6 +226,42 @@ class ARCorePlugin : FlutterPlugin, MethodCallHandler, StreamHandler {
                     result.error("INVALID_ARGS", "Missing screen coordinates", null)
                 }
             }
+            "probeSurfaceAtScreenPoint" -> {
+                val screenX = call.argument<Double>("screenX")?.toFloat()
+                val screenY = call.argument<Double>("screenY")?.toFloat()
+                if (screenX != null && screenY != null) {
+                    result.success(arCoreManager?.probeSurfaceAtScreenPoint(screenX, screenY))
+                } else {
+                    result.error("INVALID_ARGS", "Missing screen coordinates", null)
+                }
+            }
+            "projectMeasurementAnchors" -> {
+                val ids = call.argument<List<String>>("ids") ?: emptyList()
+                result.success(arCoreManager?.projectMeasurementAnchors(ids) ?: emptyList<Map<String, Any>>())
+            }
+            "placeWallAtScreenPoint" -> {
+                val screenX = call.argument<Double>("screenX")?.toFloat()
+                val screenY = call.argument<Double>("screenY")?.toFloat()
+                if (screenX != null && screenY != null) {
+                    result.success(arCoreManager?.placeWallAtScreenPoint(screenX, screenY))
+                } else {
+                    result.error("INVALID_ARGS", "Missing screen coordinates", null)
+                }
+            }
+            "captureSnapshot" -> {
+                val mgr = arCoreManager
+                if (mgr == null) {
+                    result.error("NO_MANAGER", "AR is not initialised", null)
+                } else {
+                    mgr.captureSnapshot { saved, error ->
+                        if (saved != null) result.success(saved) else result.error("SNAPSHOT_FAILED", error, null)
+                    }
+                }
+            }
+            "clearPlacedWall" -> {
+                arCoreManager?.clearPlacedWall()
+                result.success(null)
+            }
             "stopCamera" -> {
                 arCoreManager?.pauseSession()
                 result.success(null)

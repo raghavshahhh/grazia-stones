@@ -250,6 +250,46 @@ class ARNativeChannel {
     }
   }
 
+  /// Live crosshair probe for the ruler: the surface under [screenPoint] (world position in metres and
+  /// camera distance) without creating an anchor, or null when ARCore has no trackable surface there.
+  static Future<Map<String, dynamic>?> probeSurfaceAtScreenPoint(Offset screenPoint) async {
+    try {
+      final nativePoint = _toNativeScreenPoint(screenPoint);
+      final result = await _channel.invokeMethod('probeSurfaceAtScreenPoint', {
+        'screenX': nativePoint.dx,
+        'screenY': nativePoint.dy,
+      });
+      if (result == null) return null;
+      return Map<String, dynamic>.from(result as Map);
+    } on PlatformException catch (e) {
+      debugPrint('[ARNativeChannel] probeSurface failed: ${e.message}');
+      return null;
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
+  /// Where the ruler pins are on screen right now (logical pixels), so pins and lines stay on the real
+  /// object while the phone moves. An entry is null when that pin is behind the camera or not tracked.
+  static Future<List<Offset?>> projectMeasurementAnchors(List<String> anchorIds) async {
+    if (anchorIds.isEmpty) return const [];
+    try {
+      final result = await _channel.invokeMethod('projectMeasurementAnchors', {'ids': anchorIds});
+      final dpr = (!kIsWeb && Platform.isAndroid) ? _devicePixelRatio : 1.0;
+      return [
+        for (final e in (result as List? ?? const []))
+          if ((e as Map)['visible'] == true)
+            Offset((e['x'] as num).toDouble() / dpr, (e['y'] as num).toDouble() / dpr)
+          else
+            null,
+      ];
+    } on PlatformException {
+      return List<Offset?>.filled(anchorIds.length, null);
+    } on MissingPluginException {
+      return List<Offset?>.filled(anchorIds.length, null);
+    }
+  }
+
   /// Ray-cast a screen-space tap against the detected wall plane and place a
   /// real ARKit world-space measurement anchor there. Returns null if the tap
   /// didn't hit a tracked wall plane (never falls back to screen coordinates).
@@ -268,6 +308,42 @@ class ARNativeChannel {
     }
   }
   
+  /// Places the selected design on the real surface under a screen tap (Android). Returns null when no
+  /// real surface was hit; `{placed:false, reason:'not_vertical'}` for floors/ceilings.
+  static Future<Map<String, dynamic>?> placeWallAtScreenPoint(Offset screenPoint) async {
+    try {
+      final nativePoint = _toNativeScreenPoint(screenPoint);
+      final result = await _channel.invokeMethod('placeWallAtScreenPoint', {
+        'screenX': nativePoint.dx,
+        'screenY': nativePoint.dy,
+      });
+      if (result == null) return null;
+      return Map<String, dynamic>.from(result as Map);
+    } on PlatformException catch (e) {
+      debugPrint('[ARNativeChannel] placeWallAtScreenPoint failed: ${e.message}');
+      return null;
+    } on MissingPluginException {
+      return null; // iOS ARKit path places walls from plane detection
+    }
+  }
+
+  /// Captures the AR view (camera + placed design) to the gallery. Returns {uri, path} or throws a
+  /// [PlatformException] whose message is safe to show to the user.
+  static Future<Map<String, String>> captureSnapshot() async {
+    final r = await _channel.invokeMethod('captureSnapshot');
+    return Map<String, String>.from(r as Map);
+  }
+
+  static Future<void> clearPlacedWall() async {
+    try {
+      await _channel.invokeMethod('clearPlacedWall');
+    } on PlatformException catch (e) {
+      debugPrint('[ARNativeChannel] clearPlacedWall failed: ${e.message}');
+    } on MissingPluginException {
+      // not supported on this platform
+    }
+  }
+
   /// Get the current measurement distance in meters
   static Future<double?> getMeasurementDistance() async {
     try {

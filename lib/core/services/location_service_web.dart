@@ -27,7 +27,7 @@ Future<DetectedLocation?> detectCurrentLocation() async {
     if (coords != null) {
       final res = await http.get(
         Uri.parse('https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords.$1}&lon=${coords.$2}&addressdetails=1'),
-        headers: {'User-Agent': 'GraziaStonesApp/1.0 (contact@graziastones.com)'},
+        headers: {'User-Agent': 'GraziaStonesApp/1.0 (contactgraziastones@gmail.com)'},
       ).timeout(const Duration(seconds: 5));
 
       if (res.statusCode == 200) {

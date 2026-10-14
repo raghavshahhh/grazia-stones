@@ -13,6 +13,7 @@ import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 import 'package:grazia_stones/features/cart/presentation/cart_screen.dart';
 import 'package:grazia_stones/features/wishlist/providers/wishlist_provider.dart';
 import 'package:grazia_stones/shared/widgets/luxury_toast.dart';
+import 'package:grazia_stones/features/stone_detail/presentation/stone_fullscreen_viewer.dart';
 
 class StoneDetailScreen extends ConsumerStatefulWidget {
   final String stoneId;
@@ -26,7 +27,8 @@ class StoneDetailScreen extends ConsumerStatefulWidget {
 class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
     with SingleTickerProviderStateMixin {
   int _currentImageIndex = 0;
-  
+  final PageController _pageCtrl = PageController();
+
   // Area Estimator State
   double _areaSqFt = 150.0;
   double _wastagePercent = 0.15; // 15% standard recommended
@@ -54,7 +56,29 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
   void dispose() {
     _justAddedTimer?.cancel();
     _cartBtnAnimController.dispose();
+    _pageCtrl.dispose();
     super.dispose();
+  }
+
+  /// Each image of a stone row is one colour variant (the DB rarely carries colour names).
+  List<String> _colourLabels(Stone stone, int count) => List.generate(
+        count,
+        (i) => stone.availableColors.length == count ? stone.availableColors[i] : 'Shade ${i + 1}',
+      );
+
+  void _openViewer(Stone stone, List<String> images, int index, {bool start3D = false}) {
+    final thickness = stone.thicknessMm ?? 0;
+    Navigator.of(context).push(MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (_) => StoneFullscreenViewer(
+        title: stone.name,
+        images: images,
+        labels: _colourLabels(stone, images.length),
+        initialIndex: index,
+        thicknessMm: thickness > 0 ? thickness : 20,
+        start3D: start3D,
+      ),
+    ));
   }
 
   void _handleAddToCart(Stone stone, LuxuryPalette palette) {
@@ -281,22 +305,49 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                     fit: StackFit.expand,
                     children: [
                       PageView.builder(
+                        controller: _pageCtrl,
                         itemCount: images.length,
                         onPageChanged: (i) => setState(() => _currentImageIndex = i),
                         itemBuilder: (context, i) {
-                          return SmartStoneImage(
-                            imageUrl: images[i],
-                            fit: BoxFit.cover,
-                            palette: palette,
+                          return GestureDetector(
+                            onTap: () => _openViewer(stone, images, i),
+                            child: SmartStoneImage(
+                              imageUrl: images[i],
+                              fit: BoxFit.cover,
+                              palette: palette,
+                            ),
                           );
                         },
                       ),
-                      // Gradient overlay
+                      Positioned(
+                        right: 14,
+                        bottom: 30,
+                        child: GestureDetector(
+                          onTap: () => _openViewer(stone, images, _currentImageIndex, start3D: true),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.6),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.threed_rotation_rounded, color: Colors.white, size: 16),
+                                SizedBox(width: 6),
+                                Text('360° 3D', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Gradient overlay (IgnorePointer: it sits over the 360 3D button and image taps)
                       Positioned(
                         bottom: 0,
                         left: 0,
                         right: 0,
-                        child: Container(
+                        child: IgnorePointer(
+                          child: Container(
                           height: 100,
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
@@ -308,6 +359,7 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                               ],
                             ),
                           ),
+                        ),
                         ),
                       ),
                       // Page indicator dots
@@ -446,6 +498,58 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                             ),
                         ],
                       ),
+
+                      if (images.length > 1) ...[
+                        const SizedBox(height: 18),
+                        Text(
+                          'COLOURS  •  ${images.length}',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.8,
+                            color: palette.textTertiary,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          height: 74,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: images.length,
+                            separatorBuilder: (_, _) => const SizedBox(width: 10),
+                            itemBuilder: (_, i) {
+                              final on = i == _currentImageIndex;
+                              return GestureDetector(
+                                onTap: () {
+                                  setState(() => _currentImageIndex = i);
+                                  _pageCtrl.animateToPage(i,
+                                      duration: const Duration(milliseconds: 260), curve: Curves.easeOut);
+                                },
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 180),
+                                  width: 74,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: on ? palette.primary : palette.border,
+                                      width: on ? 2.5 : 1,
+                                    ),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(9),
+                                    child: SmartStoneImage(imageUrl: images[i], fit: BoxFit.cover, palette: palette),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _colourLabels(stone, images.length)[_currentImageIndex],
+                          style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary),
+                        ),
+                      ],
 
                       const SizedBox(height: 20),
 

@@ -4,9 +4,9 @@ library;
 
 import 'dart:async';
 import 'dart:typed_data';
-import 'dart:ui' as ui;
+import 'package:grazia_stones/shared/widgets/luxury_toast.dart';
 import 'package:flutter/material.dart' hide Colors;
-import 'package:flutter/services.dart' show rootBundle, HapticFeedback;
+import 'package:flutter/services.dart' show rootBundle, HapticFeedback, SystemUiOverlayStyle;
 import 'package:http/http.dart' as http;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:grazia_stones/core/services/ar_native_channel.dart';
@@ -25,8 +25,12 @@ class ARCameraView extends StatefulWidget {
     this.scale = 1.0,
     this.position = Offset.zero,
     this.rotation = 0.0,
+    this.measureOnly = false,
   });
 
+  /// Measure-only mode never shows the sample-room demo: without an AR camera
+  /// it reports [onError] and renders an honest "no camera" panel instead.
+  final bool measureOnly;
   final VoidCallback? onReady;
   final VoidCallback? onError;
   final String? stoneImagePath;
@@ -41,7 +45,11 @@ class ARCameraView extends StatefulWidget {
   /// Real-world height (m) of the current texture photo, from the catalogue PDFs.
   static double? _patchHeightM;
 
-  static void updateStone(String? assetPath, double opacity, {double? patchHeightM}) {
+  static void updateStone(
+    String? assetPath,
+    double opacity, {
+    double? patchHeightM,
+  }) {
     _patchHeightM = patchHeightM;
     _controller.add(_ARUpdate(stone: assetPath, opacity: opacity));
     if (assetPath != null) {
@@ -49,11 +57,16 @@ class ARCameraView extends StatefulWidget {
     }
   }
 
-  static Future<void> _loadAndSendTexture(String assetPath, double opacity) async {
+  static Future<void> _loadAndSendTexture(
+    String assetPath,
+    double opacity,
+  ) async {
     try {
       Uint8List bytes;
       if (assetPath.startsWith('http://') || assetPath.startsWith('https://')) {
-        final res = await http.get(Uri.parse(assetPath)).timeout(const Duration(seconds: 15));
+        final res = await http
+            .get(Uri.parse(assetPath))
+            .timeout(const Duration(seconds: 15));
         if (res.statusCode == 200) {
           bytes = res.bodyBytes;
         } else {
@@ -103,12 +116,18 @@ class ARCameraView extends StatefulWidget {
   static void clearManualCorners() {}
 
   static Future<String?> renderStaticVisualization(
-      String roomImageDataUrl, String textureDataUrl, double opacity) async => null;
+    String roomImageDataUrl,
+    String textureDataUrl,
+    double opacity,
+  ) async => null;
 
   // Enhanced API - delegates to native
   static Future<List<Map<String, dynamic>>?> getWalls() async {
     return await ARNativeChannel.getWalls();
   }
+
+  static Future<Map<String, String>> captureSnapshot() =>
+      ARNativeChannel.captureSnapshot();
 
   static Future<void> selectWall(String wallId) async {
     await ARNativeChannel.selectWall(wallId);
@@ -191,7 +210,8 @@ class _ARUpdate {
   });
 }
 
-class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver {
+class _ARCameraViewState extends State<ARCameraView>
+    with WidgetsBindingObserver {
   bool _isInitialized = false;
   bool _isPermissionDenied = false;
   String? _error;
@@ -199,65 +219,8 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
 
   String? _displayStoneTexture;
   double _displayOpacity = 0.72;
-  double _displayScale = 1.0;
-  Offset _displayPosition = Offset.zero;
   bool _showWallBracket = false;
   bool _is3DStudioMode = false;
-  int _selectedRoomIndex = 0;
-  bool _showSofaShield = true;
-  bool _showLidarMesh = true;
-  bool _hasLiDARHardware = false;
-
-  final List<Map<String, dynamic>> _roomScenes = [
-    {
-      'title': 'Living Room',
-      'image': 'assets/images/home_hero_living_room.jpg',
-      'wallArea': '14.8 m²',
-      'wallConfidence': 98.6,
-      'wallDimensions': '4.2m × 3.5m',
-      'obstacleType': 'sofa',
-      'obstacleName': 'Sectional Sofa & Lounge',
-      'obstacleConfidence': 96.4,
-      'perspectiveY': -0.06,
-      'perspectiveX': 0.02,
-    },
-    {
-      'title': 'Hotel Lobby',
-      'image': 'assets/images/hero_luxury_fireplace.jpg',
-      'wallArea': '21.4 m²',
-      'wallConfidence': 99.1,
-      'wallDimensions': '6.1m × 3.5m',
-      'obstacleType': 'furniture',
-      'obstacleName': 'Hearth & Lounge Armchairs',
-      'obstacleConfidence': 95.8,
-      'perspectiveY': 0.0,
-      'perspectiveX': 0.01,
-    },
-    {
-      'title': 'Dining Suite',
-      'image': 'assets/images/hero_luxury_dining_fluted.jpg',
-      'wallArea': '16.2 m²',
-      'wallConfidence': 97.8,
-      'wallDimensions': '4.8m × 3.4m',
-      'obstacleType': 'furniture',
-      'obstacleName': 'Marble Dining Suite',
-      'obstacleConfidence': 95.2,
-      'perspectiveY': -0.04,
-      'perspectiveX': 0.02,
-    },
-    {
-      'title': 'Master Bedroom',
-      'image': 'assets/images/hero_luxury_bedroom.jpg',
-      'wallArea': '12.5 m²',
-      'wallConfidence': 98.2,
-      'wallDimensions': '3.9m × 3.2m',
-      'obstacleType': 'sofa',
-      'obstacleName': 'King Headboard & Suite',
-      'obstacleConfidence': 97.0,
-      'perspectiveY': 0.04,
-      'perspectiveX': 0.02,
-    },
-  ];
 
   StreamSubscription? _updateSubscription;
   StreamSubscription? _wallDetectedSubscription;
@@ -277,9 +240,7 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
     WidgetsBinding.instance.addObserver(this);
     _displayStoneTexture = widget.stoneImagePath;
     _displayOpacity = widget.opacity;
-    _displayScale = widget.scale;
-    _displayPosition = widget.position;
-    
+
     _initializeNativeAR();
     _listenToStaticUpdates();
     _listenToNativeEvents();
@@ -288,7 +249,8 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
   @override
   void didUpdateWidget(covariant ARCameraView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.stoneImagePath != widget.stoneImagePath && widget.stoneImagePath != null) {
+    if (oldWidget.stoneImagePath != widget.stoneImagePath &&
+        widget.stoneImagePath != null) {
       _displayStoneTexture = widget.stoneImagePath;
       if (!_is3DStudioMode) {
         _loadAndSendTexture(widget.stoneImagePath!);
@@ -300,7 +262,6 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
       setState(() {});
     }
     if (oldWidget.scale != widget.scale) {
-      _displayScale = widget.scale;
       setState(() {});
     }
   }
@@ -319,7 +280,7 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
             _is3DStudioMode = true;
             _isInitialized = true;
           });
-          widget.onReady?.call();
+          widget.onError?.call();
         }
         return;
       }
@@ -342,10 +303,9 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
       }
 
       // Initialize native AR channel and room analysis
-      _hasLiDARHardware = await ARNativeChannel.hasLiDAR();
       RoomAnalysisService.instance.init();
       await ARNativeChannel.initialize();
-      
+
       // Start AR session
       await ARNativeChannel.startSession();
       _nativeARStarted = true;
@@ -359,7 +319,6 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
       if (_displayStoneTexture != null) {
         await _loadAndSendTexture(_displayStoneTexture!);
       }
-
     } catch (e) {
       debugPrint('[ARCameraView] native AR init failed: $e');
       if (mounted) {
@@ -386,16 +345,20 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
           }
         }
         if (update.opacity != null) _displayOpacity = update.opacity!;
-        if (update.scale != null) _displayScale = update.scale!;
-        if (update.position != null) _displayPosition = update.position!;
-        if (update.showBoundary != null) _showWallBracket = update.showBoundary!;
-        if (update.stop == true) _stopNativeAR();
+        if (update.showBoundary != null) {
+          _showWallBracket = update.showBoundary!;
+        }
+        if (update.stop == true) {
+          _stopNativeAR();
+        }
       });
     });
   }
 
   void _listenToNativeEvents() {
-    _wallDetectedSubscription = ARNativeChannel.onWallDetected.listen((wallData) {
+    _wallDetectedSubscription = ARNativeChannel.onWallDetected.listen((
+      wallData,
+    ) {
       if (!mounted) return;
       final id = wallData['id'] as String?;
       if (id != null) {
@@ -413,7 +376,9 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
       final id = wallData['id'] as String?;
       if (id != null) {
         setState(() {
-          _detectedWalls = _detectedWalls.map((w) => w['id'] == id ? wallData : w).toList();
+          _detectedWalls = _detectedWalls
+              .map((w) => w['id'] == id ? wallData : w)
+              .toList();
         });
       }
     });
@@ -423,15 +388,19 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
       setState(() {
         _detectedWalls.removeWhere((w) => w['id'] == wallId);
         if (_selectedWallId == wallId) {
-          _selectedWallId = _detectedWalls.isNotEmpty ? _detectedWalls.first['id'] as String? : null;
+          _selectedWallId = _detectedWalls.isNotEmpty
+              ? _detectedWalls.first['id'] as String?
+              : null;
         }
       });
     });
 
-    _measurementResultSubscription = ARNativeChannel.onMeasurementResult.listen((data) {
-      if (!mounted) return;
-      debugPrint('[ARCameraView] Measurement result: $data');
-    });
+    _measurementResultSubscription = ARNativeChannel.onMeasurementResult.listen(
+      (data) {
+        if (!mounted) return;
+        debugPrint('[ARCameraView] Measurement result: $data');
+      },
+    );
 
     _errorSubscription = ARNativeChannel.onError.listen((error) {
       if (!mounted) return;
@@ -439,12 +408,45 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
       widget.onError?.call();
     });
 
-    _obstacleDetectedSubscription = ARNativeChannel.onObstacleDetected.listen((data) {
+    _obstacleDetectedSubscription = ARNativeChannel.onObstacleDetected.listen((
+      data,
+    ) {
       if (!mounted) return;
       setState(() {
         _detectedObstacles.add(data);
       });
     });
+  }
+
+  Future<void> _placeDesignAt(Offset point) async {
+    final dpr = MediaQuery.of(context).devicePixelRatio;
+    final layer = context.size;
+    debugPrint(
+      '[ARCameraView] PLACE stage=flutter tap=(${point.dx.toStringAsFixed(1)},${point.dy.toStringAsFixed(1)}) '
+      'dpr=$dpr layer=${layer?.width.toStringAsFixed(0)}x${layer?.height.toStringAsFixed(0)} '
+      'expectedNativeView=${((layer?.width ?? 0) * dpr).round()}x${((layer?.height ?? 0) * dpr).round()} '
+      'nativeStarted=$_nativeARStarted',
+    );
+    if (!_nativeARStarted) return;
+    final res = await ARNativeChannel.placeWallAtScreenPoint(point);
+    if (!mounted) return;
+    debugPrint('[ARCameraView] PLACE stage=flutter result=$res');
+    if (res != null && res['placed'] == true) {
+      HapticFeedback.mediumImpact();
+      return;
+    }
+    HapticFeedback.selectionClick();
+    final reason = res?['reason'] as String?;
+    final message = switch (reason) {
+      'floor_or_ceiling' => 'That looks like a floor or ceiling. Tap the wall.',
+      'no_frame' || 'not_tracking' =>
+        'AR is still getting its bearings. Move your phone slowly and try again.',
+      'plane_HORIZONTAL_UPWARD_FACING' || 'plane_HORIZONTAL_DOWNWARD_FACING' =>
+        'That is a floor or ceiling. Tap the wall.',
+      _ =>
+        'No wall found there yet. Move your phone slowly sideways, then tap the wall again.',
+    };
+    LuxuryToast.show(context, message: message);
   }
 
   void _stopNativeAR() {
@@ -462,7 +464,7 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
     _measurementResultSubscription?.cancel();
     _errorSubscription?.cancel();
     _obstacleDetectedSubscription?.cancel();
-    
+
     if (_nativeARStarted) {
       ARNativeChannel.stopCamera();
     }
@@ -488,9 +490,7 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
       return _buildLoadingState();
     }
 
-    if (_is3DStudioMode) {
-      return _build3DStudioView();
-    }
+    if (_is3DStudioMode) return _buildNoCameraPanel(); // flag = no AR camera on this device
 
     if (_isPermissionDenied) return _buildPermissionDenied();
     if (_error != null) return _buildErrorState();
@@ -500,480 +500,19 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
       children: [
         // Native AR view
         ARNativeChannel.getARView(),
-        
+
+        // Tap a real wall to place the selected design on it right away (no waiting for plane detection)
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTapUp: (d) => _placeDesignAt(d.localPosition),
+          ),
+        ),
+
         // Wall boundary bracket (if showing)
         if (_showWallBracket && _selectedWallId != null) _buildWallBracket(),
-        
+
         // Stone texture preview (small corner preview)
-        if (_displayStoneTexture != null) _buildTexturePreview(),
-      ],
-    );
-  }
-
-  Widget _build3DStudioView() {
-    final texturePath = _displayStoneTexture ?? widget.stoneImagePath ?? 'assets/images/athena_3d_tex.png';
-    final currentRoom = _roomScenes[_selectedRoomIndex % _roomScenes.length];
-    final roomImage = currentRoom['image'] as String;
-    final roomTitle = currentRoom['title'] as String;
-    final wallArea = currentRoom['wallArea'] as String? ?? '14.8 m²';
-    final wallDims = currentRoom['wallDimensions'] as String? ?? '4.2m × 3.5m';
-    final rawWallConf = currentRoom['wallConfidence'];
-    final wallConf = rawWallConf is num ? rawWallConf.toDouble() : (double.tryParse(rawWallConf?.toString() ?? '') ?? 98.6);
-    final obstacleName = currentRoom['obstacleName'] as String? ?? 'Sectional Sofa & Lounge';
-    final rawObstacleConf = currentRoom['obstacleConfidence'];
-    final obstacleConf = rawObstacleConf is num ? rawObstacleConf.toDouble() : (double.tryParse(rawObstacleConf?.toString() ?? '') ?? 96.4);
-    final rawPerspY = currentRoom['perspectiveY'];
-    final perspectiveY = rawPerspY is num ? rawPerspY.toDouble() : (double.tryParse(rawPerspY?.toString() ?? '') ?? -0.06);
-    final rawPerspX = currentRoom['perspectiveX'];
-    final perspectiveX = rawPerspX is num ? rawPerspX.toDouble() : (double.tryParse(rawPerspX?.toString() ?? '') ?? 0.02);
-
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        // 1. Luxury room interior photo
-        Image.asset(
-          roomImage,
-          fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => Container(color: const Color(0xFF1E1E1E)),
-        ),
-
-        // 2. Ambient depth overlay
-        Container(
-          color: material.Colors.black.withValues(alpha: 0.22),
-        ),
-
-        // 3. 3D Perspective Wall Placement
-        Center(
-          child: Transform(
-            alignment: Alignment.center,
-            transform: Matrix4.identity()
-              ..setEntry(3, 2, 0.0012)
-              ..translate(_displayPosition.dx, _displayPosition.dy)
-              ..rotateY(perspectiveY)
-              ..rotateX(perspectiveX)
-              ..scale(_displayScale),
-            child: Container(
-              width: MediaQuery.of(context).size.width * 0.76,
-              height: MediaQuery.of(context).size.height * 0.42,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(4),
-                boxShadow: [
-                  BoxShadow(
-                    color: material.Colors.black.withValues(alpha: 0.6),
-                    blurRadius: 28,
-                    offset: const Offset(-8, 12),
-                  ),
-                  BoxShadow(
-                    color: const Color(0xFFD4AF37).withValues(alpha: 0.3),
-                    blurRadius: 18,
-                    spreadRadius: 1,
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    // Stone texture on 3D wall
-                    Opacity(
-                      opacity: _displayOpacity.clamp(0.2, 1.0),
-                      child: SmartStoneImage(
-                        imageUrl: texturePath,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-
-                    // Directional lighting and shadow for realistic architectural depth
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            material.Colors.white.withValues(alpha: 0.2),
-                            material.Colors.transparent,
-                            material.Colors.black.withValues(alpha: 0.4),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    // LiDAR Depth Wireframe Mesh (when enabled)
-                    if (_showLidarMesh)
-                      CustomPaint(
-                        painter: _LidarMeshPainter(
-                          color: const Color(0xFFD4AF37).withValues(alpha: 0.38),
-                        ),
-                      ),
-
-                    // Architectural gold edge boundary
-                    Container(
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: const Color(0xFFD4AF37).withValues(alpha: 0.7),
-                          width: 1.2,
-                        ),
-                      ),
-                    ),
-
-                    // Wall Plane details tag on wall
-                    Positioned(
-                      top: 10,
-                      left: 10,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: material.Colors.black.withValues(alpha: 0.75),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: const Color(0xFFD4AF37).withValues(alpha: 0.5),
-                            width: 0.7,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 5,
-                              height: 5,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Color(0xFF4CAF50),
-                              ),
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              'WALL 1 • $wallDims • ${wallConf.toStringAsFixed(0)}%',
-                              style: const TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 9,
-                                fontWeight: FontWeight.w700,
-                                color: material.Colors.white,
-                                letterSpacing: 0.4,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-
-        // 4. Sofa & Furniture Occlusion Shield
-        if (_showSofaShield)
-          Positioned(
-            bottom: MediaQuery.of(context).padding.bottom + 124,
-            left: 16,
-            right: 16,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: BackdropFilter(
-                filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: material.Colors.black.withValues(alpha: 0.8),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: const Color(0xFF4CAF50).withValues(alpha: 0.7),
-                      width: 1.1,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF4CAF50).withValues(alpha: 0.2),
-                        blurRadius: 14,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF4CAF50).withValues(alpha: 0.2),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.shield_rounded, color: Color(0xFF4CAF50), size: 15),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Row(
-                              children: [
-                                const Text(
-                                  'SOFA & FURNITURE SHIELD',
-                                  style: TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w800,
-                                    color: Color(0xFF4CAF50),
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF4CAF50).withValues(alpha: 0.2),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: const Text(
-                                    'OCCLUSION PROTECTED',
-                                    style: TextStyle(
-                                      fontFamily: 'Inter',
-                                      fontSize: 8,
-                                      fontWeight: FontWeight.w700,
-                                      color: Color(0xFF4CAF50),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Detected: $obstacleName (${obstacleConf.toStringAsFixed(0)}% conf) • Stone placed behind furniture',
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 9.5,
-                                color: material.Colors.white.withValues(alpha: 0.85),
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-        // 5. Top Left HUD Badges
-        Positioned(
-          top: MediaQuery.of(context).padding.top + 54,
-          left: 16,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: material.Colors.black.withValues(alpha: 0.75),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: const Color(0xFFD4AF37).withValues(alpha: 0.6),
-                    width: 0.8,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.view_in_ar_rounded, size: 13, color: Color(0xFFD4AF37)),
-                    const SizedBox(width: 6),
-                    Text(
-                      '3D WALL • $roomTitle',
-                      style: const TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFFD4AF37),
-                        letterSpacing: 0.6,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
-                decoration: BoxDecoration(
-                  color: material.Colors.black.withValues(alpha: 0.65),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: material.Colors.white.withValues(alpha: 0.15),
-                    width: 0.6,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 5,
-                      height: 5,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Color(0xFF00E5FF),
-                      ),
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      _hasLiDARHardware ? 'LiDAR 3D Hardware • Active' : 'Sample Room Preview',
-                      style: const TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 9,
-                        fontWeight: FontWeight.w600,
-                        color: material.Colors.white,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // 6. Top Right Controls (Room Switcher, LiDAR Mesh toggle, Sofa Shield toggle)
-        Positioned(
-          top: MediaQuery.of(context).padding.top + 54,
-          right: 16,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              // Change Room
-              GestureDetector(
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  setState(() {
-                    _selectedRoomIndex = (_selectedRoomIndex + 1) % _roomScenes.length;
-                  });
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4.5),
-                  decoration: BoxDecoration(
-                    color: material.Colors.black.withValues(alpha: 0.75),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: material.Colors.white.withValues(alpha: 0.3),
-                      width: 0.8,
-                    ),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.swap_horiz_rounded, size: 14, color: material.Colors.white),
-                      SizedBox(width: 4),
-                      Text(
-                        'Room',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: material.Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Mesh toggle
-                  GestureDetector(
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      setState(() => _showLidarMesh = !_showLidarMesh);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
-                      margin: const EdgeInsets.only(right: 5),
-                      decoration: BoxDecoration(
-                        color: _showLidarMesh
-                            ? const Color(0xFFD4AF37).withValues(alpha: 0.25)
-                            : material.Colors.black.withValues(alpha: 0.65),
-                        borderRadius: BorderRadius.circular(9),
-                        border: Border.all(
-                          color: _showLidarMesh
-                              ? const Color(0xFFD4AF37)
-                              : material.Colors.white.withValues(alpha: 0.25),
-                          width: 0.8,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.grid_4x4_rounded,
-                            size: 11,
-                            color: _showLidarMesh ? const Color(0xFFD4AF37) : material.Colors.white70,
-                          ),
-                          const SizedBox(width: 3),
-                          Text(
-                            'Mesh',
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                              color: _showLidarMesh ? const Color(0xFFD4AF37) : material.Colors.white70,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  // Shield toggle
-                  GestureDetector(
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      setState(() => _showSofaShield = !_showSofaShield);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
-                      decoration: BoxDecoration(
-                        color: _showSofaShield
-                            ? const Color(0xFF4CAF50).withValues(alpha: 0.25)
-                            : material.Colors.black.withValues(alpha: 0.65),
-                        borderRadius: BorderRadius.circular(9),
-                        border: Border.all(
-                          color: _showSofaShield
-                              ? const Color(0xFF4CAF50)
-                              : material.Colors.white.withValues(alpha: 0.25),
-                          width: 0.8,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.shield_outlined,
-                            size: 11,
-                            color: _showSofaShield ? const Color(0xFF4CAF50) : material.Colors.white70,
-                          ),
-                          const SizedBox(width: 3),
-                          Text(
-                            'Shield',
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                              color: _showSofaShield ? const Color(0xFF4CAF50) : material.Colors.white70,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-
-        // 7. Corner texture thumbnail
         if (_displayStoneTexture != null) _buildTexturePreview(),
       ],
     );
@@ -1012,7 +551,6 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
     );
   }
 
-
   Widget _buildWallBracket() {
     // This is drawn by native AR - we don't need to draw it in Flutter
     return const SizedBox.shrink();
@@ -1020,7 +558,9 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
 
   Widget _buildTexturePreview() {
     final texturePath = _displayStoneTexture;
-    if (texturePath == null || texturePath.isEmpty) return const SizedBox.shrink();
+    if (texturePath == null || texturePath.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return Positioned(
       top: MediaQuery.of(context).padding.top + 120,
@@ -1030,7 +570,10 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
         height: 60,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: material.Colors.white.withValues(alpha: 0.3), width: 1),
+          border: Border.all(
+            color: material.Colors.white.withValues(alpha: 0.3),
+            width: 1,
+          ),
           boxShadow: [
             BoxShadow(
               color: material.Colors.black.withValues(alpha: 0.3),
@@ -1041,9 +584,54 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(12),
-          child: SmartStoneImage(
-            imageUrl: texturePath,
-            fit: BoxFit.cover,
+          child: SmartStoneImage(imageUrl: texturePath, fit: BoxFit.cover),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNoCameraPanel() {
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Container(
+        color: material.Colors.black,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 36),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.straighten_rounded,
+                  color: material.Colors.white.withValues(alpha: 0.55),
+                  size: 48,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  widget.measureOnly
+                      ? 'Measure needs an AR camera'
+                      : 'Live AR needs an AR camera',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: material.Colors.white,
+                    fontFamily: 'Inter',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'This device or simulator has no AR camera, so walls cannot be scanned here. Open the app on a real iPhone or Android phone with AR support.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: material.Colors.white.withValues(alpha: 0.6),
+                    fontFamily: 'Inter',
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1057,7 +645,11 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.camera_alt_outlined, color: material.Colors.white.withValues(alpha: 0.5), size: 48),
+            Icon(
+              Icons.camera_alt_outlined,
+              color: material.Colors.white.withValues(alpha: 0.5),
+              size: 48,
+            ),
             const SizedBox(height: 16),
             Text(
               'Camera access needed',
@@ -1072,7 +664,8 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32),
               child: Text(
-                _error ?? 'Enable camera access to preview stones on your wall.',
+                _error ??
+                    'Enable camera access to preview stones on your wall.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: material.Colors.white.withValues(alpha: 0.5),
@@ -1098,11 +691,24 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
                   },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: material.Colors.white,
-                    side: BorderSide(color: material.Colors.white.withValues(alpha: 0.4)),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    side: BorderSide(
+                      color: material.Colors.white.withValues(alpha: 0.4),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
                   ),
-                  child: const Text('Try Again', style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w700)),
+                  child: const Text(
+                    'Try Again',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 ElevatedButton(
@@ -1110,10 +716,21 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFC8A53C),
                     foregroundColor: material.Colors.black,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
                   ),
-                  child: const Text('Open Settings', style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w700)),
+                  child: const Text(
+                    'Open Settings',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -1132,7 +749,11 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.error_outline, color: material.Colors.red.withValues(alpha: 0.8), size: 48),
+              Icon(
+                Icons.error_outline,
+                color: material.Colors.red.withValues(alpha: 0.8),
+                size: 48,
+              ),
               const SizedBox(height: 16),
               Text(
                 _error ?? 'Unknown error',
@@ -1148,26 +769,6 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        _error = null;
-                        _isPermissionDenied = false;
-                        _is3DStudioMode = true;
-                        _isInitialized = true;
-                      });
-                      widget.onReady?.call();
-                    },
-                    icon: const Icon(Icons.remove_red_eye_outlined, size: 16),
-                    label: const Text('Simulator Preview Mode', style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w600, fontSize: 13)),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFFC8A53C),
-                      side: const BorderSide(color: Color(0xFFC8A53C)),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
                   ElevatedButton.icon(
                     onPressed: () {
                       setState(() {
@@ -1178,12 +779,24 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
                       _initializeNativeAR();
                     },
                     icon: const Icon(Icons.refresh, size: 16),
-                    label: const Text('Retry', style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w700, fontSize: 13)),
+                    label: const Text(
+                      'Retry',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFC8A53C),
                       foregroundColor: material.Colors.black,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
                     ),
                   ),
                 ],
@@ -1194,50 +807,4 @@ class _ARCameraViewState extends State<ARCameraView> with WidgetsBindingObserver
       ),
     );
   }
-}
-
-/// Subtle architectural LiDAR Depth wireframe grid painter
-class _LidarMeshPainter extends CustomPainter {
-  final Color color;
-
-  const _LidarMeshPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final linePaint = Paint()
-      ..color = color
-      ..strokeWidth = 0.8
-      ..style = PaintingStyle.stroke;
-
-    final dotPaint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-
-    // Draw horizontal grid lines
-    const int rows = 5;
-    const int cols = 7;
-    final rowStep = size.height / rows;
-    final colStep = size.width / cols;
-
-    for (int r = 1; r < rows; r++) {
-      final y = r * rowStep;
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), linePaint);
-    }
-
-    // Draw vertical grid lines
-    for (int c = 1; c < cols; c++) {
-      final x = c * colStep;
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), linePaint);
-    }
-
-    // Draw crosshair intersection dots (LiDAR depth sample points)
-    for (int r = 1; r < rows; r++) {
-      for (int c = 1; c < cols; c++) {
-        canvas.drawCircle(Offset(c * colStep, r * rowStep), 1.8, dotPaint);
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _LidarMeshPainter oldDelegate) => oldDelegate.color != color;
 }

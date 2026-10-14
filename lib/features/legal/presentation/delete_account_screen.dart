@@ -12,7 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 class DeleteAccountScreen extends ConsumerWidget {
   const DeleteAccountScreen({super.key});
 
-  static const _email = 'hello@graziastones.com';
+  static const _email = 'contactgraziastones@gmail.com';
   static const _helplineDisplay = '+91 98398 46105';
   static const _helplineDigits = '919839846105';
 

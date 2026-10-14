@@ -1070,6 +1070,7 @@ class _CartCard extends StatelessWidget {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(14),
                   child: SmartStoneImage(
+                    imageUrl: item.stone.imageUrl,
                     localAsset: item.stone.images.isNotEmpty ? item.stone.images.first : null,
                     width: 86,
                     height: 86,

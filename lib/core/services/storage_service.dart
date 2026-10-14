@@ -381,8 +381,11 @@ class StorageService {
 
   Future<void> clearAllExceptTheme() async {
     final isDark = getThemeMode();
+    // The onboarding tour is per device, not per account: signing out must not replay it.
+    final seenTour = hasSeenAppTour();
     await clearAll();
     await saveThemeMode(isDark);
+    if (seenTour) await setHasSeenAppTour(true);
   }
 
   Future<void> dispose() async {

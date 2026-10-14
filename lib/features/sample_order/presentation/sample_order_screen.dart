@@ -231,17 +231,20 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
         }
       }
 
-      // 4. ONLY if cart has 0 stones and no stone was preselected, fallback to trending
-      if (targetStones.isEmpty) {
+      // 4. Nothing preselected and the cart is empty: offer trending stones to choose from,
+      // but leave them unselected so nobody orders ten swatches by accident.
+      final offeredAsChoices = targetStones.isEmpty;
+      if (offeredAsChoices) {
         final fallback = await stoneRepo.getTrendingStones();
         targetStones.addAll(fallback);
       }
 
       setState(() {
         _stones = targetStones;
-        // Auto-select all target stones
-        for (final s in targetStones) {
-          _selectedStones.add(s.id);
+        if (!offeredAsChoices) {
+          for (final s in targetStones) {
+            _selectedStones.add(s.id);
+          }
         }
         _isLoading = false;
       });
@@ -639,6 +642,7 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
                                               overflow: TextOverflow.ellipsis,
                                             ),
                                           ),
+                                          if (ref.read(cartProvider).any((ci) => ci.stone.id == stone.id))
                                           Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                             decoration: BoxDecoration(

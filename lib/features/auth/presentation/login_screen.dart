@@ -338,6 +338,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     const Center(
                       child: GraziaLogo(
                         variant: GraziaLogoVariant.full,
+                        colorStyle: GraziaLogoColor.gold,
                         height: 82,
                         enableGlow: true,
                       ),

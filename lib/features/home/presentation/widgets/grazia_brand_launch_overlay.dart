@@ -3,18 +3,15 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 
-/// Ultra-luxury Apple-grade brand launch animation with cinematic motion graphics.
-/// 
-/// The emblem and brand wordmark are unified as ONE cohesive brand entity from frame 1:
-/// 1. Cold start: Deep obsidian (#151413) matching native launch screen exactly.
-/// 2. Power-on awakening (0-300ms): Unified brand unit awakens with an elastic spring
-///    scale, radiant gold energy bloom, and specular shimmer sweep across emblem & typography.
-/// 3. Apple fluid flight (320-1000ms): The entire brand unit glides gracefully as ONE piece
-///    using Apple's signature cubic curve, scaling down from 1.95x to 1.0x and docking
-///    with sub-pixel precision directly into the top-left AppBar title.
-/// 4. Coordinated backdrop dissolve (400-900ms): Obsidian backdrop smoothly fades out,
-///    revealing the home screen seamlessly underneath.
-/// 5. Precision haptic dock (920ms): Subtle Apple-style selection click right as it docks.
+/// Brand launch motion, shown on every cold start over the home screen.
+///
+/// One continuous timeline (no widget swaps, so nothing pops):
+///   0.00-0.20  the gold emblem fades/scales in at the exact screen centre (same spot and backdrop as
+///              the Android system splash, so the hand-over is invisible).
+///   0.18-0.50  "GRAZIA STONES" writes in letter by letter under it; the emblem lifts slightly.
+///   0.52-0.92  emblem and name glide together, shrinking, into the home AppBar title.
+///   0.52-0.90  the dark backdrop dissolves to reveal the home screen.
+/// Tap anywhere to skip.
 class GraziaBrandLaunchOverlay extends StatefulWidget {
   final LuxuryPalette palette;
   final bool isDark;
@@ -35,90 +32,35 @@ class _GraziaBrandLaunchOverlayState extends State<GraziaBrandLaunchOverlay>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
-  // Phase 1: Center awakening, power-on bloom & shimmer sweep
-  late final Animation<double> _powerOnBloom;
-  late final Animation<double> _awakenScale;
-  late final Animation<double> _shimmerSweep;
-
-  // Phase 2: Apple fluid flight & Morph into top-left AppBar
-  late final Animation<double> _flightCurve;
-  late final Animation<double> _backdropFade;
-
   bool _isSkipping = false;
   bool _dockHapticPlayed = false;
 
-  static const Color _obsidianDark = Color(0xFF151413);
-  static const Color _goldRadiant = Color(0xFFD4AF37);
-  static const Color _goldLuminous = Color(0xFFFFD700);
+  // Same value as the Android system-splash backdrop (ic_launcher_background).
+  static const Color _backdrop = Color(0xFF14110D);
+  static const Color _gold = Color(0xFFD4AF37);
+  static const Color _goldGlow = Color(0xFFFFD700);
+  static const Color _cream = Color(0xFFF4E9D3);
 
-  // Final destination matches HomeScreen AppBar title:
-  // TitleSpacing: 10, Emblem: 22x22, gap: 5, Text('GRAZIA STONES', 15.0px Playfair)
-  static const double _destEmblemSize = 22.0;
-  static const double _startEmblemSize = 76.0;
+  static const String _name = 'GRAZIA STONES';
+
+  // Final destination = HomeScreen AppBar title: toolbar 64, titleSpacing 10, emblem 36, gap 8, 16px Playfair.
+  static const double _destEmblem = 36.0;
+  static const double _startEmblem = 88.0;
+  static const double _destFont = 16.0;
+  static const double _startFont = 24.0;
 
   @override
   void initState() {
     super.initState();
-
-    // 1200ms total duration for luxurious Apple-like reveal and docking
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    );
-
-    // Radiant gold aura bloom expanding from center
-    _powerOnBloom = Tween<double>(begin: 0.1, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 0.35, curve: Curves.easeOutCubic),
-      ),
-    );
-
-    // Initial scale awakening
-    _awakenScale = Tween<double>(begin: 0.85, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 0.35, curve: Curves.easeOutBack),
-      ),
-    );
-
-    // Light shimmer sweep
-    _shimmerSweep = Tween<double>(begin: -0.8, end: 2.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.08, 0.45, curve: Curves.easeInOutCubic),
-      ),
-    );
-
-    // Flight curve: starts gliding up around 0.38
-    _flightCurve = CurvedAnimation(
-      parent: _controller,
-      curve: const Interval(
-        0.36,
-        0.96,
-        curve: Cubic(0.20, 0.0, 0.05, 1.0),
-      ),
-    );
-
-    // Backdrop fades out as it docks
-    _backdropFade = Tween<double>(begin: 1.0, end: 0.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.48, 0.92, curve: Curves.easeOut),
-      ),
-    );
-
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 1700));
     _controller.addListener(() {
-      if (_flightCurve.value > 0.92 && !_dockHapticPlayed) {
+      if (_seg(_controller.value, 0.52, 0.92, Curves.linear) > 0.93 && !_dockHapticPlayed) {
         _dockHapticPlayed = true;
         HapticFeedback.selectionClick();
       }
     });
-
     _controller.forward().then((_) {
-      if (mounted) {
-        widget.onComplete();
-      }
+      if (mounted) widget.onComplete();
     });
   }
 
@@ -139,169 +81,167 @@ class _GraziaBrandLaunchOverlayState extends State<GraziaBrandLaunchOverlay>
     });
   }
 
+  /// Progress 0..1 of [v] inside [from, to], with [curve] applied.
+  static double _seg(double v, double from, double to, [Curve curve = Curves.easeOutCubic]) =>
+      curve.transform(((v - from) / (to - from)).clamp(0.0, 1.0));
+
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
-    final topPadding = media.padding.top;
     final size = media.size;
-
-    // Destination: exactly where HomeScreen's AppBar title is rendered:
-    // AppBar: titleSpacing = 10.0, kToolbarHeight = 56.0.
-    // Center title vertically: topPadding + (56.0 - 24.0) / 2 = topPadding + 16.0
-    const destX = 10.0;
-    final destY = topPadding + 16.0;
-
-    // Start center:
-    final centerY = size.height * 0.42;
-
-    final targetGoldColor =
-        widget.isDark ? const Color(0xFFD4AF37) : const Color(0xFF8B6B23);
+    final destGold = widget.isDark ? const Color(0xFFD4AF37) : const Color(0xFF8B6B23);
+    final destX = 10.0;
+    final destY = media.padding.top + 20.0; // emblem top: (64 - 36) / 2 = 14, name sits a little higher
 
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
-        final flight = _flightCurve.value;
-        final bgOpacity = _backdropFade.value.clamp(0.0, 1.0);
-        final bloom = _powerOnBloom.value;
-        final awaken = _awakenScale.value;
-        final shimmerVal = _shimmerSweep.value;
+        if (_controller.isCompleted) return const SizedBox.shrink();
+        final v = _controller.value;
 
-        if (_controller.isCompleted) {
-          return const SizedBox.shrink();
-        }
+        final appear = _seg(v, 0.0, 0.20);
+        final pop = 0.84 + 0.16 * _seg(v, 0.0, 0.22, Curves.easeOutBack);
+        final lift = _seg(v, 0.18, 0.50, Curves.easeInOutCubic);
+        final flight = _seg(v, 0.52, 0.92, const Cubic(0.20, 0.0, 0.05, 1.0));
+        final bg = 1.0 - _seg(v, 0.52, 0.90, Curves.easeOut);
+        final glow = (0.9 * appear * (1.0 - flight * 1.6)).clamp(0.0, 1.0);
+        final shimmer = _seg(v, 0.10, 0.42, Curves.easeInOutCubic);
 
-        final curGoldColor =
-            Color.lerp(_goldRadiant, targetGoldColor, flight) ?? _goldRadiant;
+        final emblem = (_startEmblem + (_destEmblem - _startEmblem) * flight) * (flight == 0 ? pop : 1.0);
+        final font = _startFont + (_destFont - _startFont) * flight;
+        final tracking = (3.5 - 2.5 * flight);
+        final textColor = Color.lerp(_cream, destGold, flight) ?? _cream;
 
-        // Size and gap interpolation
-        final emblemSize = Tween<double>(begin: _startEmblemSize, end: _destEmblemSize).transform(flight) * (flight == 0 ? awaken : 1.0);
-        final fontSize = Tween<double>(begin: 24.0, end: 15.0).transform(flight);
-        final letterSpacing = Tween<double>(begin: 3.5, end: 1.0).transform(flight);
+        // Emblem centre: exact screen centre -> a little higher while the name appears -> AppBar slot.
+        final startCx = size.width / 2;
+        final startCy = size.height / 2 - 30 * lift;
+        final endCx = destX + _destEmblem / 2;
+        final endCy = media.padding.top + 32.0; // emblem centre = middle of the 64 high toolbar
+        final endTextCy = media.padding.top + 25.5; // name line sits above the 'Unit of BNK Stones' line
+        final cx = startCx + (endCx - startCx) * flight;
+        final cy = startCy + (endCy - startCy) * flight;
 
-        // Position coordinates
-        final curX = Tween<double>(begin: (size.width - 240) / 2, end: destX).transform(flight);
-        final curY = Tween<double>(begin: centerY - 60, end: destY).transform(flight);
-
-        final haloAlpha = (bloom * (1.0 - flight * 1.6)).clamp(0.0, 1.0);
+        // Name: centred under the emblem at first, then left-aligned beside it in the AppBar.
+        final textStartCy = startCy + _startEmblem / 2 + 26;
+        final textCy = textStartCy + (endTextCy - textStartCy) * flight;
+        final textLeftEnd = destX + _destEmblem + 8;
+        final textLeft = textLeftEnd * flight;
+        final textWidth = size.width + (size.width - textLeftEnd - size.width) * flight; // width -> remaining width
+        final textAlignX = -1.0 * flight; // 0 = centred, -1 = left
 
         return GestureDetector(
           onTap: _skip,
           behavior: HitTestBehavior.opaque,
           child: Stack(
             children: [
-              // 1. Deep Obsidian Background (#151413)
-              if (bgOpacity > 0.0)
+              if (bg > 0)
                 Positioned.fill(
                   child: Opacity(
-                    opacity: bgOpacity,
+                    opacity: bg.clamp(0.0, 1.0),
                     child: Container(
-                      color: _obsidianDark,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          // Radiant ambient gold bloom behind center
-                          Container(
-                            width: size.width * 1.15,
-                            height: size.width * 1.15,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: RadialGradient(
-                                colors: [
-                                  _goldLuminous.withValues(
-                                    alpha: 0.32 * bloom * (1.0 - flight),
-                                  ),
-                                  _goldRadiant.withValues(
-                                    alpha: 0.15 * bloom * (1.0 - flight),
-                                  ),
-                                  Colors.transparent,
-                                ],
-                                stops: const [0.0, 0.42, 1.0],
-                              ),
-                            ),
+                      color: _backdrop,
+                      alignment: Alignment.center,
+                      child: Container(
+                        width: size.width * 1.1,
+                        height: size.width * 1.1,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              _goldGlow.withValues(alpha: 0.20 * appear * (1.0 - flight)),
+                              _gold.withValues(alpha: 0.08 * appear * (1.0 - flight)),
+                              Colors.transparent,
+                            ],
+                            stops: const [0.0, 0.42, 1.0],
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
                 ),
 
-              // 2. Center/Docking Brand Unit
+              // Emblem
               Positioned(
-                left: curX,
-                top: curY,
-                child: flight < 0.35
-                    // CENTER STAGE: Logo on top, GRAZIA STONES underneath, centered
-                    ? SizedBox(
-                        width: 240,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            // Glowing Center Emblem
-                            Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                if (haloAlpha > 0.02)
-                                  Container(
-                                    width: emblemSize * 1.3,
-                                    height: emblemSize * 1.3,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: _goldLuminous.withValues(alpha: 0.55 * haloAlpha),
-                                          blurRadius: 28,
-                                          spreadRadius: 4,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                Image.asset(
-                                  'assets/brand/grazia-emblem-gold.png',
-                                  height: emblemSize,
-                                  width: emblemSize,
-                                  fit: BoxFit.contain,
+                left: cx - emblem / 2,
+                top: cy - emblem / 2,
+                width: emblem,
+                height: emblem,
+                child: Opacity(
+                  opacity: flight > 0 ? 1.0 : appear,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    clipBehavior: Clip.none,
+                    children: [
+                      if (glow > 0.02)
+                        Container(
+                          width: emblem * 1.15,
+                          height: emblem * 1.15,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            boxShadow: [BoxShadow(color: _goldGlow.withValues(alpha: 0.45 * glow), blurRadius: 30, spreadRadius: 3)],
+                          ),
+                        ),
+                      Image.asset('assets/brand/grazia-emblem-gold.png', width: emblem, height: emblem, fit: BoxFit.contain),
+                      if (shimmer > 0 && shimmer < 1)
+                        ClipRect(
+                          child: Transform.translate(
+                            offset: Offset((shimmer - 0.5) * emblem * 1.8, 0),
+                            child: Transform.rotate(
+                              angle: 0.6,
+                              child: Container(
+                                width: emblem * 0.2,
+                                height: emblem * 1.6,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(colors: [
+                                    Colors.white.withValues(alpha: 0),
+                                    Colors.white.withValues(alpha: 0.35),
+                                    Colors.white.withValues(alpha: 0),
+                                  ]),
                                 ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            // Text underneath in center
-                            Text(
-                              'GRAZIA STONES',
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.playfairDisplay(
-                                fontSize: fontSize,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: letterSpacing,
-                                color: curGoldColor,
                               ),
                             ),
-                          ],
+                          ),
                         ),
-                      )
-                    // FLIGHT & DOCKING STAGE: Glides up and smoothly transforms into AppBar Row
-                    : Row(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Image.asset(
-                            'assets/brand/grazia-emblem-gold.png',
-                            height: emblemSize,
-                            width: emblemSize,
-                            fit: BoxFit.contain,
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            'GRAZIA STONES',
-                            style: GoogleFonts.playfairDisplay(
-                              fontSize: fontSize,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: letterSpacing,
-                              color: curGoldColor,
+                    ],
+                  ),
+                ),
+              ),
+
+              // Name, letter by letter
+              Positioned(
+                left: textLeft,
+                top: textCy - 20,
+                width: textWidth,
+                height: 40,
+                child: Align(
+                  alignment: Alignment(textAlignX, 0),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (var i = 0; i < _name.length; i++)
+                        Builder(builder: (_) {
+                          final t = flight > 0 ? 1.0 : _seg(v, 0.18 + i * 0.016, 0.34 + i * 0.016);
+                          return Opacity(
+                            opacity: t,
+                            child: Transform.translate(
+                              offset: Offset(0, 12 * (1 - t) * (1 - flight)),
+                              child: Padding(
+                                padding: EdgeInsets.only(right: i == _name.length - 1 ? 0 : tracking),
+                                child: Text(
+                                  _name[i],
+                                  style: GoogleFonts.playfairDisplay(
+                                    fontSize: font,
+                                    fontWeight: FontWeight.w800,
+                                    color: textColor,
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
+                          );
+                        }),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),

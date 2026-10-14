@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/tokens.dart';
 
-/// Shimmer loading skeleton for luxury dark theme.
+/// Shimmer loading skeleton for the luxury theme (dark and light).
 /// Wraps a child with animated shimmer overlay, or shows a standalone skeleton.
 class GLuxuryShimmer extends StatefulWidget {
   final Widget child;
@@ -38,6 +38,12 @@ class GLuxuryShimmer extends StatefulWidget {
   State<GLuxuryShimmer> createState() => _GLuxuryShimmerState();
 }
 
+/// Skeleton base / highlight colours that match the active theme (black blocks looked broken on light screens).
+Color _skeletonBase(BuildContext c) =>
+    Theme.of(c).brightness == Brightness.dark ? const Color(0xFF1A1A1A) : const Color(0xFFE9E2D2);
+Color _skeletonHighlight(BuildContext c) =>
+    Theme.of(c).brightness == Brightness.dark ? const Color(0xFF2A2A2A) : const Color(0xFFF7F2E7);
+
 class _GLuxuryShimmerState extends State<GLuxuryShimmer>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
@@ -68,9 +74,9 @@ class _GLuxuryShimmerState extends State<GLuxuryShimmer>
           shaderCallback: (bounds) {
             final gradient = widget.shimmerGradient ?? LinearGradient(
               colors: [
-                const Color(0xFF1A1A1A),
-                const Color(0xFF2A2A2A),
-                const Color(0xFF1A1A1A),
+                _skeletonBase(context),
+                _skeletonHighlight(context),
+                _skeletonBase(context),
               ],
               stops: const [0.0, 0.5, 1.0],
               transform: _SlidingGradientTransform(
@@ -110,7 +116,7 @@ class _ShimmerBox extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
+        color: _skeletonBase(context),
         borderRadius: BorderRadius.circular(borderRadius),
       ),
     );
@@ -126,8 +132,8 @@ class _ShimmerCircle extends StatelessWidget {
     return Container(
       width: size,
       height: size,
-      decoration: const BoxDecoration(
-        color: Color(0xFF1A1A1A),
+      decoration: BoxDecoration(
+        color: _skeletonBase(context),
         shape: BoxShape.circle,
       ),
     );

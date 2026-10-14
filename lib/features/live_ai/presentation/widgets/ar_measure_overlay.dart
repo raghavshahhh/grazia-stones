@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:grazia_stones/core/services/ar_native_channel.dart';
 import 'package:grazia_stones/core/widgets/animated_widgets.dart';
 import 'package:grazia_stones/shared/widgets/luxury_toast.dart';
+import 'package:grazia_stones/features/live_ai/presentation/widgets/real_level_tool.dart';
 
 enum _MeasureMode { measure, level }
 enum _TrackingGuideState { ready, searching, lost }
@@ -59,10 +60,6 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
   late AnimationController _reticleController;
   late Animation<double> _reticleScale;
 
-  // Level Tool State
-  double _pitch = 0.0;
-  double _roll = 0.0;
-  bool _isLevel = false;
 
   @override
   void initState() {
@@ -71,6 +68,7 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
     _flashController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 320),
+      value: 1.0, // resting state = flash finished (transparent)
     );
     _flashAnimation = Tween<double>(begin: 0.85, end: 0.0).animate(
       CurvedAnimation(parent: _flashController, curve: Curves.easeOut),
@@ -129,7 +127,7 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
     if (hit == null) {
       // No real surface under the reticle: don't invent a distance
       setState(() => _busy = false);
-      LuxuryToast.show(context, message: 'No wall found — point at the wall and move slowly');
+      LuxuryToast.show(context, message: 'No surface found. Aim at the wall and move your phone slowly.');
       return;
     }
 
@@ -333,7 +331,7 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
                 _buildLostTrackingGuidance(),
             ] else ...[
               // 2-Axis Interactive Spirit Level Mode
-              _buildAppleLevelTool(),
+              const RealLevelTool(),
             ],
 
             // 3. Top Navigation Bar (List, Status, Trash, Close)
@@ -415,7 +413,7 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        _currentMode == _MeasureMode.measure ? 'LiDAR 3D' : 'Spirit Level',
+                        _currentMode == _MeasureMode.measure ? 'AR Ruler' : 'Spirit Level',
                         style: GoogleFonts.inter(
                           color: Colors.white,
                           fontSize: 12,
@@ -710,96 +708,6 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
     );
   }
 
-  // ── Apple 2-Axis Interactive Spirit Level Tool ───────────────────────
-
-  Widget _buildAppleLevelTool() {
-    final angle = math.sqrt(_pitch * _pitch + _roll * _roll).round();
-    final isZero = angle == 0;
-
-    return GestureDetector(
-      onPanUpdate: (details) {
-        setState(() {
-          _roll = (_roll + details.delta.dx * 0.08).clamp(-45.0, 45.0);
-          _pitch = (_pitch + details.delta.dy * 0.08).clamp(-45.0, 45.0);
-          _isLevel = (_roll.abs() < 1.0 && _pitch.abs() < 1.0);
-          if (_isLevel) HapticFeedback.selectionClick();
-        });
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 260),
-        color: isZero ? const Color(0xFF28CD41) : Colors.black87,
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Dual Circles (Level Bubble Indicator)
-              SizedBox(
-                width: 220,
-                height: 220,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    // Outer Target Circle
-                    Container(
-                      width: 220,
-                      height: 220,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: isZero ? Colors.white : Colors.white30,
-                          width: 2.0,
-                        ),
-                      ),
-                    ),
-
-                    // Inner Floating Bubble Circle
-                    Transform.translate(
-                      offset: Offset(_roll * 2.2, _pitch * 2.2),
-                      child: Container(
-                        width: 130,
-                        height: 130,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isZero
-                              ? Colors.white.withValues(alpha: 0.95)
-                              : Colors.white.withValues(alpha: 0.18),
-                          border: Border.all(
-                            color: isZero ? Colors.white : Colors.white70,
-                            width: 2.5,
-                          ),
-                        ),
-                        child: Center(
-                          child: Text(
-                            '$angle°',
-                            style: GoogleFonts.inter(
-                              color: isZero ? const Color(0xFF28CD41) : Colors.white,
-                              fontSize: 36,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 28),
-              Text(
-                isZero ? 'LEVEL' : 'Tilt device to level surface',
-                style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 1.2,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   // ── Guidance States ──────────────────────────────────────────────────
 
   Widget _buildSearchingGuidance() {
@@ -814,7 +722,7 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
           ),
           const SizedBox(height: 24),
           Text(
-            'Continue to move iPhone',
+            'Move your phone slowly',
             style: GoogleFonts.inter(
               color: Colors.white,
               fontSize: 17,

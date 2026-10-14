@@ -27,7 +27,7 @@ class Validators {
     if (value == null || value.isEmpty) {
       return 'Email is required';
     }
-    if (!RegExp(r'^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,}$').hasMatch(value)) {
+    if (!RegExp(r'^[\w\-\.\+]+@([\w\-]+\.)+[\w\-]{2,}$').hasMatch(value)) {
       return 'Enter a valid email address';
     }
     return null;
@@ -62,7 +62,7 @@ class Validators {
     if (value == null || value.isEmpty) {
       return null; // Optional field
     }
-    if (!RegExp(r'^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,}$').hasMatch(value)) {
+    if (!RegExp(r'^[\w\-\.\+]+@([\w\-]+\.)+[\w\-]{2,}$').hasMatch(value)) {
       return 'Enter a valid email address';
     }
     return null;

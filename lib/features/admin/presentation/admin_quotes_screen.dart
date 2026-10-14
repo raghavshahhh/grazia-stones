@@ -569,6 +569,7 @@ class _AdminQuotesScreenState extends ConsumerState<AdminQuotesScreen> {
                                               children: [
                                                 if (stoneName.isNotEmpty)
                                                   Container(
+                                                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width - 96),
                                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                                     decoration: BoxDecoration(
                                                       color: palette.primary.withValues(alpha: 0.1),
@@ -580,9 +581,13 @@ class _AdminQuotesScreenState extends ConsumerState<AdminQuotesScreen> {
                                                       children: [
                                                         Icon(Icons.diamond_outlined, size: 12, color: palette.primary),
                                                         const SizedBox(width: 4),
-                                                        Text(
-                                                          stoneName,
-                                                          style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: palette.primary),
+                                                        Flexible(
+                                                          child: Text(
+                                                            stoneName,
+                                                            maxLines: 1,
+                                                            overflow: TextOverflow.ellipsis,
+                                                            style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: palette.primary),
+                                                          ),
                                                         ),
                                                       ],
                                                     ),

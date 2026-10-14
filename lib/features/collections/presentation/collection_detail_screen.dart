@@ -11,6 +11,11 @@ import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/providers/stone_providers.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 import 'package:grazia_stones/features/wishlist/providers/wishlist_provider.dart';
+import 'package:grazia_stones/features/stone_detail/presentation/stone_fullscreen_viewer.dart';
+
+/// A series with one design and several colour images (every ledge/brick/CNC series): show the
+/// colours themselves instead of a single product card.
+bool _isColourDesign(List<Stone> stones) => stones.length == 1 && stones.first.images.length > 1;
 
 class CollectionDetailScreen extends ConsumerWidget {
   final String collectionId;
@@ -363,7 +368,7 @@ class CollectionDetailScreen extends ConsumerWidget {
                         const SizedBox(height: 10),
                         Row(
                           children: [
-                            _buildSpecPill(palette, Icons.inventory_2_outlined, 'Box Coverage', collection.coverageSpec),
+                            _buildSpecPill(palette, Icons.inventory_2_outlined, 'Box Coverage', collection.coverageSpec.isEmpty ? 'Varies by design' : collection.coverageSpec),
                             const SizedBox(width: 12),
                             _buildSpecPill(palette, Icons.grid_view_rounded, 'Total Surfaces', '${stones.length} Available'),
                           ],
@@ -377,7 +382,7 @@ class CollectionDetailScreen extends ConsumerWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'CURATED SURFACES',
+                        _isColourDesign(stones) ? 'COLOURS  •  ${stones.first.images.length}' : 'CURATED SURFACES',
                         style: GoogleFonts.inter(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
@@ -401,6 +406,13 @@ class CollectionDetailScreen extends ConsumerWidget {
             ),
           ),
 
+          // One design, many colours: show every colour; tap opens it full screen (zoom / 3D).
+          if (_isColourDesign(stones))
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+              sliver: _DesignColourGrid(stone: stones.first, palette: palette),
+            )
+          else
           // Stones Grid
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
@@ -668,6 +680,119 @@ class _CollectionStoneCard extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Colour tiles of a single design. Tap a colour for the full-screen viewer (zoom, 360 3D slab with
+/// the design's real thickness); "Open design" goes to the product page (AR, AI Studio, cart).
+class _DesignColourGrid extends StatelessWidget {
+  final Stone stone;
+  final LuxuryPalette palette;
+
+  const _DesignColourGrid({required this.stone, required this.palette});
+
+  String _label(int i) =>
+      stone.availableColors.length == stone.images.length ? stone.availableColors[i] : 'Shade ${i + 1}';
+
+  void _open(BuildContext context, int i, {bool start3D = false}) {
+    final t = stone.thicknessMm ?? 0;
+    Navigator.of(context).push(MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (_) => StoneFullscreenViewer(
+        title: stone.name,
+        images: stone.images,
+        labels: List.generate(stone.images.length, _label),
+        initialIndex: i,
+        thicknessMm: t > 0 ? t : 20,
+        start3D: start3D,
+      ),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cols = MediaQuery.of(context).size.width >= 640 ? 3 : 2;
+    return SliverMainAxisGroup(
+      slivers: [
+        SliverGrid(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: cols,
+            childAspectRatio: 1.25,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+          ),
+          delegate: SliverChildBuilderDelegate(
+            (context, i) => GestureDetector(
+              onTap: () => _open(context, i),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    SmartStoneImage(imageUrl: stone.images[i], fit: BoxFit.cover, palette: palette),
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [Colors.transparent, Colors.black.withValues(alpha: 0.7)],
+                          ),
+                        ),
+                        child: Text(
+                          _label(i),
+                          style: GoogleFonts.inter(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            childCount: stone.images.length,
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 18),
+            child: Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => context.push('/stones/${stone.id}', extra: stone),
+                    icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                    label: const Text('Open design'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: palette.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => context.push('/live-ai?stoneId=${stone.id}'),
+                    icon: Icon(Icons.view_in_ar_outlined, size: 16, color: palette.primary),
+                    label: Text('Live AR', style: TextStyle(color: palette.textPrimary)),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: palette.border),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

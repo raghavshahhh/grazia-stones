@@ -36,6 +36,10 @@ class AarnaLivingAvatar extends StatelessWidget {
   final BorderRadius? borderRadius;
   final VoidCallback? onTap;
 
+  /// Header style: the head pops out above the ring, and while searching/waving an arm comes
+  /// out beside the circle (magnifying glass / wave).
+  final bool popOut;
+
   const AarnaLivingAvatar({
     super.key,
     this.size = 48,
@@ -47,6 +51,7 @@ class AarnaLivingAvatar extends StatelessWidget {
     this.shape = BoxShape.circle,
     this.borderRadius,
     this.onTap,
+    this.popOut = false,
     // Kept so existing call sites compile; the 3D model replaced these 2D effects.
     bool showSparkle = true,
     bool showHologramRing = true,
@@ -65,6 +70,15 @@ class AarnaLivingAvatar extends StatelessWidget {
       );
     }
     final busy = isSearching || showRadarRings;
+    if (popOut) {
+      return _PopOutAvatar(
+        size: size,
+        searching: busy,
+        waving: pose == AarnaPose.waving && !busy,
+        showOnlineBadge: showOnlineBadge,
+        onTap: onTap,
+      );
+    }
     final isCircle = shape == BoxShape.circle;
     final radius = borderRadius ?? BorderRadius.circular(size / 4);
     Widget face = Container(
@@ -88,19 +102,9 @@ class AarnaLivingAvatar extends StatelessWidget {
         ),
       ),
     );
-    if (busy) {
-      face = Stack(
-        alignment: Alignment.center,
-        children: [
-          face,
-          SizedBox(
-            width: size + 6,
-            height: size + 6,
-            child: const CircularProgressIndicator(strokeWidth: 1.6, color: _kGold),
-          ),
-        ],
-      );
-    }
+    // Searching: Aarna takes out her magnifying glass and sways, all clipped inside the avatar
+    // shape so nothing moves outside the circle.
+    if (busy) face = _SearchingFace(size: size, shape: shape, radius: radius);
     if (showOnlineBadge) {
       final d = (size * 0.26).clamp(7.0, 14.0);
       face = Stack(
@@ -124,6 +128,319 @@ class AarnaLivingAvatar extends StatelessWidget {
       );
     }
     return onTap == null ? face : GestureDetector(onTap: onTap, behavior: HitTestBehavior.opaque, child: face);
+  }
+}
+
+const _kSearchPose = 'assets/images/aarna/aarna_pose_designs.png';
+const _kRoseGold = Color(0xFFC98F7A);
+const _kCream = Color(0xFFFBF1E2);
+
+/// Header avatar: the transparent head render overflows the top of the ring (bow and ears
+/// outside the circle), bobs gently, and an arm comes out beside the ring when she is searching
+/// (hand + magnifying glass sweeping) or greeting (wave).
+class _PopOutAvatar extends StatefulWidget {
+  final double size;
+  final bool searching;
+  final bool waving;
+  final bool showOnlineBadge;
+  final VoidCallback? onTap;
+
+  const _PopOutAvatar({
+    required this.size,
+    required this.searching,
+    required this.waving,
+    required this.showOnlineBadge,
+    this.onTap,
+  });
+
+  @override
+  State<_PopOutAvatar> createState() => _PopOutAvatarState();
+}
+
+class _PopOutAvatarState extends State<_PopOutAvatar> with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.size;
+    final armOut = widget.searching || widget.waving;
+    final d = (s * 0.26).clamp(7.0, 14.0);
+    final body = AnimatedContainer(
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+      width: armOut ? s * 1.85 : s,
+      height: s,
+      child: AnimatedBuilder(
+        animation: _c,
+        builder: (_, _) {
+          final t = Curves.easeInOut.transform(_c.value);
+          final bob = (t - 0.5) * s * 0.05;
+          final tilt = widget.searching ? (t - 0.5) * 0.14 : 0.0;
+          return Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: s,
+                height: s,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFFF7EBDB), Color(0xFFE6D2B5)],
+                  ),
+                  border: Border.all(color: _kGold.withValues(alpha: 0.65), width: 1.2),
+                ),
+              ),
+              SizedBox(
+                width: s,
+                height: s,
+                child: ClipPath(
+                  clipper: _PopOutClipper(),
+                  child: OverflowBox(
+                    maxWidth: s * 1.4,
+                    maxHeight: s * 1.4,
+                    child: Transform.translate(
+                      offset: Offset(0, bob - s * 0.17),
+                      child: Transform.rotate(
+                        angle: tilt,
+                        child: Image.asset(_kHeadPoster, width: s * 1.05, fit: BoxFit.contain, semanticLabel: 'Aarna'),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              if (armOut)
+                Positioned(
+                  left: 0,
+                  top: -s * 0.35,
+                  width: s * 1.85,
+                  height: s * 1.7,
+                  child: IgnorePointer(
+                    child: CustomPaint(
+                      painter: _ArmPainter(s: s, t: t, wave: widget.waving),
+                    ),
+                  ),
+                ),
+              if (widget.showOnlineBadge)
+                Positioned(
+                  left: s - d + 1,
+                  bottom: -1,
+                  child: Container(
+                    width: d,
+                    height: d,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF34C759),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 1.6),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+    return widget.onTap == null ? body : GestureDetector(onTap: widget.onTap, behavior: HitTestBehavior.opaque, child: body);
+  }
+}
+
+/// Clips to the ring plus everything above its middle, so the head stays inside the circle at
+/// the bottom but overflows freely at the top and sides.
+class _PopOutClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final s = size.width;
+    return Path()
+      ..addOval(Rect.fromLTWH(0, 0, s, s))
+      ..addRect(Rect.fromLTRB(-s * 0.3, -s * 0.6, s * 1.3, s * 0.5));
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
+}
+
+/// Arm + hand that reaches out of the ring. Searching: the hand sweeps a magnifying glass side to side.
+/// Waving: the hand is raised and rocks. Drawn with paths so it needs no extra art.
+class _ArmPainter extends CustomPainter {
+  final double s;
+  final double t;
+  final bool wave;
+
+  _ArmPainter({required this.s, required this.t, required this.wave});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.translate(0, s * 0.35);
+    final sway = (t - 0.5) * 2; // -1..1
+    final shoulder = Offset(s * 0.82, s * 0.86);
+    final hand = wave
+        ? Offset(s * 1.2 + sway * s * 0.05, s * 0.18 + sway.abs() * s * 0.03)
+        : Offset(s * 1.14 + sway * s * 0.13, s * 0.55 + sway * s * 0.05);
+
+    // Upper arm bends through an elbow so it looks like an arm, not a stick.
+    final elbow = Offset(s * 1.12, s * 0.9);
+    final armPath = Path()
+      ..moveTo(shoulder.dx, shoulder.dy)
+      ..quadraticBezierTo(elbow.dx, elbow.dy, hand.dx, hand.dy);
+    canvas.drawPath(
+      armPath,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = s * 0.25
+        ..color = _kRoseGold,
+    );
+    canvas.drawPath(
+      armPath,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = s * 0.19
+        ..color = _kCream,
+    );
+    // Rose-gold cuff just before the hand.
+    final cuffAt = Offset.lerp(elbow, hand, 0.72)!;
+    canvas.drawCircle(cuffAt, s * 0.115, Paint()..color = _kRoseGold);
+    canvas.drawCircle(cuffAt, s * 0.07, Paint()..color = _kCream);
+    // Hand.
+    canvas.drawCircle(hand, s * 0.15, Paint()..color = _kRoseGold);
+    canvas.drawCircle(hand, s * 0.125, Paint()..color = _kCream);
+
+    if (wave) return;
+
+    // Magnifying glass: handle from the hand up to the lens.
+    final lens = hand + Offset(s * 0.28, -s * 0.46);
+    final dir = (lens - hand) / (lens - hand).distance;
+    canvas.drawLine(
+      hand,
+      lens - dir * (s * 0.22),
+      Paint()
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = s * 0.09
+        ..color = const Color(0xFF8A6A1F),
+    );
+    final r = s * 0.22;
+    canvas.drawCircle(lens, r, Paint()..color = Colors.white.withValues(alpha: 0.38));
+    canvas.drawCircle(
+      lens,
+      r,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = s * 0.075
+        ..color = _kGold,
+    );
+    canvas.drawArc(
+      Rect.fromCircle(center: lens, radius: r * 0.62),
+      3.5,
+      1.1,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = s * 0.035
+        ..color = Colors.white.withValues(alpha: 0.85),
+    );
+    // Re-draw the fingers over the handle so the glass looks held.
+    canvas.drawCircle(hand, s * 0.15, Paint()..color = _kRoseGold);
+    canvas.drawCircle(hand, s * 0.125, Paint()..color = _kCream);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ArmPainter old) => old.t != t || old.wave != wave || old.s != s;
+}
+
+/// Small-avatar "searching" state: Aarna with her magnifying glass, gently swaying with a gold
+/// scan line sweeping across. Everything is clipped to the avatar shape.
+class _SearchingFace extends StatefulWidget {
+  final double size;
+  final BoxShape shape;
+  final BorderRadius radius;
+
+  const _SearchingFace({required this.size, required this.shape, required this.radius});
+
+  @override
+  State<_SearchingFace> createState() => _SearchingFaceState();
+}
+
+class _SearchingFaceState extends State<_SearchingFace> with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 1500))..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.size;
+    final isCircle = widget.shape == BoxShape.circle;
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (_, _) {
+        final t = Curves.easeInOut.transform(_c.value);
+        return Container(
+          width: s,
+          height: s,
+          decoration: BoxDecoration(
+            shape: widget.shape,
+            borderRadius: isCircle ? null : widget.radius,
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFFF7EBDB), Color(0xFFE6D2B5)],
+            ),
+            border: Border.all(color: _kGold.withValues(alpha: 0.45 + 0.5 * t), width: 1.6),
+          ),
+          child: ClipRRect(
+            borderRadius: isCircle ? BorderRadius.circular(s) : widget.radius,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Transform.translate(
+                  offset: Offset((t - 0.5) * s * 0.10, (0.5 - t) * s * 0.04),
+                  child: Transform.scale(
+                    scale: 1.22,
+                    child: Image.asset(
+                      _kSearchPose,
+                      fit: BoxFit.cover,
+                      alignment: const Alignment(0.2, -0.2),
+                      semanticLabel: 'Aarna searching',
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: -s * 0.2 + t * s * 1.2,
+                  top: 0,
+                  bottom: 0,
+                  width: s * 0.2,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          _kGold.withValues(alpha: 0),
+                          _kGold.withValues(alpha: 0.35),
+                          _kGold.withValues(alpha: 0),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 }
 
