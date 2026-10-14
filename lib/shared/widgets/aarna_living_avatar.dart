@@ -5,14 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 /// Poses the chat UI can ask for. Only [waving] has its own 3D clip; the rest play the idle clip.
-enum AarnaPose {
-  idle,
-  searching,
-  combinations,
-  quote,
-  technical,
-  waving,
-}
+enum AarnaPose { idle, searching, combinations, quote, technical, waving }
 
 const _kGold = Color(0xFFD4AF37);
 // The approved Aarna artwork (glowing eyes, marble veins, rose-gold trim): every size shows this exact image.
@@ -62,11 +55,24 @@ class AarnaLivingAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (size >= liveThreshold) {
-      final art = ClipRRect(
-        borderRadius: BorderRadius.circular(size * 0.12),
-        child: Image.asset(_kFullPoster, width: size, height: size, fit: BoxFit.cover, semanticLabel: 'Aarna'),
+      final art = ClipOval(
+        child: _Interactive3D(
+          child: Image.asset(
+            _kFullPoster,
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            semanticLabel: 'Aarna',
+          ),
+        ),
       );
-      return onTap == null ? art : GestureDetector(onTap: onTap, behavior: HitTestBehavior.opaque, child: art);
+      return onTap == null
+          ? art
+          : GestureDetector(
+              onTap: onTap,
+              behavior: HitTestBehavior.opaque,
+              child: art,
+            );
     }
     final busy = isSearching || showRadarRings;
     if (popOut) {
@@ -97,7 +103,13 @@ class AarnaLivingAvatar extends StatelessWidget {
         borderRadius: isCircle ? BorderRadius.circular(size) : radius,
         child: Padding(
           padding: EdgeInsets.all(size * 0.08),
-          child: Image.asset(_kHeadPoster, fit: BoxFit.contain, semanticLabel: 'Aarna'),
+          child: _Interactive3D(
+            child: Image.asset(
+              _kHeadPoster,
+              fit: BoxFit.contain,
+              semanticLabel: 'Aarna',
+            ),
+          ),
         ),
       ),
     );
@@ -126,7 +138,13 @@ class AarnaLivingAvatar extends StatelessWidget {
         ],
       );
     }
-    return onTap == null ? face : GestureDetector(onTap: onTap, behavior: HitTestBehavior.opaque, child: face);
+    return onTap == null
+        ? face
+        : GestureDetector(
+            onTap: onTap,
+            behavior: HitTestBehavior.opaque,
+            child: face,
+          );
   }
 }
 
@@ -155,9 +173,12 @@ class _PopOutAvatar extends StatefulWidget {
   State<_PopOutAvatar> createState() => _PopOutAvatarState();
 }
 
-class _PopOutAvatarState extends State<_PopOutAvatar> with SingleTickerProviderStateMixin {
-  late final AnimationController _c =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))..repeat(reverse: true);
+class _PopOutAvatarState extends State<_PopOutAvatar>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  )..repeat(reverse: true);
 
   @override
   void dispose() {
@@ -194,7 +215,10 @@ class _PopOutAvatarState extends State<_PopOutAvatar> with SingleTickerProviderS
                     end: Alignment.bottomRight,
                     colors: [Color(0xFFF7EBDB), Color(0xFFE6D2B5)],
                   ),
-                  border: Border.all(color: _kGold.withValues(alpha: 0.65), width: 1.2),
+                  border: Border.all(
+                    color: _kGold.withValues(alpha: 0.65),
+                    width: 1.2,
+                  ),
                 ),
               ),
               ClipOval(
@@ -207,7 +231,15 @@ class _PopOutAvatarState extends State<_PopOutAvatar> with SingleTickerProviderS
                       angle: tilt,
                       child: Transform.scale(
                         scale: 1.12,
-                        child: Image.asset(_kHeadPoster, width: s, height: s, fit: BoxFit.cover, semanticLabel: 'Aarna'),
+                        child: _Interactive3D(
+                          child: Image.asset(
+                            _kHeadPoster,
+                            width: s,
+                            height: s,
+                            fit: BoxFit.cover,
+                            semanticLabel: 'Aarna',
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -244,10 +276,15 @@ class _PopOutAvatarState extends State<_PopOutAvatar> with SingleTickerProviderS
         },
       ),
     );
-    return widget.onTap == null ? body : GestureDetector(onTap: widget.onTap, behavior: HitTestBehavior.opaque, child: body);
+    return widget.onTap == null
+        ? body
+        : GestureDetector(
+            onTap: widget.onTap,
+            behavior: HitTestBehavior.opaque,
+            child: body,
+          );
   }
 }
-
 
 /// Arm + hand that reaches out of the ring. Searching: the hand sweeps a magnifying glass side to side.
 /// Waving: the hand is raised and rocks. Drawn with paths so it needs no extra art.
@@ -310,7 +347,11 @@ class _ArmPainter extends CustomPainter {
         ..color = const Color(0xFF8A6A1F),
     );
     final r = s * 0.22;
-    canvas.drawCircle(lens, r, Paint()..color = Colors.white.withValues(alpha: 0.38));
+    canvas.drawCircle(
+      lens,
+      r,
+      Paint()..color = Colors.white.withValues(alpha: 0.38),
+    );
     canvas.drawCircle(
       lens,
       r,
@@ -336,7 +377,8 @@ class _ArmPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _ArmPainter old) => old.t != t || old.wave != wave || old.s != s;
+  bool shouldRepaint(covariant _ArmPainter old) =>
+      old.t != t || old.wave != wave || old.s != s;
 }
 
 /// Small-avatar "searching" state: Aarna with her magnifying glass, gently swaying with a gold
@@ -346,15 +388,22 @@ class _SearchingFace extends StatefulWidget {
   final BoxShape shape;
   final BorderRadius radius;
 
-  const _SearchingFace({required this.size, required this.shape, required this.radius});
+  const _SearchingFace({
+    required this.size,
+    required this.shape,
+    required this.radius,
+  });
 
   @override
   State<_SearchingFace> createState() => _SearchingFaceState();
 }
 
-class _SearchingFaceState extends State<_SearchingFace> with SingleTickerProviderStateMixin {
-  late final AnimationController _c =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 1500))..repeat(reverse: true);
+class _SearchingFaceState extends State<_SearchingFace>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1500),
+  )..repeat(reverse: true);
 
   @override
   void dispose() {
@@ -381,7 +430,10 @@ class _SearchingFaceState extends State<_SearchingFace> with SingleTickerProvide
               end: Alignment.bottomRight,
               colors: [Color(0xFFF7EBDB), Color(0xFFE6D2B5)],
             ),
-            border: Border.all(color: _kGold.withValues(alpha: 0.45 + 0.5 * t), width: 1.6),
+            border: Border.all(
+              color: _kGold.withValues(alpha: 0.45 + 0.5 * t),
+              width: 1.6,
+            ),
           ),
           child: ClipRRect(
             borderRadius: isCircle ? BorderRadius.circular(s) : widget.radius,
@@ -461,20 +513,30 @@ class _Aarna3DViewState extends State<Aarna3DView> with WidgetsBindingObserver {
   Future<void> _boot() async {
     try {
       final js = await rootBundle.loadString('assets/3d/model-viewer.min.js');
-      final glb = base64Encode((await rootBundle.load('assets/3d/aarna.glb')).buffer.asUint8List());
+      final glb = base64Encode(
+        (await rootBundle.load('assets/3d/aarna.glb')).buffer.asUint8List(),
+      );
       final web = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
         ..setBackgroundColor(Colors.transparent)
-        ..setNavigationDelegate(NavigationDelegate(onNavigationRequest: (r) {
-          // Only the inline page may load; never follow links out of the avatar.
-          return r.url == 'about:blank' || r.url.startsWith('data:') ? NavigationDecision.navigate : NavigationDecision.prevent;
-        }))
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onNavigationRequest: (r) {
+              // Only the inline page may load; never follow links out of the avatar.
+              return r.url == 'about:blank' || r.url.startsWith('data:')
+                  ? NavigationDecision.navigate
+                  : NavigationDecision.prevent;
+            },
+          ),
+        )
         ..addJavaScriptChannel('AarnaBridge', onMessageReceived: _onMessage)
         ..loadHtmlString(_html(js, glb));
       if (!mounted) return;
       setState(() => _web = web);
     } catch (e) {
-      debugPrint('Aarna3D: could not start 3D view, showing render instead: $e');
+      debugPrint(
+        'Aarna3D: could not start 3D view, showing render instead: $e',
+      );
     }
   }
 
@@ -490,7 +552,9 @@ class _Aarna3DViewState extends State<Aarna3DView> with WidgetsBindingObserver {
     }
   }
 
-  void _run(String code) => _web?.runJavaScript(code).catchError((Object e) => debugPrint('Aarna3D js: $e'));
+  void _run(String code) => _web
+      ?.runJavaScript(code)
+      .catchError((Object e) => debugPrint('Aarna3D js: $e'));
 
   @override
   void didUpdateWidget(covariant Aarna3DView old) {
@@ -521,7 +585,11 @@ class _Aarna3DViewState extends State<Aarna3DView> with WidgetsBindingObserver {
           AnimatedOpacity(
             opacity: _ready ? 0 : 1,
             duration: const Duration(milliseconds: 300),
-            child: Image.asset(_kFullPoster, fit: BoxFit.contain, semanticLabel: 'Aarna'),
+            child: Image.asset(
+              _kFullPoster,
+              fit: BoxFit.contain,
+              semanticLabel: 'Aarna',
+            ),
           ),
           if (_web != null) WebViewWidget(controller: _web!),
         ],
@@ -529,7 +597,8 @@ class _Aarna3DViewState extends State<Aarna3DView> with WidgetsBindingObserver {
     );
   }
 
-  static String _html(String modelViewerJs, String glbBase64) => '''
+  static String _html(String modelViewerJs, String glbBase64) =>
+      '''
 <!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <style>html,body{margin:0;height:100%;background:transparent;overflow:hidden}
@@ -553,4 +622,103 @@ m.addEventListener('click',()=>AarnaBridge.postMessage('tap'));
 // After a drag the head/body spring back to the rest view instead of staying turned.
 let back;m.addEventListener('camera-change',e=>{if(e.detail.source==='user-interaction'){clearTimeout(back);back=setTimeout(()=>{m.cameraOrbit=home;},700);}});
 </script></body></html>''';
+}
+
+/// Makes the Aarna artwork feel 3D: it turns toward the finger while touched (perspective tilt), springs back with a
+/// little overshoot on release, and gives a soft bounce on tap. Uses raw pointer events, so the avatar's own onTap and
+/// any surrounding scroll view keep working.
+class _Interactive3D extends StatefulWidget {
+  final Widget child;
+  const _Interactive3D({required this.child});
+
+  @override
+  State<_Interactive3D> createState() => _Interactive3DState();
+}
+
+class _Interactive3DState extends State<_Interactive3D>
+    with TickerProviderStateMixin {
+  static const _maxTilt = 0.5; // radians at the edge
+  late final AnimationController _back = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 650),
+  );
+  late final AnimationController _bounce = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 520),
+  );
+  Offset _tilt = Offset.zero; // -1..1 from the centre
+  Offset _from = Offset.zero;
+
+  @override
+  void dispose() {
+    _back.dispose();
+    _bounce.dispose();
+    super.dispose();
+  }
+
+  void _track(PointerEvent e, Size size) {
+    if (size.isEmpty) return;
+    final c = size.center(Offset.zero);
+    final dx = ((e.localPosition.dx - c.dx) / (size.width / 2)).clamp(
+      -1.0,
+      1.0,
+    );
+    final dy = ((e.localPosition.dy - c.dy) / (size.height / 2)).clamp(
+      -1.0,
+      1.0,
+    );
+    _back.stop();
+    _back.value = 0; // a fresh touch starts from the live finger position, not the spring
+    setState(() => _tilt = Offset(dx, dy));
+  }
+
+  void _release() {
+    _from = _tilt;
+    _back.forward(from: 0);
+    _bounce.forward(from: 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, box) {
+        final size = Size(
+          box.hasBoundedWidth ? box.maxWidth : 0,
+          box.hasBoundedHeight ? box.maxHeight : 0,
+        );
+        return Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: (e) => _track(e, size),
+          onPointerMove: (e) => _track(e, size),
+          onPointerUp: (_) => _release(),
+          onPointerCancel: (_) => _release(),
+          child: AnimatedBuilder(
+            animation: Listenable.merge([_back, _bounce]),
+            builder: (_, child) {
+              final tilt = _back.isAnimating
+                  ? Offset.lerp(
+                      _from,
+                      Offset.zero,
+                      Curves.elasticOut.transform(_back.value),
+                    )!
+                  : (_back.value == 1 ? Offset.zero : _tilt);
+              final squash = _bounce.isAnimating
+                  ? 1 - 0.08 * (1 - Curves.elasticOut.transform(_bounce.value))
+                  : 1.0;
+              return Transform(
+                alignment: Alignment.center,
+                transform: Matrix4.identity()
+                  ..setEntry(3, 2, 0.0018)
+                  ..rotateX(-tilt.dy * _maxTilt)
+                  ..rotateY(tilt.dx * _maxTilt)
+                  ..scale(squash, squash, 1),
+                child: child,
+              );
+            },
+            child: widget.child,
+          ),
+        );
+      },
+    );
+  }
 }

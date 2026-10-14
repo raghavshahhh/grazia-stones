@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:grazia_stones/features/measure/presentation/widgets/tile_texture_wall.dart';
 import 'package:flutter/gestures.dart' show PointerScrollEvent;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -29,10 +30,12 @@ class TileWallVisualizerScreen extends ConsumerStatefulWidget {
   const TileWallVisualizerScreen({super.key, this.initialStoneId});
 
   @override
-  ConsumerState<TileWallVisualizerScreen> createState() => _TileWallVisualizerScreenState();
+  ConsumerState<TileWallVisualizerScreen> createState() =>
+      _TileWallVisualizerScreenState();
 }
 
-class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScreen>
+class _TileWallVisualizerScreenState
+    extends ConsumerState<TileWallVisualizerScreen>
     with SingleTickerProviderStateMixin {
   final _widthController = TextEditingController(text: '12');
   final _heightController = TextEditingController(text: '10');
@@ -40,7 +43,8 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
   double _wastagePercent = 15;
   Stone? _selectedStone;
   bool _is3DView = true;
-  String _layoutPattern = 'brick'; // 'brick' (Running Bond), 'stacked', 'vertical'
+  String _layoutPattern =
+      'brick'; // 'brick' (Running Bond), 'stacked', 'vertical'
   bool _isExportingPdf = false;
   bool _isFocusMode = false; // Immersive full-screen 360° mode
 
@@ -62,17 +66,18 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
   @override
   void initState() {
     super.initState();
-    _cameraAnimController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 420),
-    )..addListener(() {
-        setState(() {
-          if (_animRotX != null) _rotX = _animRotX!.value;
-          if (_animRotY != null) _rotY = _animRotY!.value;
-          if (_animScale != null) _scale = _animScale!.value;
-          if (_animPan != null) _panOffset = _animPan!.value;
+    _cameraAnimController =
+        AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 420),
+        )..addListener(() {
+          setState(() {
+            if (_animRotX != null) _rotX = _animRotX!.value;
+            if (_animRotY != null) _rotY = _animRotY!.value;
+            if (_animScale != null) _scale = _animScale!.value;
+            if (_animPan != null) _panOffset = _animPan!.value;
+          });
         });
-      });
   }
 
   @override
@@ -103,7 +108,9 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
     HapticFeedback.lightImpact();
     final cur = double.tryParse(_widthController.text.trim()) ?? 12.0;
     final next = (cur + delta).clamp(1.0, 500.0);
-    _widthController.text = next == next.roundToDouble() ? next.toInt().toString() : next.toStringAsFixed(1);
+    _widthController.text = next == next.roundToDouble()
+        ? next.toInt().toString()
+        : next.toStringAsFixed(1);
     setState(() {});
   }
 
@@ -111,7 +118,9 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
     HapticFeedback.lightImpact();
     final cur = double.tryParse(_heightController.text.trim()) ?? 10.0;
     final next = (cur + delta).clamp(1.0, 500.0);
-    _heightController.text = next == next.roundToDouble() ? next.toInt().toString() : next.toStringAsFixed(1);
+    _heightController.text = next == next.roundToDouble()
+        ? next.toInt().toString()
+        : next.toStringAsFixed(1);
     setState(() {});
   }
 
@@ -151,16 +160,28 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
     _cameraAnimController.stop();
 
     _animRotX = Tween<double>(begin: _rotX, end: targetRotX).animate(
-      CurvedAnimation(parent: _cameraAnimController, curve: Curves.easeOutCubic),
+      CurvedAnimation(
+        parent: _cameraAnimController,
+        curve: Curves.easeOutCubic,
+      ),
     );
     _animRotY = Tween<double>(begin: _rotY, end: targetRotY).animate(
-      CurvedAnimation(parent: _cameraAnimController, curve: Curves.easeOutCubic),
+      CurvedAnimation(
+        parent: _cameraAnimController,
+        curve: Curves.easeOutCubic,
+      ),
     );
     _animScale = Tween<double>(begin: _scale, end: targetScale).animate(
-      CurvedAnimation(parent: _cameraAnimController, curve: Curves.easeOutCubic),
+      CurvedAnimation(
+        parent: _cameraAnimController,
+        curve: Curves.easeOutCubic,
+      ),
     );
     _animPan = Tween<Offset>(begin: _panOffset, end: targetPan).animate(
-      CurvedAnimation(parent: _cameraAnimController, curve: Curves.easeOutCubic),
+      CurvedAnimation(
+        parent: _cameraAnimController,
+        curve: Curves.easeOutCubic,
+      ),
     );
 
     _cameraAnimController.reset();
@@ -172,11 +193,19 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
   }
 
   Future<void> _exportPdfSpecSheet(
-      double widthFt, double heightFt, double netArea, double grossArea, int? boxes, int? totalTiles, double cost) async {
+    double widthFt,
+    double heightFt,
+    double netArea,
+    double grossArea,
+    int? boxes,
+    int? totalTiles,
+    double cost,
+  ) async {
     if (_selectedStone == null) {
       LuxuryToast.show(
         context,
-        message: 'Please select a stone material first to export specification sheet.',
+        message:
+            'Please select a stone material first to export specification sheet.',
       );
       return;
     }
@@ -201,7 +230,8 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
       if (!mounted) return;
       await Printing.layoutPdf(
         onLayout: (_) => pdfBytes,
-        name: 'Grazia_Wall_Spec_${_selectedStone!.name.replaceAll(' ', '_')}.pdf',
+        name:
+            'Grazia_Wall_Spec_${_selectedStone!.name.replaceAll(' ', '_')}.pdf',
       );
     } catch (e) {
       if (!mounted) return;
@@ -217,12 +247,15 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
 
   void _addBoxesToCart(double grossArea) {
     if (_selectedStone == null) return;
-    ref.read(cartProvider.notifier).addItem(_selectedStone!, quantity: grossArea.ceil());
+    ref
+        .read(cartProvider.notifier)
+        .addItem(_selectedStone!, quantity: grossArea.ceil());
     HapticFeedback.heavyImpact();
 
     LuxuryToast.show(
       context,
-      message: 'Added ${grossArea.toStringAsFixed(0)} sq.ft of ${_selectedStone!.name} to Project Cart!',
+      message:
+          'Added ${grossArea.toStringAsFixed(0)} sq.ft of ${_selectedStone!.name} to Project Cart!',
       actionLabel: 'View Cart',
       onAction: () => context.push('/cart'),
     );
@@ -233,23 +266,31 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
     final palette = ref.watch(themePaletteProvider);
     final isDark = ref.watch(themePaletteProvider.notifier).isDarkMode;
     final stonesAsync = ref.watch(allStonesProvider);
-    if (_selectedStone == null && stonesAsync.hasValue && stonesAsync.value != null && stonesAsync.value!.isNotEmpty) {
+    if (_selectedStone == null &&
+        stonesAsync.hasValue &&
+        stonesAsync.value != null &&
+        stonesAsync.value!.isNotEmpty) {
       final stones = stonesAsync.value!;
       Stone? match;
       if (widget.initialStoneId != null) {
         final q = widget.initialStoneId!.toLowerCase().trim();
-        match = stones.where((s) =>
-            s.id.toLowerCase() == q ||
-            s.name.toLowerCase() == q ||
-            s.name.toLowerCase().contains(q) ||
-            s.productCode.toLowerCase() == q).firstOrNull;
+        match = stones
+            .where(
+              (s) =>
+                  s.id.toLowerCase() == q ||
+                  s.name.toLowerCase() == q ||
+                  s.name.toLowerCase().contains(q) ||
+                  s.productCode.toLowerCase() == q,
+            )
+            .firstOrNull;
       }
       _selectedStone = match ?? stones.first;
     }
 
     final widthFt = _widthValue != null ? _toFeet(_widthValue!) : null;
     final heightFt = _heightValue != null ? _toFeet(_heightValue!) : null;
-    final validDimensions = widthFt != null && heightFt != null && widthFt > 0 && heightFt > 0;
+    final validDimensions =
+        widthFt != null && heightFt != null && widthFt > 0 && heightFt > 0;
 
     final netAreaSqFt = validDimensions ? widthFt * heightFt : 0.0;
     final grossAreaSqFt = netAreaSqFt * (1 + _wastagePercent / 100);
@@ -258,10 +299,12 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
     int? totalTiles;
     double estimatedCost = 0.0;
 
-    final effectiveCoverage = (_selectedStone != null && _selectedStone!.sqftPerBox > 0)
+    final effectiveCoverage =
+        (_selectedStone != null && _selectedStone!.sqftPerBox > 0)
         ? _selectedStone!.sqftPerBox
         : 10.5;
-    final effectivePrice = (_selectedStone != null && _selectedStone!.pricePerSqFt > 0)
+    final effectivePrice =
+        (_selectedStone != null && _selectedStone!.pricePerSqFt > 0)
         ? _selectedStone!.pricePerSqFt
         : 385.0;
 
@@ -299,7 +342,11 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
               scrolledUnderElevation: 0,
               titleSpacing: 0,
               leading: IconButton(
-                icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
+                icon: Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: palette.textPrimary,
+                  size: 18,
+                ),
                 onPressed: () {
                   if (context.canPop()) {
                     context.pop();
@@ -340,9 +387,16 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                     decoration: BoxDecoration(
                       color: palette.primary.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: palette.primary.withValues(alpha: 0.35), width: 0.8),
+                      border: Border.all(
+                        color: palette.primary.withValues(alpha: 0.35),
+                        width: 0.8,
+                      ),
                     ),
-                    child: Icon(Icons.fullscreen_rounded, size: 16, color: palette.primary),
+                    child: Icon(
+                      Icons.fullscreen_rounded,
+                      size: 16,
+                      color: palette.primary,
+                    ),
                   ),
                   tooltip: '360° Studio Mode',
                   onPressed: _toggleFocusMode,
@@ -352,14 +406,27 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                 GestureDetector(
                   onTap: () {
                     if (_is3DView) {
-                      _animateToCamera(targetRotX: 0.0, targetRotY: 0.0, targetScale: 1.0, is3D: false);
+                      _animateToCamera(
+                        targetRotX: 0.0,
+                        targetRotY: 0.0,
+                        targetScale: 1.0,
+                        is3D: false,
+                      );
                     } else {
-                      _animateToCamera(targetRotX: 0.12, targetRotY: -0.32, targetScale: 1.0, is3D: true);
+                      _animateToCamera(
+                        targetRotX: 0.12,
+                        targetRotY: -0.32,
+                        targetScale: 1.0,
+                        is3D: true,
+                      );
                     }
                   },
                   child: Container(
                     margin: const EdgeInsets.symmetric(horizontal: 4),
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
                       color: _is3DView ? palette.primary : palette.surface,
                       borderRadius: BorderRadius.circular(14),
@@ -371,7 +438,9 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          _is3DView ? Icons.view_in_ar_rounded : Icons.crop_square_rounded,
+                          _is3DView
+                              ? Icons.view_in_ar_rounded
+                              : Icons.crop_square_rounded,
                           size: 12,
                           color: _is3DView ? Colors.black : palette.textPrimary,
                         ),
@@ -381,7 +450,9 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                           style: GoogleFonts.inter(
                             fontSize: 10.5,
                             fontWeight: FontWeight.w700,
-                            color: _is3DView ? Colors.black : palette.textPrimary,
+                            color: _is3DView
+                                ? Colors.black
+                                : palette.textPrimary,
                           ),
                         ),
                       ],
@@ -389,7 +460,11 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                   ),
                 ),
                 IconButton(
-                  icon: Icon(Icons.restart_alt_rounded, color: palette.textSecondary, size: 18),
+                  icon: Icon(
+                    Icons.restart_alt_rounded,
+                    color: palette.textSecondary,
+                    size: 18,
+                  ),
                   tooltip: 'Reset Camera',
                   onPressed: _resetView,
                 ),
@@ -408,7 +483,9 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
               AnimatedCrossFade(
                 firstChild: _buildDimensionControls(palette, isDark),
                 secondChild: const SizedBox.shrink(),
-                crossFadeState: _isFocusMode ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                crossFadeState: _isFocusMode
+                    ? CrossFadeState.showSecond
+                    : CrossFadeState.showFirst,
                 duration: const Duration(milliseconds: 260),
               ),
 
@@ -430,7 +507,10 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                           ? Center(
                               child: Text(
                                 'Enter wall dimensions above to visualize tiling.',
-                                style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 13),
+                                style: GoogleFonts.inter(
+                                  color: palette.textSecondary,
+                                  fontSize: 13,
+                                ),
                               ),
                             )
                           : _buildInteractive3DCanvas(
@@ -455,7 +535,12 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                               children: [
                                 _buildGuideBadge(palette, isDark),
                                 const SizedBox(height: 5),
-                                _buildStoneSpecBadge(palette, isDark, columns, rows),
+                                _buildStoneSpecBadge(
+                                  palette,
+                                  isDark,
+                                  columns,
+                                  rows,
+                                ),
                               ],
                             ),
                     ),
@@ -524,16 +609,22 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                         if (mounted && _selectedStone == null) {
                           Stone? match;
                           if (widget.initialStoneId != null) {
-                            final q = widget.initialStoneId!.toLowerCase().trim();
+                            final q = widget.initialStoneId!
+                                .toLowerCase()
+                                .trim();
                             match = stones
-                                .where((s) =>
-                                    s.id.toLowerCase() == q ||
-                                    s.name.toLowerCase() == q ||
-                                    s.name.toLowerCase().contains(q) ||
-                                    s.productCode.toLowerCase() == q)
+                                .where(
+                                  (s) =>
+                                      s.id.toLowerCase() == q ||
+                                      s.name.toLowerCase() == q ||
+                                      s.name.toLowerCase().contains(q) ||
+                                      s.productCode.toLowerCase() == q,
+                                )
                                 .firstOrNull;
                           }
-                          setState(() => _selectedStone = match ?? stones.first);
+                          setState(
+                            () => _selectedStone = match ?? stones.first,
+                          );
                         }
                       });
                     }
@@ -560,7 +651,10 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
         decoration: BoxDecoration(
           color: Colors.black.withValues(alpha: 0.85),
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: const Color(0xFFD4AF37).withValues(alpha: 0.6), width: 1.0),
+          border: Border.all(
+            color: const Color(0xFFD4AF37).withValues(alpha: 0.6),
+            width: 1.0,
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.4),
@@ -572,7 +666,11 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.arrow_back_rounded, size: 14, color: Color(0xFFD4AF37)),
+            const Icon(
+              Icons.arrow_back_rounded,
+              size: 14,
+              color: Color(0xFFD4AF37),
+            ),
             const SizedBox(width: 6),
             Text(
               '360° Studio Mode • Tap Wall to Exit',
@@ -620,7 +718,10 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.88),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFD4AF37).withValues(alpha: 0.5), width: 0.9),
+        border: Border.all(
+          color: const Color(0xFFD4AF37).withValues(alpha: 0.5),
+          width: 0.9,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.4),
@@ -723,7 +824,10 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
         decoration: BoxDecoration(
           color: const Color(0xFF262420),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFD4AF37).withValues(alpha: 0.35), width: 0.7),
+          border: Border.all(
+            color: const Color(0xFFD4AF37).withValues(alpha: 0.35),
+            width: 0.7,
+          ),
         ),
         child: Text(
           label,
@@ -763,7 +867,12 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
             child: Row(
               children: [
                 _buildQuickPresetChip("10' × 10' Accent", '10', '10', palette),
-                _buildQuickPresetChip("12' × 10' Standard", '12', '10', palette),
+                _buildQuickPresetChip(
+                  "12' × 10' Standard",
+                  '12',
+                  '10',
+                  palette,
+                ),
                 _buildQuickPresetChip("16' × 12' Feature", '16', '12', palette),
                 _buildQuickPresetChip("20' × 14' Façade", '20', '14', palette),
               ],
@@ -813,10 +922,18 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                   child: DropdownButton<String>(
                     value: _unit,
                     items: const ['ft', 'in', 'm', 'cm']
-                        .map((u) => DropdownMenuItem(
-                              value: u,
-                              child: Text(u, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700)),
-                            ))
+                        .map(
+                          (u) => DropdownMenuItem(
+                            value: u,
+                            child: Text(
+                              u,
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        )
                         .toList(),
                     onChanged: (u) {
                       if (u != null) {
@@ -836,7 +953,11 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
             children: [
               Text(
                 'Wastage: ',
-                style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: palette.textSecondary),
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: palette.textSecondary,
+                ),
               ),
               ...[5, 10, 15, 20].map((w) {
                 final isSel = _wastagePercent.toInt() == w;
@@ -849,7 +970,10 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                     },
                     borderRadius: BorderRadius.circular(8),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: isSel ? palette.primary : palette.surfaceDark,
                         borderRadius: BorderRadius.circular(8),
@@ -876,7 +1000,9 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                     activeTrackColor: palette.primary,
                     inactiveTrackColor: palette.primary.withValues(alpha: 0.2),
                     trackHeight: 2.5,
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+                    thumbShape: const RoundSliderThumbShape(
+                      enabledThumbRadius: 5,
+                    ),
                   ),
                   child: Slider(
                     value: _wastagePercent,
@@ -915,14 +1041,24 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
             visualDensity: VisualDensity.compact,
             padding: EdgeInsets.zero,
             onPressed: onMinus,
-            icon: Icon(Icons.remove_circle_outline_rounded, color: palette.textSecondary, size: 18),
+            icon: Icon(
+              Icons.remove_circle_outline_rounded,
+              color: palette.textSecondary,
+              size: 18,
+            ),
           ),
           Expanded(
             child: TextField(
               controller: controller,
               textAlign: TextAlign.center,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: palette.textPrimary),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: palette.textPrimary,
+              ),
               decoration: const InputDecoration(
                 border: InputBorder.none,
                 isDense: true,
@@ -935,15 +1071,27 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
             visualDensity: VisualDensity.compact,
             padding: EdgeInsets.zero,
             onPressed: onPlus,
-            icon: Icon(Icons.add_circle_outline_rounded, color: palette.primary, size: 18),
+            icon: Icon(
+              Icons.add_circle_outline_rounded,
+              color: palette.primary,
+              size: 18,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildQuickPresetChip(String title, String w, String h, dynamic palette) {
-    final isSelected = _widthController.text == w && _heightController.text == h && _unit == 'ft';
+  Widget _buildQuickPresetChip(
+    String title,
+    String w,
+    String h,
+    dynamic palette,
+  ) {
+    final isSelected =
+        _widthController.text == w &&
+        _heightController.text == h &&
+        _unit == 'ft';
     return Padding(
       padding: const EdgeInsets.only(right: 6),
       child: InkWell(
@@ -952,7 +1100,9 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
           decoration: BoxDecoration(
-            color: isSelected ? palette.primary.withValues(alpha: 0.15) : palette.surfaceDark,
+            color: isSelected
+                ? palette.primary.withValues(alpha: 0.15)
+                : palette.surfaceDark,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: isSelected ? palette.primary : palette.border,
@@ -985,7 +1135,10 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
       onPointerSignal: (event) {
         if (event is PointerScrollEvent) {
           setState(() {
-            _scale = (_scale * (event.scrollDelta.dy > 0 ? 0.92 : 1.08)).clamp(0.4, 4.0);
+            _scale = (_scale * (event.scrollDelta.dy > 0 ? 0.92 : 1.08)).clamp(
+              0.4,
+              4.0,
+            );
           });
         }
       },
@@ -1001,12 +1154,18 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
               // 1 finger touch: Full Unconstrained 360° Orbit Rotation
               _is3DView = true;
               _rotY = (_rotY + details.focalPointDelta.dx * 0.0085);
-              _rotX = (_rotX - details.focalPointDelta.dy * 0.0075).clamp(-0.75, 0.75);
+              _rotX = (_rotX - details.focalPointDelta.dy * 0.0075).clamp(
+                -0.75,
+                0.75,
+              );
             } else if (details.pointerCount >= 2) {
               // 2 fingers: Zoom & Pan
               _scale = (_startScale * details.scale).clamp(0.4, 4.0);
               final next = _panOffset + details.focalPointDelta;
-              _panOffset = Offset(next.dx.clamp(-280.0, 280.0), next.dy.clamp(-320.0, 320.0));
+              _panOffset = Offset(
+                next.dx.clamp(-280.0, 280.0),
+                next.dy.clamp(-320.0, 320.0),
+              );
             }
           });
         },
@@ -1109,118 +1268,130 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
 
     // Front Face (Real Stone Texture + Architectural Mortar Joints + Relief Shading)
     if (frontVisible) {
-      faces.add(_FaceData(
-        frontZ,
-        Transform(
-          alignment: Alignment.center,
-          transform: Matrix4.identity()..translate(0.0, 0.0, wallDepth / 2),
-          child: _buildFrontFace(
-            renderWidth: renderWidth,
-            renderHeight: renderHeight,
-            columns: columns,
-            rows: rows,
-            palette: palette,
-            isDark: isDark,
-            activeRotX: activeRotX,
-            activeRotY: activeRotY,
+      faces.add(
+        _FaceData(
+          frontZ,
+          Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()..translate(0.0, 0.0, wallDepth / 2),
+            child: _buildFrontFace(
+              renderWidth: renderWidth,
+              renderHeight: renderHeight,
+              columns: columns,
+              rows: rows,
+              palette: palette,
+              isDark: isDark,
+              activeRotX: activeRotX,
+              activeRotY: activeRotY,
+            ),
           ),
         ),
-      ));
+      );
     }
 
     // Back Face (Reinforced Architectural Substrate Grid & Technical Cert)
     if (backVisible) {
-      faces.add(_FaceData(
-        backZ,
-        Transform(
-          alignment: Alignment.center,
-          transform: Matrix4.identity()
-            ..translate(0.0, 0.0, -wallDepth / 2)
-            ..rotateY(math.pi),
-          child: _buildBackFace(
-            renderWidth: renderWidth,
-            renderHeight: renderHeight,
-            palette: palette,
-            isDark: isDark,
+      faces.add(
+        _FaceData(
+          backZ,
+          Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()
+              ..translate(0.0, 0.0, -wallDepth / 2)
+              ..rotateY(math.pi),
+            child: _buildBackFace(
+              renderWidth: renderWidth,
+              renderHeight: renderHeight,
+              palette: palette,
+              isDark: isDark,
+            ),
           ),
         ),
-      ));
+      );
     }
 
     // Right Side Face (Extruded Profile with Mortar Joints & Chiseled Strata)
     if (rightVisible) {
-      faces.add(_FaceData(
-        rightZ,
-        Transform(
-          alignment: Alignment.center,
-          transform: Matrix4.identity()
-            ..translate(renderWidth / 2, 0.0, 0.0)
-            ..rotateY(math.pi / 2),
-          child: _buildSideFace(
-            isRight: true,
-            wallDepth: wallDepth,
-            renderHeight: renderHeight,
-            rows: rows,
-            palette: palette,
+      faces.add(
+        _FaceData(
+          rightZ,
+          Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()
+              ..translate(renderWidth / 2, 0.0, 0.0)
+              ..rotateY(math.pi / 2),
+            child: _buildSideFace(
+              isRight: true,
+              wallDepth: wallDepth,
+              renderHeight: renderHeight,
+              rows: rows,
+              palette: palette,
+            ),
           ),
         ),
-      ));
+      );
     }
 
     // Left Side Face (Extruded Profile with Mortar Joints & Chiseled Strata)
     if (leftVisible) {
-      faces.add(_FaceData(
-        leftZ,
-        Transform(
-          alignment: Alignment.center,
-          transform: Matrix4.identity()
-            ..translate(-renderWidth / 2, 0.0, 0.0)
-            ..rotateY(-math.pi / 2),
-          child: _buildSideFace(
-            isRight: false,
-            wallDepth: wallDepth,
-            renderHeight: renderHeight,
-            rows: rows,
-            palette: palette,
+      faces.add(
+        _FaceData(
+          leftZ,
+          Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()
+              ..translate(-renderWidth / 2, 0.0, 0.0)
+              ..rotateY(-math.pi / 2),
+            child: _buildSideFace(
+              isRight: false,
+              wallDepth: wallDepth,
+              renderHeight: renderHeight,
+              rows: rows,
+              palette: palette,
+            ),
           ),
         ),
-      ));
+      );
     }
 
     // Top Coping Slab Face (Honed Stone Finish)
     if (topVisible) {
-      faces.add(_FaceData(
-        topZ,
-        Transform(
-          alignment: Alignment.center,
-          transform: Matrix4.identity()
-            ..translate(0.0, -renderHeight / 2, 0.0)
-            ..rotateX(-math.pi / 2),
-          child: _buildTopCopingFace(
-            renderWidth: renderWidth,
-            wallDepth: wallDepth,
-            palette: palette,
+      faces.add(
+        _FaceData(
+          topZ,
+          Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()
+              ..translate(0.0, -renderHeight / 2, 0.0)
+              ..rotateX(-math.pi / 2),
+            child: _buildTopCopingFace(
+              renderWidth: renderWidth,
+              wallDepth: wallDepth,
+              palette: palette,
+            ),
           ),
         ),
-      ));
+      );
     }
 
     // Bottom Base Face
     if (bottomVisible) {
-      faces.add(_FaceData(
-        bottomZ,
-        Transform(
-          alignment: Alignment.center,
-          transform: Matrix4.identity()
-            ..translate(0.0, renderHeight / 2, 0.0)
-            ..rotateX(math.pi / 2),
-          child: _buildBottomBaseFace(
-            renderWidth: renderWidth,
-            wallDepth: wallDepth,
-            palette: palette,
+      faces.add(
+        _FaceData(
+          bottomZ,
+          Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()
+              ..translate(0.0, renderHeight / 2, 0.0)
+              ..rotateX(math.pi / 2),
+            child: _buildBottomBaseFace(
+              renderWidth: renderWidth,
+              wallDepth: wallDepth,
+              palette: palette,
+            ),
           ),
         ),
-      ));
+      );
     }
 
     // Painter's algorithm: sort faces from back to front (lowest depth first)
@@ -1260,7 +1431,9 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                         borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: isDark ? 0.70 : 0.35),
+                            color: Colors.black.withValues(
+                              alpha: isDark ? 0.70 : 0.35,
+                            ),
                             blurRadius: 22,
                             spreadRadius: 3,
                             offset: Offset(shadowShiftX, shadowShiftY),
@@ -1284,7 +1457,6 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
               ),
             ],
           ),
-
         ],
       ),
     );
@@ -1305,42 +1477,48 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // 1. High-Resolution Stone Texture across the surface
-          _selectedStone == null
-              ? Container(
-                  color: Colors.grey.shade400,
-                  child: Center(
-                    child: Text(
-                      'Select a stone below',
-                      style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                )
-              : SmartStoneImage(
-                  imageUrl: _selectedStone!.arTextureUrl ?? _selectedStone!.imageUrl,
-                  fit: BoxFit.cover,
-                  fallbackColor: const Color(0xFFC4B5A5),
-                ),
-
-          // 2. Custom Architectural Mortar Joints & Seam Painter
-          CustomPaint(
-            size: Size(renderWidth, renderHeight),
-            painter: _ArchitecturalTileJointPainter(
-              columns: columns,
-              rows: rows,
-              layoutPattern: _layoutPattern,
-              groutColor: isDark ? const Color(0xFF141312) : const Color(0xFF282522),
-              reliefIntensity: 0.30,
-            ),
+          // 1+2. Every tile drawn on its own: real tile size, own crop/shade, bevel and recessed grout
+          TileTextureWall(
+            imageUrl: _selectedStone == null
+                ? null
+                : (_selectedStone!.arTextureUrl ?? _selectedStone!.imageUrl),
+            columns: columns,
+            rows: rows,
+            pattern: _layoutPattern,
+            tileAspect:
+                (_selectedStone?.lengthCm != null &&
+                    _selectedStone?.widthCm != null &&
+                    _selectedStone!.widthCm! > 0)
+                ? _selectedStone!.lengthCm! / _selectedStone!.widthCm!
+                : 2.0,
+            groutColor: isDark
+                ? const Color(0xFF141312)
+                : const Color(0xFF282522),
           ),
+          if (_selectedStone == null)
+            Center(
+              child: Text(
+                'Select a stone below',
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ),
 
           // 3. Dynamic Specular Light Glint (shifts with rotation angle!)
           if (_is3DView)
             Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  begin: Alignment(-0.8 + (activeRotY * 1.5), -0.8 + (activeRotX * 1.5)),
-                  end: Alignment(0.8 + (activeRotY * 1.5), 0.8 + (activeRotX * 1.5)),
+                  begin: Alignment(
+                    -0.8 + (activeRotY * 1.5),
+                    -0.8 + (activeRotX * 1.5),
+                  ),
+                  end: Alignment(
+                    0.8 + (activeRotY * 1.5),
+                    0.8 + (activeRotX * 1.5),
+                  ),
                   colors: [
                     Colors.white.withValues(alpha: 0.22),
                     Colors.white.withValues(alpha: 0.05),
@@ -1424,7 +1602,11 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.architecture_rounded, size: 14, color: Color(0xFFD4AF37)),
+                      const Icon(
+                        Icons.architecture_rounded,
+                        size: 14,
+                        color: Color(0xFFD4AF37),
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         'GRAZIA ARCHITECTURAL SUBSTRATE',
@@ -1468,29 +1650,34 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
             Alignment.topRight,
             Alignment.bottomLeft,
             Alignment.bottomRight,
-          ].map((alignment) => Align(
-                alignment: alignment,
-                child: Container(
-                  margin: const EdgeInsets.all(7),
-                  width: 13,
-                  height: 13,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color(0xFF33312E),
-                    border: Border.all(color: const Color(0xFFD4AF37).withValues(alpha: 0.5), width: 0.8),
+          ].map(
+            (alignment) => Align(
+              alignment: alignment,
+              child: Container(
+                margin: const EdgeInsets.all(7),
+                width: 13,
+                height: 13,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF33312E),
+                  border: Border.all(
+                    color: const Color(0xFFD4AF37).withValues(alpha: 0.5),
+                    width: 0.8,
                   ),
-                  child: Center(
-                    child: Container(
-                      width: 4,
-                      height: 4,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.black,
-                      ),
+                ),
+                child: Center(
+                  child: Container(
+                    width: 4,
+                    height: 4,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.black,
                     ),
                   ),
                 ),
-              )),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1510,16 +1697,29 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
         gradient: LinearGradient(
           begin: isRight ? Alignment.centerLeft : Alignment.centerRight,
           end: isRight ? Alignment.centerRight : Alignment.centerLeft,
-          colors: const [
-            Color(0xFF282624),
-            Color(0xFF141312),
-          ],
+          colors: const [Color(0xFF282624), Color(0xFF141312)],
         ),
         border: Border(
-          top: BorderSide(color: palette.primary.withValues(alpha: 0.35), width: 0.6),
-          bottom: BorderSide(color: palette.primary.withValues(alpha: 0.35), width: 0.6),
-          right: isRight ? BorderSide(color: palette.primary.withValues(alpha: 0.5), width: 0.8) : BorderSide.none,
-          left: !isRight ? BorderSide(color: palette.primary.withValues(alpha: 0.5), width: 0.8) : BorderSide.none,
+          top: BorderSide(
+            color: palette.primary.withValues(alpha: 0.35),
+            width: 0.6,
+          ),
+          bottom: BorderSide(
+            color: palette.primary.withValues(alpha: 0.35),
+            width: 0.6,
+          ),
+          right: isRight
+              ? BorderSide(
+                  color: palette.primary.withValues(alpha: 0.5),
+                  width: 0.8,
+                )
+              : BorderSide.none,
+          left: !isRight
+              ? BorderSide(
+                  color: palette.primary.withValues(alpha: 0.5),
+                  width: 0.8,
+                )
+              : BorderSide.none,
         ),
       ),
       child: CustomPaint(
@@ -1544,19 +1744,20 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
         gradient: const LinearGradient(
           begin: Alignment.bottomCenter,
           end: Alignment.topCenter,
-          colors: [
-            Color(0xFF3E3B38),
-            Color(0xFF56534E),
-          ],
+          colors: [Color(0xFF3E3B38), Color(0xFF56534E)],
         ),
         border: Border(
-          top: BorderSide(color: palette.primary.withValues(alpha: 0.6), width: 0.8),
-          bottom: BorderSide(color: palette.primary.withValues(alpha: 0.4), width: 0.6),
+          top: BorderSide(
+            color: palette.primary.withValues(alpha: 0.6),
+            width: 0.8,
+          ),
+          bottom: BorderSide(
+            color: palette.primary.withValues(alpha: 0.4),
+            width: 0.6,
+          ),
         ),
       ),
-      child: CustomPaint(
-        painter: _TopCopingGrainPainter(),
-      ),
+      child: CustomPaint(painter: _TopCopingGrainPainter()),
     );
   }
 
@@ -1579,15 +1780,17 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
     int rows,
   ) {
     final stone = _selectedStone;
-    final lenMm = stone?.lengthCm != null ? (stone!.lengthCm! * 10).round() : 490;
+    final lenMm = stone?.lengthCm != null
+        ? (stone!.lengthCm! * 10).round()
+        : 490;
     final widMm = stone?.widthCm != null ? (stone!.widthCm! * 10).round() : 100;
     final thkMm = stone?.thicknessMm != null ? stone!.thicknessMm!.round() : 35;
 
     final patternName = _layoutPattern == 'brick'
         ? 'Running Bond'
         : _layoutPattern == 'stacked'
-            ? 'Stacked'
-            : 'Vertical';
+        ? 'Stacked'
+        : 'Vertical';
 
     return GestureDetector(
       onTap: _toggleFocusMode,
@@ -1596,7 +1799,10 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
         decoration: BoxDecoration(
           color: Colors.black.withValues(alpha: 0.78),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFD4AF37).withValues(alpha: 0.45), width: 0.8),
+          border: Border.all(
+            color: const Color(0xFFD4AF37).withValues(alpha: 0.45),
+            width: 0.8,
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.2),
@@ -1607,7 +1813,11 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.straighten_rounded, size: 11, color: Color(0xFFD4AF37)),
+            const Icon(
+              Icons.straighten_rounded,
+              size: 11,
+              color: Color(0xFFD4AF37),
+            ),
             const SizedBox(width: 4),
             Flexible(
               child: Text(
@@ -1628,7 +1838,11 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
     );
   }
 
-  Widget _buildWidthDimensionTag(double width, double widthFt, dynamic palette) {
+  Widget _buildWidthDimensionTag(
+    double width,
+    double widthFt,
+    dynamic palette,
+  ) {
     return Container(
       width: width,
       margin: const EdgeInsets.only(bottom: 6),
@@ -1637,7 +1851,10 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
         children: [
           Icon(Icons.arrow_left_rounded, size: 14, color: palette.primary),
           Expanded(
-            child: Container(height: 1, color: palette.primary.withValues(alpha: 0.6)),
+            child: Container(
+              height: 1,
+              color: palette.primary.withValues(alpha: 0.6),
+            ),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -1652,7 +1869,10 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
             ),
           ),
           Expanded(
-            child: Container(height: 1, color: palette.primary.withValues(alpha: 0.6)),
+            child: Container(
+              height: 1,
+              color: palette.primary.withValues(alpha: 0.6),
+            ),
           ),
           Icon(Icons.arrow_right_rounded, size: 14, color: palette.primary),
         ],
@@ -1660,7 +1880,11 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
     );
   }
 
-  Widget _buildHeightDimensionTag(double height, double heightFt, dynamic palette) {
+  Widget _buildHeightDimensionTag(
+    double height,
+    double heightFt,
+    dynamic palette,
+  ) {
     return Container(
       height: height,
       margin: const EdgeInsets.only(right: 6),
@@ -1669,7 +1893,10 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
         children: [
           Icon(Icons.arrow_drop_up_rounded, size: 14, color: palette.primary),
           Expanded(
-            child: Container(width: 1, color: palette.primary.withValues(alpha: 0.6)),
+            child: Container(
+              width: 1,
+              color: palette.primary.withValues(alpha: 0.6),
+            ),
           ),
           RotatedBox(
             quarterTurns: 3,
@@ -1687,7 +1914,10 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
             ),
           ),
           Expanded(
-            child: Container(width: 1, color: palette.primary.withValues(alpha: 0.6)),
+            child: Container(
+              width: 1,
+              color: palette.primary.withValues(alpha: 0.6),
+            ),
           ),
           Icon(Icons.arrow_drop_down_rounded, size: 14, color: palette.primary),
         ],
@@ -1701,7 +1931,9 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E1E1E).withValues(alpha: 0.88) : Colors.white.withValues(alpha: 0.9),
+          color: isDark
+              ? const Color(0xFF1E1E1E).withValues(alpha: 0.88)
+              : Colors.white.withValues(alpha: 0.9),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: palette.border, width: 0.8),
           boxShadow: [
@@ -1744,7 +1976,9 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E1E1E).withValues(alpha: 0.88) : Colors.white.withValues(alpha: 0.9),
+              color: isDark
+                  ? const Color(0xFF1E1E1E).withValues(alpha: 0.88)
+                  : Colors.white.withValues(alpha: 0.9),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: _showDimensions ? palette.primary : palette.border,
@@ -1757,7 +1991,9 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                 Icon(
                   Icons.straighten_rounded,
                   size: 13,
-                  color: _showDimensions ? palette.primary : palette.textSecondary,
+                  color: _showDimensions
+                      ? palette.primary
+                      : palette.textSecondary,
                 ),
                 const SizedBox(width: 4),
                 Text(
@@ -1765,7 +2001,9 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                   style: GoogleFonts.inter(
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
-                    color: _showDimensions ? palette.primary : palette.textSecondary,
+                    color: _showDimensions
+                        ? palette.primary
+                        : palette.textSecondary,
                   ),
                 ),
               ],
@@ -1781,11 +2019,17 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
             width: 28,
             height: 28,
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E1E1E).withValues(alpha: 0.88) : Colors.white.withValues(alpha: 0.9),
+              color: isDark
+                  ? const Color(0xFF1E1E1E).withValues(alpha: 0.88)
+                  : Colors.white.withValues(alpha: 0.9),
               shape: BoxShape.circle,
               border: Border.all(color: palette.border, width: 0.8),
             ),
-            child: Icon(Icons.restart_alt_rounded, size: 14, color: palette.textSecondary),
+            child: Icon(
+              Icons.restart_alt_rounded,
+              size: 14,
+              color: palette.textSecondary,
+            ),
           ),
         ),
       ],
@@ -1795,14 +2039,13 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
   Widget _buildZoomFloatingControls(dynamic palette, bool isDark) {
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E1E1E).withValues(alpha: 0.92) : Colors.white.withValues(alpha: 0.94),
+        color: isDark
+            ? const Color(0xFF1E1E1E).withValues(alpha: 0.92)
+            : Colors.white.withValues(alpha: 0.94),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: palette.border, width: 0.8),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 8,
-          ),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 8),
         ],
       ),
       child: Column(
@@ -1824,7 +2067,10 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
             child: Text(
               '${(_scale * 100).toInt()}%',
-              style: GoogleFonts.inter(fontSize: 8.5, fontWeight: FontWeight.w700),
+              style: GoogleFonts.inter(
+                fontSize: 8.5,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
           // Zoom Out
@@ -1833,7 +2079,9 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
               HapticFeedback.lightImpact();
               setState(() => _scale = (_scale - 0.25).clamp(0.4, 4.0));
             },
-            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
+            borderRadius: const BorderRadius.vertical(
+              bottom: Radius.circular(20),
+            ),
             child: const Padding(
               padding: EdgeInsets.symmetric(horizontal: 8, vertical: 7),
               child: Icon(Icons.remove_rounded, size: 16),
@@ -1854,10 +2102,7 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: palette.border),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 8,
-          ),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8),
         ],
       ),
       child: Row(
@@ -1903,44 +2148,98 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E1E1E).withValues(alpha: 0.92) : Colors.white.withValues(alpha: 0.94),
+        color: isDark
+            ? const Color(0xFF1E1E1E).withValues(alpha: 0.92)
+            : Colors.white.withValues(alpha: 0.94),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: palette.border, width: 0.8),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 8,
-          ),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8),
         ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildCameraChip('Front', () {
-            _animateToCamera(targetRotX: 0.0, targetRotY: 0.0, targetScale: 1.0, is3D: false);
-          }, !_is3DView, palette),
+          _buildCameraChip(
+            'Front',
+            () {
+              _animateToCamera(
+                targetRotX: 0.0,
+                targetRotY: 0.0,
+                targetScale: 1.0,
+                is3D: false,
+              );
+            },
+            !_is3DView,
+            palette,
+          ),
           const SizedBox(width: 3),
-          _buildCameraChip('3D Orbit', () {
-            _animateToCamera(targetRotX: 0.12, targetRotY: -0.32, targetScale: 1.0, is3D: true);
-          }, _is3DView && _rotY.abs() < 0.40, palette),
+          _buildCameraChip(
+            '3D Orbit',
+            () {
+              _animateToCamera(
+                targetRotX: 0.12,
+                targetRotY: -0.32,
+                targetScale: 1.0,
+                is3D: true,
+              );
+            },
+            _is3DView && _rotY.abs() < 0.40,
+            palette,
+          ),
           const SizedBox(width: 3),
-          _buildCameraChip('Iso', () {
-            _animateToCamera(targetRotX: 0.26, targetRotY: -0.55, targetScale: 0.95, is3D: true);
-          }, false, palette),
+          _buildCameraChip(
+            'Iso',
+            () {
+              _animateToCamera(
+                targetRotX: 0.26,
+                targetRotY: -0.55,
+                targetScale: 0.95,
+                is3D: true,
+              );
+            },
+            false,
+            palette,
+          ),
           const SizedBox(width: 3),
-          _buildCameraChip('Side 90°', () {
-            _animateToCamera(targetRotX: 0.05, targetRotY: -math.pi / 2, targetScale: 1.05, is3D: true);
-          }, false, palette),
+          _buildCameraChip(
+            'Side 90°',
+            () {
+              _animateToCamera(
+                targetRotX: 0.05,
+                targetRotY: -math.pi / 2,
+                targetScale: 1.05,
+                is3D: true,
+              );
+            },
+            false,
+            palette,
+          ),
           const SizedBox(width: 3),
-          _buildCameraChip('Back 180°', () {
-            _animateToCamera(targetRotX: 0.05, targetRotY: -math.pi, targetScale: 1.0, is3D: true);
-          }, false, palette),
+          _buildCameraChip(
+            'Back 180°',
+            () {
+              _animateToCamera(
+                targetRotX: 0.05,
+                targetRotY: -math.pi,
+                targetScale: 1.0,
+                is3D: true,
+              );
+            },
+            false,
+            palette,
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildCameraChip(String label, VoidCallback onTap, bool isSelected, dynamic palette) {
+  Widget _buildCameraChip(
+    String label,
+    VoidCallback onTap,
+    bool isSelected,
+    dynamic palette,
+  ) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
@@ -1992,11 +2291,21 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildStatMetric('Net Area', '${netAreaSqFt.toStringAsFixed(1)} sq.ft', palette),
-              _buildStatMetric('With Wastage', '${grossAreaSqFt.toStringAsFixed(1)} sq.ft', palette),
+              _buildStatMetric(
+                'Net Area',
+                '${netAreaSqFt.toStringAsFixed(1)} sq.ft',
+                palette,
+              ),
+              _buildStatMetric(
+                'With Wastage',
+                '${grossAreaSqFt.toStringAsFixed(1)} sq.ft',
+                palette,
+              ),
               _buildStatMetric(
                 'Boxes Needed',
-                boxesRequired != null ? '$boxesRequired boxes' : 'Coverage unavail.',
+                boxesRequired != null
+                    ? '$boxesRequired boxes'
+                    : 'Coverage unavail.',
                 palette,
                 isHighlight: boxesRequired != null,
               ),
@@ -2019,14 +2328,14 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                   onPressed: _isExportingPdf
                       ? null
                       : () => _exportPdfSpecSheet(
-                            widthFt,
-                            heightFt,
-                            netAreaSqFt,
-                            grossAreaSqFt,
-                            boxesRequired,
-                            totalTiles,
-                            estimatedCost,
-                          ),
+                          widthFt,
+                          heightFt,
+                          netAreaSqFt,
+                          grossAreaSqFt,
+                          boxesRequired,
+                          totalTiles,
+                          estimatedCost,
+                        ),
                   icon: _isExportingPdf
                       ? const SizedBox(
                           width: 14,
@@ -2036,13 +2345,21 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                       : const Icon(Icons.picture_as_pdf_rounded, size: 15),
                   label: Text(
                     'Export PDF',
-                    style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700),
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 10,
+                      horizontal: 8,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                 ),
               ),
@@ -2053,17 +2370,30 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: () => _addBoxesToCart(grossAreaSqFt),
-                    icon: const Icon(Icons.shopping_bag_rounded, size: 15, color: Colors.black),
+                    icon: const Icon(
+                      Icons.shopping_bag_rounded,
+                      size: 15,
+                      color: Colors.black,
+                    ),
                     label: Text(
                       'Add to Cart',
-                      style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.black),
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: palette.primary,
-                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 10,
+                        horizontal: 8,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                   ),
                 ),
@@ -2073,18 +2403,35 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                 OutlinedButton.icon(
                   onPressed: () {
                     HapticFeedback.lightImpact();
-                    context.push('/quotes/new?stoneId=${_selectedStone?.id ?? ''}');
+                    context.push(
+                      '/quotes/new?stoneId=${_selectedStone?.id ?? ''}',
+                    );
                   },
-                  icon: Icon(Icons.request_quote_rounded, size: 15, color: palette.primary),
+                  icon: Icon(
+                    Icons.request_quote_rounded,
+                    size: 15,
+                    color: palette.primary,
+                  ),
                   label: Text(
                     'Quote',
-                    style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: palette.primary),
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: palette.primary,
+                    ),
                   ),
                   style: OutlinedButton.styleFrom(
                     minimumSize: Size.zero,
-                    side: BorderSide(color: palette.primary.withValues(alpha: 0.5)),
-                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    side: BorderSide(
+                      color: palette.primary.withValues(alpha: 0.5),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 10,
+                      horizontal: 10,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                 ),
               ] else ...[
@@ -2093,19 +2440,34 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                   child: ElevatedButton.icon(
                     onPressed: () {
                       HapticFeedback.heavyImpact();
-                      context.push('/quotes/new?stoneId=${_selectedStone?.id ?? ''}');
+                      context.push(
+                        '/quotes/new?stoneId=${_selectedStone?.id ?? ''}',
+                      );
                     },
-                    icon: const Icon(Icons.request_quote_rounded, size: 15, color: Colors.black),
+                    icon: const Icon(
+                      Icons.request_quote_rounded,
+                      size: 15,
+                      color: Colors.black,
+                    ),
                     label: Text(
                       'Request Quote',
-                      style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.black),
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: palette.primary,
-                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 10,
+                        horizontal: 8,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                   ),
                 ),
@@ -2117,7 +2479,13 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
     );
   }
 
-  Widget _buildStatMetric(String label, String value, dynamic palette, {bool isHighlight = false, bool isGold = false}) {
+  Widget _buildStatMetric(
+    String label,
+    String value,
+    dynamic palette, {
+    bool isHighlight = false,
+    bool isGold = false,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2153,7 +2521,9 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
         itemBuilder: (context, index) {
           final stone = stones[index];
           final isSelected = _selectedStone?.id == stone.id;
-          final stonePrice = stone.pricePerSqFt > 0 ? stone.pricePerSqFt : 385.0;
+          final stonePrice = stone.pricePerSqFt > 0
+              ? stone.pricePerSqFt
+              : 385.0;
 
           return InkWell(
             onTap: () {
@@ -2209,7 +2579,9 @@ class _TileWallVisualizerScreenState extends ConsumerState<TileWallVisualizerScr
                           style: GoogleFonts.inter(
                             fontSize: 11.5,
                             fontWeight: FontWeight.w700,
-                            color: isSelected ? palette.primary : palette.textPrimary,
+                            color: isSelected
+                                ? palette.primary
+                                : palette.textPrimary,
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -2249,114 +2621,6 @@ class _FaceData {
   _FaceData(this.depth, this.widget);
 }
 
-/// High-Precision Architectural Tile Mortar Seam Painter with Relief Depth & Bevels
-class _ArchitecturalTileJointPainter extends CustomPainter {
-  final int columns;
-  final int rows;
-  final String layoutPattern; // 'brick', 'stacked', 'vertical'
-  final Color groutColor;
-  final double reliefIntensity;
-
-  _ArchitecturalTileJointPainter({
-    required this.columns,
-    required this.rows,
-    required this.layoutPattern,
-    required this.groutColor,
-    required this.reliefIntensity,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (columns <= 0 || rows <= 0) return;
-
-    final cellW = size.width / columns;
-    final cellH = size.height / rows;
-
-    // A. Per-Tile Micro-Shading & Relief Variation (Simulates Natural Quarried Stone Variation)
-    for (int r = 0; r < rows; r++) {
-      final isStaggered = layoutPattern == 'brick' && r.isOdd;
-      final startCol = isStaggered ? -1 : 0;
-      final endCol = isStaggered ? columns : columns - 1;
-
-      for (int c = startCol; c <= endCol; c++) {
-        final left = c * cellW + (isStaggered ? cellW * 0.5 : 0.0);
-        final tileRect = Rect.fromLTWH(left, r * cellH, cellW, cellH).intersect(Offset.zero & size);
-        if (tileRect.isEmpty) continue;
-
-        // Deterministic pseudo-random variation based on grid position
-        final hash = math.sin((r * 17.31) + (c * 29.53) + 3.14);
-        final alpha = (hash.abs() * 0.12 * reliefIntensity).clamp(0.0, 0.15);
-        final shadeColor = hash > 0 ? Colors.white.withValues(alpha: alpha) : Colors.black.withValues(alpha: alpha);
-
-        canvas.drawRect(tileRect, Paint()..color = shadeColor);
-
-        // Tile Micro-Bevel (Subtle specular ridge on top/left, subtle shadow on bottom/right)
-        final bevelLight = Paint()
-          ..color = Colors.white.withValues(alpha: 0.12)
-          ..strokeWidth = 0.8;
-        canvas.drawLine(tileRect.topLeft, tileRect.topRight, bevelLight);
-        canvas.drawLine(tileRect.topLeft, tileRect.bottomLeft, bevelLight);
-
-        final bevelShadow = Paint()
-          ..color = Colors.black.withValues(alpha: 0.22)
-          ..strokeWidth = 0.8;
-        canvas.drawLine(tileRect.bottomLeft, tileRect.bottomRight, bevelShadow);
-        canvas.drawLine(tileRect.topRight, tileRect.bottomRight, bevelShadow);
-      }
-    }
-
-    // B. Architectural Mortar Joints / Grout Recesses
-    final groutPaint = Paint()
-      ..color = groutColor.withValues(alpha: 0.88)
-      ..strokeWidth = 1.4
-      ..style = PaintingStyle.stroke;
-
-    final groutShadow = Paint()
-      ..color = Colors.black.withValues(alpha: 0.45)
-      ..strokeWidth = 0.8
-      ..style = PaintingStyle.stroke;
-
-    // 1. Horizontal Course Mortar Lines
-    for (int r = 1; r < rows; r++) {
-      final y = r * cellH;
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), groutPaint);
-      canvas.drawLine(Offset(0, y + 0.8), Offset(size.width, y + 0.8), groutShadow);
-    }
-
-    // 2. Vertical Mortar Joints (Pattern Dependent)
-    if (layoutPattern == 'stacked' || layoutPattern == 'vertical') {
-      for (int c = 1; c < columns; c++) {
-        final x = c * cellW;
-        canvas.drawLine(Offset(x, 0), Offset(x, size.height), groutPaint);
-        canvas.drawLine(Offset(x + 0.8, 0), Offset(x + 0.8, size.height), groutShadow);
-      }
-    } else if (layoutPattern == 'brick') {
-      // Running Bond (50% Staggered alternating courses)
-      for (int r = 0; r < rows; r++) {
-        final yTop = r * cellH;
-        final yBottom = (r + 1) * cellH;
-        final offset = r.isOdd ? cellW * 0.5 : 0.0;
-
-        for (int c = 0; c <= columns; c++) {
-          final x = (c * cellW) + offset;
-          if (x > 0.5 && x < size.width - 0.5) {
-            canvas.drawLine(Offset(x, yTop), Offset(x, yBottom), groutPaint);
-            canvas.drawLine(Offset(x + 0.8, yTop), Offset(x + 0.8, yBottom), groutShadow);
-          }
-        }
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _ArchitecturalTileJointPainter oldDelegate) {
-    return oldDelegate.columns != columns ||
-        oldDelegate.rows != rows ||
-        oldDelegate.layoutPattern != layoutPattern ||
-        oldDelegate.groutColor != groutColor;
-  }
-}
-
 /// Perspective Floor & Horizon Painter for Showroom Atmosphere
 class _StudioFloorPainter extends CustomPainter {
   final bool isDark;
@@ -2392,7 +2656,11 @@ class _StudioFloorPainter extends CustomPainter {
     final horizonPaint = Paint()
       ..color = (isDark ? Colors.white : Colors.black).withValues(alpha: 0.06)
       ..strokeWidth = 1.0;
-    canvas.drawLine(Offset(0, horizonY), Offset(size.width, horizonY), horizonPaint);
+    canvas.drawLine(
+      Offset(0, horizonY),
+      Offset(size.width, horizonY),
+      horizonPaint,
+    );
 
     // Perspective floor lines vanishing towards horizon
     final vanishingPoint = Offset(center.dx + (rotY * 90), horizonY - 100);

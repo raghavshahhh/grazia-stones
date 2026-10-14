@@ -6,7 +6,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/models/collection.dart';
-import 'package:grazia_stones/core/providers/stone_providers.dart' show allStonesProvider, allCollectionsProvider;
+import 'package:grazia_stones/core/providers/stone_providers.dart'
+    show allStonesProvider, allCollectionsProvider;
 import 'package:grazia_stones/features/aarna_ai/services/aarna_ai_service.dart';
 import 'package:grazia_stones/core/services/mock_data_service.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
@@ -52,7 +53,8 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
       title: 'Hello!',
       subtitle: 'Introduction',
       imagePath: 'assets/images/aarna/aarna_card_hello.png',
-      prompt: 'Hello Aarna! Introduce yourself and how you help with Grazia Stones.',
+      prompt:
+          'Hello Aarna! Introduce yourself and how you help with Grazia Stones.',
       pose: AarnaPose.waving,
     ),
     _AarnaCapability(
@@ -66,7 +68,8 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
       title: 'Combinations',
       subtitle: 'Stone Pairings',
       imagePath: 'assets/images/aarna/aarna_card_combinations.png',
-      prompt: 'Show elegant stone combinations and finishes for modern interiors.',
+      prompt:
+          'Show elegant stone combinations and finishes for modern interiors.',
       pose: AarnaPose.combinations,
     ),
     _AarnaCapability(
@@ -164,7 +167,9 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
       final stonesAsync = ref.read(allStonesProvider);
       catalogue = stonesAsync.value ?? [];
       if (catalogue.isEmpty) {
-        catalogue = await ref.read(stoneRepositoryProvider).getStones(limit: 100);
+        catalogue = await ref
+            .read(stoneRepositoryProvider)
+            .getStones(limit: 100);
       }
     } catch (_) {}
     if (catalogue.isEmpty) {
@@ -230,7 +235,10 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
                 'Shama kijiye, abhi response generate karne me dikkat aayi. Aap kripya dubara poochiye ya hamare architectural collections explore kijiye.',
             isUser: false,
             timestamp: DateTime.now(),
-            recommendedCollections: collections.where((c) => c.isListed).take(3).toList(),
+            recommendedCollections: collections
+                .where((c) => c.isListed)
+                .take(3)
+                .toList(),
           ),
         );
         _isTyping = false;
@@ -251,7 +259,11 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
+          icon: Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: palette.textPrimary,
+            size: 18,
+          ),
           onPressed: () {
             if (context.canPop()) {
               context.pop();
@@ -287,23 +299,36 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
                         ),
                       ),
                       const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFD4AF37).withValues(alpha: isDark ? 0.2 : 0.12),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: const Color(0xFFD4AF37).withValues(alpha: isDark ? 0.4 : 0.25),
-                            width: 0.8,
+                      Flexible(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
                           ),
-                        ),
-                        child: Text(
-                          'LUXURY CONCIERGE',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 7.5,
-                            fontWeight: FontWeight.w700,
-                            color: isDark ? const Color(0xFFD4AF37) : const Color(0xFF8B6B23),
-                            letterSpacing: 0.6,
+                          decoration: BoxDecoration(
+                            color: const Color(
+                              0xFFD4AF37,
+                            ).withValues(alpha: isDark ? 0.2 : 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: const Color(
+                                0xFFD4AF37,
+                              ).withValues(alpha: isDark ? 0.4 : 0.25),
+                              width: 0.8,
+                            ),
+                          ),
+                          child: Text(
+                            'LUXURY CONCIERGE',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 7.5,
+                              fontWeight: FontWeight.w700,
+                              color: isDark
+                                  ? const Color(0xFFD4AF37)
+                                  : const Color(0xFF8B6B23),
+                              letterSpacing: 0.6,
+                            ),
                           ),
                         ),
                       ),
@@ -326,7 +351,11 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
         ),
         actions: [
           IconButton(
-            icon: Icon(Icons.refresh_rounded, color: palette.textSecondary, size: 20),
+            icon: Icon(
+              Icons.refresh_rounded,
+              color: palette.textSecondary,
+              size: 20,
+            ),
             tooltip: 'Reset Chat',
             onPressed: () {
               HapticFeedback.lightImpact();
@@ -346,7 +375,8 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
               child: ListView.builder(
                 controller: _scrollController,
                 // Dragging the chat or tapping outside the field closes the keyboard.
-                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
                 itemCount: 1 + _messages.length + (_isTyping ? 1 : 0),
                 itemBuilder: (context, index) {
@@ -381,7 +411,10 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
                       borderRadius: BorderRadius.circular(20),
                       onTap: () => _handleSubmitted(prompt),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
                           color: palette.surface,
                           borderRadius: BorderRadius.circular(20),
@@ -390,9 +423,13 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.auto_awesome_rounded,
-                                color: isDark ? const Color(0xFFD4AF37) : const Color(0xFF8B6B23),
-                                size: 12),
+                            Icon(
+                              Icons.auto_awesome_rounded,
+                              color: isDark
+                                  ? const Color(0xFFD4AF37)
+                                  : const Color(0xFF8B6B23),
+                              size: 12,
+                            ),
                             const SizedBox(width: 6),
                             Text(
                               prompt,
@@ -415,7 +452,9 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
               decoration: BoxDecoration(
                 color: palette.surface,
-                border: Border(top: BorderSide(color: palette.border, width: 1.0)),
+                border: Border(
+                  top: BorderSide(color: palette.border, width: 1.0),
+                ),
               ),
               child: Row(
                 children: [
@@ -429,20 +468,26 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: TextField(
                         controller: _textController,
-                        style: GoogleFonts.plusJakartaSans(color: palette.textPrimary, fontSize: 14),
+                        style: GoogleFonts.plusJakartaSans(
+                          color: palette.textPrimary,
+                          fontSize: 14,
+                        ),
                         cursorColor: palette.primary,
                         textInputAction: TextInputAction.send,
                         onSubmitted: _handleSubmitted,
                         onTapOutside: (_) => FocusScope.of(context).unfocus(),
                         decoration: InputDecoration(
-                          hintText: 'Ask Aarna in English or Hindi (e.g. living room wall)...',
+                          hintText:
+                              'Ask Aarna in English or Hindi (e.g. living room wall)...',
                           hintStyle: GoogleFonts.plusJakartaSans(
                             color: const Color(0xFF707076),
                             fontSize: 13,
                           ),
                           border: InputBorder.none,
                           isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 12,
+                          ),
                         ),
                       ),
                     ),
@@ -459,13 +504,19 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
                         color: const Color(0xFFD4AF37),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFFD4AF37).withValues(alpha: 0.35),
+                            color: const Color(
+                              0xFFD4AF37,
+                            ).withValues(alpha: 0.35),
                             blurRadius: 10,
                           ),
                         ],
                       ),
                       child: const Center(
-                        child: Icon(Icons.arrow_upward_rounded, color: Colors.black, size: 22),
+                        child: Icon(
+                          Icons.arrow_upward_rounded,
+                          color: Colors.black,
+                          size: 22,
+                        ),
                       ),
                     ),
                   ),
@@ -478,7 +529,11 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
     );
   }
 
-  Widget _buildMessageItem(AarnaChatMessage msg, LuxuryPalette palette, bool isDark) {
+  Widget _buildMessageItem(
+    AarnaChatMessage msg,
+    LuxuryPalette palette,
+    bool isDark,
+  ) {
     if (msg.isUser) {
       return Align(
         alignment: Alignment.centerRight,
@@ -486,7 +541,9 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
           margin: const EdgeInsets.only(bottom: 14, left: 48),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF26262A) : palette.primary.withValues(alpha: 0.15),
+            color: isDark
+                ? const Color(0xFF26262A)
+                : palette.primary.withValues(alpha: 0.15),
             borderRadius: const BorderRadius.only(
               topLeft: Radius.circular(18),
               topRight: Radius.circular(4),
@@ -494,11 +551,18 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
               bottomRight: Radius.circular(18),
             ),
             border: Border.all(
-              color: isDark ? const Color(0xFFD4AF37).withValues(alpha: 0.3) : palette.primary.withValues(alpha: 0.4),
+              color: isDark
+                  ? const Color(0xFFD4AF37).withValues(alpha: 0.3)
+                  : palette.primary.withValues(alpha: 0.4),
               width: 0.8,
             ),
           ),
-          child: _buildFormattedMessage(msg.text, palette, isDark, isUser: true),
+          child: _buildFormattedMessage(
+            msg.text,
+            palette,
+            isDark,
+            isUser: true,
+          ),
         ),
       );
     }
@@ -524,7 +588,10 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
               ),
               Expanded(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                   decoration: BoxDecoration(
                     color: isDark ? const Color(0xFF19191C) : palette.surface,
                     borderRadius: const BorderRadius.only(
@@ -533,23 +600,35 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
                       bottomLeft: Radius.circular(18),
                       bottomRight: Radius.circular(18),
                     ),
-                    border: Border.all(color: isDark ? const Color(0xFF2C2C32) : palette.border, width: 0.8),
+                    border: Border.all(
+                      color: isDark ? const Color(0xFF2C2C32) : palette.border,
+                      width: 0.8,
+                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: isDark ? Colors.black.withValues(alpha: 0.3) : const Color(0xFF2C2416).withValues(alpha: 0.04),
+                        color: isDark
+                            ? Colors.black.withValues(alpha: 0.3)
+                            : const Color(0xFF2C2416).withValues(alpha: 0.04),
                         blurRadius: 10,
                         offset: const Offset(0, 2),
                       ),
                     ],
                   ),
-                  child: _buildFormattedMessage(msg.text, palette, isDark, isUser: false),
+                  child: _buildFormattedMessage(
+                    msg.text,
+                    palette,
+                    isDark,
+                    isUser: false,
+                  ),
                 ),
               ),
             ],
           ),
 
           // Action shortcuts only travel with a product answer, never with small talk.
-          if (showExtras && (msg.recommendedCollections.isNotEmpty || msg.recommendedStones.isNotEmpty))
+          if (showExtras &&
+              (msg.recommendedCollections.isNotEmpty ||
+                  msg.recommendedStones.isNotEmpty))
             Padding(
               padding: const EdgeInsets.only(left: 42, top: 10),
               child: _buildActionShortcuts(palette, isDark),
@@ -576,7 +655,9 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 9.5,
                       fontWeight: FontWeight.w700,
-                      color: isDark ? const Color(0xFFD4AF37) : const Color(0xFF8B6B23),
+                      color: isDark
+                          ? const Color(0xFFD4AF37)
+                          : const Color(0xFF8B6B23),
                       letterSpacing: 0.8,
                     ),
                   ),
@@ -617,7 +698,9 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 9.5,
                       fontWeight: FontWeight.w700,
-                      color: isDark ? const Color(0xFFD4AF37) : const Color(0xFF8B6B23),
+                      color: isDark
+                          ? const Color(0xFFD4AF37)
+                          : const Color(0xFF8B6B23),
                       letterSpacing: 0.8,
                     ),
                   ),
@@ -651,7 +734,9 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
     bool isUser = false,
   }) {
     final baseTextColor = isUser ? palette.textPrimary : palette.textPrimary;
-    final accentGold = isDark ? const Color(0xFFD4AF37) : const Color(0xFF8B6B23);
+    final accentGold = isDark
+        ? const Color(0xFFD4AF37)
+        : const Color(0xFF8B6B23);
     final boldColor = isUser
         ? palette.textPrimary
         : (isDark ? const Color(0xFFE8C868) : const Color(0xFF7A5818));
@@ -679,7 +764,12 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
         lineText = trimmedLine.substring(2).trim();
       }
 
-      final spans = _parseInlineSpans(lineText, baseTextColor, boldColor, accentGold);
+      final spans = _parseInlineSpans(
+        lineText,
+        baseTextColor,
+        boldColor,
+        accentGold,
+      );
 
       if (isBullet) {
         lineWidgets.add(
@@ -766,10 +856,7 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
         spans.add(
           TextSpan(
             text: match.group(1),
-            style: TextStyle(
-              color: boldColor,
-              fontWeight: FontWeight.w700,
-            ),
+            style: TextStyle(color: boldColor, fontWeight: FontWeight.w700),
           ),
         );
       } else if (match.group(2) != null) {
@@ -801,19 +888,27 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
     return spans;
   }
 
-  Widget _buildCollectionSuiteCard(Collection collection, LuxuryPalette palette, bool isDark) {
+  Widget _buildCollectionSuiteCard(
+    Collection collection,
+    LuxuryPalette palette,
+    bool isDark,
+  ) {
     return Container(
       width: 220,
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E1E22) : palette.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark ? const Color(0xFFD4AF37).withValues(alpha: 0.35) : palette.border,
+          color: isDark
+              ? const Color(0xFFD4AF37).withValues(alpha: 0.35)
+              : palette.border,
           width: 0.9,
         ),
         boxShadow: [
           BoxShadow(
-            color: isDark ? Colors.black.withValues(alpha: 0.35) : const Color(0xFF2C2416).withValues(alpha: 0.06),
+            color: isDark
+                ? Colors.black.withValues(alpha: 0.35)
+                : const Color(0xFF2C2416).withValues(alpha: 0.06),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -863,12 +958,17 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
                       top: 8,
                       left: 8,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.black.withValues(alpha: 0.75),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: const Color(0xFFD4AF37).withValues(alpha: 0.5),
+                            color: const Color(
+                              0xFFD4AF37,
+                            ).withValues(alpha: 0.5),
                             width: 0.8,
                           ),
                         ),
@@ -888,7 +988,10 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
                       bottom: 8,
                       right: 8,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFFD4AF37),
                           borderRadius: BorderRadius.circular(8),
@@ -946,7 +1049,9 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 6),
                               decoration: BoxDecoration(
-                                color: isDark ? const Color(0xFF2B2B30) : palette.surfaceDark,
+                                color: isDark
+                                    ? const Color(0xFF2B2B30)
+                                    : palette.surfaceDark,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Center(
@@ -1007,10 +1112,14 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E1E22) : palette.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isDark ? const Color(0xFF333338) : palette.border),
+        border: Border.all(
+          color: isDark ? const Color(0xFF333338) : palette.border,
+        ),
         boxShadow: [
           BoxShadow(
-            color: isDark ? Colors.black.withValues(alpha: 0.3) : const Color(0xFF2C2416).withValues(alpha: 0.05),
+            color: isDark
+                ? Colors.black.withValues(alpha: 0.3)
+                : const Color(0xFF2C2416).withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -1033,18 +1142,27 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
                   fit: StackFit.expand,
                   children: [
                     SmartStoneImage(
-                      imageUrl: stone.mainImageUrl ?? (stone.images.isNotEmpty ? stone.images.first : null),
+                      imageUrl:
+                          stone.mainImageUrl ??
+                          (stone.images.isNotEmpty ? stone.images.first : null),
                       fit: BoxFit.cover,
                     ),
                     Positioned(
                       top: 8,
                       right: 8,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.black.withValues(alpha: 0.75),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFFD4AF37).withValues(alpha: 0.4)),
+                          border: Border.all(
+                            color: const Color(
+                              0xFFD4AF37,
+                            ).withValues(alpha: 0.4),
+                          ),
                         ),
                         child: Text(
                           '₹${stone.pricePerSqFt.toInt()}/sq.ft',
@@ -1099,7 +1217,9 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 6),
                               decoration: BoxDecoration(
-                                color: isDark ? const Color(0xFF2B2B30) : palette.surfaceDark,
+                                color: isDark
+                                    ? const Color(0xFF2B2B30)
+                                    : palette.surfaceDark,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Center(
@@ -1121,7 +1241,9 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
                             borderRadius: BorderRadius.circular(8),
                             onTap: () {
                               HapticFeedback.selectionClick();
-                              context.push('/live-ai?stoneId=${Uri.encodeComponent(stone.id)}');
+                              context.push(
+                                '/live-ai?stoneId=${Uri.encodeComponent(stone.id)}',
+                              );
                             },
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 6),
@@ -1211,23 +1333,21 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: isDark
-              ? [
-                  const Color(0xFF1E1E24),
-                  const Color(0xFF141418),
-                ]
-              : [
-                  const Color(0xFFFAF8F5),
-                  const Color(0xFFF0ECE1),
-                ],
+              ? [const Color(0xFF1E1E24), const Color(0xFF141418)]
+              : [const Color(0xFFFAF8F5), const Color(0xFFF0ECE1)],
         ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: const Color(0xFFD4AF37).withValues(alpha: isDark ? 0.35 : 0.45),
+          color: const Color(
+            0xFFD4AF37,
+          ).withValues(alpha: isDark ? 0.35 : 0.45),
           width: 1.0,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFD4AF37).withValues(alpha: isDark ? 0.1 : 0.06),
+            color: const Color(
+              0xFFD4AF37,
+            ).withValues(alpha: isDark ? 0.1 : 0.06),
             blurRadius: 18,
             offset: const Offset(0, 4),
           ),
@@ -1266,19 +1386,30 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
                     children: [
                       // Tagline badge
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFD4AF37).withValues(alpha: isDark ? 0.2 : 0.12),
+                          color: const Color(
+                            0xFFD4AF37,
+                          ).withValues(alpha: isDark ? 0.2 : 0.12),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: const Color(0xFFD4AF37).withValues(alpha: isDark ? 0.5 : 0.3),
+                            color: const Color(
+                              0xFFD4AF37,
+                            ).withValues(alpha: isDark ? 0.5 : 0.3),
                             width: 0.8,
                           ),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.auto_awesome, color: Color(0xFFD4AF37), size: 10),
+                            const Icon(
+                              Icons.auto_awesome,
+                              color: Color(0xFFD4AF37),
+                              size: 10,
+                            ),
                             const SizedBox(width: 4),
                             Flexible(
                               child: Text(
@@ -1286,7 +1417,9 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 8.5,
                                   fontWeight: FontWeight.w700,
-                                  color: isDark ? const Color(0xFFE8C868) : const Color(0xFF8B6B23),
+                                  color: isDark
+                                      ? const Color(0xFFE8C868)
+                                      : const Color(0xFF8B6B23),
                                   letterSpacing: 0.4,
                                 ),
                                 maxLines: 1,
@@ -1337,7 +1470,11 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: Row(
               children: [
-                const Icon(Icons.touch_app_rounded, color: Color(0xFFD4AF37), size: 13),
+                const Icon(
+                  Icons.touch_app_rounded,
+                  color: Color(0xFFD4AF37),
+                  size: 13,
+                ),
                 const SizedBox(width: 6),
                 Text(
                   'CAPABILITIES — TAP ANY TO ASK AARNA',
@@ -1345,7 +1482,9 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.8,
-                    color: isDark ? const Color(0xFFD4AF37) : const Color(0xFF8B6B23),
+                    color: isDark
+                        ? const Color(0xFFD4AF37)
+                        : const Color(0xFF8B6B23),
                   ),
                 ),
               ],
@@ -1372,7 +1511,11 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
     );
   }
 
-  Widget _buildCapabilityCard(_AarnaCapability cap, LuxuryPalette palette, bool isDark) {
+  Widget _buildCapabilityCard(
+    _AarnaCapability cap,
+    LuxuryPalette palette,
+    bool isDark,
+  ) {
     return InkWell(
       borderRadius: BorderRadius.circular(14),
       onTap: () {
@@ -1404,12 +1547,18 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
             // Character Pose Image
             Expanded(
               child: Container(
-                color: isDark ? const Color(0xFF121215) : const Color(0xFFF5F3ED),
+                color: isDark
+                    ? const Color(0xFF121215)
+                    : const Color(0xFFF5F3ED),
                 child: Image.asset(
                   cap.imagePath,
                   fit: BoxFit.contain,
                   errorBuilder: (_, _, _) => const Center(
-                    child: Icon(Icons.auto_awesome, color: Color(0xFFD4AF37), size: 24),
+                    child: Icon(
+                      Icons.auto_awesome,
+                      color: Color(0xFFD4AF37),
+                      size: 24,
+                    ),
                   ),
                 ),
               ),
@@ -1522,8 +1671,11 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
                     ),
                   ),
                   const SizedBox(width: 3),
-                  Icon(Icons.arrow_forward_ios_rounded,
-                      size: 9, color: palette.textSecondary),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 9,
+                    color: palette.textSecondary,
+                  ),
                 ],
               ),
             ),

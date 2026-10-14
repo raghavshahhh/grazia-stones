@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:grazia_stones/core/services/ar_native_channel.dart';
@@ -57,7 +58,14 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
   List<double>? _probeWorld;
   Offset? _probeScreen;
   double? _probeDistance;
-  Timer? _tick;
+  // Smoothed values the painter actually draws (eased toward the native targets every frame, like iOS Measure)
+  List<Offset?> _pinShown = [];
+  final List<int> _pinBornMs = [];
+  double? _liveShown;
+  final ValueNotifier<int> _frame = ValueNotifier<int>(0);
+  final Stopwatch _clock = Stopwatch()..start();
+  Ticker? _ticker;
+  Duration _lastTick = Duration.zero;
   bool _ticking = false;
   String _unit = 'cm';
   bool _busy = false;
@@ -93,10 +101,7 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
       CurvedAnimation(parent: _reticleController, curve: Curves.easeInOut),
     );
 
-    _tick = Timer.periodic(
-      const Duration(milliseconds: 60),
-      (_) => _refreshLive(),
-    );
+    _ticker = createTicker(_onFrame)..start();
 
     // Listen to native wall tracking state changes
     ARNativeChannel.onWallStateChanged.listen((state) {
@@ -115,7 +120,8 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
 
   @override
   void dispose() {
-    _tick?.cancel();
+    _ticker?.dispose();
+    _frame.dispose();
     _flashController.dispose();
     _reticleController.dispose();
     ARNativeChannel.clearMeasurement();
@@ -143,9 +149,34 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
 
   double get _totalMeters => _segmentMeters.fold<double>(0, (a, b) => a + b);
 
+  /// Every frame: ask the native side for fresh targets (one request in flight) and ease what is drawn toward them.
+  void _onFrame(Duration elapsed) {
+    final dt = (elapsed - _lastTick).inMicroseconds / 1e6;
+    _lastTick = elapsed;
+    if (_currentMode != _MeasureMode.measure) return;
+    _refreshLive();
+    final k = 1 - math.exp(-dt.clamp(0.0, 0.1) * 22);
+    final shown = <Offset?>[];
+    for (var i = 0; i < _pinScreen.length; i++) {
+      final target = _pinScreen[i];
+      final prev = i < _pinShown.length ? _pinShown[i] : null;
+      shown.add(
+        target == null
+            ? null
+            : (prev == null ? target : Offset.lerp(prev, target, k)),
+      );
+    }
+    _pinShown = shown;
+    final live = _liveMeters;
+    _liveShown = live == null
+        ? null
+        : (_liveShown == null ? live : _liveShown! + (live - _liveShown!) * k);
+    _frame.value++;
+  }
+
   /// Polls the native side: what real surface is under the reticle, and where each pin is on screen now.
   Future<void> _refreshLive() async {
-    if (_ticking || !mounted || _currentMode != _MeasureMode.measure) return;
+    if (_ticking || !mounted) return;
     _ticking = true;
     try {
       final reticle = _centerReticleOffset;
@@ -154,22 +185,23 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
         List.of(_anchorIds),
       );
       if (!mounted) return;
-      setState(() {
-        _pinScreen = pins;
-        if (probe == null) {
-          _probeWorld = null;
-          _probeScreen = null;
-          _probeDistance = null;
-        } else {
-          _probeWorld = [
-            (probe['x'] as num).toDouble(),
-            (probe['y'] as num).toDouble(),
-            (probe['z'] as num).toDouble(),
-          ];
-          _probeScreen = reticle;
-          _probeDistance = (probe['distanceM'] as num?)?.toDouble();
-        }
-      });
+      final hadSurface = _probeWorld != null;
+      _pinScreen = pins;
+      if (probe == null) {
+        _probeWorld = null;
+        _probeScreen = null;
+        _probeDistance = null;
+      } else {
+        _probeWorld = [
+          (probe['x'] as num).toDouble(),
+          (probe['y'] as num).toDouble(),
+          (probe['z'] as num).toDouble(),
+        ];
+        _probeScreen = reticle;
+        _probeDistance = (probe['distanceM'] as num?)?.toDouble();
+      }
+      // Rebuild widgets only when the discrete state changes; numbers and lines animate through _frame
+      if (hadSurface != (_probeWorld != null)) setState(() {});
     } finally {
       _ticking = false;
     }
@@ -209,6 +241,8 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
       _anchorIds.add(hit['anchorId'] as String);
       _worldPoints.add(world);
       _pinScreen = [..._pinScreen, _centerReticleOffset];
+      _pinShown = [..._pinShown, _centerReticleOffset];
+      _pinBornMs.add(_clock.elapsedMilliseconds);
       _busy = false;
     });
   }
@@ -224,6 +258,11 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
       if (_segmentMeters.isNotEmpty) _segmentMeters.removeLast();
       if (_pinScreen.isNotEmpty) {
         _pinScreen = _pinScreen.sublist(0, _pinScreen.length - 1);
+        _pinShown = _pinShown.sublist(
+          0,
+          math.min(_pinShown.length, _pinScreen.length),
+        );
+        if (_pinBornMs.isNotEmpty) _pinBornMs.removeLast();
       }
     });
   }
@@ -236,6 +275,9 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
       _worldPoints.clear();
       _segmentMeters.clear();
       _pinScreen = [];
+      _pinShown = [];
+      _pinBornMs.clear();
+      _liveShown = null;
     });
   }
 
@@ -337,11 +379,14 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
               // Ruler Painter: Ticks, Pins, and Connecting Lines
               CustomPaint(
                 painter: _AppleRulerPainter(
-                  pins: _pinScreen,
-                  reticle: _probeScreen,
-                  unit: _unit,
-                  segmentMeters: _segmentMeters,
-                  liveMeters: _liveMeters,
+                  repaint: _frame,
+                  pins: () => _pinShown,
+                  bornMs: () => _pinBornMs,
+                  nowMs: () => _clock.elapsedMilliseconds,
+                  reticle: () => _probeScreen,
+                  unit: () => _unit,
+                  segmentMeters: () => _segmentMeters,
+                  liveMeters: () => _liveShown,
                 ),
                 size: Size.infinite,
               ),
@@ -350,7 +395,7 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
               Center(
                 child: ScaleTransition(
                   scale: _reticleScale,
-                  child: const _AppleReticleWidget(),
+                  child: _AppleReticleWidget(locked: _probeWorld != null),
                 ),
               ),
 
@@ -770,12 +815,6 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Corner bracket reticle icon
-          CustomPaint(
-            size: const Size(60, 60),
-            painter: _CornerBracketsPainter(),
-          ),
-          const SizedBox(height: 24),
           Text(
             'Move your phone slowly',
             style: GoogleFonts.inter(
@@ -1071,14 +1110,14 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
           const SizedBox(height: 8),
           Text(
             live != null
-                ? formatMeasureLength(live, _unit)
+                ? 'Tap + to add the next point'
                 : (reading != null
                       ? 'Surface ${formatMeasureLength(reading, _unit)} away'
                       : 'Searching for a surface...'),
             style: GoogleFonts.inter(
               color: Colors.white,
-              fontSize: live != null ? 22 : 12.5,
-              fontWeight: FontWeight.w700,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
               shadows: const [Shadow(blurRadius: 8, color: Colors.black87)],
             ),
           ),
@@ -1122,68 +1161,85 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
 
 // ── Painters ─────────────────────────────────────────────────────────────
 
-/// 3D Perspective Reticle with Solid Center Dot (Exact Apple Measure style)
+/// Reticle: an open ring while searching, it eases into a tighter, brighter ring with a bigger dot once a real surface is locked.
 class _AppleReticleWidget extends StatelessWidget {
-  const _AppleReticleWidget();
+  final bool locked;
+  const _AppleReticleWidget({required this.locked});
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 140,
-      height: 70,
-      child: CustomPaint(painter: _ReticleShapePainter()),
+    return TweenAnimationBuilder<double>(
+      tween: Tween(end: locked ? 1.0 : 0.0),
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+      builder: (_, t, _) => SizedBox(
+        width: 140,
+        height: 70,
+        child: CustomPaint(painter: _ReticleShapePainter(t)),
+      ),
     );
   }
 }
 
 class _ReticleShapePainter extends CustomPainter {
+  final double lock; // 0 searching .. 1 locked on a surface
+  _ReticleShapePainter(this.lock);
+
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-
-    // Outer Elliptical Tapered Ring (perspective tilt)
-    final ringPaint = Paint()
-      ..color = Colors.white
+    final ring = Paint()
+      ..color = Colors.white.withValues(alpha: 0.55 + 0.45 * lock)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.8
+      ..strokeWidth = 2.4 + 0.8 * lock
       ..strokeCap = StrokeCap.round;
-
+    final shrink = 1 - 0.16 * lock;
     final rect = Rect.fromCenter(
       center: center,
-      width: size.width - 6,
-      height: size.height - 6,
+      width: (size.width - 6) * shrink,
+      height: (size.height - 6) * shrink,
     );
-    canvas.drawArc(rect, -0.4, 2.8, false, ringPaint);
-    canvas.drawArc(rect, 2.7, 2.8, false, ringPaint);
-
-    // Solid Center Dot with slight shadow
-    final dotPaint = Paint()..color = Colors.white;
-    canvas.drawCircle(center, 4.5, dotPaint);
+    // The gaps close up as the ring locks
+    final gap = 0.4 * (1 - lock);
+    canvas.drawArc(rect, -0.4 + gap, 2.8 - 2 * gap, false, ring);
+    canvas.drawArc(rect, 2.7 + gap, 2.8 - 2 * gap, false, ring);
+    canvas.drawCircle(center, 4.0 + 2.0 * lock, Paint()..color = Colors.white);
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _ReticleShapePainter old) => old.lock != lock;
 }
 
-/// Ruler painter: pins and lines glued to the real object (screen positions come from the native anchors),
-/// a live line from the last pin to the reticle, tick marks and a length badge per segment.
+/// Ruler painter: pins and lines glued to the real object (screen positions come from the native anchors and are
+/// eased every frame), a live line from the last pin to the reticle, real-world tick marks and a length badge per segment.
 class _AppleRulerPainter extends CustomPainter {
-  final List<Offset?> pins;
-  final Offset? reticle; // null when no surface is under the reticle
-  final String unit;
-  final List<double> segmentMeters;
-  final double? liveMeters;
+  final List<Offset?> Function() pins;
+  final List<int> Function() bornMs;
+  final int Function() nowMs;
+  final Offset? Function() reticle; // null when no surface is under the reticle
+  final String Function() unit;
+  final List<double> Function() segmentMeters;
+  final double? Function() liveMeters;
 
   _AppleRulerPainter({
+    required Listenable repaint,
     required this.pins,
+    required this.bornMs,
+    required this.nowMs,
     required this.reticle,
     required this.unit,
     required this.segmentMeters,
     required this.liveMeters,
-  });
+  }) : super(repaint: repaint);
 
   @override
   void paint(Canvas canvas, Size size) {
+    final pts = pins();
+    final segs = segmentMeters();
+    final born = bornMs();
+    final now = nowMs();
+    final ret = reticle();
+    final live = liveMeters();
     final linePaint = Paint()
       ..color = Colors.white
       ..strokeWidth = 2.4
@@ -1193,26 +1249,52 @@ class _AppleRulerPainter extends CustomPainter {
       ..strokeWidth = 4.4
       ..strokeCap = StrokeCap.round;
 
-    for (var i = 0; i < pins.length - 1; i++) {
-      final a = pins[i];
-      final b = pins[i + 1];
-      if (a == null || b == null || i >= segmentMeters.length) continue;
-      _segment(canvas, a, b, segmentMeters[i], linePaint, shadow);
+    for (var i = 0; i < pts.length - 1; i++) {
+      final a = pts[i];
+      final b = pts[i + 1];
+      if (a == null || b == null || i >= segs.length) continue;
+      _segment(
+        canvas,
+        a,
+        b,
+        segs[i],
+        linePaint,
+        shadow,
+        fade: _pop(born, i + 1, now),
+      );
     }
     // Live segment: last pin -> reticle
-    final last = pins.isNotEmpty ? pins.last : null;
-    if (last != null && reticle != null && liveMeters != null) {
-      _segment(canvas, last, reticle!, liveMeters!, linePaint, shadow);
+    final last = pts.isNotEmpty ? pts.last : null;
+    if (last != null && ret != null && live != null) {
+      _segment(canvas, last, ret, live, linePaint, shadow, isLive: true);
     }
-    for (final p in pins) {
+    for (var i = 0; i < pts.length; i++) {
+      final p = pts[i];
       if (p == null) continue;
+      final k = _pop(born, i, now);
       canvas.drawCircle(
         p,
-        8,
+        9 * k,
         Paint()..color = Colors.black.withValues(alpha: 0.35),
       );
-      canvas.drawCircle(p, 6, Paint()..color = Colors.white);
+      canvas.drawCircle(p, 6.5 * k, Paint()..color = Colors.white);
     }
+  }
+
+  /// 0..1 pop-in (slight overshoot) for a pin that was just placed.
+  double _pop(List<int> born, int i, int now) {
+    if (i >= born.length) return 1;
+    final t = ((now - born[i]) / 240).clamp(0.0, 1.0);
+    return Curves.easeOutBack.transform(t);
+  }
+
+  /// Tick spacing that follows the real object: 1 mm / 5 mm / 1 cm / 5 cm / 10 cm ... whichever keeps ticks >= 8 px apart,
+  /// so ticks stay put on the object while the phone moves instead of crawling.
+  static double _stepMeters(double pxPerMeter) {
+    for (final step in const [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0]) {
+      if (step * pxPerMeter >= 8) return step;
+    }
+    return 1.0;
   }
 
   void _segment(
@@ -1221,31 +1303,45 @@ class _AppleRulerPainter extends CustomPainter {
     Offset p2,
     double meters,
     Paint line,
-    Paint shadow,
-  ) {
+    Paint shadow, {
+    bool isLive = false,
+    double fade = 1,
+  }) {
     canvas.drawLine(p1, p2, shadow);
     canvas.drawLine(p1, p2, line);
     final dist = (p2 - p1).distance;
-    if (dist < 24) return;
+    if (dist < 24 || meters <= 0) return;
     final dir = (p2 - p1) / dist;
     final perp = Offset(-dir.dy, dir.dx);
     final tickPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.85)
+      ..color = Colors.white.withValues(alpha: 0.9)
       ..strokeWidth = 1.4;
-    final numTicks = (dist / 14).clamp(3, 40).toInt();
-    for (var t = 1; t < numTicks; t++) {
-      final c = p1 + dir * (dist * t / numTicks);
-      final len = t % 5 == 0 ? 7.0 : 4.0;
-      canvas.drawLine(c - perp * len, c + perp * len, tickPaint);
+    final step = _stepMeters(dist / meters);
+    final count = (meters / step).floor();
+    if (count <= 150) {
+      for (var t = 1; t <= count; t++) {
+        final c = p1 + dir * (dist * (t * step) / meters);
+        if ((c - p2).distance < 6) continue;
+        final major = t % 5 == 0;
+        final len = major ? 7.0 : 4.0;
+        canvas.drawLine(c - perp * len, c + perp * len, tickPaint);
+      }
     }
-    _drawMeasurementBadge(
-      canvas,
-      (p1 + p2) / 2,
-      formatMeasureLength(meters, unit),
-    );
+    final text = formatMeasureLength(meters, unit());
+    if (isLive) {
+      // Live reading rides next to the reticle, never on top of the line's own ends
+      _drawMeasurementBadge(canvas, p2 + const Offset(0, 62), text, 1);
+    } else {
+      _drawMeasurementBadge(canvas, (p1 + p2) / 2, text, fade);
+    }
   }
 
-  void _drawMeasurementBadge(Canvas canvas, Offset center, String text) {
+  void _drawMeasurementBadge(
+    Canvas canvas,
+    Offset center,
+    String text,
+    double scale,
+  ) {
     final textPainter = TextPainter(
       text: TextSpan(
         text: text,
@@ -1258,23 +1354,29 @@ class _AppleRulerPainter extends CustomPainter {
       ),
       textDirection: TextDirection.ltr,
     )..layout();
-
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.scale(scale.clamp(0.0, 1.2));
     final rrect = RRect.fromRectAndRadius(
       Rect.fromCenter(
-        center: center,
+        center: Offset.zero,
         width: textPainter.width + 18,
         height: textPainter.height + 10,
       ),
       const Radius.circular(16),
     );
+    canvas.drawShadow(
+      Path()..addRRect(rrect),
+      Colors.black.withValues(alpha: 0.5),
+      4,
+      false,
+    );
     canvas.drawRRect(rrect, Paint()..color = Colors.white);
     textPainter.paint(
       canvas,
-      Offset(
-        center.dx - textPainter.width / 2,
-        center.dy - textPainter.height / 2,
-      ),
+      Offset(-textPainter.width / 2, -textPainter.height / 2),
     );
+    canvas.restore();
   }
 
   @override
@@ -1294,49 +1396,6 @@ class _TooltipArrowPainter extends CustomPainter {
       ..lineTo(size.width / 2, size.height)
       ..close();
     canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class _CornerBracketsPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5
-      ..strokeCap = StrokeCap.square;
-
-    const len = 14.0;
-    // Top-left
-    canvas.drawLine(const Offset(0, len), Offset.zero, paint);
-    canvas.drawLine(Offset.zero, const Offset(len, 0), paint);
-
-    // Top-right
-    canvas.drawLine(Offset(size.width - len, 0), Offset(size.width, 0), paint);
-    canvas.drawLine(Offset(size.width, 0), Offset(size.width, len), paint);
-
-    // Bottom-left
-    canvas.drawLine(
-      Offset(0, size.height - len),
-      Offset(0, size.height),
-      paint,
-    );
-    canvas.drawLine(Offset(0, size.height), Offset(len, size.height), paint);
-
-    // Bottom-right
-    canvas.drawLine(
-      Offset(size.width - len, size.height),
-      Offset(size.width, size.height),
-      paint,
-    );
-    canvas.drawLine(
-      Offset(size.width, size.height),
-      Offset(size.width, size.height - len),
-      paint,
-    );
   }
 
   @override

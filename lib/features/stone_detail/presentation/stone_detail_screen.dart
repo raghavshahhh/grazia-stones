@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 import 'package:grazia_stones/features/wishlist/wishlist_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -46,9 +47,27 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
       duration: const Duration(milliseconds: 380),
     );
     _cartBtnScaleAnim = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.92).chain(CurveTween(curve: Curves.easeOut)), weight: 35),
-      TweenSequenceItem(tween: Tween(begin: 0.92, end: 1.06).chain(CurveTween(curve: Curves.easeOutBack)), weight: 45),
-      TweenSequenceItem(tween: Tween(begin: 1.06, end: 1.0).chain(CurveTween(curve: Curves.easeInOut)), weight: 20),
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 1.0,
+          end: 0.92,
+        ).chain(CurveTween(curve: Curves.easeOut)),
+        weight: 35,
+      ),
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 0.92,
+          end: 1.06,
+        ).chain(CurveTween(curve: Curves.easeOutBack)),
+        weight: 45,
+      ),
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 1.06,
+          end: 1.0,
+        ).chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 20,
+      ),
     ]).animate(_cartBtnAnimController);
   }
 
@@ -62,23 +81,32 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
 
   /// Each image of a stone row is one colour variant (the DB rarely carries colour names).
   List<String> _colourLabels(Stone stone, int count) => List.generate(
-        count,
-        (i) => stone.availableColors.length == count ? stone.availableColors[i] : 'Shade ${i + 1}',
-      );
+    count,
+    (i) => stone.availableColors.length == count
+        ? stone.availableColors[i]
+        : 'Shade ${i + 1}',
+  );
 
-  void _openViewer(Stone stone, List<String> images, int index, {bool start3D = false}) {
+  void _openViewer(
+    Stone stone,
+    List<String> images,
+    int index, {
+    bool start3D = false,
+  }) {
     final thickness = stone.thicknessMm ?? 0;
-    Navigator.of(context).push(MaterialPageRoute(
-      fullscreenDialog: true,
-      builder: (_) => StoneFullscreenViewer(
-        title: stone.name,
-        images: images,
-        labels: _colourLabels(stone, images.length),
-        initialIndex: index,
-        thicknessMm: thickness > 0 ? thickness : 20,
-        start3D: start3D,
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => StoneFullscreenViewer(
+          title: stone.name,
+          images: images,
+          labels: _colourLabels(stone, images.length),
+          initialIndex: index,
+          thicknessMm: thickness > 0 ? thickness : 20,
+          start3D: start3D,
+        ),
       ),
-    ));
+    );
   }
 
   void _handleAddToCart(Stone stone, LuxuryPalette palette) {
@@ -115,7 +143,11 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
           elevation: 0,
           leading: IconButton(
             onPressed: () => context.pop(),
-            icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
+            icon: Icon(
+              Icons.arrow_back_ios_new_rounded,
+              color: palette.textPrimary,
+              size: 18,
+            ),
           ),
         ),
         body: Center(child: CircularProgressIndicator(color: palette.primary)),
@@ -144,11 +176,19 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
               context.go('/collections');
             }
           },
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
+          icon: Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: palette.textPrimary,
+            size: 18,
+          ),
         ),
         title: Text(
           'Stone Details',
-          style: GoogleFonts.playfairDisplay(fontSize: 18, fontWeight: FontWeight.w700, color: palette.textPrimary),
+          style: GoogleFonts.playfairDisplay(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: palette.textPrimary,
+          ),
         ),
       ),
       body: Center(
@@ -167,7 +207,11 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                     shape: BoxShape.circle,
                     border: Border.all(color: palette.border),
                   ),
-                  child: Icon(Icons.search_off_rounded, color: palette.textTertiary, size: 32),
+                  child: Icon(
+                    Icons.search_off_rounded,
+                    color: palette.textTertiary,
+                    size: 32,
+                  ),
                 ),
                 const SizedBox(height: 24),
                 Text(
@@ -197,10 +241,15 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                       backgroundColor: palette.primary,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       elevation: 0,
                     ),
-                    child: Text('Browse Collection', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+                    child: Text(
+                      'Browse Collection',
+                      style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -212,9 +261,14 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                       foregroundColor: palette.textPrimary,
                       side: BorderSide(color: palette.border),
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
-                    child: Text('Back to Home', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                    child: Text(
+                      'Back to Home',
+                      style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                    ),
                   ),
                 ),
               ],
@@ -226,11 +280,15 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
   }
 
   Widget _buildStoneDetail(LuxuryPalette palette, Stone stone) {
-    final images = stone.images.isNotEmpty ? stone.images : [stone.imageUrl ?? ''];
+    final images = stone.images.isNotEmpty
+        ? stone.images
+        : [stone.imageUrl ?? ''];
 
     // Calculation values
     final totalAreaWithWastage = _areaSqFt * (1 + _wastagePercent);
-    final int? boxesNeeded = stone.sqftPerBox > 0 ? (totalAreaWithWastage / stone.sqftPerBox).ceil() : null;
+    final int? boxesNeeded = stone.sqftPerBox > 0
+        ? (totalAreaWithWastage / stone.sqftPerBox).ceil()
+        : null;
     final totalEstimatedCost = totalAreaWithWastage * stone.pricePerSqFt;
 
     return Scaffold(
@@ -251,7 +309,9 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                     if (context.canPop()) {
                       context.pop();
                     } else {
-                      final col = stone.collection.isNotEmpty ? stone.collection : 'Exclusive Collection';
+                      final col = stone.collection.isNotEmpty
+                          ? stone.collection
+                          : 'Exclusive Collection';
                       context.go('/collections/$col');
                     }
                   },
@@ -268,12 +328,21 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                         ),
                       ],
                     ),
-                    child: Icon(Icons.arrow_back_ios_new_rounded, size: 16, color: palette.textPrimary),
+                    child: Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 16,
+                      color: palette.textPrimary,
+                    ),
                   ),
                 ),
                 actions: [
                   IconButton(
-                    onPressed: () => toggleWishlistWithFeedback(context, ref, stone.id, stoneName: stone.name),
+                    onPressed: () => toggleWishlistWithFeedback(
+                      context,
+                      ref,
+                      stone.id,
+                      stoneName: stone.name,
+                    ),
                     icon: Container(
                       width: 36,
                       height: 36,
@@ -288,11 +357,20 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                         ],
                       ),
                       child: Icon(
-                        ref.watch(wishlistProvider.select((w) => w.contains(stone.id)))
+                        ref.watch(
+                              wishlistProvider.select(
+                                (w) => w.contains(stone.id),
+                              ),
+                            )
                             ? Icons.favorite_rounded
                             : Icons.favorite_border_rounded,
                         size: 18,
-                        color: ref.watch(wishlistProvider.select((w) => w.contains(stone.id)))
+                        color:
+                            ref.watch(
+                              wishlistProvider.select(
+                                (w) => w.contains(stone.id),
+                              ),
+                            )
                             ? palette.primary
                             : palette.textPrimary,
                       ),
@@ -307,25 +385,97 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                       PageView.builder(
                         controller: _pageCtrl,
                         itemCount: images.length,
-                        onPageChanged: (i) => setState(() => _currentImageIndex = i),
+                        onPageChanged: (i) =>
+                            setState(() => _currentImageIndex = i),
                         itemBuilder: (context, i) {
+                          // The whole photo is shown (contain) over a blurred copy of itself, so a close-up of
+                          // one tile is never cropped into something that looks like a single big piece.
                           return GestureDetector(
                             onTap: () => _openViewer(stone, images, i),
-                            child: SmartStoneImage(
-                              imageUrl: images[i],
-                              fit: BoxFit.cover,
-                              palette: palette,
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                ImageFiltered(
+                                  imageFilter: ui.ImageFilter.blur(
+                                    sigmaX: 24,
+                                    sigmaY: 24,
+                                  ),
+                                  child: SmartStoneImage(
+                                    imageUrl: images[i],
+                                    fit: BoxFit.cover,
+                                    palette: palette,
+                                  ),
+                                ),
+                                ColoredBox(
+                                  color: Colors.black.withValues(alpha: 0.28),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 56),
+                                  child: SmartStoneImage(
+                                    imageUrl: images[i],
+                                    fit: BoxFit.contain,
+                                    palette: palette,
+                                  ),
+                                ),
+                              ],
                             ),
                           );
                         },
                       ),
+                      if (stone.lengthCm != null &&
+                          stone.widthCm != null &&
+                          stone.lengthCm! > 0 &&
+                          stone.widthCm! > 0)
+                        Positioned(
+                          left: 14,
+                          bottom: 30,
+                          child: IgnorePointer(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.6),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.straighten_rounded,
+                                    color: Colors.white,
+                                    size: 15,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Each piece: ${(stone.lengthCm! * 10).round()} x ${(stone.widthCm! * 10).round()} mm',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
                       Positioned(
                         right: 14,
                         bottom: 30,
                         child: GestureDetector(
-                          onTap: () => _openViewer(stone, images, _currentImageIndex, start3D: true),
+                          onTap: () => _openViewer(
+                            stone,
+                            images,
+                            _currentImageIndex,
+                            start3D: true,
+                          ),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.black.withValues(alpha: 0.6),
                               borderRadius: BorderRadius.circular(20),
@@ -333,9 +483,20 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                             child: const Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.threed_rotation_rounded, color: Colors.white, size: 16),
+                                Icon(
+                                  Icons.threed_rotation_rounded,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
                                 SizedBox(width: 6),
-                                Text('360° 3D', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+                                Text(
+                                  '360° 3D',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -348,18 +509,18 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                         right: 0,
                         child: IgnorePointer(
                           child: Container(
-                          height: 100,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.transparent,
-                                palette.background,
-                              ],
+                            height: 100,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.transparent,
+                                  palette.background,
+                                ],
+                              ),
                             ),
                           ),
-                        ),
                         ),
                       ),
                       // Page indicator dots
@@ -373,15 +534,21 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                             children: List.generate(
                               images.length,
                               (i) => Container(
-                                margin: const EdgeInsets.symmetric(horizontal: 3),
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 3,
+                                ),
                                 width: i == _currentImageIndex ? 20 : 6,
                                 height: 5,
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(3),
-                                  gradient: i == _currentImageIndex ? palette.primaryGradient : null,
+                                  gradient: i == _currentImageIndex
+                                      ? palette.primaryGradient
+                                      : null,
                                   color: i == _currentImageIndex
                                       ? null
-                                      : palette.textTertiary.withValues(alpha: 0.4),
+                                      : palette.textTertiary.withValues(
+                                          alpha: 0.4,
+                                        ),
                                 ),
                               ),
                             ),
@@ -403,7 +570,10 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: palette.primary.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(8),
@@ -484,7 +654,11 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                           if (stone.rating > 0)
                             Row(
                               children: [
-                                Icon(Icons.star_rounded, color: palette.primary, size: 18),
+                                Icon(
+                                  Icons.star_rounded,
+                                  color: palette.primary,
+                                  size: 18,
+                                ),
                                 const SizedBox(width: 4),
                                 Text(
                                   stone.rating.toStringAsFixed(1),
@@ -516,14 +690,18 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                           child: ListView.separated(
                             scrollDirection: Axis.horizontal,
                             itemCount: images.length,
-                            separatorBuilder: (_, _) => const SizedBox(width: 10),
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(width: 10),
                             itemBuilder: (_, i) {
                               final on = i == _currentImageIndex;
                               return GestureDetector(
                                 onTap: () {
                                   setState(() => _currentImageIndex = i);
-                                  _pageCtrl.animateToPage(i,
-                                      duration: const Duration(milliseconds: 260), curve: Curves.easeOut);
+                                  _pageCtrl.animateToPage(
+                                    i,
+                                    duration: const Duration(milliseconds: 260),
+                                    curve: Curves.easeOut,
+                                  );
                                 },
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 180),
@@ -531,13 +709,19 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(12),
                                     border: Border.all(
-                                      color: on ? palette.primary : palette.border,
+                                      color: on
+                                          ? palette.primary
+                                          : palette.border,
                                       width: on ? 2.5 : 1,
                                     ),
                                   ),
                                   child: ClipRRect(
                                     borderRadius: BorderRadius.circular(9),
-                                    child: SmartStoneImage(imageUrl: images[i], fit: BoxFit.cover, palette: palette),
+                                    child: SmartStoneImage(
+                                      imageUrl: images[i],
+                                      fit: BoxFit.cover,
+                                      palette: palette,
+                                    ),
                                   ),
                                 ),
                               );
@@ -546,8 +730,14 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          _colourLabels(stone, images.length)[_currentImageIndex],
-                          style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary),
+                          _colourLabels(
+                            stone,
+                            images.length,
+                          )[_currentImageIndex],
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: palette.textSecondary,
+                          ),
                         ),
                       ],
 
@@ -558,14 +748,26 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                         children: [
                           Expanded(
                             child: ElevatedButton.icon(
-                              onPressed: () => context.push('/live-ai?stoneId=${stone.id}'),
-                              icon: const Icon(Icons.view_in_ar_outlined, size: 16),
-                              label: const Text('Live AR', style: TextStyle(fontSize: 12)),
+                              onPressed: () =>
+                                  context.push('/live-ai?stoneId=${stone.id}'),
+                              icon: const Icon(
+                                Icons.view_in_ar_outlined,
+                                size: 16,
+                              ),
+                              label: const Text(
+                                'Live AR',
+                                style: TextStyle(fontSize: 12),
+                              ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: palette.primary,
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 4),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 13,
+                                  horizontal: 4,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                                 elevation: 0,
                               ),
                             ),
@@ -573,32 +775,67 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                           const SizedBox(width: 8),
                           Expanded(
                             child: OutlinedButton.icon(
-                              onPressed: () => context.push('/ai-viz?stoneId=${stone.id}'),
-                              icon: Icon(Icons.auto_awesome_outlined, color: palette.primary, size: 16),
+                              onPressed: () =>
+                                  context.push('/ai-viz?stoneId=${stone.id}'),
+                              icon: Icon(
+                                Icons.auto_awesome_outlined,
+                                color: palette.primary,
+                                size: 16,
+                              ),
                               label: Text(
                                 'AI Studio',
-                                style: GoogleFonts.inter(color: palette.textPrimary, fontWeight: FontWeight.w600, fontSize: 12),
+                                style: GoogleFonts.inter(
+                                  color: palette.textPrimary,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
                               ),
                               style: OutlinedButton.styleFrom(
-                                side: BorderSide(color: palette.border, width: 1.2),
-                                padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 4),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                side: BorderSide(
+                                  color: palette.border,
+                                  width: 1.2,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 13,
+                                  horizontal: 4,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
                             ),
                           ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: OutlinedButton.icon(
-                              onPressed: () => context.push('/measure/tile-visualizer?stoneId=${stone.id}'),
-                              icon: Icon(Icons.grid_on_rounded, color: palette.primary, size: 16),
+                              onPressed: () => context.push(
+                                '/measure/tile-visualizer?stoneId=${stone.id}',
+                              ),
+                              icon: Icon(
+                                Icons.grid_on_rounded,
+                                color: palette.primary,
+                                size: 16,
+                              ),
                               label: Text(
                                 '3D Wall',
-                                style: GoogleFonts.inter(color: palette.textPrimary, fontWeight: FontWeight.w600, fontSize: 12),
+                                style: GoogleFonts.inter(
+                                  color: palette.textPrimary,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
                               ),
                               style: OutlinedButton.styleFrom(
-                                side: BorderSide(color: palette.border, width: 1.2),
-                                padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 4),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                side: BorderSide(
+                                  color: palette.border,
+                                  width: 1.2,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 13,
+                                  horizontal: 4,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
                             ),
                           ),
@@ -626,14 +863,54 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         children: [
-                          _buildSpecTile(palette, 'Product Code', stone.productCode.isNotEmpty ? stone.productCode : 'GR-STONE'),
-                          _buildSpecTile(palette, 'Finish', stone.finish.isEmpty ? 'Natural' : stone.finish),
-                          _buildSpecTile(palette, 'Thickness', stone.thickness.isEmpty ? '20 mm' : stone.thickness),
-                          _buildSpecTile(palette, 'Size / Types', stone.size.isEmpty ? '600×150×20mm' : stone.size),
-                          _buildSpecTile(palette, 'Sqft / Box', stone.sqftPerBox > 0 ? '${stone.sqftPerBox.toStringAsFixed(2)} Sqft' : '10.50 Sqft'),
-                          _buildSpecTile(palette, 'Texture', stone.texture.isEmpty ? 'Cultured Ledge' : stone.texture),
-                          _buildSpecTile(palette, 'Series', stone.collection.isNotEmpty ? stone.collection : 'Grazia Series'),
-                          _buildSpecTile(palette, 'Absorption', '< 0.15% (Weatherproof)'),
+                          _buildSpecTile(
+                            palette,
+                            'Product Code',
+                            stone.productCode.isNotEmpty
+                                ? stone.productCode
+                                : 'GR-STONE',
+                          ),
+                          _buildSpecTile(
+                            palette,
+                            'Finish',
+                            stone.finish.isEmpty ? 'Natural' : stone.finish,
+                          ),
+                          _buildSpecTile(
+                            palette,
+                            'Thickness',
+                            stone.thickness.isEmpty ? '20 mm' : stone.thickness,
+                          ),
+                          _buildSpecTile(
+                            palette,
+                            'Size / Types',
+                            stone.size.isEmpty ? '600×150×20mm' : stone.size,
+                          ),
+                          _buildSpecTile(
+                            palette,
+                            'Sqft / Box',
+                            stone.sqftPerBox > 0
+                                ? '${stone.sqftPerBox.toStringAsFixed(2)} Sqft'
+                                : '10.50 Sqft',
+                          ),
+                          _buildSpecTile(
+                            palette,
+                            'Texture',
+                            stone.texture.isEmpty
+                                ? 'Cultured Ledge'
+                                : stone.texture,
+                          ),
+                          _buildSpecTile(
+                            palette,
+                            'Series',
+                            stone.collection.isNotEmpty
+                                ? stone.collection
+                                : 'Grazia Series',
+                          ),
+                          _buildSpecTile(
+                            palette,
+                            'Absorption',
+                            '< 0.15% (Weatherproof)',
+                          ),
                         ],
                       ),
 
@@ -659,7 +936,11 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                           children: [
                             Row(
                               children: [
-                                Icon(Icons.calculate_outlined, color: palette.primary, size: 20),
+                                Icon(
+                                  Icons.calculate_outlined,
+                                  color: palette.primary,
+                                  size: 20,
+                                ),
                                 const SizedBox(width: 8),
                                 Text(
                                   'Area & Material Estimator',
@@ -674,7 +955,10 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                             const SizedBox(height: 16),
                             Text(
                               'Surface Area Required (sq ft)',
-                              style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary),
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: palette.textSecondary,
+                              ),
                             ),
                             const SizedBox(height: 8),
                             SliderTheme(
@@ -682,7 +966,9 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                                 activeTrackColor: palette.primary,
                                 inactiveTrackColor: palette.border,
                                 thumbColor: palette.primary,
-                                overlayColor: palette.primary.withValues(alpha: 0.1),
+                                overlayColor: palette.primary.withValues(
+                                  alpha: 0.1,
+                                ),
                               ),
                               child: Slider(
                                 value: _areaSqFt,
@@ -696,8 +982,21 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text('${_areaSqFt.toInt()} sq ft', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: palette.textPrimary)),
-                                Text('Wastage buffer:', style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary)),
+                                Text(
+                                  '${_areaSqFt.toInt()} sq ft',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: palette.textPrimary,
+                                  ),
+                                ),
+                                Text(
+                                  'Wastage buffer:',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    color: palette.textSecondary,
+                                  ),
+                                ),
                               ],
                             ),
                             const SizedBox(height: 10),
@@ -705,16 +1004,27 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                               spacing: 8,
                               runSpacing: 6,
                               children: [5, 10, 15, 20].map((percent) {
-                                final isSelected = (_wastagePercent * 100).toInt() == percent;
+                                final isSelected =
+                                    (_wastagePercent * 100).toInt() == percent;
                                 return ChoiceChip(
-                                  label: Text('$percent% ${percent == 15 ? '(Rec.)' : ''}'),
+                                  label: Text(
+                                    '$percent% ${percent == 15 ? '(Rec.)' : ''}',
+                                  ),
                                   selected: isSelected,
-                                  onSelected: (_) => setState(() => _wastagePercent = percent / 100.0),
-                                  selectedColor: palette.primary.withValues(alpha: 0.15),
+                                  onSelected: (_) => setState(
+                                    () => _wastagePercent = percent / 100.0,
+                                  ),
+                                  selectedColor: palette.primary.withValues(
+                                    alpha: 0.15,
+                                  ),
                                   labelStyle: GoogleFonts.inter(
                                     fontSize: 11,
-                                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                                    color: isSelected ? palette.primary : palette.textSecondary,
+                                    fontWeight: isSelected
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                    color: isSelected
+                                        ? palette.primary
+                                        : palette.textSecondary,
                                   ),
                                 );
                               }).toList(),
@@ -723,8 +1033,21 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text('Total Area (incl. buffer):', style: GoogleFonts.inter(fontSize: 13, color: palette.textSecondary)),
-                                Text('${totalAreaWithWastage.toInt()} sq ft', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: palette.textPrimary)),
+                                Text(
+                                  'Total Area (incl. buffer):',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    color: palette.textSecondary,
+                                  ),
+                                ),
+                                Text(
+                                  '${totalAreaWithWastage.toInt()} sq ft',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: palette.textPrimary,
+                                  ),
+                                ),
                               ],
                             ),
                             const SizedBox(height: 6),
@@ -735,11 +1058,20 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                                   stone.sqftPerBox > 0
                                       ? 'Estimated Boxes (${stone.sqftPerBox.toStringAsFixed(1)} sq.ft/box):'
                                       : 'Coverage / Packaging:',
-                                  style: GoogleFonts.inter(fontSize: 13, color: palette.textSecondary),
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    color: palette.textSecondary,
+                                  ),
                                 ),
                                 Text(
-                                  boxesNeeded != null ? '$boxesNeeded boxes' : 'Coverage unavailable',
-                                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: palette.textPrimary),
+                                  boxesNeeded != null
+                                      ? '$boxesNeeded boxes'
+                                      : 'Coverage unavailable',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: palette.textPrimary,
+                                  ),
                                 ),
                               ],
                             ),
@@ -747,7 +1079,14 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text('Est. Material Cost:', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: palette.textPrimary)),
+                                Text(
+                                  'Est. Material Cost:',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: palette.textPrimary,
+                                  ),
+                                ),
                                 Text(
                                   '₹${totalEstimatedCost.toInt()}',
                                   style: GoogleFonts.inter(
@@ -808,7 +1147,9 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
               ),
               decoration: BoxDecoration(
                 color: palette.surface,
-                border: Border(top: BorderSide(color: palette.border, width: 1.0)),
+                border: Border(
+                  top: BorderSide(color: palette.border, width: 1.0),
+                ),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.05),
@@ -820,7 +1161,9 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
               child: Builder(
                 builder: (context) {
                   final cartItems = ref.watch(cartProvider);
-                  final inCartItem = cartItems.where((i) => i.stone.id == stone.id).firstOrNull;
+                  final inCartItem = cartItems
+                      .where((i) => i.stone.id == stone.id)
+                      .firstOrNull;
                   final isInCart = inCartItem != null;
                   final inCartQty = inCartItem?.quantity ?? 0;
                   final isGreen = _justAdded || isInCart;
@@ -834,7 +1177,11 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
-                            color: (isGreen ? const Color(0xFF10B981) : palette.primary).withValues(alpha: isGreen ? 0.38 : 0.28),
+                            color:
+                                (isGreen
+                                        ? const Color(0xFF10B981)
+                                        : palette.primary)
+                                    .withValues(alpha: isGreen ? 0.38 : 0.28),
                             blurRadius: isGreen ? 16 : 10,
                             offset: const Offset(0, 4),
                           ),
@@ -845,10 +1192,14 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                         child: ElevatedButton(
                           onPressed: () => _handleAddToCart(stone, palette),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: isGreen ? const Color(0xFF10B981) : palette.primary,
+                            backgroundColor: isGreen
+                                ? const Color(0xFF10B981)
+                                : palette.primary,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
                             elevation: 0,
                           ),
                           child: AnimatedSwitcher(
@@ -858,11 +1209,15 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                               child: ScaleTransition(scale: anim, child: child),
                             ),
                             child: Row(
-                              key: ValueKey<String>('btn_${_justAdded}_${isInCart}_$inCartQty'),
+                              key: ValueKey<String>(
+                                'btn_${_justAdded}_${isInCart}_$inCartQty',
+                              ),
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Icon(
-                                  isGreen ? Icons.check_circle_rounded : Icons.shopping_bag_outlined,
+                                  isGreen
+                                      ? Icons.check_circle_rounded
+                                      : Icons.shopping_bag_outlined,
                                   size: 20,
                                   color: Colors.white,
                                 ),
@@ -871,8 +1226,8 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                                   _justAdded
                                       ? 'Added to Cart ✓'
                                       : isInCart
-                                          ? 'Added to Cart ($inCartQty)'
-                                          : 'Add to Cart',
+                                      ? 'Added to Cart ($inCartQty)'
+                                      : 'Add to Cart',
                                   style: GoogleFonts.inter(
                                     fontSize: 15,
                                     fontWeight: FontWeight.w700,
@@ -910,12 +1265,20 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
         children: [
           Text(
             label,
-            style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w500, color: palette.textTertiary),
+            style: GoogleFonts.inter(
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+              color: palette.textTertiary,
+            ),
           ),
           const SizedBox(height: 2),
           Text(
             value,
-            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: palette.textPrimary),
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: palette.textPrimary,
+            ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),

@@ -113,6 +113,7 @@ class ARCoreManager private constructor(context: Context) {
     // Measurement
     private val measurementAnchors = LinkedHashMap<String, Anchor>()
     private val measurementNodes = mutableListOf<Node>()
+    private var lastRulerLogMs = 0L
     private var measurementStart: FloatArray? = null
     private var measurementEnd: FloatArray? = null
 
@@ -137,7 +138,7 @@ class ARCoreManager private constructor(context: Context) {
         sceneView = view
         view.lifecycle = lifecycleOwner.lifecycle
         view.planeRenderer.isEnabled = true
-        view.planeRenderer.isVisible = true
+        view.planeRenderer.isVisible = false // the ruler and the wall preview draw their own overlays; no debug plane polygons
         view.onSessionUpdated = { session, frame ->
             // onSessionCreated / sessionConfiguration never fired on the OnePlus, but onSessionUpdated does,
             // so the ARCore config is applied here, once per session, before anything else.
@@ -637,7 +638,16 @@ class ARCoreManager private constructor(context: Context) {
             point = true,
             depthPoint = false,
             instantPlacementPoint = false,
-        ) ?: return null
+        )
+        // Throttled diagnostics so a device that never finds a surface can be explained from logcat
+        val now = System.currentTimeMillis()
+        if (now - lastRulerLogMs > 3000) {
+            lastRulerLogMs = now
+            val pts = runCatching { cam.let { view.frame?.acquirePointCloud()?.use { pc -> pc.ids.limit() } } }.getOrNull()
+            val cp = cam.pose
+            Log.i(TAG, "RULER hit=${hit?.trackable?.javaClass?.simpleName} dist=${hit?.distance} pointCloud=$pts pose=%.2f,%.2f,%.2f ts=${view.frame?.timestamp}".format(cp.tx(), cp.ty(), cp.tz()))
+        }
+        if (hit == null) return null
         return if (hit.distance in MIN_MEASURE_M..MAX_MEASURE_M) hit else null
     }
 
