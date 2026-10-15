@@ -125,8 +125,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     try {
       final stoneRepo = ref.read(stoneRepositoryProvider);
       
-      final trendingStones = await stoneRepo.getTrendingStones(limit: 30);
-      final collections = await stoneRepo.getCollections();
+      // Parallel: on slow mobile data the two sequential calls kept Home on skeletons ~40s.
+      final (trendingStones, collections) =
+          await (stoneRepo.getTrendingStones(limit: 30), stoneRepo.getCollections()).wait;
 
       if (mounted) {
         setState(() {
