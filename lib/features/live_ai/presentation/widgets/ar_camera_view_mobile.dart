@@ -436,7 +436,7 @@ class _ARCameraViewState extends State<ARCameraView>
       if (res['surface'] == 'approximate') {
         LuxuryToast.show(
           context,
-          message: 'Design placed. For an exact fit, move your phone slowly across the wall and tap again.',
+          message: 'Placed approximately. For true size, point at the floor for a moment, then tap where the wall meets the floor.',
         );
       }
       return;
@@ -450,7 +450,7 @@ class _ARCameraViewState extends State<ARCameraView>
       'plane_HORIZONTAL_UPWARD_FACING' || 'plane_HORIZONTAL_DOWNWARD_FACING' =>
         'That is a floor or ceiling. Tap the wall.',
       _ =>
-        'No wall found there yet. Move your phone slowly sideways, then tap the wall again.',
+        'Point at the floor and move your phone slowly, then tap where the wall meets the floor.',
     };
     LuxuryToast.show(context, message: message);
   }

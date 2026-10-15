@@ -107,6 +107,7 @@ class ARCoreManager private constructor(context: Context) {
     private var placedQuad: Node? = null
     private var placedWidthM = PLACED_WALL_WIDTH_M
     private var placedHeightM = PLACED_WALL_HEIGHT_M
+    private var placedOnFloor = false
     private var pendingTexture: MaterialInstance? = null
     // Width / height of the current texture photo, so tiling keeps its proportions.
     private var textureAspect = 1f
@@ -182,7 +183,7 @@ class ARCoreManager private constructor(context: Context) {
         // `spherical_rectifier.cc RET_CHECK ... unrectified_camera_model_type`. Plane and feature-point hits
         // are real, so those are used; see AR_DIAG for the support flags.
         config.depthMode = Config.DepthMode.DISABLED
-        // Lets a tap on a plain, featureless wall still place the design (see placeApproximateWall).
+        // Lets a tap on a plain, featureless wall still place the design (last-resort branch of placeWallAtScreenPoint).
         config.instantPlacementMode = Config.InstantPlacementMode.LOCAL_Y_UP
         // Match the overlay's brightness to the room's real lighting.
         config.lightEstimationMode = Config.LightEstimationMode.ENVIRONMENTAL_HDR
@@ -373,11 +374,7 @@ class ARCoreManager private constructor(context: Context) {
         val wallId = selectedWallId ?: return
         val plane = wallPlanes[wallId] ?: return
 
-        // A child node with SceneView's default normal (Direction(y=1)) lies
-        // flat in its parent's local XZ plane. Parenting it to an AnchorNode
-        // created from the plane's own centerPose (whose local Y axis IS the
-        // plane normal) makes the quad land exactly on the wall, facing out,
-        // without any manual rotation math.
+        // centerPose: local Y = plane normal, X/Z span the wall; wallQuad turns the XY quad into that XZ plane.
         val anchor = plane.createAnchor(plane.centerPose) ?: return
         val anchorNode = AnchorNode(engine = view.engine, anchor = anchor)
 
@@ -388,13 +385,7 @@ class ARCoreManager private constructor(context: Context) {
         // stretching one photo over the whole wall, which is what looked fake.
         val patchH = texturePatchHeightM
         val patchW = patchH * textureAspect
-        val quad = PlaneNode(
-            engine = view.engine,
-            size = Size(x = plane.extentX, y = plane.extentZ),
-            uvScale = Float2(plane.extentX / patchW, plane.extentZ / patchH),
-            materialInstance = material,
-        )
-        anchorNode.addChildNode(quad)
+        anchorNode.addChildNode(wallQuad(view, plane.extentX, plane.extentZ, patchW, patchH, material, onFloor = false))
         view.addChildNode(anchorNode)
         wallNode = anchorNode
     }
@@ -403,6 +394,27 @@ class ARCoreManager private constructor(context: Context) {
 
     private fun materialForWall(view: ARSceneView): MaterialInstance =
         pendingTexture ?: view.materialLoader.createColorInstance(android.graphics.Color.argb(128, 255, 215, 0)).twoSided()
+
+    /**
+     * SceneView's PlaneNode lies in its local XY plane facing +Z (Size.z = 0), NOT in XZ. Our wall anchors
+     * use ARCore's vertical-plane convention (Y = wall normal, Z = vertical), so rotate the quad 90° about
+     * X so its height runs along Z (up). Before this the quad stuck out
+     * of the wall edge-on, or lay flat like a ceiling, which is why placement "never worked".
+     * [onFloor]: the anchor is the wall's bottom edge, so lift the quad by half its height.
+     */
+    private fun wallQuad(
+        view: ARSceneView, w: Float, h: Float, patchW: Float, patchH: Float, material: MaterialInstance, onFloor: Boolean,
+    ): Node = PlaneNode(
+        engine = view.engine,
+        size = Size(x = w, y = h),
+        uvScale = Float2(w / patchW, h / patchH),
+        materialInstance = material,
+    ).apply {
+        // +90° about X: quad +Y (texture up) -> anchor +Z (up). Its face then points into the wall, which
+        // is fine because the material is unlit and two-sided.
+        rotation = io.github.sceneview.math.Rotation(x = 90f)
+        if (onFloor) position = Position(z = h / 2f)
+    }
 
     /** Wall quads were back-face culled when seen from the side ARCore's normal points away from. */
     private fun MaterialInstance.twoSided(): MaterialInstance =
@@ -416,12 +428,7 @@ class ARCoreManager private constructor(context: Context) {
         }
         val patchH = texturePatchHeightM
         val patchW = patchH * textureAspect
-        val quad = PlaneNode(
-            engine = view.engine,
-            size = Size(x = placedWidthM, y = placedHeightM),
-            uvScale = Float2(placedWidthM / patchW, placedHeightM / patchH),
-            materialInstance = materialForWall(view),
-        )
+        val quad = wallQuad(view, placedWidthM, placedHeightM, patchW, patchH, materialForWall(view), placedOnFloor)
         node.addChildNode(quad)
         placedQuad = quad
     }
@@ -479,70 +486,122 @@ class ARCoreManager private constructor(context: Context) {
             else if (verdict != "ok" && firstRejection == "no_hit") firstRejection = verdict
         }
 
-        val hit = chosen ?: run {
-            // Floors/ceilings are a user mistake; anything else means ARCore found no wall
-            // (plain painted walls have no texture to track), so stand the design up anyway.
-            if (firstRejection.startsWith("plane_HORIZONTAL") || firstRejection == "floor_or_ceiling") {
-                Log.i(TAG, "PLACE stage=result placed=false reason=$firstRejection")
-                return mapOf("placed" to false, "reason" to firstRejection)
-            }
-            return placeApproximateWall(view, frame, screenX, screenY, firstRejection)
+        val cam = frame.camera.pose
+        val camT = cam.translation
+
+        // 1. A real wall under the finger (vertical plane / feature point with a wall normal).
+        chosen?.let { hit ->
+            val n = hit.hitPose.getTransformedAxis(1, 1.0f)
+            val p = hit.hitPose.translation
+            val floorY = floorHeight(view)
+            // Stand the wall on the floor when we know where it is, so it never floats.
+            val base = if (floorY != null && floorY < p[1]) floatArrayOf(p[0], floorY, p[2]) else null
+            return anchorWall(view, base ?: p, horizontalNormal(n[0], n[2], p, camT), onFloor = base != null,
+                surface = hit.trackable.javaClass.simpleName, dist = hit.distance)
         }
 
-        clearPlacedWall()
-        val anchor = hit.createAnchor() ?: run {
-            Log.w(TAG, "PLACE stage=anchor reason=createAnchor_null")
-            return mapOf("placed" to false, "reason" to "anchor_failed")
+        // 2. The tap is on the floor (or on the floor line): build the wall standing on that line.
+        // Plain painted walls give ARCore nothing to track, but floors almost always do.
+        val floorHit = hits.firstOrNull {
+            val t = it.trackable
+            t is Plane && t.type == Plane.Type.HORIZONTAL_UPWARD_FACING &&
+                it.distance in MIN_HIT_DISTANCE_M..MAX_MEASURE_M
         }
-        val node = AnchorNode(engine = view.engine, anchor = anchor)
-        view.addChildNode(node)
-        placedAnchorNode = node
-        clearWallNode() // a placed wall replaces any plane-based overlay
-        rebuildPlacedQuad(view)
-        Log.i(TAG, "PLACE stage=result placed=true surface=${hit.trackable.javaClass.simpleName} dist=${"%.2f".format(hit.distance)}m")
-        return mapOf(
-            "placed" to true,
-            "surface" to hit.trackable.javaClass.simpleName,
-            "distanceM" to hit.distance,
-        )
+        val floorPoint = floorHit?.hitPose?.translation ?: rayOnFloor(view, frame, screenX, screenY)
+        if (floorPoint != null) {
+            return anchorWall(view, floorPoint, horizontalNormal(0f, 0f, floorPoint, camT), onFloor = true,
+                surface = "floor_line", dist = distance(floorPoint, camT))
+        }
+
+        // 3. No floor yet: approximate wall at a guessed distance (last resort, scale is a guess).
+        if (firstRejection == "floor_or_ceiling") {
+            Log.i(TAG, "PLACE stage=result placed=false reason=$firstRejection")
+            return mapOf("placed" to false, "reason" to firstRejection)
+        }
+        val instant = frame.hitTestInstantPlacement(screenX, screenY, APPROX_WALL_DISTANCE_M).firstOrNull()
+            ?: run {
+                Log.i(TAG, "PLACE stage=result placed=false reason=$firstRejection (no floor, no instant placement)")
+                return mapOf("placed" to false, "reason" to firstRejection)
+            }
+        val ip = instant.hitPose.translation
+        return anchorWall(view, ip, horizontalNormal(0f, 0f, ip, camT), onFloor = false,
+            surface = "approximate", dist = APPROX_WALL_DISTANCE_M)
+    }
+
+    /** Height of the floor: the lowest tracked upward-facing plane at least 0.5 m below the camera. */
+    private fun floorHeight(view: ARSceneView): Float? {
+        val camY = view.frame?.camera?.pose?.ty() ?: return null
+        return view.session?.getAllTrackables(Plane::class.java).orEmpty()
+            .filter {
+                it.trackingState == TrackingState.TRACKING && it.subsumedBy == null &&
+                    it.type == Plane.Type.HORIZONTAL_UPWARD_FACING && it.centerPose.ty() < camY - 0.5f
+            }
+            .minOfOrNull { it.centerPose.ty() }
     }
 
     /**
-     * Fallback when no real wall is hit: a vertical wall facing the camera, [APPROX_WALL_DISTANCE_M]
-     * along the tap ray, anchored in world space so it stays put as the user walks around.
-     * ponytail: fixed distance guess, so the scale is approximate; a real plane hit replaces it.
+     * Intersects the tap ray with the INFINITE floor plane. The detected floor polygon rarely reaches the
+     * wall, so a plain hitTest at the floor-wall line usually misses even though the floor is known.
      */
-    private fun placeApproximateWall(
-        view: ARSceneView, frame: com.google.ar.core.Frame, screenX: Float, screenY: Float, why: String,
-    ): Map<String, Any> {
-        val hit = frame.hitTestInstantPlacement(screenX, screenY, APPROX_WALL_DISTANCE_M).firstOrNull()
-        val session = view.session
-        if (hit == null || session == null) {
-            Log.i(TAG, "PLACE stage=result placed=false reason=$why (no instant placement)")
-            return mapOf("placed" to false, "reason" to why)
+    private fun rayOnFloor(view: ARSceneView, frame: com.google.ar.core.Frame, sx: Float, sy: Float): FloatArray? {
+        val floorY = floorHeight(view) ?: return null
+        val proj = FloatArray(16); val viewM = FloatArray(16); val vp = FloatArray(16); val inv = FloatArray(16)
+        frame.camera.getProjectionMatrix(proj, 0, 0.05f, 100f)
+        frame.camera.getViewMatrix(viewM, 0)
+        Matrix.multiplyMM(vp, 0, proj, 0, viewM, 0)
+        if (!Matrix.invertM(inv, 0, vp, 0)) return null
+        val nx = 2f * sx / view.width - 1f
+        val ny = 1f - 2f * sy / view.height
+        fun unproject(z: Float): FloatArray {
+            val out = FloatArray(4)
+            Matrix.multiplyMV(out, 0, inv, 0, floatArrayOf(nx, ny, z, 1f), 0)
+            return floatArrayOf(out[0] / out[3], out[1] / out[3], out[2] / out[3])
         }
-        val p = hit.hitPose.translation
-        val cam = frame.camera.pose.translation
-        // Horizontal normal from the wall point back to the camera.
-        var nx = cam[0] - p[0]
-        var nz = cam[2] - p[2]
-        val len = sqrt(nx * nx + nz * nz).takeIf { it > 1e-3f } ?: 1f
-        nx /= len; nz /= len
-        // Local axes: X along the wall, Y = wall normal (PlaneNode's normal), Z = up (X × Y = Z).
-        // Rotation matrix rows: [m00 m01 m02; m10 m11 m12; m20 m21 m22] with columns X, Y, Z.
-        val m00 = -nz; val m01 = nx; val m02 = 0f
-        val m10 = 0f;  val m11 = 0f; val m12 = 1f
-        val m20 = nx;  val m21 = nz; val m22 = 0f
-        val pose = Pose(p, quaternionFromRotation(m00, m01, m02, m10, m11, m12, m20, m21, m22))
+        val o = unproject(-1f); val f = unproject(1f)
+        val d = floatArrayOf(f[0] - o[0], f[1] - o[1], f[2] - o[2])
+        if (d[1] >= -1e-4f) return null // ray points at or above the horizon: it never meets the floor
+        val t = (floorY - o[1]) / d[1]
+        if (t <= 0f) return null
+        val p = floatArrayOf(o[0] + t * d[0], floorY, o[2] + t * d[2])
+        val horiz = sqrt((p[0] - o[0]) * (p[0] - o[0]) + (p[2] - o[2]) * (p[2] - o[2]))
+        return if (horiz in 0.3f..MAX_MEASURE_M) p else null
+    }
+
+    /**
+     * Horizontal wall normal that faces the camera. Uses the surface normal (nx, nz) when it has a usable
+     * horizontal part, otherwise the direction from the wall point back to the camera.
+     */
+    private fun horizontalNormal(nx: Float, nz: Float, p: FloatArray, cam: FloatArray): FloatArray {
+        val toCamX = cam[0] - p[0]; val toCamZ = cam[2] - p[2]
+        var x = nx; var z = nz
+        if (sqrt(x * x + z * z) < 0.3f) { x = toCamX; z = toCamZ }
+        if (x * toCamX + z * toCamZ < 0) { x = -x; z = -z } // always the side the user is standing on
+        val len = sqrt(x * x + z * z).takeIf { it > 1e-4f } ?: return floatArrayOf(0f, 0f, 1f)
+        return floatArrayOf(x / len, 0f, z / len)
+    }
+
+    /**
+     * Anchors the design as an upright wall at [p] with horizontal normal [n]. The pose is gravity-aligned
+     * (local X along the wall, Y = normal, Z = up), the same convention as an ARCore vertical plane's
+     * centerPose, so [wallQuad] works for both. With [onFloor], [p] is the bottom edge, not the centre.
+     */
+    private fun anchorWall(
+        view: ARSceneView, p: FloatArray, n: FloatArray, onFloor: Boolean, surface: String, dist: Float,
+    ): Map<String, Any> {
+        val session = view.session ?: return mapOf("placed" to false, "reason" to "no_session")
+        val nx = n[0]; val nz = n[2]
+        // Columns X = (-nz, 0, nx), Y = (nx, 0, nz), Z = (0, 1, 0); X × Y = Z.
+        val pose = Pose(p, quaternionFromRotation(-nz, nx, 0f, 0f, 0f, 1f, nx, nz, 0f))
         clearPlacedWall()
-        val anchor = session.createAnchor(pose)
-        val node = AnchorNode(engine = view.engine, anchor = anchor)
+        val node = AnchorNode(engine = view.engine, anchor = session.createAnchor(pose))
         view.addChildNode(node)
         placedAnchorNode = node
-        clearWallNode()
+        placedOnFloor = onFloor
+        clearWallNode() // a placed wall replaces any plane-based overlay
         rebuildPlacedQuad(view)
-        Log.i(TAG, "PLACE stage=result placed=true surface=approximate dist=${APPROX_WALL_DISTANCE_M}m why=$why")
-        return mapOf("placed" to true, "surface" to "approximate", "distanceM" to APPROX_WALL_DISTANCE_M)
+        Log.i(TAG, "PLACE stage=result placed=true surface=$surface onFloor=$onFloor dist=${"%.2f".format(dist)}m " +
+            "p=(${"%.2f".format(p[0])},${"%.2f".format(p[1])},${"%.2f".format(p[2])}) n=(${"%.2f".format(nx)},${"%.2f".format(nz)})")
+        return mapOf("placed" to true, "surface" to surface, "distanceM" to dist, "onFloor" to onFloor)
     }
 
     /** Standard rotation-matrix → (x, y, z, w) quaternion. */
