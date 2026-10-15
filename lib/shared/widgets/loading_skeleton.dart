@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:grazia_stones/core/constants/app_colors.dart';
 import 'package:shimmer/shimmer.dart';
+
+/// Theme-aware skeleton colours: charcoal blocks looked broken on light screens.
+Color _base(BuildContext c) =>
+    Theme.of(c).brightness == Brightness.dark ? const Color(0xFF1A1A1A) : const Color(0xFFE9E2D2);
+Color _highlight(BuildContext c) =>
+    Theme.of(c).brightness == Brightness.dark ? const Color(0xFF2A2A2A) : const Color(0xFFF7F2E7);
 
 class LoadingSkeleton extends StatelessWidget {
   final double width;
@@ -17,13 +22,13 @@ class LoadingSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
-      baseColor: AppColors.charcoal,
-      highlightColor: AppColors.graphite,
+      baseColor: _base(context),
+      highlightColor: _highlight(context),
       child: Container(
         width: width,
         height: height,
         decoration: BoxDecoration(
-          color: AppColors.charcoal,
+          color: _base(context),
           borderRadius: BorderRadius.circular(borderRadius),
         ),
       ),
@@ -37,8 +42,8 @@ class StoneGridSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
-      baseColor: AppColors.charcoal,
-      highlightColor: AppColors.graphite,
+      baseColor: _base(context),
+      highlightColor: _highlight(context),
       child: GridView.builder(
         physics: const NeverScrollableScrollPhysics(),
         shrinkWrap: true,
@@ -51,7 +56,7 @@ class StoneGridSkeleton extends StatelessWidget {
         itemCount: 6,
         itemBuilder: (_, _) => Container(
           decoration: BoxDecoration(
-            color: AppColors.charcoal,
+            color: _base(context),
             borderRadius: BorderRadius.circular(12),
           ),
         ),
@@ -66,8 +71,8 @@ class CollectionListSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
-      baseColor: AppColors.charcoal,
-      highlightColor: AppColors.graphite,
+      baseColor: _base(context),
+      highlightColor: _highlight(context),
       child: ListView.builder(
         physics: const NeverScrollableScrollPhysics(),
         shrinkWrap: true,
@@ -77,7 +82,7 @@ class CollectionListSkeleton extends StatelessWidget {
           child: Container(
             height: 100,
             decoration: BoxDecoration(
-              color: AppColors.charcoal,
+              color: _base(context),
               borderRadius: BorderRadius.circular(12),
             ),
           ),

@@ -1813,7 +1813,11 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    '₹${stone.pricePerSqFt}/sq.ft',
+                                    stone.thickness.trim().isEmpty
+                                        ? '₹${stone.pricePerSqFt}/sq.ft'
+                                        : '₹${stone.pricePerSqFt}/sq.ft  •  ${stone.thickness.trim()} thick',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
                                       fontFamily: 'Inter',
                                       fontSize: 12,

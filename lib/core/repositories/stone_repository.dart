@@ -1,3 +1,4 @@
+import 'package:grazia_stones/core/data/catalogue_specs.dart';
 import '../models/stone.dart';
 import '../models/collection.dart';
 import '../services/supabase_service.dart';
@@ -52,7 +53,11 @@ class StoneRepository {
       reviewCount: 0,
       length: lengthMm != null ? '${lengthMm}mm' : '',
       width: widthMm != null ? '${widthMm}mm' : '',
-      thickness: thicknessMm != null ? '${thicknessMm.toStringAsFixed(0)}mm' : '',
+      // DB thickness_mm is mostly empty; fall back to the client's catalogue PDF value
+      // (same rule as Stone.fromMap) so 3D Wall / Live AR / AI Studio get the real depth.
+      thickness: thicknessMm != null
+          ? '${thicknessMm.toStringAsFixed(0)}mm'
+          : CatalogueSpecs.forStone(collectionName ?? '', (row['name'] ?? '').toString())?.thickness ?? '',
       size: (lengthMm != null && widthMm != null)
           ? '$lengthMm×$widthMm${thicknessMm != null ? '×${thicknessMm.toStringAsFixed(0)}' : ''}mm'
           : '',

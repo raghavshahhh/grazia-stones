@@ -57,4 +57,14 @@ void main() {
     expect(paths.length, greaterThanOrEqualTo(64)); // 22 surface + 39 exclusive + 3 collage series
     expect(paths.where((p) => !File(p).existsSync()), isEmpty);
   });
+
+  group('thickness fallback used by StoneRepository (DB thickness_mm is mostly empty)', () {
+    test('catalogue thickness parses to real mm for 3D Wall / Live AR', () {
+      final t = CatalogueSpecs.forStone('Grande Ledge Series', 'Grande Ledge Series')?.thickness;
+      expect(t, '35 mm');
+      expect(Stone.fromMap({'name': 'x', 'thickness': t}).thicknessMm, 35);
+      final rustic = CatalogueSpecs.forStone('Rustic Brick Series', 'Rustic Brick Series')?.thickness;
+      expect(Stone.fromMap({'name': 'y', 'thickness': rustic}).thicknessMm, 10);
+    });
+  });
 }

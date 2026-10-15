@@ -398,8 +398,13 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
             // Quick Prompt Suggestions (shown when messages count is low)
             if (_messages.length <= 2)
               Container(
-                height: 40,
-                margin: const EdgeInsets.only(bottom: 8),
+                // Solid bar so scrolled suite cards don't look like they run under the chips.
+                height: 56,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).scaffoldBackgroundColor,
+                  border: Border(top: BorderSide(color: palette.border)),
+                ),
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
