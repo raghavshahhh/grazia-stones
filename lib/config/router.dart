@@ -266,7 +266,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/home',
+    initialLocation: '/', // splash decides: first launch → onboarding → login, later → home
     refreshListenable: refresh,
     redirect: (context, state) {
       final authState = ref.read(authRiverpodProvider);

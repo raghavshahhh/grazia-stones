@@ -26,6 +26,7 @@ import io.github.sceneview.math.Position
 import io.github.sceneview.math.Size
 import dev.romainguy.kotlin.math.Float2
 import io.github.sceneview.node.Node
+import io.github.sceneview.material.setTexture
 import io.github.sceneview.node.PlaneNode
 import io.github.sceneview.node.SphereNode
 import java.util.IdentityHashMap
@@ -52,6 +53,7 @@ class ARCoreManager private constructor(context: Context) {
         // A wall hit nearer than 0.3 m or farther than 8 m is a tracking artefact, not a wall.
         const val MIN_HIT_DISTANCE_M = 0.3f
         const val MAX_HIT_DISTANCE_M = 8.0f
+        const val APPROX_WALL_DISTANCE_M = 2.0f
         /** Ruler: ARCore is only trustworthy for hits in this range; outside it we say 'no surface' instead of guessing. */
         const val MIN_MEASURE_M = 0.10f
         const val MAX_MEASURE_M = 6.0f
@@ -181,6 +183,8 @@ class ARCoreManager private constructor(context: Context) {
         // `spherical_rectifier.cc RET_CHECK ... unrectified_camera_model_type`. Plane and feature-point hits
         // are real, so those are used; see AR_DIAG for the support flags.
         config.depthMode = Config.DepthMode.DISABLED
+        // Lets a tap on a plain, featureless wall still place the design (see placeApproximateWall).
+        config.instantPlacementMode = Config.InstantPlacementMode.LOCAL_Y_UP
         // Match the overlay's brightness to the room's real lighting.
         config.lightEstimationMode = Config.LightEstimationMode.ENVIRONMENTAL_HDR
     }
@@ -307,7 +311,11 @@ class ARCoreManager private constructor(context: Context) {
     fun setTexture(imageData: ByteArray, patchHeightM: Float? = null) {
         val view = sceneView ?: return
         try {
-            val bitmap = BitmapFactory.decodeByteArray(imageData, 0, imageData.size) ?: return
+            val raw = BitmapFactory.decodeByteArray(imageData, 0, imageData.size) ?: return
+            // Catalogue photos have a light border/vignette that tiles into a grid of seams; trim 8% per side.
+            val bitmap = android.graphics.Bitmap.createBitmap(
+                raw, raw.width * 8 / 100, raw.height * 8 / 100, raw.width * 84 / 100, raw.height * 84 / 100,
+            )
             val texture = Texture.Builder()
                 .width(bitmap.width)
                 .height(bitmap.height)
@@ -317,7 +325,17 @@ class ARCoreManager private constructor(context: Context) {
                 .build(view.engine)
             TextureHelper.setBitmap(view.engine, texture, 0, bitmap)
             texture.generateMipmaps(view.engine)
-            pendingTexture = view.materialLoader.createTextureInstance(texture)
+            pendingTexture = view.materialLoader.createTextureInstance(texture).twoSided().apply {
+                // Mirrored tiling: plain REPEAT showed a hard seam at every patch edge of the catalogue photo.
+                setTexture(
+                    texture,
+                    com.google.android.filament.TextureSampler(
+                        com.google.android.filament.TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR,
+                        com.google.android.filament.TextureSampler.MagFilter.LINEAR,
+                        com.google.android.filament.TextureSampler.WrapMode.MIRRORED_REPEAT,
+                    ),
+                )
+            }
             textureAspect = bitmap.width.toFloat() / bitmap.height.coerceAtLeast(1)
             texturePatchHeightM = patchHeightM ?: TEXTURE_PATCH_HEIGHT_M
             updateWallVisualization()
@@ -365,7 +383,7 @@ class ARCoreManager private constructor(context: Context) {
         val anchorNode = AnchorNode(engine = view.engine, anchor = anchor)
 
         val material = pendingTexture
-            ?: view.materialLoader.createColorInstance(android.graphics.Color.argb(128, 255, 215, 0))
+            ?: view.materialLoader.createColorInstance(android.graphics.Color.argb(128, 255, 215, 0)).twoSided()
         // The catalogue photos show a patch of finished wall (many stones), not a
         // single tile. Repeat that patch at a realistic physical size instead of
         // stretching one photo over the whole wall, which is what looked fake.
@@ -385,7 +403,11 @@ class ARCoreManager private constructor(context: Context) {
     // ── Tap-to-place wall ────────────────────────────────────────────────
 
     private fun materialForWall(view: ARSceneView): MaterialInstance =
-        pendingTexture ?: view.materialLoader.createColorInstance(android.graphics.Color.argb(128, 255, 215, 0))
+        pendingTexture ?: view.materialLoader.createColorInstance(android.graphics.Color.argb(128, 255, 215, 0)).twoSided()
+
+    /** Wall quads were back-face culled when seen from the side ARCore's normal points away from. */
+    private fun MaterialInstance.twoSided(): MaterialInstance =
+        apply { setCullingMode(com.google.android.filament.Material.CullingMode.NONE) }
 
     private fun rebuildPlacedQuad(view: ARSceneView) {
         val node = placedAnchorNode ?: return
@@ -459,8 +481,13 @@ class ARCoreManager private constructor(context: Context) {
         }
 
         val hit = chosen ?: run {
-            Log.i(TAG, "PLACE stage=result placed=false reason=$firstRejection")
-            return mapOf("placed" to false, "reason" to firstRejection)
+            // Floors/ceilings are a user mistake; anything else means ARCore found no wall
+            // (plain painted walls have no texture to track), so stand the design up anyway.
+            if (firstRejection.startsWith("plane_HORIZONTAL") || firstRejection == "floor_or_ceiling") {
+                Log.i(TAG, "PLACE stage=result placed=false reason=$firstRejection")
+                return mapOf("placed" to false, "reason" to firstRejection)
+            }
+            return placeApproximateWall(view, frame, screenX, screenY, firstRejection)
         }
 
         clearPlacedWall()
@@ -479,6 +506,57 @@ class ARCoreManager private constructor(context: Context) {
             "surface" to hit.trackable.javaClass.simpleName,
             "distanceM" to hit.distance,
         )
+    }
+
+    /**
+     * Fallback when no real wall is hit: a vertical wall facing the camera, [APPROX_WALL_DISTANCE_M]
+     * along the tap ray, anchored in world space so it stays put as the user walks around.
+     * ponytail: fixed distance guess, so the scale is approximate; a real plane hit replaces it.
+     */
+    private fun placeApproximateWall(
+        view: ARSceneView, frame: com.google.ar.core.Frame, screenX: Float, screenY: Float, why: String,
+    ): Map<String, Any> {
+        val hit = frame.hitTestInstantPlacement(screenX, screenY, APPROX_WALL_DISTANCE_M).firstOrNull()
+        val session = view.session
+        if (hit == null || session == null) {
+            Log.i(TAG, "PLACE stage=result placed=false reason=$why (no instant placement)")
+            return mapOf("placed" to false, "reason" to why)
+        }
+        val p = hit.hitPose.translation
+        val cam = frame.camera.pose.translation
+        // Horizontal normal from the wall point back to the camera.
+        var nx = cam[0] - p[0]
+        var nz = cam[2] - p[2]
+        val len = sqrt(nx * nx + nz * nz).takeIf { it > 1e-3f } ?: 1f
+        nx /= len; nz /= len
+        // Local axes: X along the wall, Y = wall normal (PlaneNode's normal), Z = up (X × Y = Z).
+        // Rotation matrix rows: [m00 m01 m02; m10 m11 m12; m20 m21 m22] with columns X, Y, Z.
+        val m00 = -nz; val m01 = nx; val m02 = 0f
+        val m10 = 0f;  val m11 = 0f; val m12 = 1f
+        val m20 = nx;  val m21 = nz; val m22 = 0f
+        val pose = Pose(p, quaternionFromRotation(m00, m01, m02, m10, m11, m12, m20, m21, m22))
+        clearPlacedWall()
+        val anchor = session.createAnchor(pose)
+        val node = AnchorNode(engine = view.engine, anchor = anchor)
+        view.addChildNode(node)
+        placedAnchorNode = node
+        clearWallNode()
+        rebuildPlacedQuad(view)
+        Log.i(TAG, "PLACE stage=result placed=true surface=approximate dist=${APPROX_WALL_DISTANCE_M}m why=$why")
+        return mapOf("placed" to true, "surface" to "approximate", "distanceM" to APPROX_WALL_DISTANCE_M)
+    }
+
+    /** Standard rotation-matrix → (x, y, z, w) quaternion. */
+    private fun quaternionFromRotation(
+        m00: Float, m01: Float, m02: Float, m10: Float, m11: Float, m12: Float, m20: Float, m21: Float, m22: Float,
+    ): FloatArray {
+        val tr = m00 + m11 + m22
+        return when {
+            tr > 0 -> { val s = sqrt(tr + 1f) * 2; floatArrayOf((m21 - m12) / s, (m02 - m20) / s, (m10 - m01) / s, 0.25f * s) }
+            m00 > m11 && m00 > m22 -> { val s = sqrt(1f + m00 - m11 - m22) * 2; floatArrayOf(0.25f * s, (m01 + m10) / s, (m02 + m20) / s, (m21 - m12) / s) }
+            m11 > m22 -> { val s = sqrt(1f + m11 - m00 - m22) * 2; floatArrayOf((m01 + m10) / s, 0.25f * s, (m12 + m21) / s, (m02 - m20) / s) }
+            else -> { val s = sqrt(1f + m22 - m00 - m11) * 2; floatArrayOf((m02 + m20) / s, (m12 + m21) / s, 0.25f * s, (m10 - m01) / s) }
+        }
     }
 
     fun clearPlacedWall() {
@@ -561,6 +639,12 @@ class ARCoreManager private constructor(context: Context) {
             val sess = view.session
             val depthSupport = "auto=${sess?.isDepthModeSupported(Config.DepthMode.AUTOMATIC)} raw=${sess?.isDepthModeSupported(Config.DepthMode.RAW_DEPTH_ONLY)}"
             Log.i(TAG, "AR_DIAG tracking=$state depthMode=$depth depthSupported[$depthSupport] allPlanes=$byType acceptedWalls=${wallPlanes.size} placed=${placedAnchorNode != null} updatedPlanes=$updatedPlanes")
+            placedAnchorNode?.let { n ->
+                val cam = view.frame?.camera?.pose
+                Log.i(TAG, "AR_DIAG placedNode world=${n.worldPosition} visible=${n.isVisible} anchor=${n.anchor.trackingState} " +
+                    "quad=${placedQuad?.let { q -> "${q.worldPosition} vis=${q.isVisible} parent=${q.parent != null}" }} " +
+                    "cam=${cam?.tx()},${cam?.ty()},${cam?.tz()} fwd=${cam?.zAxis?.joinToString { "%.2f".format(-it) }}")
+            }
         }
     }
 

@@ -433,6 +433,12 @@ class _ARCameraViewState extends State<ARCameraView>
     debugPrint('[ARCameraView] PLACE stage=flutter result=$res');
     if (res != null && res['placed'] == true) {
       HapticFeedback.mediumImpact();
+      if (res['surface'] == 'approximate') {
+        LuxuryToast.show(
+          context,
+          message: 'Design placed. For an exact fit, move your phone slowly across the wall and tap again.',
+        );
+      }
       return;
     }
     HapticFeedback.selectionClick();

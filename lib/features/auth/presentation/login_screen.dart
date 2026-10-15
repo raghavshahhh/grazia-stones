@@ -290,6 +290,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                             ),
                           ),
                         ),
+                        // First launch lands here straight from onboarding: browsing must not need an account.
+                        if (!context.canPop())
+                          TextButton(
+                            onPressed: () => context.go('/home'),
+                            child: Text(
+                              'Skip for now',
+                              style: GoogleFonts.inter(
+                                color: Colors.white.withValues(alpha: 0.85),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
                         // Quick Demo Fill Action Chip
                         if (!kReleaseMode)
                         GestureDetector(

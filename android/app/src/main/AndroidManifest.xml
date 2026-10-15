@@ -37,7 +37,8 @@
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="graziastones" android:host="auth-callback"/>
+                <!-- any graziastones:// link (auth-callback, QR cards, /home…), same as iOS -->
+                <data android:scheme="graziastones"/>
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
