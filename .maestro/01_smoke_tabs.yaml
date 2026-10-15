@@ -1,0 +1,39 @@
+# Human-style smoke run: opens the app and visits every bottom tab and every home tool tile.
+# Android: APP_ID=com.graziastones.grazia_stones   iOS: APP_ID=com.graziastones.graziaStones
+# Run: ~/.maestro/bin/maestro test -e APP_ID=... .maestro/01_smoke_tabs.yaml
+appId: ${APP_ID}
+---
+- launchApp:
+    clearState: false
+    stopApp: true
+- openLink: graziastones:///home   # the app restores the last open page; always start from Home
+- extendedWaitUntil:
+    visible: "Home"
+    timeout: 30000
+- takeScreenshot: .maestro/shots/01_home
+- tapOn: "Collections"
+- assertVisible: "Collections"
+- takeScreenshot: .maestro/shots/02_collections
+- tapOn: "AI Studio"
+- takeScreenshot: .maestro/shots/03_ai_studio
+- tapOn: "Profile"
+- takeScreenshot: .maestro/shots/04_profile
+- tapOn: "Home"
+- scrollUntilVisible:
+    element: "(?s).*Measure.*"
+    timeout: 15000
+    visibilityPercentage: 40
+    centerElement: true
+- takeScreenshot: .maestro/shots/05_home_tools
+- scrollUntilVisible:
+    element: "(?s).*Aarna AI.*"
+    timeout: 15000
+    visibilityPercentage: 40
+    centerElement: true
+- tapOn: "(?s).*Aarna AI.*"
+- extendedWaitUntil:
+    visible: "(?s).*Meet Aarna.*"
+    timeout: 15000
+- takeScreenshot: .maestro/shots/06_aarna
+- tapOn:
+    point: "6%,8%"   # the on-screen back arrow (iOS has no hardware back)

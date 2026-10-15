@@ -1,0 +1,24 @@
+# Profile and the pages behind it. Guest session: sign-in button must be there.
+appId: ${APP_ID}
+---
+- launchApp
+- openLink: graziastones:///home   # the app restores the last open page; always start from Home
+- extendedWaitUntil:
+    visible: "Home"
+    timeout: 30000
+- tapOn: "Profile"
+- takeScreenshot: .maestro/shots/50_profile
+- scrollUntilVisible:
+    element: "(?s).*Settings.*"
+    timeout: 15000
+    visibilityPercentage: 40
+- tapOn: "(?s).*Settings.*"
+- takeScreenshot: .maestro/shots/51_settings
+- tapOn:
+    point: "6%,8%"   # the on-screen back arrow (iOS has no hardware back)
+- scrollUntilVisible:
+    element: "(?s).*About.*"
+    timeout: 15000
+    visibilityPercentage: 40
+- tapOn: "(?s).*About.*"
+- takeScreenshot: .maestro/shots/52_about

@@ -1,0 +1,18 @@
+# Opens a stone from the home hero, checks price, colours and the close-up slide.
+appId: ${APP_ID}
+---
+- launchApp
+- openLink: graziastones:///home   # the app restores the last open page; always start from Home
+- extendedWaitUntil:
+    visible: "Home"
+    timeout: 30000
+- tapOn: "(?s).*View Stone & Specs.*"
+- extendedWaitUntil:
+    visible: ".*sq ft.*"
+    timeout: 20000
+- assertVisible: "Add to Cart"
+- takeScreenshot: .maestro/shots/20_stone_hero
+- swipe:
+    direction: LEFT
+    duration: 400
+- takeScreenshot: .maestro/shots/21_stone_closeup

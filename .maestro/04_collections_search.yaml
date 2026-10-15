@@ -1,0 +1,21 @@
+# Collections -> a collection -> a stone, then search.
+appId: ${APP_ID}
+---
+- launchApp
+- openLink: graziastones:///home   # the app restores the last open page; always start from Home
+- extendedWaitUntil:
+    visible: "Home"
+    timeout: 30000
+- tapOn: "Collections"
+- extendedWaitUntil:
+    visible: "(?s).*Authentic Cultured Series.*"
+    timeout: 20000
+- tapOn: "(?s).*Exclusive Patina Series.*"
+- takeScreenshot: .maestro/shots/30_collection_detail
+- tapOn:
+    point: "6%,8%"   # the on-screen back arrow (iOS has no hardware back)
+- tapOn: "Home"
+- tapOn:
+    text: "(?s).*Search 35 collections.*"
+- inputText: "marble"
+- takeScreenshot: .maestro/shots/31_search

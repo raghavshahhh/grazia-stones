@@ -1,0 +1,21 @@
+# Opens the tools that run without a camera: Tile Visualizer, Sample Kit, Wall calculator.
+appId: ${APP_ID}
+---
+- launchApp
+- openLink: graziastones:///home   # the app restores the last open page; always start from Home
+- extendedWaitUntil:
+    visible: "Home"
+    timeout: 30000
+- swipe:
+    start: "50%,78%"
+    end: "50%,30%"
+    duration: 500
+- tapOn: "(?s).*Tile Visualizer.*"
+- extendedWaitUntil:
+    visible: "(?s).*Net Area.*"
+    timeout: 20000
+- takeScreenshot: .maestro/shots/40_tile_visualizer
+- tapOn:
+    point: "6%,8%"   # the on-screen back arrow (iOS has no hardware back)
+- tapOn: "(?s).*Sample Kit.*"
+- takeScreenshot: .maestro/shots/41_sample_kit

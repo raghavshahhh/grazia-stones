@@ -1,0 +1,24 @@
+# Aarna answers a small-talk message in text, with no product cards.
+appId: ${APP_ID}
+---
+- launchApp
+- openLink: graziastones:///home   # the app restores the last open page; always start from Home
+- extendedWaitUntil:
+    visible: "Home"
+    timeout: 30000
+- swipe:
+    start: "50%,78%"
+    end: "50%,30%"
+    duration: 500
+- tapOn: "(?s).*Aarna AI.*"
+- extendedWaitUntil:
+    visible: "(?s).*Meet Aarna.*"
+    timeout: 15000
+- tapOn:
+    text: "Ask Aarna.*"
+- inputText: "Hi Aarna kaise ho"
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: ".*(Namaste|Hello|Hi|theek|help).*"
+    timeout: 40000
+- takeScreenshot: .maestro/shots/10_aarna_reply
