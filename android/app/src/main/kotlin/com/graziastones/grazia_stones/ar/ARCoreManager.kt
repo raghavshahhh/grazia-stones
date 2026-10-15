@@ -26,7 +26,6 @@ import io.github.sceneview.math.Position
 import io.github.sceneview.math.Size
 import dev.romainguy.kotlin.math.Float2
 import io.github.sceneview.node.Node
-import io.github.sceneview.material.setTexture
 import io.github.sceneview.node.PlaneNode
 import io.github.sceneview.node.SphereNode
 import java.util.IdentityHashMap
@@ -320,22 +319,22 @@ class ARCoreManager private constructor(context: Context) {
                 .width(bitmap.width)
                 .height(bitmap.height)
                 .sampler(Texture.Sampler.SAMPLER_2D)
-                .format(Texture.InternalFormat.RGBA8)
+                .format(Texture.InternalFormat.SRGB8_A8) // photo pixels are sRGB; RGBA8 rendered washed out
                 .levels(0xFF)
                 .build(view.engine)
             TextureHelper.setBitmap(view.engine, texture, 0, bitmap)
             texture.generateMipmaps(view.engine)
-            pendingTexture = view.materialLoader.createTextureInstance(texture).twoSided().apply {
-                // Mirrored tiling: plain REPEAT showed a hard seam at every patch edge of the catalogue photo.
-                setTexture(
-                    texture,
-                    com.google.android.filament.TextureSampler(
-                        com.google.android.filament.TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR,
-                        com.google.android.filament.TextureSampler.MagFilter.LINEAR,
-                        com.google.android.filament.TextureSampler.WrapMode.MIRRORED_REPEAT,
-                    ),
-                )
-            }
+            // Unlit image material: shows the catalogue colour as-is. The lit PBR material went near-black
+            // in normal room light because the quad is seen from the side its normal points away from.
+            // Plain REPEAT: the trimmed photo tiles cleanly; MIRRORED_REPEAT read as a kaleidoscope.
+            pendingTexture = view.materialLoader.createImageInstance(
+                texture,
+                com.google.android.filament.TextureSampler(
+                    com.google.android.filament.TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR,
+                    com.google.android.filament.TextureSampler.MagFilter.LINEAR,
+                    com.google.android.filament.TextureSampler.WrapMode.REPEAT,
+                ),
+            ).twoSided()
             textureAspect = bitmap.width.toFloat() / bitmap.height.coerceAtLeast(1)
             texturePatchHeightM = patchHeightM ?: TEXTURE_PATCH_HEIGHT_M
             updateWallVisualization()

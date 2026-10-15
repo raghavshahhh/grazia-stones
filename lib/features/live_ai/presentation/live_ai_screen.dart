@@ -1742,11 +1742,10 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     final stone = _selectedStone;
     if (stone == null) return const SizedBox.shrink();
 
-    final bottomInset = MediaQuery.of(context).padding.bottom;
-
     return Positioned(
       left: 14,
-      bottom: bottomInset + 150,
+      // Lines up with the product-card row of the designs panel.
+      bottom: _navClearance(context) + 78,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
