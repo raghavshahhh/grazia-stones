@@ -491,8 +491,8 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
                 _trackingState == _TrackingGuideState.ready)
               _buildAddPointTooltip(),
 
-            // 5. Triple Action Deck (Undo, '+', Shutter)
-            _buildActionControlDeck(),
+            // 5. Triple Action Deck (Undo, '+', Shutter): measure-only, it covered the Level hint text
+            if (_currentMode == _MeasureMode.measure) _buildActionControlDeck(),
 
             // 5b. Auto: outline the object under the reticle and measure all its sides
             if (_currentMode == _MeasureMode.measure) _buildAutoButton(),

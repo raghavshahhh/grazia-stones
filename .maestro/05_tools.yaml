@@ -6,10 +6,11 @@ appId: ${APP_ID}
 - extendedWaitUntil:
     visible: "Home"
     timeout: 30000
-- swipe:
-    start: "50%,78%"
-    end: "50%,30%"
-    duration: 500
+- scrollUntilVisible:   # a fixed swipe overshot the tools grid on taller/dark layouts
+    element: "(?s).*Tile Visualizer.*"
+    timeout: 15000
+    visibilityPercentage: 60
+    centerElement: true
 - tapOn: "(?s).*Tile Visualizer.*"
 - extendedWaitUntil:
     visible: "(?s).*Net Area.*"

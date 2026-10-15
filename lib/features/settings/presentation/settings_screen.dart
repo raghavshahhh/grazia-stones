@@ -475,11 +475,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                   ),
                 ),
-                if (trailing.isNotEmpty)
-                  Text(
-                    trailing,
-                    style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 12),
+                if (trailing.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  // Long values ("Camera, Photos & Storage") used to squeeze the title onto two broken lines.
+                  Flexible(
+                    child: Text(
+                      trailing,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.end,
+                      style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 12),
+                    ),
                   ),
+                ],
                 const SizedBox(width: 8),
                 Icon(Icons.arrow_forward_ios_rounded, size: 12, color: palette.textTertiary),
               ],

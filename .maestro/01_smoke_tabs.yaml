@@ -19,6 +19,9 @@ appId: ${APP_ID}
 - tapOn: "Profile"
 - takeScreenshot: .maestro/shots/04_profile
 - tapOn: "Home"
+- extendedWaitUntil:   # Home shows skeletons until data arrives; on slow mobile data that takes a while
+    visible: "(?s).*View Stone.*"
+    timeout: 60000
 - scrollUntilVisible:
     element: "(?s).*Measure.*"
     timeout: 15000

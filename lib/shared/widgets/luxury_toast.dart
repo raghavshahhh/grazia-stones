@@ -192,7 +192,8 @@ class _LuxuryToastWidgetState extends State<_LuxuryToastWidget>
                                   fontWeight: FontWeight.w600,
                                   letterSpacing: -0.1,
                                 ),
-                                maxLines: 1,
+                                // AR guidance toasts are full sentences; one line cut them mid-instruction.
+                                maxLines: 3,
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
