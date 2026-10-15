@@ -201,7 +201,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
   Widget _buildCaptureControls() {
     final bottomInset = MediaQuery.of(context).padding.bottom;
-    final double navClearance = 58 + (bottomInset > 0 ? bottomInset + 6 : 14) + 8;
+    final double navClearance = _navClearance(context);
     return Positioned(
       right: 16,
       bottom: widget.measureOnly ? bottomInset + 130 : navClearance + 270,
@@ -1387,10 +1387,14 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
   /// Premium commercial AR product style with product info and CTAs.
   /// Shown instead of the designs carousel while the catalogue is loading or failed to load, so the
   /// picker never silently disappears.
+  /// The shell Scaffold uses extendBody, so padding.bottom already includes the floating tab bar.
+  /// Adding the dock height on top of it again left the panel hovering mid-screen.
+  double _navClearance(BuildContext context) => MediaQuery.of(context).padding.bottom + 6;
+
   Widget _buildDesignsUnavailableBar() {
     final state = ref.watch(allStonesProvider);
     final bottomInset = MediaQuery.of(context).padding.bottom;
-    final double navClearance = 58 + (bottomInset > 0 ? bottomInset + 6 : 14) + 8;
+    final double navClearance = _navClearance(context);
     final failed = state.hasError;
     debugPrint('[LiveAI] designs unavailable: loading=${state.isLoading} error=${state.error} '
         'value=${state.valueOrNull?.length}');
@@ -1432,7 +1436,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
     final bottomInset = MediaQuery.of(context).padding.bottom;
     // The glass tab bar floats over this screen (58 high + its own bottom padding); sit above it.
-    final double navClearance = 58 + (bottomInset > 0 ? bottomInset + 6 : 14) + 8;
+    final double navClearance = _navClearance(context);
 
     return Positioned(
       left: 0,
