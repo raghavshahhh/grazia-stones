@@ -53,6 +53,9 @@ class ARCoreManager private constructor(context: Context) {
         const val MAX_HIT_DISTANCE_M = 8.0f
         const val APPROX_WALL_DISTANCE_M = 2.0f
         const val AUTO_PLACE_INTERVAL_MS = 400L
+        const val AUTO_GUESS_AFTER_MS = 2500L
+        const val MASKED_WALL_WIDTH_M = 8f
+        const val MASKED_WALL_HEIGHT_M = 4f
         // Share of the stone photo shown as-is (emissive) under the lit, normal-mapped shading. Tuned on device.
         const val EMISSIVE_LEVEL = 0.6f
         /** Ruler: ARCore is only trustworthy for hits in this range; outside it we say 'no surface' instead of guessing. */
@@ -166,6 +169,7 @@ class ARCoreManager private constructor(context: Context) {
             val updated = frame.getUpdatedTrackables(Plane::class.java)
             onPlanesUpdated(updated)
             val camera = frame.camera
+            requestWallMask(view, frame)
             autoPlace(view, camera.trackingState)
             logTrackingDiagnostics(camera.trackingState, camera.trackingFailureReason, updated.size, view)
             onTrackingStateChanged?.invoke(
@@ -192,13 +196,133 @@ class ARCoreManager private constructor(context: Context) {
     // Auto-placement: until something is placed, probe the wall at the screen centre a few times a second.
     private var lastAutoPlaceMs = 0L
 
+    // When the segmenter first saw a wall at the probe point without ARCore finding a real surface there.
+    private var wallSeenSinceMs = 0L
+
+    /**
+     * Places (and re-places) the design with no tap. Probe = the wall pixel nearest the screen centre
+     * (segmenter), else the centre. A real ARCore surface is preferred; if the segmenter keeps seeing a wall
+     * for [AUTO_GUESS_AFTER_MS] with no real hit (plain paint), it falls back to a guessed distance, which the
+     * wall mask still clips to the true wall outline. If the user turns to another wall, it moves there.
+     */
     private fun autoPlace(view: ARSceneView, tracking: TrackingState) {
-        if (placedAnchorNode != null || tracking != TrackingState.TRACKING) return
+        if (tracking != TrackingState.TRACKING) return
         val now = android.os.SystemClock.elapsedRealtime()
         if (now - lastAutoPlaceMs < AUTO_PLACE_INTERVAL_MS) return
         lastAutoPlaceMs = now
-        val res = placeWallAtScreenPoint(view.width / 2f, view.height * 0.4f, realWallOnly = true)
-        if (res?.get("placed") == true) onWallStateChanged?.invoke("LOCKED")
+        val probe = wallProbePoint(view)
+        val wallVisible = probe != null
+        val (px, py) = probe ?: (view.width / 2f to view.height * 0.4f)
+        if (placedAnchorNode != null) {
+            val frame = view.frame ?: return
+            if (!wallVisible || placedQuadCovers(view, frame, px, py)) return
+            Log.i(TAG, "AUTO wall moved out of the placed design, re-placing")
+            clearPlacedWall()
+        }
+        if (wallVisible && wallSeenSinceMs == 0L) wallSeenSinceMs = now
+        if (!wallVisible) wallSeenSinceMs = 0L
+        var res = placeWallAtScreenPoint(px, py, realWallOnly = true)
+        if (res?.get("placed") != true && maskReady && wallVisible && now - wallSeenSinceMs > AUTO_GUESS_AFTER_MS) {
+            res = placeWallAtScreenPoint(px, py)
+        }
+        if (res?.get("placed") == true) {
+            wallSeenSinceMs = 0L
+            onWallStateChanged?.invoke("LOCKED")
+        }
+    }
+
+    // ── Wall segmentation (WallSegmenter) ───────────────────────────────
+
+    private var segmenter: WallSegmenter? = null
+    private var segmenterFailed = false
+    private var latestMask: ByteArray? = null
+    private var maskTexture: Texture? = null
+    @Volatile private var maskReady = false
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var lastSegLogMs = 0L
+
+    private fun requestWallMask(view: ARSceneView, frame: com.google.ar.core.Frame) {
+        if (segmenterFailed) return
+        val seg = segmenter ?: runCatching { WallSegmenter(appContext) }
+            .onFailure { segmenterFailed = true; Log.e(TAG, "WallSegmenter unavailable, design will not be clipped", it) }
+            .getOrNull()?.also { segmenter = it } ?: return
+        seg.request(frame) { mask -> mainHandler.post { applyMask(view, mask) } }
+    }
+
+    /** Uploads the wall mask (lightly smoothed over time to stop edge flicker) and turns clipping on. */
+    private fun applyMask(view: ARSceneView, fresh: ByteArray) {
+        if (sceneView !== view) return
+        val prev = latestMask
+        val mask = if (prev == null) fresh else ByteArray(fresh.size) { i ->
+            (((prev[i].toInt() and 0xFF) + 2 * (fresh[i].toInt() and 0xFF)) / 3).toByte()
+        }
+        latestMask = mask
+        val tex = maskTexture ?: Texture.Builder().width(WallSegmenter.OUT_W).height(WallSegmenter.OUT_H)
+            .sampler(Texture.Sampler.SAMPLER_2D).format(Texture.InternalFormat.R8).levels(1).build(view.engine)
+            .also { maskTexture = it }
+        val buf = java.nio.ByteBuffer.allocateDirect(mask.size).put(mask).also { it.flip() }
+        tex.setImage(view.engine, 0, Texture.PixelBufferDescriptor(buf, Texture.Format.R, Texture.Type.UBYTE))
+        if (!maskReady) {
+            maskReady = true
+            pendingTexture?.let { bindMask(it) }
+        }
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastSegLogMs > 5000) {
+            lastSegLogMs = now
+            val wall = mask.count { (it.toInt() and 0xFF) > 127 } * 100 / mask.size
+            Log.i(TAG, "SEG wall=$wall% inference=${segmenter?.lastInferenceMs}ms")
+        }
+    }
+
+    private fun bindMask(mi: MaterialInstance) {
+        val tex = maskTexture ?: return
+        if (!mi.material.hasParameter("maskMap")) return
+        mi.setParameter("maskMap", tex, com.google.android.filament.TextureSampler(
+            com.google.android.filament.TextureSampler.MinFilter.LINEAR,
+            com.google.android.filament.TextureSampler.MagFilter.LINEAR,
+            com.google.android.filament.TextureSampler.WrapMode.CLAMP_TO_EDGE,
+        ))
+        mi.setParameter("useMask", 1f)
+    }
+
+    /** View-space wall probability (0..1) at a screen pixel, or null before the first mask. */
+    private fun wallAt(view: ARSceneView, x: Float, y: Float): Float? {
+        val m = latestMask ?: return null
+        val cx = (x / view.width * WallSegmenter.OUT_W).toInt().coerceIn(0, WallSegmenter.OUT_W - 1)
+        val cy = (y / view.height * WallSegmenter.OUT_H).toInt().coerceIn(0, WallSegmenter.OUT_H - 1)
+        return (m[cy * WallSegmenter.OUT_W + cx].toInt() and 0xFF) / 255f
+    }
+
+    /** The confident wall cell closest to the upper-middle of the screen, in view pixels. */
+    private fun wallProbePoint(view: ARSceneView): Pair<Float, Float>? {
+        val m = latestMask ?: return null
+        val tx = WallSegmenter.OUT_W / 2f; val ty = WallSegmenter.OUT_H * 0.4f
+        var best = -1; var bestD = Float.MAX_VALUE
+        for (y in 0 until WallSegmenter.OUT_H) for (x in 0 until WallSegmenter.OUT_W) {
+            if ((m[y * WallSegmenter.OUT_W + x].toInt() and 0xFF) < 200) continue
+            val d = (x - tx) * (x - tx) + (y - ty) * (y - ty)
+            if (d < bestD) { bestD = d; best = y * WallSegmenter.OUT_W + x }
+        }
+        if (best < 0) return null
+        return ((best % WallSegmenter.OUT_W + 0.5f) / WallSegmenter.OUT_W * view.width) to
+            ((best / WallSegmenter.OUT_W + 0.5f) / WallSegmenter.OUT_H * view.height)
+    }
+
+    /** Does the placed design's quad lie under this screen pixel? */
+    private fun placedQuadCovers(view: ARSceneView, frame: com.google.ar.core.Frame, sx: Float, sy: Float): Boolean {
+        val anchor = placedAnchorNode?.anchor ?: return false
+        if (anchor.trackingState != TrackingState.TRACKING) return false
+        val pose = anchor.pose
+        val (o, d) = tapRay(view, frame, sx, sy) ?: return true
+        val n = pose.getTransformedAxis(1, 1f)
+        val c = pose.translation
+        val denom = d[0] * n[0] + d[1] * n[1] + d[2] * n[2]
+        if (kotlin.math.abs(denom) < 1e-4f) return false
+        val t = ((c[0] - o[0]) * n[0] + (c[1] - o[1]) * n[1] + (c[2] - o[2]) * n[2]) / denom
+        if (t <= 0f) return false
+        val local = pose.inverse().transformPoint(floatArrayOf(o[0] + t * d[0], o[1] + t * d[1], o[2] + t * d[2]))
+        val zMin = if (placedOnFloor) 0f else -placedHeightM / 2f
+        return kotlin.math.abs(local[0]) <= placedWidthM / 2f && local[2] in zMin..(zMin + placedHeightM)
     }
 
     private fun fillConfig(session: Session, config: Config) {
@@ -368,7 +492,11 @@ class ARCoreManager private constructor(context: Context) {
             )
             // Lit PBR stone with a relief normal map, so the room light rakes across the stones like real cladding.
             // Falls back to the flat unlit image material if the ubershader is unavailable.
-            pendingTexture = runCatching { litStoneMaterial(view, texture, normalMapTexture(view, bitmap), sampler) }
+            val normal = normalMapTexture(view, bitmap)
+            pendingTexture = runCatching { maskedStoneMaterial(view, texture, normal, sampler) }
+                .onFailure { Log.w(TAG, "masked wall material failed, using lit stone", it) }
+                .getOrNull()
+                ?: runCatching { litStoneMaterial(view, texture, normal, sampler) }
                 .onFailure { Log.w(TAG, "lit stone material failed, using unlit", it) }
                 .getOrNull()
                 ?: view.materialLoader.createImageInstance(texture, sampler).twoSided()
@@ -382,6 +510,30 @@ class ARCoreManager private constructor(context: Context) {
     }
 
     private var ubershader: com.google.android.filament.gltfio.UbershaderProvider? = null
+    private var wallMaskedMaterial: com.google.android.filament.Material? = null
+
+    /** Lit, normal-mapped stone clipped to the segmenter's wall mask (assets/materials/wall_masked.filamat). */
+    private fun maskedStoneMaterial(
+        view: ARSceneView, base: Texture, normal: Texture, sampler: com.google.android.filament.TextureSampler,
+    ): MaterialInstance {
+        val material = wallMaskedMaterial
+            ?: view.materialLoader.createMaterial("materials/wall_masked.filamat").also { wallMaskedMaterial = it }
+        val mi = material.createInstance()
+        mi.setParameter("baseColorMap", base, sampler)
+        mi.setParameter("normalMap", normal, sampler)
+        mi.setParameter("emissiveLevel", EMISSIVE_LEVEL)
+        mi.setParameter("useMask", 0f)
+        // Until the first mask arrives, bind a 1x1 "all wall" texture so the sampler is never unbound.
+        val placeholder = Texture.Builder().width(1).height(1).sampler(Texture.Sampler.SAMPLER_2D)
+            .format(Texture.InternalFormat.R8).levels(1).build(view.engine)
+        placeholder.setImage(view.engine, 0, Texture.PixelBufferDescriptor(
+            java.nio.ByteBuffer.allocateDirect(1).put(0xFF.toByte()).also { it.flip() }, Texture.Format.R, Texture.Type.UBYTE,
+        ))
+        mi.setParameter("maskMap", placeholder, sampler)
+        if (maskReady) bindMask(mi)
+        Log.i(TAG, "TEXTURE masked wall material ready")
+        return mi
+    }
 
     private fun litStoneMaterial(
         view: ARSceneView, base: Texture, normal: Texture, sampler: com.google.android.filament.TextureSampler,
@@ -561,6 +713,11 @@ class ARCoreManager private constructor(context: Context) {
         }
         val patchH = texturePatchHeightM
         val patchW = patchH * textureAspect
+        // With the wall mask on, the quad only has to be big enough; the mask draws the true wall outline.
+        if (wallMaskedMaterial != null) {
+            placedWidthM = MASKED_WALL_WIDTH_M
+            placedHeightM = MASKED_WALL_HEIGHT_M
+        }
         val quad = wallQuad(view, placedWidthM, placedHeightM, patchW, patchH, materialForWall(view), placedOnFloor)
         node.addChildNode(quad)
         placedQuad = quad

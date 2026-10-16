@@ -8,3 +8,4 @@
 -dontwarn com.google.android.filament.**
 -dontwarn io.github.sceneview.**
 -dontwarn kotlinx.coroutines.**
+-keep class ai.onnxruntime.** { *; }
