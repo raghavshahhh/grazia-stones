@@ -1,6 +1,6 @@
 """Regenerates every logo / icon asset from the real Grazia logo.
 
-Source: tool/brand/mask_*.png (alpha masks extracted at 300 dpi from the client's 'New Grazia company profile.pdf' cover).
+Source: tool/brand/mask_*.png, cut from tool/brand/source_logo_2026-10.webp (client logo, Oct 2026).
 Run:  python3 tool/make_brand_assets.py   (needs Pillow + numpy)
 """
 import os
@@ -130,4 +130,21 @@ dr.text((520, 205), 'on your wall.', fill=(212, 175, 55), font=f1)
 dr.text((520, 290), 'Browse 35 collections and 95+ designs.', fill=(205, 196, 180), font=f2)
 dr.text((520, 328), 'Calculate. Quote. Sample.', fill=(205, 196, 180), font=f2)
 save(feat.convert('RGB'), 'docs/store-listing/assets/feature_graphic_1024x500.png')
+# 5. Android launch screen emblem (launch_background.xml centres @mipmap/launch_image)
+for d, sc in densities.items():
+    px = round(140 * sc)
+    li = Image.new('RGBA', (px, px), (0, 0, 0, 0))
+    e = colorize(fit(emblem, h=round(px * 0.8)), 'gold')
+    li.alpha_composite(e, ((px - e.width) // 2, (px - e.height) // 2))
+    save(li, f'android/app/src/main/res/mipmap-{d}/launch_image.png')
+
+# 6. web favicon + PWA icons
+save(icon_master(512, 0.54).convert('RGB'), 'web/icons/Icon-512.png')
+save(icon_master(512, 0.54).convert('RGB').resize((192, 192), Image.LANCZOS), 'web/icons/Icon-192.png')
+save(icon_master(512, 0.44).convert('RGB'), 'web/icons/Icon-maskable-512.png')
+save(icon_master(512, 0.44).convert('RGB').resize((192, 192), Image.LANCZOS), 'web/icons/Icon-maskable-192.png')
+save(big.resize((180, 180), Image.LANCZOS), 'web/apple-touch-icon.png')
+save(icon_master(256, 0.6).resize((64, 64), Image.LANCZOS), 'web/favicon.png')
+icon_master(256, 0.6).save(os.path.join(ROOT, 'web/favicon.ico'), sizes=[(16, 16), (32, 32), (48, 48)])
+save(icon_master(512, 0.54), 'assets/brand/grazia-icon.png')
 print('brand assets regenerated')

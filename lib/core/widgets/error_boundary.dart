@@ -41,11 +41,7 @@ class GraziaGlobalErrorWidget extends StatelessWidget {
                       ],
                     ),
                     child: Center(
-                      child: Icon(
-                        Icons.diamond_outlined,
-                        size: 32,
-                        color: palette.primary,
-                      ),
+                      child: Image.asset('assets/brand/grazia-emblem-gold.png', height: 36, fit: BoxFit.contain),
                     ),
                   ),
                   const SizedBox(height: 24),
