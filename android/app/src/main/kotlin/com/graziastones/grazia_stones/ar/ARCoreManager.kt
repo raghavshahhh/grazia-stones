@@ -246,26 +246,32 @@ class ARCoreManager private constructor(context: Context) {
         val seg = segmenter ?: runCatching { WallSegmenter(appContext) }
             .onFailure { segmenterFailed = true; Log.e(TAG, "WallSegmenter unavailable, design will not be clipped", it) }
             .getOrNull()?.also { segmenter = it } ?: return
-        seg.request(frame) { mask -> mainHandler.post { applyMask(view, mask) } }
+        if (frame.camera.trackingState != TrackingState.TRACKING) return
+        // Camera view-projection for this exact frame; the material reprojects the mask through it.
+        val proj = FloatArray(16); val viewM = FloatArray(16); val vp = FloatArray(16)
+        frame.camera.getProjectionMatrix(proj, 0, 0.05f, 100f)
+        frame.camera.getViewMatrix(viewM, 0)
+        Matrix.multiplyMM(vp, 0, proj, 0, viewM, 0)
+        seg.request(frame) { mask -> mainHandler.post { applyMask(view, mask, vp) } }
     }
 
-    /** Uploads the wall mask (lightly smoothed over time to stop edge flicker) and turns clipping on. */
-    private fun applyMask(view: ARSceneView, fresh: ByteArray) {
+    private var maskViewProj = FloatArray(16).also { Matrix.setIdentityM(it, 0) }
+
+    /**
+     * Uploads the wall mask with the camera matrix it was captured under and turns clipping on. No blending
+     * between masks: they come from different camera poses, and the reprojection already keeps them stable.
+     */
+    private fun applyMask(view: ARSceneView, mask: ByteArray, vp: FloatArray) {
         if (sceneView !== view) return
-        val prev = latestMask
-        val mask = if (prev == null) fresh else ByteArray(fresh.size) { i ->
-            (((prev[i].toInt() and 0xFF) + 2 * (fresh[i].toInt() and 0xFF)) / 3).toByte()
-        }
         latestMask = mask
-        val tex = maskTexture ?: Texture.Builder().width(WallSegmenter.OUT_W).height(WallSegmenter.OUT_H)
+        maskViewProj = vp
+        val tex = maskTexture ?: Texture.Builder().width(WallSegmenter.MASK_W).height(WallSegmenter.MASK_H)
             .sampler(Texture.Sampler.SAMPLER_2D).format(Texture.InternalFormat.R8).levels(1).build(view.engine)
             .also { maskTexture = it }
         val buf = java.nio.ByteBuffer.allocateDirect(mask.size).put(mask).also { it.flip() }
         tex.setImage(view.engine, 0, Texture.PixelBufferDescriptor(buf, Texture.Format.R, Texture.Type.UBYTE))
-        if (!maskReady) {
-            maskReady = true
-            pendingTexture?.let { bindMask(it) }
-        }
+        maskReady = true
+        pendingTexture?.let { bindMask(it) }
         val now = android.os.SystemClock.elapsedRealtime()
         if (now - lastSegLogMs > 5000) {
             lastSegLogMs = now
@@ -282,30 +288,31 @@ class ARCoreManager private constructor(context: Context) {
             com.google.android.filament.TextureSampler.MagFilter.LINEAR,
             com.google.android.filament.TextureSampler.WrapMode.CLAMP_TO_EDGE,
         ))
+        mi.setParameter("maskViewProj", MaterialInstance.FloatElement.MAT4, maskViewProj, 0, 1)
         mi.setParameter("useMask", 1f)
     }
 
     /** View-space wall probability (0..1) at a screen pixel, or null before the first mask. */
     private fun wallAt(view: ARSceneView, x: Float, y: Float): Float? {
         val m = latestMask ?: return null
-        val cx = (x / view.width * WallSegmenter.OUT_W).toInt().coerceIn(0, WallSegmenter.OUT_W - 1)
-        val cy = (y / view.height * WallSegmenter.OUT_H).toInt().coerceIn(0, WallSegmenter.OUT_H - 1)
-        return (m[cy * WallSegmenter.OUT_W + cx].toInt() and 0xFF) / 255f
+        val cx = (x / view.width * WallSegmenter.MASK_W).toInt().coerceIn(0, WallSegmenter.MASK_W - 1)
+        val cy = (y / view.height * WallSegmenter.MASK_H).toInt().coerceIn(0, WallSegmenter.MASK_H - 1)
+        return (m[cy * WallSegmenter.MASK_W + cx].toInt() and 0xFF) / 255f
     }
 
     /** The confident wall cell closest to the upper-middle of the screen, in view pixels. */
     private fun wallProbePoint(view: ARSceneView): Pair<Float, Float>? {
         val m = latestMask ?: return null
-        val tx = WallSegmenter.OUT_W / 2f; val ty = WallSegmenter.OUT_H * 0.4f
+        val tx = WallSegmenter.MASK_W / 2f; val ty = WallSegmenter.MASK_H * 0.4f
         var best = -1; var bestD = Float.MAX_VALUE
-        for (y in 0 until WallSegmenter.OUT_H) for (x in 0 until WallSegmenter.OUT_W) {
-            if ((m[y * WallSegmenter.OUT_W + x].toInt() and 0xFF) < 200) continue
+        for (y in 0 until WallSegmenter.MASK_H) for (x in 0 until WallSegmenter.MASK_W) {
+            if ((m[y * WallSegmenter.MASK_W + x].toInt() and 0xFF) < 200) continue
             val d = (x - tx) * (x - tx) + (y - ty) * (y - ty)
-            if (d < bestD) { bestD = d; best = y * WallSegmenter.OUT_W + x }
+            if (d < bestD) { bestD = d; best = y * WallSegmenter.MASK_W + x }
         }
         if (best < 0) return null
-        return ((best % WallSegmenter.OUT_W + 0.5f) / WallSegmenter.OUT_W * view.width) to
-            ((best / WallSegmenter.OUT_W + 0.5f) / WallSegmenter.OUT_H * view.height)
+        return ((best % WallSegmenter.MASK_W + 0.5f) / WallSegmenter.MASK_W * view.width) to
+            ((best / WallSegmenter.MASK_W + 0.5f) / WallSegmenter.MASK_H * view.height)
     }
 
     /** Does the placed design's quad lie under this screen pixel? */

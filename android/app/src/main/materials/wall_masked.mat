@@ -12,6 +12,9 @@ material {
         { type : sampler2d, name : normalMap },
         // Wall probability in VIEW space (0..1, row 0 = top of the screen), from the segmenter.
         { type : sampler2d, name : maskMap },
+        // Camera view-projection at the moment that mask's camera frame was captured. Each fragment is
+        // projected through it, so the mask stays locked to the room while the phone moves.
+        { type : mat4, name : maskViewProj },
         // 1 = clip to the mask, 0 = ignore it (segmenter not ready yet).
         { type : float, name : useMask },
         { type : float, name : emissiveLevel }
@@ -24,9 +27,16 @@ fragment {
         material.normal = texture(materialParams_normalMap, uv).xyz * 2.0 - 1.0;
         prepareMaterial(material);
         float4 base = texture(materialParams_baseColorMap, uv);
-        float2 screen = getNormalizedViewportCoord().xy;
-        float wall = texture(materialParams_maskMap, float2(screen.x, 1.0 - screen.y)).r;
-        float a = mix(1.0, smoothstep(0.35, 0.65, wall), materialParams.useMask);
+        float4 clip = materialParams.maskViewProj * float4(getUserWorldPosition(), 1.0);
+        float wall = 0.0; // outside the last analysed view: unknown, keep hidden until the next mask
+        if (clip.w > 0.0) {
+            float2 ndc = clip.xy / clip.w;
+            float2 muv = float2(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
+            if (muv.x >= 0.0 && muv.x <= 1.0 && muv.y >= 0.0 && muv.y <= 1.0) {
+                wall = texture(materialParams_maskMap, muv).r;
+            }
+        }
+        float a = mix(1.0, smoothstep(0.4, 0.6, wall), materialParams.useMask);
         material.baseColor = float4(base.rgb * a, a);
         material.roughness = 0.85;
         material.metallic = 0.0;

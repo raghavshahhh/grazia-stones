@@ -15,17 +15,20 @@ import kotlin.math.exp
  * Finds the wall pixels in the live camera image, so the stone is drawn only on the wall (not on doors,
  * switchboards, furniture, floor or ceiling). ARCore cannot find plain painted walls; this can.
  *
- * Model: EfficientViT-Seg B1 trained on ADE20K (MIT HAN Lab, Apache-2.0), exported to ONNX at 224x480
- * (portrait, close to the phone's screen aspect). ADE20K class 0 is "wall". Output: 28x60 logits.
+ * Model: EfficientViT-Seg B1 trained on ADE20K (MIT HAN Lab, Apache-2.0), exported to ONNX at 288x640
+ * (portrait, close to the phone's screen aspect). ADE20K class 0 is "wall". Output: 36x80 logits.
  * The mask is produced in VIEW space (row 0 = top of the screen), which is what the wall material samples.
  */
 class WallSegmenter(context: Context) {
     companion object {
         private const val TAG = "WallSegmenter"
-        const val IN_W = 224
-        const val IN_H = 480
-        const val OUT_W = 28
-        const val OUT_H = 60
+        const val IN_W = 288
+        const val IN_H = 640
+        const val OUT_W = 36
+        const val OUT_H = 80
+        // Final mask size after edge-aware upsampling (4x the model output, 1/2 the model input).
+        const val MASK_W = 144
+        const val MASK_H = 320
         private const val CLASSES = 150
         private const val WALL = 0
         private val MEAN = floatArrayOf(0.485f, 0.456f, 0.406f)
@@ -33,7 +36,7 @@ class WallSegmenter(context: Context) {
     }
 
     private val env = OrtEnvironment.getEnvironment()
-    private val session: OrtSession = context.assets.open("models/wall_seg_224x480.onnx").use { input ->
+    private val session: OrtSession = context.assets.open("models/wall_seg_288x640.onnx").use { input ->
         val bytes = input.readBytes()
         // XNNPACK (ARM NEON kernels) is several times faster than ORT's default CPU path on phones.
         runCatching {
@@ -59,7 +62,7 @@ class WallSegmenter(context: Context) {
 
     /**
      * Grabs the current camera image (on the caller's thread: ARCore needs that) and segments it in the
-     * background. [onMask] gets OUT_W x OUT_H wall probabilities (0..255, row 0 = screen top) on the worker.
+     * background. [onMask] gets MASK_W x MASK_H wall probabilities (0..255, row 0 = screen top) on the worker.
      */
     fun request(frame: Frame, onMask: (ByteArray) -> Unit) {
         if (busy) return
@@ -77,14 +80,15 @@ class WallSegmenter(context: Context) {
             image.close()
             worker.execute {
                 try {
-                    val input = toInput(coords, w, h, yBytes, uBytes, vBytes, yRow, uvRow, uvPix)
+                    val luma = FloatArray(IN_W * IN_H)
+                    val input = toInput(coords, w, h, yBytes, uBytes, vBytes, yRow, uvRow, uvPix, luma)
                     val t0 = android.os.SystemClock.elapsedRealtime()
                     val mask = OnnxTensor.createTensor(env, input, longArrayOf(1, 3, IN_H.toLong(), IN_W.toLong())).use { tensor ->
                         session.run(mapOf("image" to tensor)).use { out ->
                             @Suppress("UNCHECKED_CAST")
                             wallProbability((out[0].value as Array<Array<Array<FloatArray>>>)[0])
                         }
-                    }
+                    }.let { refineEdges(it, luma) }
                     lastInferenceMs = android.os.SystemClock.elapsedRealtime() - t0
                     onMask(mask)
                 } catch (e: Exception) {
@@ -106,6 +110,7 @@ class WallSegmenter(context: Context) {
     /** Nearest-pixel YUV -> RGB sampling of the view grid into a normalised NCHW tensor. */
     private fun toInput(
         coords: FloatArray, w: Int, h: Int, yB: ByteArray, uB: ByteArray, vB: ByteArray, yRow: Int, uvRow: Int, uvPix: Int,
+        luma: FloatArray,
     ): FloatBuffer {
         val plane = IN_W * IN_H
         val buf = FloatBuffer.allocate(3 * plane)
@@ -114,6 +119,7 @@ class WallSegmenter(context: Context) {
             val px = coords[i * 2].toInt().coerceIn(0, w - 1)
             val py = coords[i * 2 + 1].toInt().coerceIn(0, h - 1)
             val yy = (yB[py * yRow + px].toInt() and 0xFF).toFloat()
+            luma[i] = yy / 255f
             val uvi = (py / 2) * uvRow + (px / 2) * uvPix
             val u = (uB.getOrElse(uvi) { 128.toByte() }.toInt() and 0xFF) - 128f
             val v = (vB.getOrElse(uvi) { 128.toByte() }.toInt() and 0xFF) - 128f
@@ -137,6 +143,42 @@ class WallSegmenter(context: Context) {
             for (c in 0 until CLASSES) sum += exp(logits[c][y][x] - max)
             val p = exp(logits[WALL][y][x] - max) / sum
             out[y * OUT_W + x] = (p * 255f).toInt().coerceIn(0, 255).toByte()
+        }
+        return out
+    }
+
+    /**
+     * Joint bilateral upsampling: the model's 36x80 mask is blocky, so poster / AC / window edges bled.
+     * Each output pixel blends its 3x3 coarse neighbours, weighted by how close their brightness is to its
+     * own in the camera image, so the mask edge snaps to the real object edge.
+     */
+    private fun refineEdges(coarse: ByteArray, luma: FloatArray): ByteArray {
+        val bx = IN_W / OUT_W; val by = IN_H / OUT_H // input pixels per coarse cell (8x8)
+        val coarseLuma = FloatArray(OUT_W * OUT_H)
+        for (y in 0 until IN_H) for (x in 0 until IN_W) coarseLuma[(y / by) * OUT_W + x / bx] += luma[y * IN_W + x]
+        for (i in coarseLuma.indices) coarseLuma[i] /= (bx * by).toFloat()
+        val fx = IN_W / MASK_W; val fy = IN_H / MASK_H // input pixels per fine pixel (2x2)
+        val inv2s2 = 1f / (2f * 0.08f * 0.08f)
+        val out = ByteArray(MASK_W * MASK_H)
+        for (y in 0 until MASK_H) for (x in 0 until MASK_W) {
+            var g = 0f
+            for (dy in 0 until fy) for (dx in 0 until fx) g += luma[(y * fy + dy) * IN_W + x * fx + dx]
+            g /= (fx * fy).toFloat()
+            // Position in coarse-cell units (cell centres at k + 0.5).
+            val cx = (x + 0.5f) * OUT_W / MASK_W - 0.5f
+            val cy = (y + 0.5f) * OUT_H / MASK_H - 0.5f
+            var num = 0f; var den = 0f
+            for (j in -1..1) for (i in -1..1) {
+                val nx = (cx.toInt() + i).coerceIn(0, OUT_W - 1)
+                val ny = (cy.toInt() + j).coerceIn(0, OUT_H - 1)
+                val ddx = nx - cx; val ddy = ny - cy
+                val spatial = exp(-(ddx * ddx + ddy * ddy) * 0.5f)
+                val dl = coarseLuma[ny * OUT_W + nx] - g
+                val wgt = spatial * exp(-dl * dl * inv2s2)
+                num += wgt * (coarse[ny * OUT_W + nx].toInt() and 0xFF)
+                den += wgt
+            }
+            out[y * MASK_W + x] = (num / den.coerceAtLeast(1e-6f)).toInt().coerceIn(0, 255).toByte()
         }
         return out
     }
