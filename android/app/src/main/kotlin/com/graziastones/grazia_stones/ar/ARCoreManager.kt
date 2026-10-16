@@ -28,7 +28,6 @@ import dev.romainguy.kotlin.math.Float2
 import io.github.sceneview.node.Node
 import io.github.sceneview.node.PlaneNode
 import io.github.sceneview.node.SphereNode
-import java.util.IdentityHashMap
 import java.util.UUID
 import kotlin.math.ceil
 import kotlin.math.sqrt
@@ -53,6 +52,9 @@ class ARCoreManager private constructor(context: Context) {
         const val MIN_HIT_DISTANCE_M = 0.3f
         const val MAX_HIT_DISTANCE_M = 8.0f
         const val APPROX_WALL_DISTANCE_M = 2.0f
+        const val AUTO_PLACE_INTERVAL_MS = 400L
+        // Share of the stone photo shown as-is (emissive) under the lit, normal-mapped shading. Tuned on device.
+        const val EMISSIVE_LEVEL = 0.6f
         /** Ruler: ARCore is only trustworthy for hits in this range; outside it we say 'no surface' instead of guessing. */
         const val MIN_MEASURE_M = 0.10f
         const val MAX_MEASURE_M = 6.0f
@@ -92,12 +94,13 @@ class ARCoreManager private constructor(context: Context) {
         override val lifecycle: Lifecycle get() = registry
     }
 
-    private val lifecycleOwner = ManagerLifecycleOwner()
+    private var lifecycleOwner = ManagerLifecycleOwner()
     private var sceneView: ARSceneView? = null
 
-    // Wall tracking. ARCore's Plane has no stable id, so we mint one the
-    // first time we see each plane instance.
-    private val planeIds = IdentityHashMap<Plane, String>()
+    // Wall tracking. ARCore hands back a NEW Plane wrapper object every frame (equals/hashCode compare the
+    // native handle), so this must be a HashMap: the old IdentityHashMap minted a "new wall" every frame.
+    private val planeIds = HashMap<Plane, String>()
+    private var lastWallVizMs = 0L
     private val wallPlanes = LinkedHashMap<String, Plane>()
     private var selectedWallId: String? = null
     private var wallNode: Node? = null
@@ -138,6 +141,12 @@ class ARCoreManager private constructor(context: Context) {
     // ── View attachment (called by ARCorePlatformView) ─────────────────────
 
     fun attachSceneView(view: ARSceneView) {
+        // The manager is a process singleton but destroy() runs when the Flutter engine detaches. A destroyed
+        // LifecycleRegistry can never be RESUMED again, so reopening the app crashed with "State is 'DESTROYED'".
+        if (lifecycleOwner.registry.currentState == Lifecycle.State.DESTROYED) {
+            lifecycleOwner = ManagerLifecycleOwner()
+            configuredSession = null
+        }
         sceneView = view
         view.lifecycle = lifecycleOwner.lifecycle
         view.planeRenderer.isEnabled = true
@@ -157,6 +166,7 @@ class ARCoreManager private constructor(context: Context) {
             val updated = frame.getUpdatedTrackables(Plane::class.java)
             onPlanesUpdated(updated)
             val camera = frame.camera
+            autoPlace(view, camera.trackingState)
             logTrackingDiagnostics(camera.trackingState, camera.trackingFailureReason, updated.size, view)
             onTrackingStateChanged?.invoke(
                 if (camera.trackingState == TrackingState.TRACKING) "TRACKING"
@@ -166,6 +176,7 @@ class ARCoreManager private constructor(context: Context) {
         view.onTrackingFailureChanged = { reason ->
             onTrackingStateChanged?.invoke(mapTrackingFailure(reason))
         }
+        queuedTexture?.let { (bytes, patch) -> setTexture(bytes, patch) }
         view.onSessionFailed = { e ->
             Log.e(TAG, "AR session failed", e)
             onError?.invoke(e.message ?: "AR session failed")
@@ -173,6 +184,22 @@ class ARCoreManager private constructor(context: Context) {
     }
 
     private var configuredSession: Session? = null
+
+    // Depth finds plain painted walls that plane detection never does. It is only distrusted on OnePlus,
+    // where it returned walls 14-36 m away (see fillConfig).
+    private val depthTrusted = !android.os.Build.MANUFACTURER.equals("OnePlus", ignoreCase = true)
+
+    // Auto-placement: until something is placed, probe the wall at the screen centre a few times a second.
+    private var lastAutoPlaceMs = 0L
+
+    private fun autoPlace(view: ARSceneView, tracking: TrackingState) {
+        if (placedAnchorNode != null || tracking != TrackingState.TRACKING) return
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastAutoPlaceMs < AUTO_PLACE_INTERVAL_MS) return
+        lastAutoPlaceMs = now
+        val res = placeWallAtScreenPoint(view.width / 2f, view.height * 0.4f, realWallOnly = true)
+        if (res?.get("placed") == true) onWallStateChanged?.invoke("LOCKED")
+    }
 
     private fun fillConfig(session: Session, config: Config) {
         config.planeFindingMode = Config.PlaneFindingMode.HORIZONTAL_AND_VERTICAL
@@ -182,7 +209,8 @@ class ARCoreManager private constructor(context: Context) {
         // nonsense: hits 14-36 m away on a wall 2 m from the camera, and ARCore logs
         // `spherical_rectifier.cc RET_CHECK ... unrectified_camera_model_type`. Plane and feature-point hits
         // are real, so those are used; see AR_DIAG for the support flags.
-        config.depthMode = Config.DepthMode.DISABLED
+        config.depthMode = if (depthTrusted && session.isDepthModeSupported(Config.DepthMode.AUTOMATIC))
+            Config.DepthMode.AUTOMATIC else Config.DepthMode.DISABLED
         // Lets a tap on a plain, featureless wall still place the design (last-resort branch of placeWallAtScreenPoint).
         config.instantPlacementMode = Config.InstantPlacementMode.LOCAL_Y_UP
         // Match the overlay's brightness to the room's real lighting.
@@ -274,7 +302,10 @@ class ARCoreManager private constructor(context: Context) {
             } else {
                 wallPlanes[existingId] = plane
                 onWallUpdated?.invoke(existingId, planeToMap(existingId, plane))
-                if (existingId == selectedWallId) {
+                // Each rebuild creates an anchor; refresh the growing wall at most ~2x a second, not every frame.
+                val now = android.os.SystemClock.elapsedRealtime()
+                if (existingId == selectedWallId && now - lastWallVizMs > 500) {
+                    lastWallVizMs = now
                     updateWallVisualization()
                 }
             }
@@ -308,7 +339,11 @@ class ARCoreManager private constructor(context: Context) {
 
     // ── Texture ──────────────────────────────────────────────────────────
 
+    // Dart sends the design before the AR view exists; keep it and apply it on attach instead of dropping it.
+    private var queuedTexture: Pair<ByteArray, Float?>? = null
+
     fun setTexture(imageData: ByteArray, patchHeightM: Float? = null) {
+        queuedTexture = imageData to patchHeightM
         val view = sceneView ?: return
         try {
             val raw = BitmapFactory.decodeByteArray(imageData, 0, imageData.size) ?: return
@@ -325,17 +360,18 @@ class ARCoreManager private constructor(context: Context) {
                 .build(view.engine)
             TextureHelper.setBitmap(view.engine, texture, 0, bitmap)
             texture.generateMipmaps(view.engine)
-            // Unlit image material: shows the catalogue colour as-is. The lit PBR material went near-black
-            // in normal room light because the quad is seen from the side its normal points away from.
             // Plain REPEAT: the trimmed photo tiles cleanly; MIRRORED_REPEAT read as a kaleidoscope.
-            pendingTexture = view.materialLoader.createImageInstance(
-                texture,
-                com.google.android.filament.TextureSampler(
-                    com.google.android.filament.TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR,
-                    com.google.android.filament.TextureSampler.MagFilter.LINEAR,
-                    com.google.android.filament.TextureSampler.WrapMode.REPEAT,
-                ),
-            ).twoSided()
+            val sampler = com.google.android.filament.TextureSampler(
+                com.google.android.filament.TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR,
+                com.google.android.filament.TextureSampler.MagFilter.LINEAR,
+                com.google.android.filament.TextureSampler.WrapMode.REPEAT,
+            )
+            // Lit PBR stone with a relief normal map, so the room light rakes across the stones like real cladding.
+            // Falls back to the flat unlit image material if the ubershader is unavailable.
+            pendingTexture = runCatching { litStoneMaterial(view, texture, normalMapTexture(view, bitmap), sampler) }
+                .onFailure { Log.w(TAG, "lit stone material failed, using unlit", it) }
+                .getOrNull()
+                ?: view.materialLoader.createImageInstance(texture, sampler).twoSided()
             textureAspect = bitmap.width.toFloat() / bitmap.height.coerceAtLeast(1)
             texturePatchHeightM = patchHeightM ?: TEXTURE_PATCH_HEIGHT_M
             updateWallVisualization()
@@ -343,6 +379,84 @@ class ARCoreManager private constructor(context: Context) {
             Log.e(TAG, "setTexture failed", e)
             onError?.invoke("Failed to set texture: ${e.message}")
         }
+    }
+
+    private var ubershader: com.google.android.filament.gltfio.UbershaderProvider? = null
+
+    private fun litStoneMaterial(
+        view: ARSceneView, base: Texture, normal: Texture, sampler: com.google.android.filament.TextureSampler,
+    ): MaterialInstance {
+        val provider = ubershader ?: com.google.android.filament.gltfio.UbershaderProvider(view.engine).also { ubershader = it }
+        val key = com.google.android.filament.gltfio.MaterialProvider.MaterialKey().apply {
+            doubleSided = true
+            hasBaseColorTexture = true
+            hasNormalTexture = true
+            hasEmissiveTexture = true
+        }
+        val uvmap = IntArray(8)
+        key.constrainMaterial(uvmap)
+        val mi = provider.createMaterialInstance(key, uvmap, "grazia_stone", null)
+            ?: error("ubershader returned no instance")
+        val material = mi.material
+        val identity = floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f)
+        fun set(name: String, block: () -> Unit) { if (material.hasParameter(name)) block() }
+        set("baseColorMap") { mi.setParameter("baseColorMap", base, sampler) }
+        set("baseColorIndex") { mi.setParameter("baseColorIndex", 0) }
+        set("baseColorUvMatrix") { mi.setParameter("baseColorUvMatrix", MaterialInstance.FloatElement.MAT3, identity, 0, 1) }
+        set("baseColorFactor") { mi.setParameter("baseColorFactor", 1f, 1f, 1f, 1f) }
+        set("normalMap") { mi.setParameter("normalMap", normal, sampler) }
+        set("normalIndex") { mi.setParameter("normalIndex", 0) }
+        set("normalUvMatrix") { mi.setParameter("normalUvMatrix", MaterialInstance.FloatElement.MAT3, identity, 0, 1) }
+        set("normalScale") { mi.setParameter("normalScale", 1f) }
+        // Part of the photo's own colour is emitted, so a dim room never renders the stone black; the lit part
+        // on top adds the relief shading and follows the room's light.
+        set("emissiveMap") { mi.setParameter("emissiveMap", base, sampler) }
+        set("emissiveIndex") { mi.setParameter("emissiveIndex", 0) }
+        set("emissiveUvMatrix") { mi.setParameter("emissiveUvMatrix", MaterialInstance.FloatElement.MAT3, identity, 0, 1) }
+        set("emissiveFactor") { mi.setParameter("emissiveFactor", EMISSIVE_LEVEL, EMISSIVE_LEVEL, EMISSIVE_LEVEL) }
+        set("emissiveStrength") { mi.setParameter("emissiveStrength", 1f) }
+        set("metallicFactor") { mi.setParameter("metallicFactor", 0f) }
+        set("roughnessFactor") { mi.setParameter("roughnessFactor", 0.85f) } // natural, unpolished stone
+        Log.i(TAG, "TEXTURE lit stone material ready")
+        return mi
+    }
+
+    /**
+     * Tangent-space normal map from the photo's brightness: in stacked-stone cladding the dark joints are the
+     * recessed parts, so luminance is a usable height field. 512 px is plenty for a relief cue.
+     */
+    private fun normalMapTexture(view: ARSceneView, src: android.graphics.Bitmap): Texture {
+        val scale = 512f / maxOf(src.width, src.height)
+        val bmp = if (scale < 1f) android.graphics.Bitmap.createScaledBitmap(
+            src, (src.width * scale).toInt().coerceAtLeast(2), (src.height * scale).toInt().coerceAtLeast(2), true,
+        ) else src
+        val w = bmp.width
+        val h = bmp.height
+        val px = IntArray(w * h).also { bmp.getPixels(it, 0, w, 0, 0, w, h) }
+        val lum = FloatArray(w * h) { i ->
+            val c = px[i]
+            (0.299f * ((c shr 16) and 0xFF) + 0.587f * ((c shr 8) and 0xFF) + 0.114f * (c and 0xFF)) / 255f
+        }
+        val strength = 6f
+        val out = java.nio.ByteBuffer.allocateDirect(w * h * 4)
+        for (y in 0 until h) for (x in 0 until w) {
+            // Wrap at the edges so the map tiles as seamlessly as the photo does.
+            fun l(xx: Int, yy: Int) = lum[((yy + h) % h) * w + (xx + w) % w]
+            val dx = (l(x + 1, y) - l(x - 1, y)) * strength
+            val dy = (l(x, y + 1) - l(x, y - 1)) * strength
+            val inv = 1f / sqrt(dx * dx + dy * dy + 1f)
+            // Image rows run downward while texture V runs upward, hence +dy for the green channel.
+            out.put(((-dx * inv * 0.5f + 0.5f) * 255f).toInt().toByte())
+            out.put(((dy * inv * 0.5f + 0.5f) * 255f).toInt().toByte())
+            out.put(((inv * 0.5f + 0.5f) * 255f).toInt().toByte())
+            out.put(0xFF.toByte())
+        }
+        out.flip()
+        val tex = Texture.Builder().width(w).height(h).sampler(Texture.Sampler.SAMPLER_2D)
+            .format(Texture.InternalFormat.RGBA8).levels(0xFF).build(view.engine)
+        tex.setImage(view.engine, 0, Texture.PixelBufferDescriptor(out, Texture.Format.RGBA, Texture.Type.UBYTE))
+        tex.generateMipmaps(view.engine)
+        return tex
     }
 
     fun clearTexture() {
@@ -374,8 +488,26 @@ class ARCoreManager private constructor(context: Context) {
         val wallId = selectedWallId ?: return
         val plane = wallPlanes[wallId] ?: return
 
-        // centerPose: local Y = plane normal, X/Z span the wall; wallQuad turns the XY quad into that XZ plane.
-        val anchor = plane.createAnchor(plane.centerPose) ?: return
+        // ARCore's vertical-plane centerPose is rolled arbitrarily inside the wall, which drew the overlay
+        // tilted. Re-derive an upright pose and measure the detected polygon along its true horizontal/up axes.
+        val cam = view.frame?.camera?.pose?.translation ?: return
+        val c = plane.centerPose.translation
+        val raw = plane.centerPose.getTransformedAxis(1, 1f)
+        val n = horizontalNormal(raw[0], raw[2], c, cam)
+        val right = floatArrayOf(-n[2], 0f, n[0])
+        val poly = plane.polygon.duplicate().apply { rewind() }
+        var minR = Float.MAX_VALUE; var maxR = -Float.MAX_VALUE; var minU = Float.MAX_VALUE; var maxU = -Float.MAX_VALUE
+        while (poly.remaining() >= 2) {
+            val w = plane.centerPose.transformPoint(floatArrayOf(poly.get(), 0f, poly.get()))
+            val r = (w[0] - c[0]) * right[0] + (w[2] - c[2]) * right[2]
+            val u = w[1] - c[1]
+            minR = minOf(minR, r); maxR = maxOf(maxR, r); minU = minOf(minU, u); maxU = maxOf(maxU, u)
+        }
+        if (maxR <= minR || maxU <= minU) return
+        val mid = floatArrayOf(
+            c[0] + right[0] * (minR + maxR) / 2f, c[1] + (minU + maxU) / 2f, c[2] + right[2] * (minR + maxR) / 2f,
+        )
+        val anchor = plane.createAnchor(uprightWallPose(mid, n)) ?: return
         val anchorNode = AnchorNode(engine = view.engine, anchor = anchor)
 
         val material = pendingTexture
@@ -385,7 +517,7 @@ class ARCoreManager private constructor(context: Context) {
         // stretching one photo over the whole wall, which is what looked fake.
         val patchH = texturePatchHeightM
         val patchW = patchH * textureAspect
-        anchorNode.addChildNode(wallQuad(view, plane.extentX, plane.extentZ, patchW, patchH, material, onFloor = false))
+        anchorNode.addChildNode(wallQuad(view, maxR - minR, maxU - minU, patchW, patchH, material, onFloor = false))
         view.addChildNode(anchorNode)
         wallNode = anchorNode
     }
@@ -410,9 +542,10 @@ class ARCoreManager private constructor(context: Context) {
         uvScale = Float2(w / patchW, h / patchH),
         materialInstance = material,
     ).apply {
-        // +90° about X: quad +Y (texture up) -> anchor +Z (up). Its face then points into the wall, which
-        // is fine because the material is unlit and two-sided.
-        rotation = io.github.sceneview.math.Rotation(x = 90f)
+        // 180° about (0,1,1): quad X -> -X, Y (texture up) -> +Z (up), Z (front face) -> +Y (wall normal, toward
+        // the camera). The front face must face the viewer for lighting to work, and the -X keeps the photo
+        // un-mirrored (viewer's right is anchor -X). A plain +90° about X showed the lit back face (near-black).
+        quaternion = dev.romainguy.kotlin.math.Quaternion(0f, 0.70710677f, 0.70710677f, 0f)
         if (onFloor) position = Position(z = h / 2f)
     }
 
@@ -439,7 +572,7 @@ class ARCoreManager private constructor(context: Context) {
      * Only real ARCore hits are accepted: a vertical Plane inside its polygon, or a Depth/feature point
      * whose surface normal is roughly horizontal (a wall), never floors or ceilings.
      */
-    fun placeWallAtScreenPoint(screenX: Float, screenY: Float): Map<String, Any>? {
+    fun placeWallAtScreenPoint(screenX: Float, screenY: Float, realWallOnly: Boolean = false): Map<String, Any>? {
         val view = sceneView ?: run {
             Log.w(TAG, "PLACE stage=native reason=no_scene_view")
             return null
@@ -467,10 +600,11 @@ class ARCoreManager private constructor(context: Context) {
             val n = h.hitPose.getTransformedAxis(1, 1.0f) // surface normal in world space
             val verdict = when {
                 h.distance < MIN_HIT_DISTANCE_M || h.distance > MAX_HIT_DISTANCE_M -> "implausible_distance"
-                t is com.google.ar.core.DepthPoint -> "depth_untrusted"
+                t is com.google.ar.core.DepthPoint && !depthTrusted -> "depth_untrusted"
+                // A detected wall patch is usually far smaller than the wall, and the wall continues past it.
+                t is Plane && t.type == Plane.Type.VERTICAL -> "ok"
                 t is Plane && !t.isPoseInPolygon(h.hitPose) -> "outside_plane_polygon"
-                t is Plane && t.type != Plane.Type.VERTICAL -> "plane_${t.type}"
-                t is Plane -> "ok"
+                t is Plane -> "plane_${t.type}"
                 t is com.google.ar.core.Point &&
                     t.orientationMode != com.google.ar.core.Point.OrientationMode.ESTIMATED_SURFACE_NORMAL -> "point_without_normal"
                 t is com.google.ar.core.DepthPoint || t is com.google.ar.core.Point ->
@@ -499,6 +633,17 @@ class ARCoreManager private constructor(context: Context) {
             return anchorWall(view, base ?: p, horizontalNormal(n[0], n[2], p, camT), onFloor = base != null,
                 surface = hit.trackable.javaClass.simpleName, dist = hit.distance)
         }
+
+        // 1b. The finger is on a wall ARCore already found, just beyond its small detected patch.
+        rayOnWall(view, frame, screenX, screenY)?.let { (p, n) ->
+            val floorY = floorHeight(view)
+            val base = if (floorY != null && floorY < p[1]) floatArrayOf(p[0], floorY, p[2]) else null
+            return anchorWall(view, base ?: p, horizontalNormal(n[0], n[2], p, camT), onFloor = base != null,
+                surface = "wall_extended", dist = distance(p, camT))
+        }
+
+        // Auto-placement only trusts a real wall surface; the floor-line and guessed branches need a user tap.
+        if (realWallOnly) return mapOf("placed" to false, "reason" to "auto_no_wall")
 
         // 2. The tap is on the floor (or on the floor line): build the wall standing on that line.
         // Plain painted walls give ARCore nothing to track, but floors almost always do.
@@ -545,6 +690,42 @@ class ARCoreManager private constructor(context: Context) {
      */
     private fun rayOnFloor(view: ARSceneView, frame: com.google.ar.core.Frame, sx: Float, sy: Float): FloatArray? {
         val floorY = floorHeight(view) ?: return null
+        val (o, d) = tapRay(view, frame, sx, sy) ?: return null
+        if (d[1] >= -1e-4f) return null // ray points at or above the horizon: it never meets the floor
+        val t = (floorY - o[1]) / d[1]
+        if (t <= 0f) return null
+        val p = floatArrayOf(o[0] + t * d[0], floorY, o[2] + t * d[2])
+        val horiz = sqrt((p[0] - o[0]) * (p[0] - o[0]) + (p[2] - o[2]) * (p[2] - o[2]))
+        return if (horiz in 0.3f..MAX_MEASURE_M) p else null
+    }
+
+    /** Nearest hit of the tap ray on the INFINITE plane of any tracked wall: (point, wall normal). */
+    private fun rayOnWall(
+        view: ARSceneView, frame: com.google.ar.core.Frame, sx: Float, sy: Float,
+    ): Pair<FloatArray, FloatArray>? {
+        val (o, d) = tapRay(view, frame, sx, sy) ?: return null
+        var best: Pair<FloatArray, FloatArray>? = null
+        var bestDist = Float.MAX_VALUE
+        for (plane in view.session?.getAllTrackables(Plane::class.java).orEmpty()) {
+            if (plane.type != Plane.Type.VERTICAL || plane.trackingState != TrackingState.TRACKING ||
+                plane.subsumedBy != null) continue
+            val n = plane.centerPose.getTransformedAxis(1, 1f)
+            val c = plane.centerPose.translation
+            val denom = d[0] * n[0] + d[1] * n[1] + d[2] * n[2]
+            if (kotlin.math.abs(denom) < 1e-4f) continue // ray runs along the wall
+            val t = ((c[0] - o[0]) * n[0] + (c[1] - o[1]) * n[1] + (c[2] - o[2]) * n[2]) / denom
+            if (t <= 0f) continue
+            val p = floatArrayOf(o[0] + t * d[0], o[1] + t * d[1], o[2] + t * d[2])
+            val dist = distance(p, o)
+            if (dist in MIN_HIT_DISTANCE_M..MAX_MEASURE_M && dist < bestDist) { bestDist = dist; best = p to n }
+        }
+        return best
+    }
+
+    /** World-space tap ray (origin on the near plane, unnormalised direction). */
+    private fun tapRay(
+        view: ARSceneView, frame: com.google.ar.core.Frame, sx: Float, sy: Float,
+    ): Pair<FloatArray, FloatArray>? {
         val proj = FloatArray(16); val viewM = FloatArray(16); val vp = FloatArray(16); val inv = FloatArray(16)
         frame.camera.getProjectionMatrix(proj, 0, 0.05f, 100f)
         frame.camera.getViewMatrix(viewM, 0)
@@ -558,13 +739,7 @@ class ARCoreManager private constructor(context: Context) {
             return floatArrayOf(out[0] / out[3], out[1] / out[3], out[2] / out[3])
         }
         val o = unproject(-1f); val f = unproject(1f)
-        val d = floatArrayOf(f[0] - o[0], f[1] - o[1], f[2] - o[2])
-        if (d[1] >= -1e-4f) return null // ray points at or above the horizon: it never meets the floor
-        val t = (floorY - o[1]) / d[1]
-        if (t <= 0f) return null
-        val p = floatArrayOf(o[0] + t * d[0], floorY, o[2] + t * d[2])
-        val horiz = sqrt((p[0] - o[0]) * (p[0] - o[0]) + (p[2] - o[2]) * (p[2] - o[2]))
-        return if (horiz in 0.3f..MAX_MEASURE_M) p else null
+        return o to floatArrayOf(f[0] - o[0], f[1] - o[1], f[2] - o[2])
     }
 
     /**
@@ -590,8 +765,7 @@ class ARCoreManager private constructor(context: Context) {
     ): Map<String, Any> {
         val session = view.session ?: return mapOf("placed" to false, "reason" to "no_session")
         val nx = n[0]; val nz = n[2]
-        // Columns X = (-nz, 0, nx), Y = (nx, 0, nz), Z = (0, 1, 0); X × Y = Z.
-        val pose = Pose(p, quaternionFromRotation(-nz, nx, 0f, 0f, 0f, 1f, nx, nz, 0f))
+        val pose = uprightWallPose(p, n)
         clearPlacedWall()
         val node = AnchorNode(engine = view.engine, anchor = session.createAnchor(pose))
         view.addChildNode(node)
@@ -602,6 +776,12 @@ class ARCoreManager private constructor(context: Context) {
         Log.i(TAG, "PLACE stage=result placed=true surface=$surface onFloor=$onFloor dist=${"%.2f".format(dist)}m " +
             "p=(${"%.2f".format(p[0])},${"%.2f".format(p[1])},${"%.2f".format(p[2])}) n=(${"%.2f".format(nx)},${"%.2f".format(nz)})")
         return mapOf("placed" to true, "surface" to surface, "distanceM" to dist, "onFloor" to onFloor)
+    }
+
+    /** Gravity-aligned wall pose at [p]: columns X = (-nz, 0, nx), Y = normal (nx, 0, nz), Z = up; X × Y = Z. */
+    private fun uprightWallPose(p: FloatArray, n: FloatArray): Pose {
+        val nx = n[0]; val nz = n[2]
+        return Pose(p, quaternionFromRotation(-nz, nx, 0f, 0f, 0f, 1f, nx, nz, 0f))
     }
 
     /** Standard rotation-matrix → (x, y, z, w) quaternion. */

@@ -702,7 +702,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
     switch (_wallState) {
       case 'SEARCHING':
-        label = 'Scan the floor, then tap where the wall meets it';
+        label = 'Point at a wall and move slowly';
         icon = Icons.crop_free_rounded;
         stateColor = const Color(0xFFD4AF37);
         break;
@@ -728,7 +728,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
         stateColor = const Color(0xFFFFB74D);
         break;
       default:
-        label = 'Scan the floor, then tap where the wall meets it';
+        label = 'Point at a wall and move slowly';
         icon = Icons.crop_free_rounded;
         stateColor = const Color(0xFFD4AF37);
     }
