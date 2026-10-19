@@ -157,6 +157,9 @@ class ARCameraView extends StatefulWidget {
     _jsEval('GraziaAR.showWallBoundary($show)');
   }
 
+  /// The AI wall clipping is a native-Android feature; the web view has nothing to switch.
+  static Future<void> setWallClipping(bool enabled) async {}
+
   /// Gallery snapshot is a native-Android feature; the web camera has its own record button.
  static Future<Map<String, String>> captureSnapshot() async =>
      throw UnsupportedError('Photo capture is only available in the mobile app');

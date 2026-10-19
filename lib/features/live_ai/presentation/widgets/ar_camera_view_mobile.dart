@@ -98,6 +98,8 @@ class ARCameraView extends StatefulWidget {
     _controller.add(_ARUpdate(rotation: rotation));
   }
 
+  static Future<void> setWallClipping(bool enabled) => ARNativeChannel.setWallClipping(enabled);
+
   static void showWallBoundary(bool show) {
     _controller.add(_ARUpdate(showBoundary: show));
   }
@@ -309,6 +311,8 @@ class _ARCameraViewState extends State<ARCameraView>
       // Start AR session
       await ARNativeChannel.startSession();
       _nativeARStarted = true;
+      // The native manager is a process singleton: drop the design left by Live AR so the ruler sees a bare wall.
+      if (widget.measureOnly) await ARNativeChannel.clearTexture();
 
       if (mounted) {
         setState(() => _isInitialized = true);

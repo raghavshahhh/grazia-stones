@@ -81,9 +81,12 @@ class ARNativeChannel {
   static Stream<Map<String, dynamic>> get onMeasurementResult => _measurementResultController.stream;
   static Stream<Map<String, dynamic>> get onObstacleDetected => _obstacleDetectedController.stream;
   
-  /// Initialize the platform channel and event listeners
+  static StreamSubscription<dynamic>? _eventSub;
+
+  /// Initialize the platform channel and event listeners. Idempotent: every AR screen calls this.
   static Future<void> initialize() async {
-    _eventChannel.receiveBroadcastStream().listen(_onEvent, onError: _onEventError);
+    if (_eventSub != null) return;
+    _eventSub = _eventChannel.receiveBroadcastStream().listen(_onEvent, onError: _onEventError);
     debugPrint('[ARNativeChannel] Initialized');
   }
   
@@ -320,6 +323,8 @@ class ARNativeChannel {
     } on PlatformException catch (e) {
       debugPrint('[ARNativeChannel] Failed to hit-test wall: ${e.message}');
       return null;
+    } on MissingPluginException {
+      return null; // web / desktop: no native AR, the ruler reports "no surface"
     }
   }
   
@@ -347,6 +352,17 @@ class ARNativeChannel {
   static Future<Map<String, String>> captureSnapshot() async {
     final r = await _channel.invokeMethod('captureSnapshot');
     return Map<String, String>.from(r as Map);
+  }
+
+  /// Clip the placed design to the AI wall mask (true) or show the whole placed wall (false). Android only.
+  static Future<void> setWallClipping(bool enabled) async {
+    try {
+      await _channel.invokeMethod('setWallClipping', {'enabled': enabled});
+    } on PlatformException catch (e) {
+      debugPrint('[ARNativeChannel] setWallClipping failed: ${e.message}');
+    } on MissingPluginException {
+      // iOS / web: no segmenter, nothing to switch
+    }
   }
 
   static Future<void> clearPlacedWall() async {

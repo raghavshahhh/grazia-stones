@@ -240,17 +240,29 @@ module.exports = async (req, res) => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
           body,
+          // Image generation can hang; bound each model so three tries still fit the function budget.
+          signal: AbortSignal.timeout(60_000),
         });
       } catch (_) {
-        continue; // network blip: try the next model
+        continue; // network blip or timeout: try the next model
       }
       if (geminiRes.ok || ![404, 429, 500, 503].includes(geminiRes.status)) break;
     }
 
+    if (!geminiRes) {
+      await refundCredit();
+      res.status(504).json({ error: 'The AI render took too long. Please try again.' });
+      return;
+    }
     if (!geminiRes.ok) {
       const errText = await geminiRes.text().catch(() => '');
       await refundCredit();
-      res.status(502).json({ error: `Gemini request failed: ${geminiRes.status} ${errText.slice(0, 200)}` });
+      // Quota exhaustion is a 429 for the client too, so it shows the real reason instead of a generic failure.
+      const status = geminiRes.status === 429 ? 429 : 502;
+      const message = geminiRes.status === 429
+        ? 'AI render quota is used up for now. Please try again later.'
+        : `AI render failed (upstream ${geminiRes.status}). ${errText.slice(0, 120)}`;
+      res.status(status).json({ error: message });
       return;
     }
 

@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 import 'package:image/image.dart' as img;
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -510,12 +509,10 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
     });
 
     String? generatedB64;
-    String statusNote = 'Quick preview • ${_activeVariant.name} (AI render unavailable, try again shortly)';
-    var fromAi = false;
-    // Set when the server refuses (login needed / limit reached): no fake preview then.
+    String statusNote = 'AI render';
+    // Any failure ends here as a message: the screen never shows a stand-in image as the AI result.
     String? blockedMessage;
 
-    // Start background inference (via Vercel AI proxy or local high-res compositor)
     final inferenceFuture = () async {
       try {
         final roomDataUrl = _jpegDataUrl(_roomBytes!);
@@ -536,24 +533,26 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
           statusNote = left is int && today is int
               ? 'AI render • $left credits left ($today more today)'
               : 'AI render';
-          fromAi = true;
           return;
         }
+        blockedMessage = 'The AI did not return an image. Please try another photo.';
       } on DioException catch (e) {
         final code = e.response?.statusCode;
         final body = e.response?.data;
-        if ((code == 401 || code == 429) && body is Map && body['error'] is String) {
-          blockedMessage = body['error'] as String;
-          return;
-        }
-        debugPrint('[AIStudio] generate-visualization failed, using local preview: $e');
+        final serverMessage = body is Map && body['error'] is String ? body['error'] as String : null;
+        blockedMessage = switch (code) {
+          401 || 429 || 502 || 504 => serverMessage ?? 'AI render is unavailable right now. Please try again.',
+          503 => 'AI Studio is not set up on the server yet. Please contact Grazia support.',
+          413 => 'The photos are too large. Please use smaller images.',
+          _ => e.type == DioExceptionType.connectionTimeout || e.type == DioExceptionType.receiveTimeout
+              ? 'The AI render took too long. Please try again.'
+              : 'Could not reach the AI service. Check your connection and try again.',
+        };
+        debugPrint('[AIStudio] generate-visualization failed ($code): $e');
       } catch (e) {
-        debugPrint('[AIStudio] generate-visualization failed, using local preview: $e');
+        blockedMessage = 'Could not generate the render. Please try again.';
+        debugPrint('[AIStudio] generate-visualization failed: $e');
       }
-
-      // High-precision architectural composite
-      final compositeUrl = await _createLocalCompositeDataUrl();
-      generatedB64 = compositeUrl;
     }();
 
     // Sequence of animated neural synthesis steps matching user's design (0.08 -> 0.43 -> 0.89 -> 1.0)
@@ -607,96 +606,6 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
         _generating = false;
         _error = 'Could not generate preview. Please try another photo.';
       });
-    }
-  }
-
-  Future<String?> _createLocalCompositeDataUrl() async {
-    if (_roomBytes == null || _designBytes == null) return null;
-    try {
-      final roomCodec = await ui.instantiateImageCodec(_roomBytes!);
-      final roomFrame = await roomCodec.getNextFrame();
-      final roomImg = roomFrame.image;
-
-      final designCodec = await ui.instantiateImageCodec(_designBytes!);
-      final designFrame = await designCodec.getNextFrame();
-      final designImg = designFrame.image;
-
-      final recorder = ui.PictureRecorder();
-      final canvas = Canvas(
-        recorder,
-        Rect.fromLTWH(0, 0, roomImg.width.toDouble(), roomImg.height.toDouble()),
-      );
-
-      final rw = roomImg.width.toDouble();
-      final rh = roomImg.height.toDouble();
-
-      // 1. Draw original room base
-      canvas.drawImage(roomImg, Offset.zero, Paint());
-
-      // 2. Compute accurate architectural wall path isolating wall BEHIND furniture
-      final wallPath = _buildArchitecturalWallPath(width: rw, height: rh, label: _roomLabel);
-
-      // 3. Texture tile shader with perspective alignment
-      final shader = ImageShader(
-        designImg,
-        TileMode.repeated,
-        TileMode.repeated,
-        Matrix4.identity().storage,
-      );
-
-      // Save canvas and clip strictly to the vertical wall surface
-      canvas.save();
-      canvas.clipPath(wallPath);
-
-      // 4. Draw texture directly with natural authentic stone color from design
-      final texturePaint = Paint()..shader = shader;
-      canvas.drawPath(wallPath, texturePaint);
-
-      // 5. Draw architectural lighting: ceiling ambient wash + vertical drop-shadow
-      final lightingGradient = ui.Gradient.linear(
-        Offset(0, rh * 0.10),
-        Offset(0, rh * 0.70),
-        [
-          Colors.white.withValues(alpha: 0.15),
-          Colors.transparent,
-          Colors.black.withValues(alpha: 0.35),
-        ],
-        [0.0, 0.45, 1.0],
-      );
-      canvas.drawPath(
-        wallPath,
-        Paint()
-          ..shader = lightingGradient
-          ..blendMode = BlendMode.overlay,
-      );
-
-      // 6. Contact shadow behind furniture backrest (so sofa appears physically in front)
-      if ((_roomLabel ?? '').toLowerCase().contains('living')) {
-        final shadowRect = Rect.fromLTRB(rw * 0.28, rh * 0.63, rw * 0.77, rh * 0.69);
-        final sofaShadow = ui.Gradient.linear(
-          Offset(0, rh * 0.63),
-          Offset(0, rh * 0.69),
-          [Colors.transparent, Colors.black.withValues(alpha: 0.65)],
-        );
-        canvas.drawRect(
-          shadowRect,
-          Paint()
-            ..shader = sofaShadow
-            ..blendMode = BlendMode.multiply,
-        );
-      }
-
-      canvas.restore();
-
-      final picture = recorder.endRecording();
-      final compositeImg = await picture.toImage(roomImg.width, roomImg.height);
-      final byteData = await compositeImg.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) return null;
-
-      final b64 = base64Encode(byteData.buffer.asUint8List());
-      return 'data:image/png;base64,$b64';
-    } catch (_) {
-      return null;
     }
   }
 
@@ -827,55 +736,6 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
         SnackBar(content: Text('WhatsApp share: $e')),
       );
     }
-  }
-
-  Path _buildArchitecturalWallPath({
-    required double width,
-    required double height,
-    required String? label,
-  }) {
-    final path = Path();
-    final norm = (label ?? '').toLowerCase();
-
-    if (norm.contains('living')) {
-      // Living Room: Wall behind sofa (strictly isolates sofa, plant, curtains, and ceiling)
-      path.moveTo(width * 0.28, height * 0.105); // top-left (below ceiling soffit, past wood column & plant)
-      path.lineTo(width, height * 0.105);        // top-right
-      path.lineTo(width, height * 0.84);         // down along right wall to floor
-      path.lineTo(width * 0.77, height * 0.84);  // floor to right sofa armrest
-      path.lineTo(width * 0.77, height * 0.685); // up right sofa edge
-      path.lineTo(width * 0.28, height * 0.685); // across top backrest of sofa
-      path.close();
-    } else if (norm.contains('bedroom')) {
-      // Bedroom: Accent wall behind headboard (isolating bed, headboard, nightstands, and window)
-      path.moveTo(0, height * 0.08);
-      path.lineTo(width * 0.66, height * 0.08);
-      path.lineTo(width * 0.66, height * 0.57);
-      path.lineTo(0, height * 0.57);
-      path.close();
-    } else if (norm.contains('fire')) {
-      // Fireplace: Center chimney column (isolates curved sofa, table, and hearth)
-      path.moveTo(width * 0.515, height * 0.06);
-      path.lineTo(width * 0.885, height * 0.06);
-      path.lineTo(width * 0.885, height * 0.625);
-      path.lineTo(width * 0.515, height * 0.625);
-      path.close();
-    } else if (norm.contains('dining')) {
-      // Dining Suite: Curved architectural column (isolates dining table, chairs, bar)
-      path.moveTo(width * 0.43, height * 0.05);
-      path.lineTo(width * 0.78, height * 0.05);
-      path.lineTo(width * 0.78, height * 0.82);
-      path.lineTo(width * 0.43, height * 0.82);
-      path.close();
-    } else {
-      // User Camera/Gallery Photo: Preserve bottom 36% for furniture/seating/floor, top 10% for ceiling
-      path.moveTo(width * 0.04, height * 0.10);
-      path.lineTo(width * 0.96, height * 0.10);
-      path.lineTo(width * 0.96, height * 0.64);
-      path.lineTo(width * 0.04, height * 0.64);
-      path.close();
-    }
-    return path;
   }
 
   void _scrollToResult() {

@@ -58,6 +58,7 @@ class _SampleHistoryScreenState extends ConsumerState<SampleHistoryScreen> {
       case 'approved':
         return Colors.green.shade600;
       case 'shipped':
+      case 'dispatched': // what the admin status dropdown writes
       case 'processing':
         return Colors.blue.shade600;
       case 'rejected':
@@ -204,6 +205,14 @@ class _SampleHistoryScreenState extends ConsumerState<SampleHistoryScreen> {
                                             fontSize: 11,
                                             color: palette.textSecondary),
                                       ),
+                                      if (s.trackingNumber?.isNotEmpty == true)
+                                        Text(
+                                          'Tracking: ${s.trackingNumber}',
+                                          style: GoogleFonts.inter(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: palette.textPrimary),
+                                        ),
                                     ],
                                   ),
                                 ),

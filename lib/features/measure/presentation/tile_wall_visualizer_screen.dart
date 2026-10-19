@@ -289,8 +289,10 @@ class _TileWallVisualizerScreenState
 
     final widthFt = _widthValue != null ? _toFeet(_widthValue!) : null;
     final heightFt = _heightValue != null ? _toFeet(_heightValue!) : null;
-    final validDimensions =
-        widthFt != null && heightFt != null && widthFt > 0 && heightFt > 0;
+    // Finite and at most 500 ft: "1e309" or "Infinity" used to pass and then crash .ceil() in build
+    final validDimensions = widthFt != null && heightFt != null &&
+        widthFt.isFinite && heightFt.isFinite &&
+        widthFt > 0 && heightFt > 0 && widthFt <= 500 && heightFt <= 500;
 
     final netAreaSqFt = validDimensions ? widthFt * heightFt : 0.0;
     final grossAreaSqFt = netAreaSqFt * (1 + _wastagePercent / 100);
@@ -318,11 +320,16 @@ class _TileWallVisualizerScreenState
       final lenCm = _selectedStone?.lengthCm;
       final widCm = _selectedStone?.widthCm;
       if (lenCm != null && widCm != null && lenCm > 0 && widCm > 0) {
-        final tileWFt = lenCm / 30.48;
-        final tileHFt = widCm / 30.48;
-        columns = (widthFt / tileWFt).ceil().clamp(1, 30);
-        rows = (heightFt / tileHFt).ceil().clamp(1, 40);
-        totalTiles = (columns * rows * (1 + _wastagePercent / 100)).ceil();
+        // "Vertical" stands the tile on its short edge; before this it drew exactly like Stacked
+        final vertical = _layoutPattern == 'vertical';
+        final tileWFt = (vertical ? widCm : lenCm) / 30.48;
+        final tileHFt = (vertical ? lenCm : widCm) / 30.48;
+        // The drawn grid is capped for performance; the quantity must use the real counts
+        final realCols = (widthFt / tileWFt).ceil();
+        final realRows = (heightFt / tileHFt).ceil();
+        columns = realCols.clamp(1, 30);
+        rows = realRows.clamp(1, 40);
+        totalTiles = (realCols * realRows * (1 + _wastagePercent / 100)).ceil();
       } else {
         columns = (widthFt / 1.6).ceil().clamp(2, 20);
         rows = (heightFt / 0.8).ceil().clamp(2, 25);

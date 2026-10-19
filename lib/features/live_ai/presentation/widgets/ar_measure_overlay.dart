@@ -71,6 +71,7 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
   bool _closed =
       false; // Auto mode: the 4 pins form a closed outline (last pin joins the first)
   bool _busy = false;
+  StreamSubscription<String>? _wallStateSub;
 
   // Shutter Flash Animation
   late AnimationController _flashController;
@@ -106,7 +107,7 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
     _ticker = createTicker(_onFrame)..start();
 
     // Listen to native wall tracking state changes
-    ARNativeChannel.onWallStateChanged.listen((state) {
+    _wallStateSub = ARNativeChannel.onWallStateChanged.listen((state) {
       if (!mounted) return;
       setState(() {
         if (state == 'SEARCHING') {
@@ -126,6 +127,7 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
     _frame.dispose();
     _flashController.dispose();
     _reticleController.dispose();
+    _wallStateSub?.cancel();
     ARNativeChannel.clearMeasurement();
     super.dispose();
   }
@@ -398,8 +400,8 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
       'wallWidth': widthFt.toStringAsFixed(2),
       'wallHeight': heightFt.toStringAsFixed(2),
       'wallArea': wallArea.toStringAsFixed(2),
-      'isCalibrated': true,
-      'calibrationUnit': 'ft',
+      'unit': 'ft',
+      'isCalibrated': true, // measured by the user, not a detected-plane estimate
       'totalLengthMeters': _totalMeters,
     };
 
@@ -439,7 +441,8 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
             // 1. Gesture detector for tap-to-measure on screen
             GestureDetector(
               behavior: HitTestBehavior.translucent,
-              onTap: _addPointAtReticle,
+              // Level mode has no pins; a tap there must not add hidden ruler points
+              onTap: _currentMode == _MeasureMode.measure ? _addPointAtReticle : null,
               child: const SizedBox.expand(),
             ),
 

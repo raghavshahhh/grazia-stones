@@ -1,4 +1,9 @@
-// Stone cladding clipped to the wall pixels found by the on-device wall segmenter.
+// Stone cladding on the placed wall quad, clipped to the wall pixels found by the on-device segmenter.
+//  - lit PBR with a normal map from the photo (the same shading the verified "lit stone" ubershader path uses)
+//  - the mask lives in QUAD space (WallMaskAccumulator): R = wall probability, G = room shading / 2, so the
+//    clipping stays put as the phone moves and the stone picks up the wall's real light falloff
+// The earlier parallax-occlusion rewrite of this file rendered as a flat brown moire on a OnePlus NE2211
+// (Adreno) and was dropped; relief can come back once it is verified on hardware.
 // Compile: matc -p mobile -a opengl -o android/app/src/main/assets/materials/wall_masked.filamat wall_masked.mat
 // (matc 1.56.0, the Filament version SceneView 2.3.0 ships.)
 material {
@@ -10,12 +15,12 @@ material {
     parameters : [
         { type : sampler2d, name : baseColorMap },
         { type : sampler2d, name : normalMap },
-        // Wall probability in VIEW space (0..1, row 0 = top of the screen), from the segmenter.
+        // Over the quad (u along the wall, v up from its bottom edge): R = wall probability, G = shading / 2.
         { type : sampler2d, name : maskMap },
-        // Camera view-projection at the moment that mask's camera frame was captured. Each fragment is
-        // projected through it, so the mask stays locked to the room while the phone moves.
-        { type : mat4, name : maskViewProj },
-        // 1 = clip to the mask, 0 = ignore it (segmenter not ready yet).
+        // World -> quad-anchor space, and (width, height, zMin, unused) of the quad in that space.
+        { type : mat4, name : worldToQuad },
+        { type : float4, name : quadSize },
+        // 1 = clip to the mask, 0 = ignore it (no mask yet, or the user switched clipping off).
         { type : float, name : useMask },
         { type : float, name : emissiveLevel }
     ]
@@ -27,16 +32,16 @@ fragment {
         material.normal = texture(materialParams_normalMap, uv).xyz * 2.0 - 1.0;
         prepareMaterial(material);
         float4 base = texture(materialParams_baseColorMap, uv);
-        float4 clip = materialParams.maskViewProj * float4(getUserWorldPosition(), 1.0);
-        float wall = 0.0; // outside the last analysed view: unknown, keep hidden until the next mask
-        if (clip.w > 0.0) {
-            float2 ndc = clip.xy / clip.w;
-            float2 muv = float2(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
-            if (muv.x >= 0.0 && muv.x <= 1.0 && muv.y >= 0.0 && muv.y <= 1.0) {
-                wall = texture(materialParams_maskMap, muv).r;
-            }
-        }
-        float a = mix(1.0, smoothstep(0.4, 0.6, wall), materialParams.useMask);
+
+        float4 q = materialParams.worldToQuad * float4(getUserWorldPosition(), 1.0);
+        float2 muv = float2(q.x / materialParams.quadSize.x + 0.5,
+                            (q.z - materialParams.quadSize.z) / materialParams.quadSize.y);
+        float2 m = texture(materialParams_maskMap, muv).rg;
+        float a = mix(1.0, smoothstep(0.4, 0.6, m.r), materialParams.useMask);
+        // The real room's light falloff and shadows on this wall (camera brightness / wall mean).
+        float shade = mix(1.0, clamp(m.g * 2.0, 0.3, 1.8), materialParams.useMask);
+        base.rgb *= shade;
+
         material.baseColor = float4(base.rgb * a, a);
         material.roughness = 0.85;
         material.metallic = 0.0;

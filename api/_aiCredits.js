@@ -7,7 +7,9 @@ const SIGNUP_CREDITS = 12;
 
 function _config() {
   const url = (process.env.SUPABASE_URL || '').trim();
-  const key = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+  // The Vercel project defines the service key as SUPABASE_SECRET_KEY (Supabase's newer name);
+  // without this fallback every generation returned 503 credits_unavailable.
+  const key = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '').trim();
   return url && key ? { url, key } : null;
 }
 

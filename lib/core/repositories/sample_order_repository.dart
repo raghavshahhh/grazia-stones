@@ -40,6 +40,10 @@ class SampleOrderRepository {
     }
   }
 
+  static final _uuid = RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', caseSensitive: false);
+
+  /// Writes the request to `sample_requests`. Throws when the row could not be saved: the caller must not
+  /// tell the customer the kit is on its way when nothing reached the business.
   Future<SampleOrder> requestSample({
     required String stoneId,
     required String name,
@@ -47,14 +51,17 @@ class SampleOrderRepository {
     required String address,
     required String city,
     required String pincode,
+    String? email,
     String? notes,
     String? stoneName,
   }) async {
     final now = DateTime.now();
     final sampleData = {
       'user_id': _userId,
-      'stone_id': stoneId.startsWith('http') || stoneId.length < 10 ? null : stoneId,
+      // stone_id is a uuid column; anything else (mock ids, image urls) is kept in stone_name only
+      'stone_id': _uuid.hasMatch(stoneId) ? stoneId : null,
       'name': name,
+      'email': email,
       'phone': phone,
       'address': address,
       'city': city,
@@ -66,15 +73,14 @@ class SampleOrderRepository {
     };
 
     SampleOrder sampleOrder;
+    const timeout = Duration(seconds: 20);
 
     // Guests can insert (RLS: "Anyone can create sample requests") but can't
     // read the row back (RLS: select is own-user-only, and a public
     // guest-rows-readable policy would leak every guest's phone/address).
     // So skip the round-trip for guests and build the confirmation locally.
     if (_userId == null) {
-      try {
-        await _sb.client.from('sample_requests').insert(sampleData);
-      } catch (_) {}
+      await _sb.client.from('sample_requests').insert(sampleData).timeout(timeout);
       sampleOrder = SampleOrder(
         id: 'SMP-${now.millisecondsSinceEpoch.toString().substring(7)}',
         stoneId: stoneId,
@@ -87,24 +93,10 @@ class SampleOrderRepository {
         createdAt: now,
       );
     } else {
-      try {
-        final res = await _sb.client.from('sample_requests').insert(sampleData).select().single();
-        sampleOrder = SampleOrder.fromJson(res);
-      } catch (_) {
-        sampleOrder = SampleOrder(
-          id: 'SMP-${now.millisecondsSinceEpoch.toString().substring(7)}',
-          stoneId: stoneId,
-          stoneName: sampleData['stone_name'] as String,
-          name: name,
-          phone: phone,
-          address: address,
-          city: city,
-          pincode: pincode,
-          createdAt: now,
-        );
-      }
+      final res = await _sb.client.from('sample_requests').insert(sampleData).select().single().timeout(timeout);
+      sampleOrder = SampleOrder.fromJson(res);
 
-      // Real notification for logged-in users (guests have no rows to read).
+      // Real notification for logged-in users (guests have no rows to read). Best effort only.
       try {
         await _sb.client.from('notifications').insert({
           'user_id': _userId,

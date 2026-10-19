@@ -9,7 +9,6 @@ import 'package:grazia_stones/core/models/collection.dart';
 import 'package:grazia_stones/core/providers/stone_providers.dart'
     show allStonesProvider, allCollectionsProvider;
 import 'package:grazia_stones/features/aarna_ai/services/aarna_ai_service.dart';
-import 'package:grazia_stones/core/services/mock_data_service.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
@@ -46,6 +45,8 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
   // Id of the answer currently being typed out; its shortcuts/product cards stay hidden until the
   // text is complete, so the answer always lands before the products.
   String? _streamingId;
+  // Bumped on Reset so an in-flight answer or typewriter from the old chat never lands in the new one.
+  int _gen = 0;
   AarnaPose _activeHeroPose = AarnaPose.idle;
 
   final List<_AarnaCapability> _capabilities = const [
@@ -103,7 +104,8 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
   }
 
   void _addInitialGreeting() {
-    final curatedSuites = MockDataService.collections
+    // Real catalogue collections when loaded; no cards (rather than mock ones) otherwise.
+    final curatedSuites = (ref.read(allCollectionsProvider).valueOrNull ?? const <Collection>[])
         .where((c) => c.isListed)
         .take(3)
         .toList();
@@ -142,7 +144,8 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
 
   Future<void> _handleSubmitted(String text) async {
     final trimmed = text.trim();
-    if (trimmed.isEmpty || _isTyping) return;
+    // Also blocked while an answer is still typing out, or two replies would fight over _streamingId
+    if (trimmed.isEmpty || _isTyping || _streamingId != null) return;
 
     _textController.clear();
     HapticFeedback.lightImpact();
@@ -154,6 +157,7 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
       timestamp: DateTime.now(),
     );
 
+    final gen = ++_gen;
     setState(() {
       _messages.add(userMsg);
       _isTyping = true;
@@ -172,9 +176,8 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
             .getStones(limit: 100);
       }
     } catch (_) {}
-    if (catalogue.isEmpty) {
-      catalogue = MockDataService.stones;
-    }
+    // No mock catalogue: mock ids are not DB uuids, so their cards open broken detail/cart pages.
+    // With an empty catalogue Aarna still answers from the server-side catalogue facts, just without cards.
 
     try {
       final colsAsync = ref.read(allCollectionsProvider);
@@ -183,9 +186,6 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
         collections = await ref.read(stoneRepositoryProvider).getCollections();
       }
     } catch (_) {}
-    if (collections.isEmpty) {
-      collections = MockDataService.collections;
-    }
 
     try {
       final aiResponse = await AarnaAIService.instance.askAarna(
@@ -195,7 +195,7 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
         history: _messages,
       );
 
-      if (!mounted) return;
+      if (!mounted || gen != _gen) return;
       final fullText = aiResponse.text;
       final placeholder = aiResponse.copyWith(text: '');
       setState(() {
@@ -213,7 +213,7 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
       while (charIdx < fullText.length && mounted) {
         charIdx = (charIdx + step).clamp(0, fullText.length);
         await Future.delayed(const Duration(milliseconds: 22));
-        if (!mounted) return;
+        if (!mounted || gen != _gen) return;
         setState(() {
           _messages[msgIndex] = placeholder.copyWith(
             text: fullText.substring(0, charIdx),
@@ -221,18 +221,19 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
         });
         _scrollToBottom();
       }
-      if (!mounted) return;
+      if (!mounted || gen != _gen) return;
       setState(() => _streamingId = null);
       _scrollToBottom();
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || gen != _gen) return;
+      // The real reason (busy, offline, not configured) instead of a canned answer pretending to be Aarna
+      final reason = e is AarnaUnavailable ? e.message : 'Aarna could not answer just now. Please try again.';
       setState(() {
         _streamingId = null;
         _messages.add(
           AarnaChatMessage(
             id: DateTime.now().millisecondsSinceEpoch.toString(),
-            text:
-                'Shama kijiye, abhi response generate karne me dikkat aayi. Aap kripya dubara poochiye ya hamare architectural collections explore kijiye.',
+            text: '$reason\n\nMeanwhile, you can explore our collections below.',
             isUser: false,
             timestamp: DateTime.now(),
             recommendedCollections: collections
@@ -359,8 +360,11 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
             tooltip: 'Reset Chat',
             onPressed: () {
               HapticFeedback.lightImpact();
+              _gen++; // drop any answer still in flight for the old chat
               setState(() {
                 _messages.clear();
+                _isTyping = false;
+                _streamingId = null;
                 _addInitialGreeting();
               });
             },
@@ -1604,36 +1608,45 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
     );
   }
 
+  /// The stone Aarna most recently recommended, so the shortcuts open that product, not a blank screen.
+  String? get _contextStoneId {
+    for (final m in _messages.reversed) {
+      if (!m.isUser && m.recommendedStones.isNotEmpty) return m.recommendedStones.first.id;
+    }
+    return null;
+  }
+
   Widget _buildActionShortcuts(LuxuryPalette palette, bool isDark) {
+    final q = _contextStoneId == null ? '' : '?stoneId=${Uri.encodeQueryComponent(_contextStoneId!)}';
     final actions = [
       (
         icon: Icons.view_in_ar_rounded,
         label: 'Live AR',
-        route: '/ar-view',
+        route: '/live-ai$q', // /ar-view redirects and drops the query
         color: const Color(0xFFD4AF37),
       ),
       (
         icon: Icons.inventory_2_outlined,
         label: 'Sample Kit',
-        route: '/samples/request',
+        route: '/sample-order$q',
         color: const Color(0xFFE5A93B),
       ),
       (
         icon: Icons.straighten_rounded,
         label: 'Wall Calc',
-        route: '/wall-calc',
+        route: '/wall-calc$q',
         color: const Color(0xFF81C784),
       ),
       (
         icon: Icons.request_quote_outlined,
         label: 'Get Quote',
-        route: '/quotes/new',
+        route: '/quotes/new$q',
         color: const Color(0xFF64B5F6),
       ),
       (
         icon: Icons.auto_awesome_rounded,
         label: 'AI Studio',
-        route: '/tools',
+        route: '/ai-viz$q',
         color: const Color(0xFFBA68C8),
       ),
     ];

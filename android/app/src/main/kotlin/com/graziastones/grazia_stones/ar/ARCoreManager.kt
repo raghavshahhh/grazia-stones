@@ -54,6 +54,14 @@ class ARCoreManager private constructor(context: Context) {
         const val APPROX_WALL_DISTANCE_M = 2.0f
         const val AUTO_PLACE_INTERVAL_MS = 400L
         const val AUTO_GUESS_AFTER_MS = 2500L
+        // How deep the joints read in the parallax relief (Grazia ledger panels are 25-35 mm thick).
+        const val STONE_RELIEF_M = 0.02f
+        // Larger UV offsets smear the stones into streaks with few march steps on mobile.
+        const val MAX_RELIEF_UV = 0.035f
+        // Below this share of wall pixels over the visible part of the quad the mask is ignored (see bindMask).
+        const val MIN_MASK_COVERAGE = 0.2f
+        // Minimum gap between two segmentation requests (the mask is world-locked, so ~1.5 Hz is plenty).
+        const val SEG_INTERVAL_MS = 600L
         const val MASKED_WALL_WIDTH_M = 8f
         const val MASKED_WALL_HEIGHT_M = 4f
         // Share of the stone photo shown as-is (emissive) under the lit, normal-mapped shading. Tuned on device.
@@ -111,6 +119,8 @@ class ARCoreManager private constructor(context: Context) {
     // so a plain wall works on the first frame instead of waiting for ARCore to find a plane.
     private var placedAnchorNode: AnchorNode? = null
     private var placedQuad: Node? = null
+    // What the current placement rests on ("Plane", "Point", "wall_extended", "floor_line", "approximate").
+    private var placedSurface: String? = null
     private var placedWidthM = PLACED_WALL_WIDTH_M
     private var placedHeightM = PLACED_WALL_HEIGHT_M
     private var placedOnFloor = false
@@ -171,6 +181,7 @@ class ARCoreManager private constructor(context: Context) {
             val camera = frame.camera
             requestWallMask(view, frame)
             autoPlace(view, camera.trackingState)
+            updateQuadTransform()
             logTrackingDiagnostics(camera.trackingState, camera.trackingFailureReason, updated.size, view)
             onTrackingStateChanged?.invoke(
                 if (camera.trackingState == TrackingState.TRACKING) "TRACKING"
@@ -191,7 +202,13 @@ class ARCoreManager private constructor(context: Context) {
 
     // Depth finds plain painted walls that plane detection never does. It is only distrusted on OnePlus,
     // where it returned walls 14-36 m away (see fillConfig).
-    private val depthTrusted = !android.os.Build.MANUFACTURER.equals("OnePlus", ignoreCase = true)
+    // `adb shell setprop debug.grazia.depth 1` re-enables depth on a OnePlus for an on-device re-check.
+    private val depthTrusted = debugProp("debug.grazia.depth") == "1" ||
+        !android.os.Build.MANUFACTURER.equals("OnePlus", ignoreCase = true)
+
+    private fun debugProp(name: String): String? = runCatching {
+        Class.forName("android.os.SystemProperties").getMethod("get", String::class.java).invoke(null, name) as? String
+    }.getOrNull()?.takeIf { it.isNotEmpty() }
 
     // Auto-placement: until something is placed, probe the wall at the screen centre a few times a second.
     private var lastAutoPlaceMs = 0L
@@ -207,6 +224,7 @@ class ARCoreManager private constructor(context: Context) {
      */
     private fun autoPlace(view: ARSceneView, tracking: TrackingState) {
         if (tracking != TrackingState.TRACKING) return
+        if (pendingTexture == null) return // nothing to show (Measure screen): never place the gold placeholder
         val now = android.os.SystemClock.elapsedRealtime()
         if (now - lastAutoPlaceMs < AUTO_PLACE_INTERVAL_MS) return
         lastAutoPlaceMs = now
@@ -215,6 +233,16 @@ class ARCoreManager private constructor(context: Context) {
         val (px, py) = probe ?: (view.width / 2f to view.height * 0.4f)
         if (placedAnchorNode != null) {
             val frame = view.frame ?: return
+            // A guessed-distance placement has the wrong scale; the moment ARCore has real geometry under the
+            // wall, move the design onto it (this is where "tiles the wrong size" came from).
+            if (placedSurface == "approximate" && wallVisible) {
+                val real = placeWallAtScreenPoint(px, py, realWallOnly = true)
+                if (real?.get("placed") == true) {
+                    Log.i(TAG, "AUTO upgraded approximate placement to ${real["surface"]}")
+                    onWallStateChanged?.invoke("LOCKED")
+                    return
+                }
+            }
             if (!wallVisible || placedQuadCovers(view, frame, px, py)) return
             Log.i(TAG, "AUTO wall moved out of the placed design, re-placing")
             clearPlacedWall()
@@ -235,6 +263,7 @@ class ARCoreManager private constructor(context: Context) {
 
     private var segmenter: WallSegmenter? = null
     private var segmenterFailed = false
+    private var lastSegRequestMs = 0L
     private var latestMask: ByteArray? = null
     private var maskTexture: Texture? = null
     @Volatile private var maskReady = false
@@ -247,12 +276,32 @@ class ARCoreManager private constructor(context: Context) {
             .onFailure { segmenterFailed = true; Log.e(TAG, "WallSegmenter unavailable, design will not be clipped", it) }
             .getOrNull()?.also { segmenter = it } ?: return
         if (frame.camera.trackingState != TrackingState.TRACKING) return
+        // Back-to-back segmentation pinned the big cores and drove the OnePlus into thermal throttling
+        // (status 4), which then slowed ARCore and Flutter too; the world-locked mask does not need more.
+        val nowMs = android.os.SystemClock.elapsedRealtime()
+        if (nowMs - lastSegRequestMs < SEG_INTERVAL_MS) return
+        lastSegRequestMs = nowMs
         // Camera view-projection for this exact frame; the material reprojects the mask through it.
         val proj = FloatArray(16); val viewM = FloatArray(16); val vp = FloatArray(16)
         frame.camera.getProjectionMatrix(proj, 0, 0.05f, 100f)
         frame.camera.getViewMatrix(viewM, 0)
         Matrix.multiplyMM(vp, 0, proj, 0, viewM, 0)
-        seg.request(frame) { mask -> mainHandler.post { applyMask(view, mask, vp) } }
+        // Everything the worker needs about the placed quad, captured now (anchors are main-thread objects).
+        val anchor = placedAnchorNode?.anchor?.takeIf { it.trackingState == TrackingState.TRACKING }
+        val quadToWorld = anchor?.let { a -> FloatArray(16).also { a.pose.toMatrix(it, 0) } }
+        val camDist = anchor?.let { a ->
+            val n = a.pose.getTransformedAxis(1, 1f); val c = a.pose.translation; val cam = frame.camera.pose.translation
+            kotlin.math.abs((cam[0] - c[0]) * n[0] + (cam[1] - c[1]) * n[1] + (cam[2] - c[2]) * n[2])
+        } ?: 0f
+        val qw = placedWidthM; val qh = placedHeightM; val zMin = quadZMin()
+        seg.request(frame) { mask, luma ->
+            // Heavy per-texel reprojection stays on the worker so the camera feed never stutters.
+            val bytes = quadToWorld?.let {
+                worldMask.update(mask, luma, WallSegmenter.MASK_W, WallSegmenter.MASK_H, vp, it, qw, qh, zMin, camDist)
+                worldMask.toBytes()
+            }
+            mainHandler.post { applyMask(view, mask, vp, bytes) }
+        }
     }
 
     private var maskViewProj = FloatArray(16).also { Matrix.setIdentityM(it, 0) }
@@ -261,22 +310,25 @@ class ARCoreManager private constructor(context: Context) {
      * Uploads the wall mask with the camera matrix it was captured under and turns clipping on. No blending
      * between masks: they come from different camera poses, and the reprojection already keeps them stable.
      */
-    private fun applyMask(view: ARSceneView, mask: ByteArray, vp: FloatArray) {
+    private fun applyMask(view: ARSceneView, mask: ByteArray, vp: FloatArray, quadMask: ByteArray?) {
         if (sceneView !== view) return
         latestMask = mask
         maskViewProj = vp
-        val tex = maskTexture ?: Texture.Builder().width(WallSegmenter.MASK_W).height(WallSegmenter.MASK_H)
-            .sampler(Texture.Sampler.SAMPLER_2D).format(Texture.InternalFormat.R8).levels(1).build(view.engine)
-            .also { maskTexture = it }
-        val buf = java.nio.ByteBuffer.allocateDirect(mask.size).put(mask).also { it.flip() }
-        tex.setImage(view.engine, 0, Texture.PixelBufferDescriptor(buf, Texture.Format.R, Texture.Type.UBYTE))
         maskReady = true
-        pendingTexture?.let { bindMask(it) }
+        if (quadMask != null && placedAnchorNode != null && worldMask.hasData) {
+            val tex = maskTexture ?: Texture.Builder().width(WallMaskAccumulator.W).height(WallMaskAccumulator.H)
+                .sampler(Texture.Sampler.SAMPLER_2D).format(Texture.InternalFormat.RG8).levels(1).build(view.engine)
+                .also { maskTexture = it }
+            val buf = java.nio.ByteBuffer.allocateDirect(quadMask.size).put(quadMask).also { it.flip() }
+            tex.setImage(view.engine, 0, Texture.PixelBufferDescriptor(buf, Texture.Format.RG, Texture.Type.UBYTE))
+            pendingTexture?.let { bindMask(it) }
+        }
         val now = android.os.SystemClock.elapsedRealtime()
         if (now - lastSegLogMs > 5000) {
             lastSegLogMs = now
             val wall = mask.count { (it.toInt() and 0xFF) > 127 } * 100 / mask.size
-            Log.i(TAG, "SEG wall=$wall% inference=${segmenter?.lastInferenceMs}ms")
+            Log.i(TAG, "SEG wall=$wall% backend=${segmenter?.backend} run=${segmenter?.lastRunMs}ms total=${segmenter?.lastInferenceMs}ms " +
+                "quadCoverage=${"%.2f".format(worldMask.lastCoverage)} useMask=${maskWanted()}")
         }
     }
 
@@ -288,8 +340,35 @@ class ARCoreManager private constructor(context: Context) {
             com.google.android.filament.TextureSampler.MagFilter.LINEAR,
             com.google.android.filament.TextureSampler.WrapMode.CLAMP_TO_EDGE,
         ))
-        mi.setParameter("maskViewProj", MaterialInstance.FloatElement.MAT4, maskViewProj, 0, 1)
-        mi.setParameter("useMask", 1f)
+        // When the segmenter barely sees any wall where ARCore put the design (peeling paint, odd textures,
+        // bad light), clipping would erase the stone entirely; showing it unclipped is the better failure.
+        mi.setParameter("useMask", if (maskWanted()) 1f else 0f)
+    }
+
+    /** User switch for the AI wall clipping (Live AR settings sheet). The segmenter keeps running either way. */
+    @Volatile var wallClippingEnabled = true
+        set(value) {
+            field = value
+            mainHandler.post { pendingTexture?.let { if (it.material.hasParameter("useMask")) bindMask(it) } }
+        }
+
+    private fun maskWanted(): Boolean =
+        wallClippingEnabled && worldMask.hasData && worldMask.lastCoverage >= MIN_MASK_COVERAGE
+
+    private val worldMask = WallMaskAccumulator()
+
+    private fun quadZMin(): Float = if (placedOnFloor) 0f else -placedHeightM / 2f
+
+    /** Keeps the material's world -> quad transform in step with the anchor (ARCore refines it every frame). */
+    private fun updateQuadTransform() {
+        val mi = pendingTexture ?: return
+        if (!mi.material.hasParameter("worldToQuad")) return
+        val anchor = placedAnchorNode?.anchor ?: return
+        val m = FloatArray(16).also { anchor.pose.toMatrix(it, 0) }
+        val inv = FloatArray(16)
+        if (!Matrix.invertM(inv, 0, m, 0)) return
+        mi.setParameter("worldToQuad", MaterialInstance.FloatElement.MAT4, inv, 0, 1)
+        mi.setParameter("quadSize", placedWidthM, placedHeightM, quadZMin(), 0f)
     }
 
     /** View-space wall probability (0..1) at a screen pixel, or null before the first mask. */
@@ -496,17 +575,20 @@ class ARCoreManager private constructor(context: Context) {
                 com.google.android.filament.TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR,
                 com.google.android.filament.TextureSampler.MagFilter.LINEAR,
                 com.google.android.filament.TextureSampler.WrapMode.REPEAT,
-            )
+            ).apply { anisotropy = 8f } // keeps the stone sharp when the wall is seen at an angle
             // Lit PBR stone with a relief normal map, so the room light rakes across the stones like real cladding.
             // Falls back to the flat unlit image material if the ubershader is unavailable.
-            val normal = normalMapTexture(view, bitmap)
-            pendingTexture = runCatching { maskedStoneMaterial(view, texture, normal, sampler) }
+            texturePatchHeightM = patchHeightM ?: TEXTURE_PATCH_HEIGHT_M
+            val (normal, height) = reliefTextures(view, bitmap)
+            // `adb shell setprop debug.grazia.material masked|lit|unlit` forces one material for on-device A/B.
+            val wanted = debugProp("debug.grazia.material") ?: "masked"
+            pendingTexture = (if (wanted == "masked") runCatching { maskedStoneMaterial(view, texture, normal, height, sampler) }
                 .onFailure { Log.w(TAG, "masked wall material failed, using lit stone", it) }
-                .getOrNull()
-                ?: runCatching { litStoneMaterial(view, texture, normal, sampler) }
+                .getOrNull() else null)
+                ?: (if (wanted != "unlit") runCatching { litStoneMaterial(view, texture, normal, sampler) }
                 .onFailure { Log.w(TAG, "lit stone material failed, using unlit", it) }
-                .getOrNull()
-                ?: view.materialLoader.createImageInstance(texture, sampler).twoSided()
+                .getOrNull() else null)
+                ?: view.materialLoader.createImageInstance(texture, sampler).twoSided().also { Log.i(TAG, "TEXTURE unlit material") }
             textureAspect = bitmap.width.toFloat() / bitmap.height.coerceAtLeast(1)
             texturePatchHeightM = patchHeightM ?: TEXTURE_PATCH_HEIGHT_M
             updateWallVisualization()
@@ -521,13 +603,23 @@ class ARCoreManager private constructor(context: Context) {
 
     /** Lit, normal-mapped stone clipped to the segmenter's wall mask (assets/materials/wall_masked.filamat). */
     private fun maskedStoneMaterial(
-        view: ARSceneView, base: Texture, normal: Texture, sampler: com.google.android.filament.TextureSampler,
+        view: ARSceneView, base: Texture, normal: Texture, height: Texture, sampler: com.google.android.filament.TextureSampler,
     ): MaterialInstance {
         val material = wallMaskedMaterial
             ?: view.materialLoader.createMaterial("materials/wall_masked.filamat").also { wallMaskedMaterial = it }
         val mi = material.createInstance()
         mi.setParameter("baseColorMap", base, sampler)
         mi.setParameter("normalMap", normal, sampler)
+        // The parallax-relief material (heightMap / heightScale) rendered as a flat brown moiré on the OnePlus
+        // test phone and was dropped from wall_masked.mat; these stay guarded so an experimental build can add it back.
+        if (material.hasParameter("heightMap")) mi.setParameter("heightMap", height, sampler)
+        if (material.hasParameter("heightScale")) {
+            mi.setParameter("heightScale", (STONE_RELIEF_M / texturePatchHeightM).coerceAtMost(MAX_RELIEF_UV))
+        }
+        Log.i(TAG, "TEXTURE patchHeightM=$texturePatchHeightM aspect=${"%.3f".format(textureAspect)}")
+        val identity = FloatArray(16).also { Matrix.setIdentityM(it, 0) }
+        mi.setParameter("worldToQuad", MaterialInstance.FloatElement.MAT4, identity, 0, 1)
+        mi.setParameter("quadSize", 1f, 1f, 0f, 0f)
         mi.setParameter("emissiveLevel", EMISSIVE_LEVEL)
         mi.setParameter("useMask", 0f)
         // Until the first mask arrives, bind a 1x1 "all wall" texture so the sampler is never unbound.
@@ -581,10 +673,10 @@ class ARCoreManager private constructor(context: Context) {
     }
 
     /**
-     * Tangent-space normal map from the photo's brightness: in stacked-stone cladding the dark joints are the
-     * recessed parts, so luminance is a usable height field. 512 px is plenty for a relief cue.
+     * Height map + matching tangent-space normal map from the photo's brightness: in stacked-stone cladding the
+     * dark joints are the recessed parts, so luminance is a usable height field. 512 px is plenty for relief.
      */
-    private fun normalMapTexture(view: ARSceneView, src: android.graphics.Bitmap): Texture {
+    private fun reliefTextures(view: ARSceneView, src: android.graphics.Bitmap): Pair<Texture, Texture> {
         val scale = 512f / maxOf(src.width, src.height)
         val bmp = if (scale < 1f) android.graphics.Bitmap.createScaledBitmap(
             src, (src.width * scale).toInt().coerceAtLeast(2), (src.height * scale).toInt().coerceAtLeast(2), true,
@@ -596,30 +688,50 @@ class ARCoreManager private constructor(context: Context) {
             val c = px[i]
             (0.299f * ((c shr 16) and 0xFF) + 0.587f * ((c shr 8) and 0xFF) + 0.114f * (c and 0xFF)) / 255f
         }
-        val strength = 6f
-        val out = java.nio.ByteBuffer.allocateDirect(w * h * 4)
+        fun wrap(x: Int, y: Int) = ((y + h) % h) * w + (x + w) % w
+        // Height: lightly blurred brightness, stretched 2nd..98th percentile so every design gets full relief.
+        val blurred = FloatArray(w * h) { i ->
+            val x = i % w; val y = i / w
+            var sum = 0f
+            for (dy in -1..1) for (dx in -1..1) sum += lum[wrap(x + dx, y + dy)]
+            sum / 9f
+        }
+        val sorted = blurred.sortedArray()
+        val lo = sorted[(sorted.size * 0.02f).toInt()]
+        val hi = sorted[(sorted.size * 0.98f).toInt().coerceAtMost(sorted.size - 1)]
+        val range = (hi - lo).coerceAtLeast(1e-3f)
+        val height = FloatArray(w * h) { ((blurred[it] - lo) / range).coerceIn(0f, 1f) }
+
+        val strength = 4f
+        val normalBuf = java.nio.ByteBuffer.allocateDirect(w * h * 4)
+        val heightBuf = java.nio.ByteBuffer.allocateDirect(w * h)
         for (y in 0 until h) for (x in 0 until w) {
-            // Wrap at the edges so the map tiles as seamlessly as the photo does.
-            fun l(xx: Int, yy: Int) = lum[((yy + h) % h) * w + (xx + w) % w]
-            val dx = (l(x + 1, y) - l(x - 1, y)) * strength
-            val dy = (l(x, y + 1) - l(x, y - 1)) * strength
+            val dx = (height[wrap(x + 1, y)] - height[wrap(x - 1, y)]) * strength
+            val dy = (height[wrap(x, y + 1)] - height[wrap(x, y - 1)]) * strength
             val inv = 1f / sqrt(dx * dx + dy * dy + 1f)
             // Image rows run downward while texture V runs upward, hence +dy for the green channel.
-            out.put(((-dx * inv * 0.5f + 0.5f) * 255f).toInt().toByte())
-            out.put(((dy * inv * 0.5f + 0.5f) * 255f).toInt().toByte())
-            out.put(((inv * 0.5f + 0.5f) * 255f).toInt().toByte())
-            out.put(0xFF.toByte())
+            normalBuf.put(((-dx * inv * 0.5f + 0.5f) * 255f).toInt().toByte())
+            normalBuf.put(((dy * inv * 0.5f + 0.5f) * 255f).toInt().toByte())
+            normalBuf.put(((inv * 0.5f + 0.5f) * 255f).toInt().toByte())
+            normalBuf.put(0xFF.toByte())
+            heightBuf.put((height[y * w + x] * 255f).toInt().toByte())
         }
-        out.flip()
-        val tex = Texture.Builder().width(w).height(h).sampler(Texture.Sampler.SAMPLER_2D)
+        normalBuf.flip(); heightBuf.flip()
+        val normal = Texture.Builder().width(w).height(h).sampler(Texture.Sampler.SAMPLER_2D)
             .format(Texture.InternalFormat.RGBA8).levels(0xFF).build(view.engine)
-        tex.setImage(view.engine, 0, Texture.PixelBufferDescriptor(out, Texture.Format.RGBA, Texture.Type.UBYTE))
-        tex.generateMipmaps(view.engine)
-        return tex
+        normal.setImage(view.engine, 0, Texture.PixelBufferDescriptor(normalBuf, Texture.Format.RGBA, Texture.Type.UBYTE))
+        normal.generateMipmaps(view.engine)
+        val heightTex = Texture.Builder().width(w).height(h).sampler(Texture.Sampler.SAMPLER_2D)
+            .format(Texture.InternalFormat.R8).levels(0xFF).build(view.engine)
+        heightTex.setImage(view.engine, 0, Texture.PixelBufferDescriptor(heightBuf, Texture.Format.R, Texture.Type.UBYTE))
+        heightTex.generateMipmaps(view.engine)
+        return normal to heightTex
     }
 
     fun clearTexture() {
         pendingTexture = null
+        clearPlacedWall() // the placed quad keeps its old material instance otherwise
+        worldMask.reset()
         updateWallVisualization()
     }
 
@@ -725,6 +837,8 @@ class ARCoreManager private constructor(context: Context) {
             placedWidthM = MASKED_WALL_WIDTH_M
             placedHeightM = MASKED_WALL_HEIGHT_M
         }
+        Log.i(TAG, "QUAD ${placedWidthM}x${placedHeightM}m patch=${"%.2f".format(patchW)}x${"%.2f".format(patchH)}m " +
+            "uvScale=${"%.1f".format(placedWidthM / patchW)}x${"%.1f".format(placedHeightM / patchH)} material=${if (pendingTexture != null) "stone" else "placeholder"}")
         val quad = wallQuad(view, placedWidthM, placedHeightM, patchW, patchH, materialForWall(view), placedOnFloor)
         node.addChildNode(quad)
         placedQuad = quad
@@ -931,9 +1045,12 @@ class ARCoreManager private constructor(context: Context) {
         val nx = n[0]; val nz = n[2]
         val pose = uprightWallPose(p, n)
         clearPlacedWall()
+        worldMask.reset()
+        pendingTexture?.let { if (it.material.hasParameter("useMask")) it.setParameter("useMask", 0f) }
         val node = AnchorNode(engine = view.engine, anchor = session.createAnchor(pose))
         view.addChildNode(node)
         placedAnchorNode = node
+        placedSurface = surface
         placedOnFloor = onFloor
         clearWallNode() // a placed wall replaces any plane-based overlay
         rebuildPlacedQuad(view)
@@ -963,6 +1080,7 @@ class ARCoreManager private constructor(context: Context) {
 
     fun clearPlacedWall() {
         placedQuad = null
+        placedSurface = null
         placedAnchorNode?.let {
             sceneView?.removeChildNode(it)
             it.destroy()
@@ -996,6 +1114,14 @@ class ARCoreManager private constructor(context: Context) {
                     val name = "Grazia_AR_" + java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
                     val cacheFile = java.io.File(appContext.cacheDir, "$name.jpg")
                     cacheFile.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 92, it) }
+
+                    // RELATIVE_PATH / IS_PENDING are API 29+. Older Android needs WRITE_EXTERNAL_STORAGE for the
+                    // gallery, which the app does not ask for: the photo is still saved for Share (uri = "").
+                    if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
+                        Log.i(TAG, "SNAPSHOT saved to cache only (API ${android.os.Build.VERSION.SDK_INT})")
+                        handler.post { done(mapOf("uri" to "", "path" to cacheFile.absolutePath), null) }
+                        return@Thread
+                    }
 
                     val values = android.content.ContentValues().apply {
                         put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, "$name.jpg")
@@ -1369,34 +1495,11 @@ class ARCoreManager private constructor(context: Context) {
         val wastage = ceil(baseQuantity * wastagePercent / 100.0).toInt()
         val recommendedQuantity = baseQuantity + wastage
 
-        var displayWallWidth = wallWidthM
-        var displayWallHeight = wallHeightM
-        var displayUnit = tileUnit
-        when (tileUnit) {
-            "ft" -> {
-                displayWallWidth = wallWidthM / 0.3048f
-                displayWallHeight = wallHeightM / 0.3048f
-            }
-            "in" -> {
-                displayWallWidth = wallWidthM / 0.0254f
-                displayWallHeight = wallHeightM / 0.0254f
-            }
-            "cm" -> {
-                displayWallWidth = wallWidthM * 100f
-                displayWallHeight = wallHeightM * 100f
-                displayUnit = "cm"
-            }
-            "mm" -> {
-                displayWallWidth = wallWidthM * 1000f
-                displayWallHeight = wallHeightM * 1000f
-                displayUnit = "mm"
-            }
-            else -> displayUnit = "m"
-        }
-
+        // Every length in metres and every area in m² ("unit"), whatever unit the tile size came in: mixing
+        // display units with m² areas made the Flutter panel label m² as mm² and under-price the wall 10x.
         return mapOf(
-            "wallWidth" to displayWallWidth,
-            "wallHeight" to displayWallHeight,
+            "wallWidth" to wallWidthM,
+            "wallHeight" to wallHeightM,
             "wallArea" to wallAreaM2,
             "tileWidth" to tileWidthM,
             "tileHeight" to tileHeightM,
@@ -1404,9 +1507,7 @@ class ARCoreManager private constructor(context: Context) {
             "baseQuantity" to baseQuantity,
             "wastagePercent" to wastagePercent,
             "recommendedQuantity" to recommendedQuantity,
-            "unit" to displayUnit,
-            "isCalibrated" to (pixelsPerMeter > 0),
-            "calibrationUnit" to calibrationUnit,
+            "unit" to "m",
         )
     }
 

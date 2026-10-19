@@ -8,6 +8,8 @@ class SampleOrder {
   final String city;
   final String pincode;
   final String status;
+  /// Courier AWB typed in by the admin once the kit ships; null until then.
+  final String? trackingNumber;
   final DateTime createdAt;
 
   const SampleOrder({
@@ -20,6 +22,7 @@ class SampleOrder {
     required this.city,
     required this.pincode,
     this.status = 'Pending',
+    this.trackingNumber,
     required this.createdAt,
   });
 
@@ -33,6 +36,7 @@ class SampleOrder {
     city: json['city']?.toString() ?? '',
     pincode: json['pincode']?.toString() ?? '',
     status: json['status']?.toString() ?? 'Pending',
+    trackingNumber: (json['tracking_number'] ?? json['trackingNumber'])?.toString(),
     createdAt: DateTime.tryParse((json['created_at'] ?? json['createdAt'])?.toString() ?? '') ?? DateTime.now(),
   );
 
@@ -46,6 +50,7 @@ class SampleOrder {
     'city': city,
     'pincode': pincode,
     'status': status,
+    'trackingNumber': trackingNumber,
     'createdAt': createdAt.toIso8601String(),
   };
 }

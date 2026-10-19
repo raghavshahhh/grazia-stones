@@ -271,6 +271,10 @@ class ARCorePlugin : FlutterPlugin, MethodCallHandler, StreamHandler {
                 arCoreManager?.clearPlacedWall()
                 result.success(null)
             }
+            "setWallClipping" -> {
+                arCoreManager?.wallClippingEnabled = call.argument<Boolean>("enabled") ?: true
+                result.success(null)
+            }
             "stopCamera" -> {
                 arCoreManager?.pauseSession()
                 result.success(null)

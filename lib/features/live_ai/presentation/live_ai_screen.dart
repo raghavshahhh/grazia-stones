@@ -1,6 +1,7 @@
 import 'package:grazia_stones/core/data/catalogue_specs.dart';
 import 'dart:async';
 import 'dart:ui';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -62,13 +63,9 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
   String _wallState = 'SEARCHING';
   Timer? _wallStateTimer;
 
-  // Calibration
-  bool _calibrationMode = false;
-  String _calibrationUnit = 'ft';
-  String? _calibrationError;
-
   // Texture controls
   double _textureOpacity = 0.96;
+  bool _aiClipping = true;
   double _textureScale = 1.0;
 
   // Quantity calculation result
@@ -76,7 +73,6 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
   // Controllers
   late PageController _stonePageController;
-  final _calibrationLengthController = TextEditingController();
 
   @override
   void initState() {
@@ -123,7 +119,6 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
   @override
   void dispose() {
     _stonePageController.dispose();
-    _calibrationLengthController.dispose();
     _wallStateTimer?.cancel();
     super.dispose();
   }
@@ -179,7 +174,12 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
       final saved = await ARCameraView.captureSnapshot();
       if (!mounted) return;
       setState(() => _lastCapturePath = saved['path']);
-      LuxuryToast.show(context, message: 'Saved to Gallery (Pictures/Grazia). Tap Share to send it.');
+      // Android 9 and older cannot write to the gallery without a storage permission; the photo is still shareable.
+      final inGallery = (saved['uri'] ?? '').isNotEmpty;
+      LuxuryToast.show(
+        context,
+        message: inGallery ? 'Saved to Gallery (Pictures/Grazia). Tap Share to send it.' : 'Photo ready. Tap Share to send it.',
+      );
     } on Object catch (e) {
       if (!mounted) return;
       final msg = e is PlatformException ? (e.message ?? 'Capture failed') : 'Capture failed';
@@ -458,15 +458,16 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
   // ── Wall Selection ────────────────────────────────────────────────────────
 
-  void _refreshWalls() async {
+  Future<void> _refreshWalls() async {
     final walls = await ARCameraView.getWalls();
     if (walls != null && mounted) {
       setState(() => _detectedWalls = walls);
     }
   }
 
-  void _enterWallSelection() {
-    _refreshWalls();
+  Future<void> _enterWallSelection() async {
+    await _refreshWalls();
+    if (!mounted) return;
     if (_detectedWalls.length > 1) {
       setState(() => _selectingWall = true);
     } else if (_detectedWalls.length == 1) {
@@ -478,46 +479,6 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     ARCameraView.selectWall(wallId);
     setState(() => _selectingWall = false);
     _refreshWalls();
-  }
-
-  // ── Calibration ──────────────────────────────────────────────────────────
-
-  void _startCalibration() {
-    if (!_cameraReady) return;
-    ARCameraView.startCalibration(unit: _calibrationUnit);
-    setState(() {
-      _calibrationMode = true;
-      _calibrationError = null;
-      _calibrationLengthController.clear();
-    });
-  }
-
-  Future<void> _finishCalibration() async {
-    final length = double.tryParse(_calibrationLengthController.text.trim());
-    if (length == null || length <= 0) {
-      setState(() => _calibrationError = 'Please enter a number greater than 0');
-      return;
-    }
-    final success = await ARCameraView.finishCalibration(length);
-    if (mounted) {
-      setState(() {
-        _calibrationMode = false;
-        _calibrationError = null;
-      });
-      if (success) {
-        _calculateQuantity();
-        LuxuryToast.show(
-          context,
-          message: 'Wall calibrated successfully! Accurate tile quantities enabled.',
-        );
-      } else {
-        LuxuryToast.show(
-          context,
-          message: 'Calibration could not compute reference points. Using standard estimate.',
-          isError: true,
-        );
-      }
-    }
   }
 
   // ── Quantity Calculation ─────────────────────────────────────────────────
@@ -543,23 +504,19 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     if (dims == null) return;
     final (tileWidth, tileHeight) = dims;
 
-    // Use calibration-aware calculation
-    final calibration = await ARCameraView.getCalibration();
-    final isCalibrated = calibration != null && calibration['pixelsPerUnit'] != null;
-
+    // ARCore/ARKit anchors are already metric; the wall size is the part of the plane detected so far.
     final result = await ARCameraView.calculateTileQuantity(
       tileWidth: tileWidth,
       tileHeight: tileHeight,
       tileUnit: 'mm',
       wastagePercent: 15.0,
     );
-
-    if (result != null && mounted) {
-      // Add calibration status to result
-      result['isCalibrated'] = isCalibrated;
-      result['calibrationUnit'] = isCalibrated ? calibration['unit'] : 'mm';
-      setState(() => _quantityResult = result);
+    if (!mounted) return;
+    if (result == null) {
+      LuxuryToast.show(context, message: 'No wall detected yet. Move your phone slowly across the wall, then try again.');
+      return;
     }
+    setState(() => _quantityResult = result);
   }
 
   // ── Save Design ─────────────────────────────────────────────────────────────
@@ -625,7 +582,6 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     final isOverlayActive = _measureMode ||
         _adjustingCorners ||
         _selectingWall ||
-        _calibrationMode ||
         _quantityResult != null;
 
     return Scaffold(
@@ -679,9 +635,6 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
           // 7. Wall selection overlay (when multiple walls detected) — only when camera is ready
           if (_selectingWall && _cameraReady) _buildWallSelectionOverlay(),
-
-          // 8. Calibration overlay — only when camera is ready
-          if (_calibrationMode && _cameraReady) _buildCalibrationOverlay(),
 
           // 9. Quantity result display
           if (_quantityResult != null) _buildQuantityDisplay(),
@@ -876,224 +829,18 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
   // ── Calibration Overlay ──────────────────────────────────────────────────
 
-  Widget _buildCalibrationOverlay() {
-    final lengthVal = double.tryParse(_calibrationLengthController.text.trim());
-    final bool canFinish = lengthVal != null && lengthVal > 0;
-
-    return Positioned.fill(
-      child: Container(
-        color: Colors.black.withValues(alpha: 0.75),
-        child: Center(
-          child: SingleChildScrollView(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 24),
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: const Color(0xFF141414),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.goldWarm.withValues(alpha: 0.35), width: 1),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.5),
-                    blurRadius: 24,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: AppColors.goldWarm.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(Icons.straighten_rounded, color: AppColors.goldWarm, size: 20),
-                      ),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Text(
-                          'Calibrate Wall Scale',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 17,
-                            fontWeight: FontWeight.w700,
-                            fontFamily: 'Inter',
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Tap two points on a known reference (e.g. door width, baseboard, tile height), then enter its real dimension below.',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.7),
-                      fontSize: 13,
-                      height: 1.4,
-                      fontFamily: 'Inter',
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-
-                  // Segmented unit picker
-                  Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      children: ['ft', 'm', 'in', 'cm'].map((u) {
-                        final isSelected = _calibrationUnit == u;
-                        return Expanded(
-                          child: GestureDetector(
-                            onTap: () {
-                              HapticFeedback.selectionClick();
-                              setState(() => _calibrationUnit = u);
-                            },
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              decoration: BoxDecoration(
-                                color: isSelected ? AppColors.goldWarm : Colors.transparent,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              alignment: Alignment.center,
-                              child: Text(
-                                u.toUpperCase(),
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: isSelected ? Colors.black : Colors.white.withValues(alpha: 0.7),
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Real Length Input
-                  TextField(
-                    controller: _calibrationLengthController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-                    onChanged: (v) {
-                      final parsed = double.tryParse(v.trim());
-                      setState(() {
-                        if (v.trim().isEmpty) {
-                          _calibrationError = null;
-                        } else if (parsed == null || parsed <= 0) {
-                          _calibrationError = 'Please enter a number greater than 0';
-                        } else {
-                          _calibrationError = null;
-                        }
-                      });
-                    },
-                    decoration: InputDecoration(
-                      labelText: 'Known Dimension',
-                      labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
-                      suffixText: _calibrationUnit,
-                      suffixStyle: const TextStyle(color: AppColors.goldWarm, fontWeight: FontWeight.bold),
-                      filled: true,
-                      fillColor: Colors.white.withValues(alpha: 0.06),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: _calibrationError != null
-                              ? const Color(0xFFE57373)
-                              : Colors.white.withValues(alpha: 0.15),
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: _calibrationError != null
-                              ? const Color(0xFFE57373)
-                              : AppColors.goldWarm,
-                          width: 1.5,
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (_calibrationError != null) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      _calibrationError!,
-                      style: const TextStyle(
-                        color: Color(0xFFE57373),
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 20),
-
-                  // Action Buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () {
-                            HapticFeedback.selectionClick();
-                            setState(() {
-                              _calibrationMode = false;
-                              _calibrationError = null;
-                            });
-                          },
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.white.withValues(alpha: 0.8),
-                            side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          child: const Text('Cancel'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: canFinish ? _finishCalibration : null,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.goldWarm,
-                            disabledBackgroundColor: AppColors.goldWarm.withValues(alpha: 0.25),
-                            foregroundColor: Colors.black,
-                            disabledForegroundColor: Colors.black.withValues(alpha: 0.4),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          child: const Text(
-                            'Calibrate',
-                            style: TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   // ── Quantity Display ─────────────────────────────────────────────────────
+
+  static String _num(dynamic v) => v is num ? v.toStringAsFixed(2) : '$v';
 
   Widget _buildQuantityDisplay() {
     final r = _quantityResult!;
-    final isCalibrated = r['isCalibrated'] == true;
-    final unit = r['unit']?.toString() ?? 'mm';
-    final calibrationUnit = r['calibrationUnit']?.toString() ?? unit;
-    
+    // true when the user measured the wall with the AR ruler; false for the plane ARCore has detected so far
+    final isMeasured = r['isCalibrated'] == true;
+    // Both producers send every length in [unit]: the AR ruler in ft, the native detected plane in m.
+    final unit = r['unit']?.toString() ?? 'm';
+    final sqFtPerAreaUnit = switch (unit) { 'm' => 10.7639, 'ft' => 1.0, _ => 0.0 };
+
     return Positioned(
       bottom: MediaQuery.of(context).padding.bottom + 100,
       left: 16,
@@ -1121,44 +868,54 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: isCalibrated ? Colors.green.withValues(alpha: 0.2) : Colors.orange.withValues(alpha: 0.2),
+                    color: isMeasured ? Colors.green.withValues(alpha: 0.2) : Colors.orange.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(4),
                     border: Border.all(
-                      color: isCalibrated ? Colors.green : Colors.orange,
+                      color: isMeasured ? Colors.green : Colors.orange,
                       width: 0.5,
                     ),
                   ),
                   child: Text(
-                    isCalibrated ? 'CALIBRATED ($calibrationUnit)' : 'ESTIMATED ($unit)',
+                    isMeasured ? 'MEASURED ($unit)' : 'DETECTED SO FAR ($unit)',
                     style: TextStyle(
                       fontFamily: 'Inter',
                       fontSize: 9,
                       fontWeight: FontWeight.w700,
-                      color: isCalibrated ? Colors.green : Colors.orange,
+                      color: isMeasured ? Colors.green : Colors.orange,
                     ),
                   ),
+                ),
+                const Spacer(),
+                IconButton(
+                  onPressed: () => setState(() => _quantityResult = null),
+                  icon: const Icon(Icons.close_rounded, color: Colors.white70, size: 20),
+                  tooltip: 'Close',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            _buildQuantityRow('Wall Size', '${r['wallWidth']} × ${r['wallHeight']} $unit'),
-            _buildQuantityRow('Wall Area', '${r['wallArea']} $unit²'),
+            _buildQuantityRow('Wall Size', '${_num(r['wallWidth'])} × ${_num(r['wallHeight'])} $unit'),
+            _buildQuantityRow('Wall Area', '${_num(r['wallArea'])} $unit²'),
             if (r['tileWidth'] != null) ...[
-              _buildQuantityRow('Tile Size', '${r['tileWidth']} × ${r['tileHeight']} $unit'),
-              _buildQuantityRow('Tile Area', '${r['tileArea']} $unit²'),
-            ] else ...[
-              _buildQuantityRow('Tile Area', '${r['tileArea']} $unit²'),
+              _buildQuantityRow('Tile Size', '${_num(r['tileWidth'])} × ${_num(r['tileHeight'])} $unit'),
+              _buildQuantityRow('Tile Area', '${_num(r['tileArea'])} $unit²'),
+            ] else if (r['tileArea'] != null) ...[
+              _buildQuantityRow('Tile Area', '${_num(r['tileArea'])} $unit²'),
             ],
-            _buildQuantityRow('Base Quantity', '${r['baseQuantity']} tiles'),
-            _buildQuantityRow('Wastage', '${r['wastagePercent']}%'),
-            _buildQuantityRow('Recommended', '${r['recommendedQuantity']} tiles', highlight: true),
+            if (r['baseQuantity'] != null) _buildQuantityRow('Base Quantity', '${r['baseQuantity']} tiles'),
+            if (r['wastagePercent'] != null) _buildQuantityRow('Wastage', '${_num(r['wastagePercent'])}%'),
+            if (r['recommendedQuantity'] != null)
+              _buildQuantityRow('Recommended', '${r['recommendedQuantity']} tiles', highlight: true),
             const SizedBox(height: 12),
-            if (_selectedStone != null) () {
+            if (_selectedStone != null && sqFtPerAreaUnit > 0) () {
               final rawArea = r['wallArea'];
               final areaVal = rawArea is num ? rawArea.toDouble() : (double.tryParse(rawArea?.toString() ?? '') ?? 0.0);
               final rawWastage = r['wastagePercent'];
               final wastageVal = rawWastage is num ? rawWastage.toDouble() : (double.tryParse(rawWastage?.toString() ?? '') ?? 10.0);
-              final cost = _selectedStone!.pricePerSqFt * areaVal * (1 + wastageVal / 100);
+              // pricePerSqFt needs the area in sq ft whatever unit the producer used
+              final cost = _selectedStone!.pricePerSqFt * areaVal * sqFtPerAreaUnit * (1 + wastageVal / 100);
               return Text(
                 'Est. Cost: ₹${cost.toStringAsFixed(0)}',
                 style: const TextStyle(color: AppColors.goldWarm, fontSize: 14, fontWeight: FontWeight.w600, fontFamily: 'Inter'),
@@ -1650,7 +1407,8 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                           label: 'Measure Wall',
                           onTap: () {
                             HapticFeedback.selectionClick();
-                            _startCalibration();
+                            // The AR ruler: real anchors on the real wall, W × H feeds the quantity panel.
+                            setState(() => _measureMode = true);
                           },
                           isPrimary: false,
                         ),
@@ -1888,6 +1646,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     HapticFeedback.selectionClick();
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true, // above the shell's bottom nav bar, which otherwise hides the lower buttons
       backgroundColor: Colors.transparent,
       builder: (context) {
         return StatefulBuilder(
@@ -1935,6 +1694,29 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                           ),
                         ),
                         const SizedBox(height: 20),
+
+                        // AI wall clipping: the on-device segmenter can misread odd walls (flat blue paint,
+                        // peeling plaster) and cut the stone in the wrong place; the salesperson can turn it off.
+                        SwitchListTile.adaptive(
+                          contentPadding: EdgeInsets.zero,
+                          value: _aiClipping,
+                          activeColor: AppColors.goldWarm,
+                          title: const Text(
+                            'Clip to wall (AI)',
+                            style: TextStyle(fontFamily: 'Inter', fontSize: 13.5, fontWeight: FontWeight.w600, color: Colors.white),
+                          ),
+                          subtitle: Text(
+                            'Keeps doors, windows and furniture uncovered. Turn off if the stone is cut in the wrong place.',
+                            style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: Colors.white.withValues(alpha: 0.6)),
+                          ),
+                          onChanged: (v) {
+                            HapticFeedback.selectionClick();
+                            setSheetState(() => _aiClipping = v);
+                            setState(() {});
+                            ARCameraView.setWallClipping(v);
+                          },
+                        ),
+                        const SizedBox(height: 8),
 
                         // Opacity slider
                         _buildSliderRow(
@@ -2005,6 +1787,17 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                                 ? null
                                 : () {
                                     Navigator.of(context).pop();
+                                    // Only the web AR has draggable corners; native AR has no corner API, and an
+                                    // empty overlay would hide every control with no way back.
+                                    if (ARCameraView.getWallCorners() == null) {
+                                      LuxuryToast.show(
+                                        context,
+                                        message: kIsWeb
+                                            ? 'Wall corners not detected yet. Point at the wall and try again.'
+                                            : 'Not needed here: the native AR view locks the design to the real wall.',
+                                      );
+                                      return;
+                                    }
                                     setState(() => _adjustingCorners = true);
                                   },
                             icon: const Icon(Icons.crop_free_rounded, size: 18),
@@ -2035,32 +1828,6 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                                   },
                             icon: const Icon(Icons.view_in_ar_rounded, size: 18),
                             label: const Text('Select Wall Plane'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppColors.goldWarm,
-                              disabledForegroundColor: Colors.white.withValues(alpha: 0.3),
-                              side: BorderSide(
-                                  color: !_cameraReady
-                                      ? Colors.white.withValues(alpha: 0.15)
-                                      : AppColors.goldWarm.withValues(alpha: 0.5)),
-                              padding: const EdgeInsets.symmetric(vertical: 13),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-
-                        // Calibrate scale
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: !_cameraReady
-                                ? null
-                                : () {
-                                    Navigator.of(context).pop();
-                                    _startCalibration();
-                                  },
-                            icon: const Icon(Icons.straighten_rounded, size: 18),
-                            label: const Text('Calibrate Wall Scale'),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: AppColors.goldWarm,
                               disabledForegroundColor: Colors.white.withValues(alpha: 0.3),

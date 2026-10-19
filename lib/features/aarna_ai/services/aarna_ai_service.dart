@@ -1,8 +1,8 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/models/collection.dart';
 import 'package:grazia_stones/core/services/ai_endpoint_client.dart';
-import 'package:grazia_stones/core/services/mock_data_service.dart';
 
 class AarnaChatMessage {
   final String id;
@@ -44,6 +44,14 @@ class AarnaChatMessage {
   }
 }
 
+/// Aarna could not answer; [message] is safe to show the user and names the real reason.
+class AarnaUnavailable implements Exception {
+  final String message;
+  const AarnaUnavailable(this.message);
+  @override
+  String toString() => message;
+}
+
 class AarnaAIService {
   static final AarnaAIService instance = AarnaAIService._();
   AarnaAIService._();
@@ -56,9 +64,9 @@ class AarnaAIService {
     List<Collection> allCollections = const [],
     List<AarnaChatMessage> history = const [],
   }) async {
-    // 1. Ensure stones & collections available (fallback to authentic offline catalogue if empty)
-    final pool = catalogueStones.isNotEmpty ? catalogueStones : MockDataService.stones;
-    final collectionPool = allCollections.isNotEmpty ? allCollections : MockDataService.collections;
+    // 1. Only the live catalogue: mock stones have non-uuid ids, so their cards lead to broken pages.
+    final pool = catalogueStones;
+    final collectionPool = allCollections;
 
     // 2. Find matching collections & stones based on query semantics (Hindi & English keywords).
     // Small talk ("hey", "thanks", "who are you") gets a plain conversational answer with no cards.
@@ -73,7 +81,8 @@ class AarnaAIService {
       matchedStones.isNotEmpty ? matchedStones : pool.take(15).toList(),
     );
 
-    // 4. Ask Aarna (Gemini via the Vercel proxy)
+    // 4. Ask Aarna (Gemini via the Vercel proxy). Failures surface as AarnaUnavailable: a canned
+    // "consultation" shown as if Aarna wrote it is worse than an honest "try again".
     try {
       final recentHistory = history.where((m) => !m.isLoading).toList();
       if (recentHistory.isNotEmpty &&
@@ -94,33 +103,35 @@ class AarnaAIService {
       });
 
       final rawText = (data['text'] as String?)?.trim() ?? '';
-      if (rawText.isNotEmpty) {
-        final sanitizedText = _sanitizeResponse(rawText, matchedCollections, matchedStones);
-        return AarnaChatMessage(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          text: sanitizedText,
-          isUser: false,
-          timestamp: DateTime.now(),
-          recommendedCollections: matchedCollections.take(3).toList(),
-          recommendedStones: matchedStones.take(4).toList(),
-        );
-      }
+      if (rawText.isEmpty) throw const AarnaUnavailable('Aarna returned an empty answer. Please ask again.');
+      return AarnaChatMessage(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        text: sanitizeResponse(rawText, matchedCollections, matchedStones),
+        isUser: false,
+        timestamp: DateTime.now(),
+        recommendedCollections: matchedCollections.take(3).toList(),
+        recommendedStones: matchedStones.take(4).toList(),
+      );
+    } on AarnaUnavailable {
+      rethrow;
+    } on DioException catch (e) {
+      final code = e.response?.statusCode;
+      final body = e.response?.data;
+      final serverMessage = body is Map && body['error'] is String ? body['error'] as String : null;
+      debugPrint('⚠️ [AarnaAIService] proxy error ($code): $e');
+      throw AarnaUnavailable(switch (code) {
+        429 => serverMessage ?? 'Aarna is busy right now. Please try again in a minute.',
+        401 => 'Please sign in again to chat with Aarna.',
+        503 => 'Aarna is not set up on the server yet.',
+        _ => serverMessage ??
+            (e.type == DioExceptionType.connectionTimeout || e.type == DioExceptionType.receiveTimeout
+                ? 'Aarna took too long to answer. Please try again.'
+                : 'Could not reach Aarna. Check your connection and try again.'),
+      });
     } catch (e) {
-      debugPrint('⚠️ [AarnaAIService] Aarna proxy error, using local fallback: $e');
+      debugPrint('⚠️ [AarnaAIService] unexpected error: $e');
+      throw const AarnaUnavailable('Aarna could not answer just now. Please try again.');
     }
-
-    // 5. Intelligent Offline/Local Architectural Engine Fallback
-    // Guaranteed instant, high-quality consultation in English or Hindi!
-    final fallbackResponse = _generateLocalArchitecturalAdvice(userQuery, matchedCollections, matchedStones);
-
-    return AarnaChatMessage(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      text: fallbackResponse,
-      isUser: false,
-      timestamp: DateTime.now(),
-      recommendedCollections: matchedCollections.take(3).toList(),
-      recommendedStones: matchedStones.take(4).toList(),
-    );
   }
 
   static final _productIntent = RegExp(
@@ -142,9 +153,7 @@ class AarnaAIService {
 
   /// Filters architectural collections by multilingual keywords
   List<Collection> _filterMatchingCollections(String query, List<Collection> collections) {
-    if (collections.isEmpty) {
-      collections = MockDataService.collections;
-    }
+    if (collections.isEmpty) return const [];
     final q = query.toLowerCase().trim();
 
     final isCombo = q.contains('combo') ||
@@ -247,9 +256,7 @@ class AarnaAIService {
 
   /// Filters stones by multilingual keywords (Hindi, Hinglish, English)
   List<Stone> _filterMatchingStones(String query, List<Stone> stones) {
-    if (stones.isEmpty) {
-      stones = MockDataService.stones;
-    }
+    if (stones.isEmpty) return const [];
     final q = query.toLowerCase().trim();
 
     final isCombo = q.contains('combo') ||
@@ -401,9 +408,13 @@ class AarnaAIService {
   }
 
   /// Ensures AI text finishes sentences cleanly with zero dangling cutoffs.
-  static String _sanitizeResponse(String rawText, List<Collection> collections, List<Stone> stones) {
+  @visibleForTesting
+  static String sanitizeResponse(String rawText, List<Collection> collections, List<Stone> stones) {
     var t = rawText.trim();
     if (t.isEmpty) return t;
+    // A reply that already ends a sentence is complete: "...anything you'd like." must not be rewritten
+    // into a canned recommendation just because it ends with the word "like".
+    if (RegExp(r'[.!?)*"’]$').hasMatch(t)) return t;
 
     var cleanBase = t;
     while (cleanBase.endsWith('.') || cleanBase.endsWith(',') || cleanBase.endsWith(':') || cleanBase.endsWith('-')) {
@@ -444,75 +455,4 @@ class AarnaAIService {
   }
 
   /// High-fidelity sales-architectural generator when offline or fallback
-  String _generateLocalArchitecturalAdvice(String query, List<Collection> collections, List<Stone> stones) {
-    final q = query.toLowerCase();
-    final isHindi = q.contains('chahiye') ||
-        q.contains('hai') ||
-        q.contains('karo') ||
-        q.contains('batao') ||
-        q.contains('desinge') ||
-        q.contains('tiles') ||
-        q.contains('deewar') ||
-        q.contains('bahar') ||
-        q.contains('andar') ||
-        q.contains('kaisa') ||
-        q.contains('kitna');
-
-    final primaryCollection = collections.isNotEmpty ? collections.first.displayName : 'Exclusive Patina Series';
-    final secondCollection = collections.length > 1 ? collections[1].displayName : 'Grande Ledge Series';
-
-    final isQuote = q.contains('quote') || q.contains('price') || q.contains('rate') || q.contains('cost') || q.contains('kitna');
-    final isTech = q.contains('tech') || q.contains('spec') || q.contains('size') || q.contains('detail') || q.contains('dimension') || q.contains('weight') || q.contains('maintenance');
-    final isCombo = q.contains('combo') || q.contains('combination') || q.contains('match') || q.contains('pair') || q.contains('together') || q.contains('finish') || q.contains('interiors');
-    final qt = q.trim();
-    final isGreeting = RegExp(r'^(hello|hi+|hey+|hy|namaste|namaskar|good (morning|evening|afternoon))\b').hasMatch(qt);
-    final isThanks = RegExp(r'^(thanks|thank you|thx|shukriya|dhanyavad|ok+|okay|theek hai|thik hai)\b').hasMatch(qt);
-    final isHowAreYou = q.contains('how are you') || q.contains('kaise ho') || q.contains('kaisi ho') || q.contains('kya haal');
-
-    if (isThanks) {
-      return isHindi
-          ? 'Koi baat nahi! Aur kuch chahiye ho to bas bol dena, main yahin hoon.'
-          : 'Anytime! If you need anything else, just ask. I am right here.';
-    }
-    if (isHowAreYou) {
-      return isHindi
-          ? 'Main badhiya hoon, thanks for asking! Aap batao, kaunsa space plan kar rahe ho?'
-          : 'Doing great, thanks for asking! What space are you planning?';
-    }
-    if (isGreeting) {
-      return isHindi
-          ? 'Hey! Main **Aarna** hoon, Grazia Stones ki team se. Aap kis space ke liye stone dekh rahe ho?'
-          : 'Hey! I am **Aarna** from the Grazia Stones team. What space are you thinking about?';
-    }
-
-    if (isQuote) {
-      return isHindi
-          ? 'Apni wall ka size (e.g. 10x12 ft) batayein! Main turant square footage calculate kar doongi. **$primaryCollection** is ke liye ek achha option ho sakta hai, final price hamari team confirm karegi.'
-          : 'Share your approximate wall dimensions (e.g. 10x12 ft)! I\'ll calculate square footage and boxes instantly. **$primaryCollection** could be a good fit, and our team will confirm the final price.';
-    }
-
-    if (isTech) {
-      return isHindi
-          ? 'Grazia ke engineered design suites lightweight natural composite se bane hain — zero grout lines, fire-resistant aur 100% weather-proof! **$primaryCollection** ke technical specs aur coverage neeche check karein.'
-          : 'Grazia collections feature interlocking precision cuts with zero visible grout lines. They are lightweight, fire-rated, and fully weatherproof. Inspect architectural specifications for **$primaryCollection** below.';
-    }
-
-    if (isCombo) {
-      return isHindi
-          ? 'Modern interiors ke liye luxury combination: **$primaryCollection** ke metallic patina accents ko **$secondCollection** ke rugged split-face texture ke saath pair kijiye! Dono collections neeche explore karein.'
-          : 'For elegant and modern interiors, pair **$primaryCollection** with **$secondCollection**. The blend of metallic patina accents and rugged split-face texture creates striking depth!';
-    }
-
-    if (isHindi) {
-      if (q.contains('bahar') || q.contains('exterior') || q.contains('elevation')) {
-        return 'Exterior elevation ke liye **$primaryCollection** aur **$secondCollection** top choice hain — completely weather-proof aur natural royal masonry look! Explore collections below.';
-      }
-      return 'Aapke space ke liye hamari recommended choice hai **$primaryCollection** aur **$secondCollection**. Inhe seedha neeche explore karein ya **Live AR** me decorate karke dekhiye!';
-    } else {
-      if (q.contains('exterior') || q.contains('elevation') || q.contains('facade')) {
-        return 'For exteriors and facades, **$primaryCollection** and **$secondCollection** offer superior weather endurance and natural masonry grandeur. Explore collections below!';
-      }
-      return 'I recommend **$primaryCollection** and **$secondCollection** for your space — both deliver rich architectural presence and seamless elegance. Tap below to explore!';
-    }
-  }
 }

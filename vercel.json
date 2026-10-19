@@ -1,6 +1,10 @@
 {
   "version": 2,
   "outputDirectory": "build/web",
+  "functions": {
+    "api/generate-visualization.js": { "maxDuration": 180 },
+    "api/aarna.js": { "maxDuration": 90 }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",

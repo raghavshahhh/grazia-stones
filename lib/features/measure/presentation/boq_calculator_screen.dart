@@ -24,7 +24,7 @@ class BoqCalculatorScreen extends ConsumerStatefulWidget {
 
 class _BoqCalculatorScreenState extends ConsumerState<BoqCalculatorScreen> {
   final TextEditingController _wallAreaController = TextEditingController(text: '450');
-  String _selectedPanelSize = '8\' x 4\'';
+  String _selectedPanelSize = '8\' x 4\''; // dropdown values are the label before " (" (see items below)
   final List<String> _panelSizes = ['8\' x 4\' (32 sq.ft)', '4\' x 2\' (8 sq.ft)', '6\' x 3\' (18 sq.ft)'];
 
   double get _panelSqFt {

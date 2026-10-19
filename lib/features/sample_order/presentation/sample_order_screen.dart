@@ -269,10 +269,15 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
       }
     }
 
-    // Ensure we have address and city
-    if (_addressController.text.trim().isEmpty || _cityController.text.trim().isEmpty) {
+    // A saved address skips the form, but the business still needs a reachable name and phone
+    final contactError = Validators.validateName(_nameController.text) ??
+        Validators.validatePhone(_phoneController.text.trim()) ??
+        (_addressController.text.trim().isEmpty || _cityController.text.trim().isEmpty
+            ? 'Please enter delivery address'
+            : null);
+    if (contactError != null) {
       setState(() => _isEditingDetails = true);
-      showErrorSnackbar(context, Exception('Please enter delivery address'));
+      showErrorSnackbar(context, Exception(contactError));
       return;
     }
 
@@ -307,8 +312,9 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
         final stone = _stones.where((s) => s.id == stoneId).firstOrNull;
         await sampleRepo.requestSample(
           stoneId: stoneId,
-          name: _nameController.text.trim().isNotEmpty ? _nameController.text.trim() : 'Valued Client',
-          phone: _phoneController.text.trim().isNotEmpty ? _phoneController.text.trim() : (_altPhoneController.text.trim()),
+          name: _nameController.text.trim(),
+          phone: _phoneController.text.trim(),
+          email: _emailController.text.trim().isNotEmpty ? _emailController.text.trim() : null,
           address: _addressController.text.trim(),
           city: _cityController.text.trim(),
           pincode: _pincodeController.text.trim(),
@@ -365,7 +371,7 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
             ),
             const SizedBox(height: 18),
             Text(
-              'Sample Kit Dispatched! 📦',
+              'Sample Request Received',
               style: GoogleFonts.playfairDisplay(
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
@@ -375,7 +381,8 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Your curated sample box with $count swatch(es) is scheduled for courier delivery to:\n${_addressController.text}, ${_cityController.text} - ${_pincodeController.text}',
+              // Nothing has shipped yet: the team confirms by phone/WhatsApp, then dispatches.
+              'We have your request for $count swatch(es). The Grazia team will confirm on ${_phoneController.text.trim()} before dispatching to:\n${_addressController.text}, ${_cityController.text} - ${_pincodeController.text}',
               style: GoogleFonts.inter(
                 fontSize: 13,
                 color: palette.textSecondary,
@@ -1119,7 +1126,7 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
                         ),
                       )
                     : const Icon(Icons.send_rounded, size: 16),
-                label: Text(_isSubmitting ? 'Dispatching Samples...' : 'Request Free Sample Kit', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+                label: Text(_isSubmitting ? 'Sending Request...' : 'Request Free Sample Kit', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: palette.primary,
                   foregroundColor: Colors.white,

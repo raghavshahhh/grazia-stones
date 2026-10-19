@@ -174,14 +174,24 @@ module.exports = async (req, res) => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
           body,
+          signal: AbortSignal.timeout(20_000),
         });
       } catch (_) {
-        continue; // network blip: try the next model
+        continue; // network blip or timeout: try the next model
       }
       if (geminiRes.ok || ![404, 429, 500, 503].includes(geminiRes.status)) break;
     }
-    if (!geminiRes || !geminiRes.ok) {
-      res.status(502).json({ error: `Aarna is unavailable (upstream ${geminiRes.status})` });
+    if (!geminiRes) {
+      res.status(504).json({ error: 'Aarna took too long to answer. Please try again.' });
+      return;
+    }
+    if (!geminiRes.ok) {
+      // 429 stays 429 so the app can say "busy, retry in a minute" instead of a generic failure.
+      res.status(geminiRes.status === 429 ? 429 : 502).json({
+        error: geminiRes.status === 429
+          ? 'Aarna is busy right now. Please try again in a minute.'
+          : `Aarna is unavailable (upstream ${geminiRes.status})`,
+      });
       return;
     }
     const data = await geminiRes.json();

@@ -28,10 +28,14 @@ class StoneRepository {
     final lengthCm = (row['length_cm'] as num?)?.toDouble();
     final widthCm = (row['width_cm'] as num?)?.toDouble();
     final thicknessMm = (row['thickness_mm'] as num?)?.toDouble();
-    final lengthMm = lengthCm != null ? (lengthCm * 10).round() : null;
-    final widthMm = widthCm != null ? (widthCm * 10).round() : null;
     final collectionName = (row['collections'] as Map<String, dynamic>?)?['name'] as String?;
     final images = List<String>.from(row['images'] ?? const []);
+    // Only 30 of 95 live rows carry length/width and 54 carry coverage; the client's catalogue PDFs
+    // fill the rest, so the visualizer no longer invents a 1.6 x 0.8 ft tile and a "490 x 100 mm" badge.
+    final spec = CatalogueSpecs.forStone(collectionName ?? '', (row['name'] ?? '').toString());
+    final specSize = spec?.size == null ? null : RegExp(r'(\d+)\s*[×x]\s*(\d+)').firstMatch(spec!.size!);
+    final lengthMm = lengthCm != null ? (lengthCm * 10).round() : int.tryParse(specSize?.group(1) ?? '');
+    final widthMm = widthCm != null ? (widthCm * 10).round() : int.tryParse(specSize?.group(2) ?? '');
 
     return Stone(
       id: row['id']?.toString() ?? '',
@@ -48,20 +52,18 @@ class StoneRepository {
       // Bundled cropped textures exist only for a few legacy series. Any other
       // stone (incl. ones an admin adds later) falls through to its own
       // uploaded photo via Stone.arTextureUrl instead of a wrong stone's tile.
-      arTexture: row['ar_texture'] ?? row['texture_url'] ?? _findTextureByName(row['name'] ?? ''),
+      arTexture: row['ar_texture'] ?? row['texture_url'] ?? spec?.arTexture ?? _findTextureByName(row['name'] ?? ''),
       rating: 0.0,
       reviewCount: 0,
       length: lengthMm != null ? '${lengthMm}mm' : '',
       width: widthMm != null ? '${widthMm}mm' : '',
       // DB thickness_mm is mostly empty; fall back to the client's catalogue PDF value
       // (same rule as Stone.fromMap) so 3D Wall / Live AR / AI Studio get the real depth.
-      thickness: thicknessMm != null
-          ? '${thicknessMm.toStringAsFixed(0)}mm'
-          : CatalogueSpecs.forStone(collectionName ?? '', (row['name'] ?? '').toString())?.thickness ?? '',
+      thickness: thicknessMm != null ? '${thicknessMm.toStringAsFixed(0)}mm' : spec?.thickness ?? '',
       size: (lengthMm != null && widthMm != null)
           ? '$lengthMm×$widthMm${thicknessMm != null ? '×${thicknessMm.toStringAsFixed(0)}' : ''}mm'
           : '',
-      sqftPerBox: (row['coverage_sqft'] as num?)?.toDouble() ?? 0,
+      sqftPerBox: (row['coverage_sqft'] as num?)?.toDouble() ?? spec?.sqftPerBox ?? 0,
       piecesPerBox: 0,
       finish: row['finish'] ?? '',
       texture: row['material'] ?? '',

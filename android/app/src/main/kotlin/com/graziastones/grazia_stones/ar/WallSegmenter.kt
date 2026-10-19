@@ -22,13 +22,17 @@ import kotlin.math.exp
 class WallSegmenter(context: Context) {
     companion object {
         private const val TAG = "WallSegmenter"
-        const val IN_W = 288
-        const val IN_H = 640
-        const val OUT_W = 36
-        const val OUT_H = 80
-        // Final mask size after edge-aware upsampling (4x the model output, 1/2 the model input).
-        const val MASK_W = 144
-        const val MASK_H = 320
+        // Model input (portrait). The ONNX graph is exported for exactly this size (tool/export_wall_segmenter.py).
+        // 160x352 runs ~3x faster than the earlier 288x640 export; a phone CPU took 1.5-2.5 s per frame at the
+        // larger size, which made the mask lag far behind the camera.
+        const val IN_W = 160
+        const val IN_H = 352
+        const val MODEL_ASSET = "models/wall_seg_160x352.onnx"
+        // Model output is 1/8 of the input; the final mask is 1/2 (edge-aware 4x upsample of the output).
+        const val OUT_W = IN_W / 8
+        const val OUT_H = IN_H / 8
+        const val MASK_W = IN_W / 2
+        const val MASK_H = IN_H / 2
         private const val CLASSES = 150
         private const val WALL = 0
         private val MEAN = floatArrayOf(0.485f, 0.456f, 0.406f)
@@ -36,16 +40,41 @@ class WallSegmenter(context: Context) {
     }
 
     private val env = OrtEnvironment.getEnvironment()
-    private val session: OrtSession = context.assets.open("models/wall_seg_288x640.onnx").use { input ->
+    /** Which execution provider the session ended up on, for the SEG log line. */
+    @Volatile var backend = "cpu"
+        private set
+
+    private val session: OrtSession = context.assets.open(MODEL_ASSET).use { input ->
         val bytes = input.readBytes()
-        // XNNPACK (ARM NEON kernels) is several times faster than ORT's default CPU path on phones.
-        runCatching {
-            env.createSession(bytes, OrtSession.SessionOptions().apply {
-                addXnnpack(mapOf("intra_op_num_threads" to "4"))
-                setIntraOpNumThreads(1)
+        // `adb shell setprop debug.grazia.seg_ep nnapi|xnnpack|cpu` picks the backend for an on-device A/B.
+        val wanted = runCatching {
+            Class.forName("android.os.SystemProperties").getMethod("get", String::class.java)
+                .invoke(null, "debug.grazia.seg_ep") as? String
+        }.getOrNull()?.takeIf { it.isNotEmpty() } ?: "xnnpack"
+        // 3 threads, not all big cores: ARCore tracking and the Flutter UI must keep their share or the AR
+        // view stutters and the phone throttles.
+        val threads = (Runtime.getRuntime().availableProcessors() / 2).coerceIn(2, 3)
+        val attempts = buildList<Pair<String, () -> OrtSession>> {
+            if (wanted == "nnapi") add("nnapi" to {
+                env.createSession(bytes, OrtSession.SessionOptions().apply { addNnapi(); setIntraOpNumThreads(threads) })
             })
-        }.onFailure { Log.w(TAG, "XNNPACK unavailable, using default CPU", it) }.getOrNull()
-            ?: env.createSession(bytes, OrtSession.SessionOptions().apply { setIntraOpNumThreads(4) })
+            if (wanted != "cpu") add("xnnpack" to {
+                // XNNPACK takes the convolutions; the attention MatMul/Transpose ops stay on the CPU EP, and
+                // those ran single-threaded before (intraOp=1), which is why a frame took 1.5-2.5 s.
+                env.createSession(bytes, OrtSession.SessionOptions().apply {
+                    addXnnpack(mapOf("intra_op_num_threads" to "$threads"))
+                    setIntraOpNumThreads(threads)
+                })
+            })
+            add("cpu" to { env.createSession(bytes, OrtSession.SessionOptions().apply { setIntraOpNumThreads(threads) }) })
+        }
+        var created: OrtSession? = null
+        for ((name, make) in attempts) {
+            created = runCatching(make).onFailure { Log.w(TAG, "$name unavailable, trying next", it) }.getOrNull()
+            if (created != null) { backend = name; break }
+        }
+        Log.i(TAG, "segmenter backend=$backend threads=$threads")
+        created ?: error("no ONNX runtime backend could load the wall model")
     }
     private val worker = Executors.newSingleThreadExecutor()
     @Volatile private var busy = false
@@ -62,9 +91,10 @@ class WallSegmenter(context: Context) {
 
     /**
      * Grabs the current camera image (on the caller's thread: ARCore needs that) and segments it in the
-     * background. [onMask] gets MASK_W x MASK_H wall probabilities (0..255, row 0 = screen top) on the worker.
+     * background. [onMask] gets MASK_W x MASK_H wall probabilities (0..255, row 0 = screen top) and the camera
+     * brightness (0..1) on the same grid, on the worker thread.
      */
-    fun request(frame: Frame, onMask: (ByteArray) -> Unit) {
+    fun request(frame: Frame, onMask: (ByteArray, FloatArray) -> Unit) {
         if (busy) return
         val image = try { frame.acquireCameraImage() } catch (e: Exception) { return }
         busy = true
@@ -83,14 +113,18 @@ class WallSegmenter(context: Context) {
                     val luma = FloatArray(IN_W * IN_H)
                     val input = toInput(coords, w, h, yBytes, uBytes, vBytes, yRow, uvRow, uvPix, luma)
                     val t0 = android.os.SystemClock.elapsedRealtime()
+                    var tRun = 0L
                     val mask = OnnxTensor.createTensor(env, input, longArrayOf(1, 3, IN_H.toLong(), IN_W.toLong())).use { tensor ->
                         session.run(mapOf("image" to tensor)).use { out ->
-                            @Suppress("UNCHECKED_CAST")
-                            wallProbability((out[0].value as Array<Array<Array<FloatArray>>>)[0])
+                            tRun = android.os.SystemClock.elapsedRealtime() - t0
+                            // Read the logits as one flat buffer: boxing 150x80x36 floats into nested Java
+                            // arrays through JNI cost more than the softmax itself.
+                            wallProbability((out[0] as OnnxTensor).floatBuffer)
                         }
                     }.let { refineEdges(it, luma) }
                     lastInferenceMs = android.os.SystemClock.elapsedRealtime() - t0
-                    onMask(mask)
+                    lastRunMs = tRun
+                    onMask(mask, downsampleLuma(luma))
                 } catch (e: Exception) {
                     Log.e(TAG, "segmentation failed", e)
                 } finally {
@@ -105,6 +139,9 @@ class WallSegmenter(context: Context) {
     }
 
     @Volatile var lastInferenceMs = 0L
+        private set
+    /** Model run only (no softmax / edge refinement), to tell model cost from post-processing cost. */
+    @Volatile var lastRunMs = 0L
         private set
 
     /** Nearest-pixel YUV -> RGB sampling of the view grid into a normalised NCHW tensor. */
@@ -133,16 +170,17 @@ class WallSegmenter(context: Context) {
         return buf
     }
 
-    /** Softmax probability of the wall class per output cell, as 0..255 bytes. */
-    private fun wallProbability(logits: Array<Array<FloatArray>>): ByteArray {
-        val out = ByteArray(OUT_W * OUT_H)
-        for (y in 0 until OUT_H) for (x in 0 until OUT_W) {
+    /** Softmax probability of the wall class per output cell, as 0..255 bytes. [logits] is NCHW, N = 1. */
+    private fun wallProbability(logits: FloatBuffer): ByteArray {
+        val cells = OUT_W * OUT_H
+        val out = ByteArray(cells)
+        for (k in 0 until cells) {
             var max = Float.NEGATIVE_INFINITY
-            for (c in 0 until CLASSES) max = maxOf(max, logits[c][y][x])
+            for (c in 0 until CLASSES) max = maxOf(max, logits.get(c * cells + k))
             var sum = 0f
-            for (c in 0 until CLASSES) sum += exp(logits[c][y][x] - max)
-            val p = exp(logits[WALL][y][x] - max) / sum
-            out[y * OUT_W + x] = (p * 255f).toInt().coerceIn(0, 255).toByte()
+            for (c in 0 until CLASSES) sum += exp(logits.get(c * cells + k) - max)
+            val p = exp(logits.get(WALL * cells + k) - max) / sum
+            out[k] = (p * 255f).toInt().coerceIn(0, 255).toByte()
         }
         return out
     }
@@ -181,6 +219,17 @@ class WallSegmenter(context: Context) {
             out[y * MASK_W + x] = (num / den.coerceAtLeast(1e-6f)).toInt().coerceIn(0, 255).toByte()
         }
         return out
+    }
+
+    /** Camera brightness averaged onto the MASK_W x MASK_H grid. */
+    private fun downsampleLuma(luma: FloatArray): FloatArray {
+        val fx = IN_W / MASK_W; val fy = IN_H / MASK_H
+        return FloatArray(MASK_W * MASK_H) { k ->
+            val x = k % MASK_W; val y = k / MASK_W
+            var sum = 0f
+            for (dy in 0 until fy) for (dx in 0 until fx) sum += luma[(y * fy + dy) * IN_W + x * fx + dx]
+            sum / (fx * fy)
+        }
     }
 
     fun close() {
