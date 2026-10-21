@@ -374,6 +374,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     );
   }
 
+  bool _hasUnpriced = false;
+
   @override
   Widget build(BuildContext context) {
     final palette = ref.watch(themePaletteProvider);
@@ -386,6 +388,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final effectiveShipping = widget.shipping ?? calcShipping;
     final effectiveTotal = (widget.total ?? (effectiveSubtotal + effectiveGst + effectiveShipping)) - _discount;
     final itemCount = widget.items?.length ?? cartItems.length;
+    // Stones without a catalogue price: the team quotes before processing, so the total is not final.
+    _hasUnpriced = cartItems.any((i) => !i.stone.hasPrice);
 
 
     return Scaffold(
@@ -653,8 +657,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 )
               : Text(
                   _selectedPaymentMethod == 'cod'
-                      ? 'Confirm & Place Order • ₹${effectiveTotal.toInt()}'
-                      : 'Place Order • ₹${effectiveTotal.toInt()}',
+                      ? (_hasUnpriced ? 'Confirm & Place Order • price on request' : 'Confirm & Place Order • ₹${effectiveTotal.toInt()}')
+                      : (_hasUnpriced ? 'Place Order • price on request' : 'Place Order • ₹${effectiveTotal.toInt()}'),
                   style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700),
                 ),
         ),

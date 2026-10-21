@@ -8,6 +8,7 @@ import Foundation
 import ARKit
 import SceneKit
 import MetalKit
+import Photos
 
 @objc public class ARKitManager: NSObject {
     
@@ -57,6 +58,18 @@ import MetalKit
     private var pixelsPerMeter: Float = 0.0
     private var isCalibrating = false
     
+    // Placed wall (tap-to-place), see placeWallAtScreenPoint
+    private var placedAnchor: ARAnchor?
+    private var placedNode: SCNNode?            // the panel (non-LiDAR, or clipping off)
+    private var placedFrame: simd_float4x4?     // x = right, y = up, z = normal (toward camera), origin on the wall
+    private var placedSurface: String?
+    private var meshWallNodes: [UUID: SCNNode] = [:]   // LiDAR: textured wall faces per mesh anchor
+    private var wallClippingEnabled = true
+    private static let placedWallWidthM: Float = 3.0
+    private static let placedWallHeightM: Float = 2.7
+    private static let meshWallRangeM: Float = 4.0      // along the wall / up from the anchor
+    private static let meshWallDepthM: Float = 0.12     // face must sit this close to the placed plane
+
     // Texture management
     private var currentTexture: MTLTexture?
     private var currentPatchHeightM: Float = ARKitManager.texturePatchHeightM
@@ -187,6 +200,7 @@ import MetalKit
             
             DispatchQueue.main.async {
                 self.updateTextureOnNode(texture)
+                self.refreshPlacedWall()
             }
         }
     }
@@ -242,6 +256,212 @@ import MetalKit
             self?.currentTexture = nil
             DispatchQueue.main.async {
                 self?.textureNode?.geometry?.firstMaterial?.diffuse.contents = nil
+                self?.clearPlacedWall()   // the Measure screen shares this singleton: no stale design there
+            }
+        }
+    }
+
+    // MARK: - Placed wall (tap-to-place)
+
+    /// Places the design on the real surface under a screen point. Raycast order: tracked vertical plane
+    /// geometry, then a depth-estimated vertical plane (immediate on LiDAR), then the infinite extension of a
+    /// tracked wall. Returns the same shape as the Android plugin: {placed, surface, distanceM, onFloor}.
+    @objc public func placeWallAtScreenPoint(_ screenPoint: CGPoint) -> [String: Any]? {
+        guard let frame = arSession.currentFrame else { return ["placed": false, "reason": "no_frame"] }
+        if case .normal = frame.camera.trackingState {} else { return ["placed": false, "reason": "not_tracking"] }
+        let attempts: [(ARRaycastQuery.Target, String)] = [
+            (.existingPlaneGeometry, "Plane"), (.estimatedPlane, "estimated"), (.existingPlaneInfinite, "wall_extended"),
+        ]
+        let camT = frame.camera.transform
+        let cam = simd_float3(camT.columns.3.x, camT.columns.3.y, camT.columns.3.z)
+        for (target, surface) in attempts {
+            guard let query = arSceneView.raycastQuery(from: screenPoint, allowing: target, alignment: .vertical),
+                  let hit = arSceneView.session.raycast(query).first else { continue }
+            let t = hit.worldTransform
+            let p = simd_float3(t.columns.3.x, t.columns.3.y, t.columns.3.z)
+            // A raycast result on a vertical plane carries the surface normal in its Y axis.
+            var n = simd_float3(t.columns.1.x, t.columns.1.y, t.columns.1.z)
+            if simd_dot(n, cam - p) < 0 { n = -n }
+            n.y = 0
+            if simd_length(n) < 0.05 { continue }   // a wall normal is horizontal
+            n = simd_normalize(n)
+            let dist = simd_distance(cam, p)
+            guard dist > 0.3, dist < 8 else { continue }
+            anchorPlacedWall(at: p, normal: n, surface: surface)
+            print("[ARKit] PLACE placed=true surface=\(surface) dist=\(String(format: "%.2f", dist))m")
+            return ["placed": true, "surface": surface, "distanceM": Double(dist), "onFloor": false]
+        }
+        print("[ARKit] PLACE placed=false reason=no_hit")
+        return ["placed": false, "reason": "no_hit"]
+    }
+
+    private func anchorPlacedWall(at p: simd_float3, normal n: simd_float3, surface: String) {
+        clearPlacedWall()
+        let up = simd_float3(0, 1, 0)
+        let right = simd_normalize(simd_cross(up, n))
+        let frameM = simd_float4x4(columns: (simd_float4(right, 0), simd_float4(up, 0), simd_float4(n, 0), simd_float4(p, 1)))
+        let anchor = ARAnchor(name: "grazia_wall", transform: frameM)
+        arSession.add(anchor: anchor)
+        placedAnchor = anchor
+        placedFrame = frameM
+        placedSurface = surface
+        // The plane-based overlay would sit on top of the placed design; one wall at a time.
+        textureNode?.removeFromParentNode(); textureNode = nil
+        refreshPlacedWall()
+        onWallStateChanged?("LOCKED")
+    }
+
+    /// Rebuilds the panel for the current texture / clipping mode. With LiDAR and clipping on, the stone is
+    /// drawn on the reconstructed wall faces instead (see updateMeshWall), so the panel stays hidden.
+    private func refreshPlacedWall() {
+        placedNode?.removeFromParentNode(); placedNode = nil
+        guard let frameM = placedFrame else { return }
+        if hasLiDAR && wallClippingEnabled {
+            if #available(iOS 13.4, *), let anchors = arSession.currentFrame?.anchors {
+                for case let m as ARMeshAnchor in anchors {
+                    if let node = arSceneView.node(for: m) { updateMeshWall(m, on: node) }
+                }
+            }
+            return
+        }
+        let plane = SCNPlane(width: CGFloat(ARKitManager.placedWallWidthM), height: CGFloat(ARKitManager.placedWallHeightM))
+        plane.materials = [stoneMaterial(wallWidth: ARKitManager.placedWallWidthM, wallHeight: ARKitManager.placedWallHeightM)]
+        let node = SCNNode(geometry: plane)
+        var t = frameM
+        let n = simd_float3(frameM.columns.2.x, frameM.columns.2.y, frameM.columns.2.z)
+        t.columns.3 += simd_float4(n * 0.012, 0)
+        node.simdTransform = t
+        node.renderingOrder = 0
+        arSceneView.scene.rootNode.addChildNode(node)
+        placedNode = node
+    }
+
+    private func stoneMaterial(wallWidth: Float, wallHeight: Float) -> SCNMaterial {
+        let material = SCNMaterial()
+        if let texture = currentTexture {
+            material.diffuse.contents = texture
+            material.diffuse.wrapS = .repeat
+            material.diffuse.wrapT = .repeat
+            material.lightingModel = .constant
+            applyPatchScale(to: material, texture: texture, wallWidth: wallWidth, wallHeight: wallHeight)
+        } else {
+            material.diffuse.contents = UIColor.systemYellow.withAlphaComponent(0.5)
+        }
+        material.isDoubleSided = true
+        return material
+    }
+
+    /// LiDAR wall clipping: the faces of [meshAnchor] that ARKit classifies as wall and that lie on the placed
+    /// plane get the stone texture, UV-mapped in the wall's own frame so the pattern is continuous across mesh
+    /// chunks. Doors, windows, pictures and furniture are other classes (or occluders), so they stay bare.
+    @available(iOS 13.4, *)
+    fileprivate func updateMeshWall(_ meshAnchor: ARMeshAnchor, on node: SCNNode) {
+        let id = meshAnchor.identifier
+        guard let frameM = placedFrame, wallClippingEnabled, hasLiDAR, let texture = currentTexture else {
+            meshWallNodes[id]?.removeFromParentNode(); meshWallNodes[id] = nil; return
+        }
+        let mesh = meshAnchor.geometry
+        guard let cls = mesh.classification else { return }
+        let faces = mesh.faces
+        let v = mesh.vertices
+        let origin = simd_float3(frameM.columns.3.x, frameM.columns.3.y, frameM.columns.3.z)
+        let right = simd_float3(frameM.columns.0.x, frameM.columns.0.y, frameM.columns.0.z)
+        let up = simd_float3(frameM.columns.1.x, frameM.columns.1.y, frameM.columns.1.z)
+        let normal = simd_float3(frameM.columns.2.x, frameM.columns.2.y, frameM.columns.2.z)
+        let toWorld = meshAnchor.transform
+        func vertex(_ i: Int) -> simd_float3 {
+            let ptr = v.buffer.contents().advanced(by: v.offset + v.stride * i).assumingMemoryBound(to: Float.self)
+            let w = toWorld * simd_float4(ptr[0], ptr[1], ptr[2], 1)
+            return simd_float3(w.x, w.y, w.z)
+        }
+        var indices = [UInt32](); indices.reserveCapacity(faces.count * 3)
+        for i in 0..<faces.count {
+            let raw = cls.buffer.contents().advanced(by: cls.offset + cls.stride * i).assumingMemoryBound(to: UInt8.self).pointee
+            guard ARMeshClassification(rawValue: Int(raw)) == .wall else { continue }
+            var ids = [UInt32](repeating: 0, count: 3)
+            var ok = true
+            for j in 0..<3 {
+                let at = (i * 3 + j) * faces.bytesPerIndex
+                ids[j] = faces.buffer.contents().advanced(by: at).assumingMemoryBound(to: UInt32.self).pointee
+                let d = vertex(Int(ids[j])) - origin
+                // on the placed plane, and inside the region the design covers
+                let along = simd_dot(d, right), rise = simd_dot(d, up)
+                if abs(simd_dot(d, normal)) > ARKitManager.meshWallDepthM || abs(along) > ARKitManager.meshWallRangeM
+                    || abs(rise) > ARKitManager.meshWallRangeM { ok = false; break }
+            }
+            if ok { indices.append(contentsOf: ids) }
+        }
+        guard !indices.isEmpty else { meshWallNodes[id]?.removeFromParentNode(); meshWallNodes[id] = nil; return }
+
+        // Texture coordinates in wall space: one photo patch per (patchW x patchH) metres.
+        let patchH = currentPatchHeightM
+        let patchW = patchH * Float(texture.width) / Float(max(texture.height, 1))
+        var uvs = [simd_float2](repeating: .zero, count: v.count)
+        for i in 0..<v.count {
+            let d = vertex(i) - origin
+            uvs[i] = simd_float2(simd_dot(d, right) / patchW, simd_dot(d, up) / patchH)
+        }
+        let posSource = SCNGeometrySource(buffer: v.buffer, vertexFormat: v.format, semantic: .vertex,
+                                          vertexCount: v.count, dataOffset: v.offset, dataStride: v.stride)
+        let uvData = Data(bytes: uvs, count: uvs.count * MemoryLayout<simd_float2>.size)
+        let uvSource = SCNGeometrySource(data: uvData, semantic: .texcoord, vectorCount: v.count, usesFloatComponents: true,
+                                         componentsPerVector: 2, bytesPerComponent: MemoryLayout<Float>.size,
+                                         dataOffset: 0, dataStride: MemoryLayout<simd_float2>.size)
+        let element = SCNGeometryElement(data: Data(bytes: indices, count: indices.count * MemoryLayout<UInt32>.size),
+                                         primitiveType: .triangles, primitiveCount: indices.count / 3,
+                                         bytesPerIndex: MemoryLayout<UInt32>.size)
+        let geometry = SCNGeometry(sources: [posSource, uvSource], elements: [element])
+        let material = SCNMaterial()
+        material.diffuse.contents = texture
+        material.diffuse.wrapS = .repeat
+        material.diffuse.wrapT = .repeat
+        material.lightingModel = .constant
+        material.isDoubleSided = true
+        geometry.materials = [material]
+        if let existing = meshWallNodes[id] {
+            existing.geometry = geometry
+        } else {
+            let wallNode = SCNNode(geometry: geometry)
+            wallNode.renderingOrder = 1   // after the occluders of the same mesh (-10)
+            // mesh vertices are anchor-local; the anchor node already carries the anchor transform
+            node.addChildNode(wallNode)
+            meshWallNodes[id] = wallNode
+        }
+    }
+
+    @objc public func clearPlacedWall() {
+        placedNode?.removeFromParentNode(); placedNode = nil
+        meshWallNodes.values.forEach { $0.removeFromParentNode() }
+        meshWallNodes.removeAll()
+        if let a = placedAnchor { arSession.remove(anchor: a) }
+        placedAnchor = nil
+        placedFrame = nil
+        placedSurface = nil
+    }
+
+    @objc public func setWallClipping(_ enabled: Bool) {
+        wallClippingEnabled = enabled
+        if !enabled {
+            meshWallNodes.values.forEach { $0.removeFromParentNode() }
+            meshWallNodes.removeAll()
+        }
+        refreshPlacedWall()
+    }
+
+    /// Saves what the AR view shows (camera + design) to Photos and to a temp file for sharing.
+    @objc public func captureSnapshot(_ done: @escaping ([String: String]?, String?) -> Void) {
+        let image = arSceneView.snapshot()
+        guard let jpeg = image.jpegData(compressionQuality: 0.92) else { done(nil, "Could not capture the AR view"); return }
+        let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("Grazia_AR_\(stamp).jpg")
+        do { try jpeg.write(to: url) } catch { done(nil, "Could not save the photo: \(error.localizedDescription)"); return }
+        PHPhotoLibrary.shared().performChanges({
+            PHAssetChangeRequest.creationRequestForAsset(from: image)
+        }) { ok, error in
+            DispatchQueue.main.async {
+                // The file is always there for Share; the gallery copy depends on the Photos permission.
+                if let error = error { print("[ARKit] SNAPSHOT photos save failed: \(error)") }
+                done(["uri": ok ? "photos://saved" : "", "path": url.path], nil)
             }
         }
     }
@@ -695,7 +915,9 @@ import MetalKit
     @objc public func getWallState() -> String {
         var state = "SEARCHING"
         
-        if wallPlanes.isEmpty {
+        if placedAnchor != nil {
+            state = "TRACKING"
+        } else if wallPlanes.isEmpty {
             state = "SEARCHING"
         } else if selectedWallId != nil, wallPlanes[selectedWallId!] != nil {
             state = "TRACKING"
@@ -730,6 +952,7 @@ extension ARKitManager: ARSCNViewDelegate {
     public func renderer(_ renderer: SCNSceneRenderer, didAdd node: SCNNode, for anchor: ARAnchor) {
         if #available(iOS 13.4, *), let meshAnchor = anchor as? ARMeshAnchor {
             updateOccluder(meshAnchor, on: node)
+            updateMeshWall(meshAnchor, on: node)
             return
         }
         guard let planeAnchor = anchor as? ARPlaneAnchor else { return }
@@ -746,16 +969,17 @@ extension ARKitManager: ARSCNViewDelegate {
         let wallData = planeToDictionary(planeAnchor)
         onWallDetected?(planeAnchor.identifier.uuidString, wallData)
         
-        // Auto-select first wall if none selected
+        // Auto-select first wall if none selected (the plane overlay is the non-placed fallback)
         if selectedWallId == nil {
             selectedWallId = planeAnchor.identifier
-            updateWallVisualization()
+            if placedAnchor == nil { updateWallVisualization() }
         }
     }
     
     public func renderer(_ renderer: SCNSceneRenderer, didUpdate node: SCNNode, for anchor: ARAnchor) {
         if #available(iOS 13.4, *), let meshAnchor = anchor as? ARMeshAnchor {
             updateOccluder(meshAnchor, on: node)
+            updateMeshWall(meshAnchor, on: node)
             return
         }
         guard let planeAnchor = anchor as? ARPlaneAnchor,
@@ -763,8 +987,8 @@ extension ARKitManager: ARSCNViewDelegate {
         
         wallPlanes[planeAnchor.identifier] = planeAnchor
         
-        // Update visualization if this is the selected wall
-        if planeAnchor.identifier == selectedWallId {
+        // Update visualization if this is the selected wall (never while a design is placed by tap)
+        if planeAnchor.identifier == selectedWallId && placedAnchor == nil {
             updateWallVisualization()
         }
         

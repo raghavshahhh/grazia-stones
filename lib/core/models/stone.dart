@@ -6,6 +6,8 @@ class Stone {
   final String collection; // e.g., Grande Ledge Series, Vantage Series
   final String category; // e.g., Ledge Stone, 3D Panels, Designer Blocks
   final double pricePerSqFt;
+  /// False when the catalogue has no price for this stone (0): the UI must say 'Price on request'.
+  bool get hasPrice => pricePerSqFt > 0;
   final String description;
   final List<String> images; // Multiple images
   final String? mainImageUrl; // Primary display image
@@ -220,7 +222,7 @@ class Stone {
     if (thicknessStr.isEmpty && spec?.thickness != null) thicknessStr = spec!.thickness!;
 
     final rawPrice = (map['price_per_sqft'] ?? map['pricePerSqFt'] ?? 0).toDouble();
-    final effectivePrice = rawPrice > 0 ? rawPrice : 385.0;
+    final effectivePrice = rawPrice; // 0 = no price in the catalogue: the UI shows 'Price on request'
 
     final rawCoverage = (map['coverage_sqft'] ?? map['sqftPerBox'] ?? 0).toDouble();
     final effectiveCoverage = rawCoverage > 0 ? rawCoverage : (spec?.sqftPerBox ?? 10.5);

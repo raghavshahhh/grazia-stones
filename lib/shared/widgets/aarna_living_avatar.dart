@@ -55,24 +55,18 @@ class AarnaLivingAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (size >= liveThreshold) {
-      final art = ClipOval(
-        child: _Interactive3D(
-          child: Image.asset(
-            _kFullPoster,
-            width: size,
-            height: size,
-            fit: BoxFit.cover,
-            semanticLabel: 'Aarna',
-          ),
+      // One live model-viewer instance (the hero card). Small avatars stay 2D so chat scrolling stays smooth.
+      final radius = shape == BoxShape.circle ? BorderRadius.circular(size / 2) : (borderRadius ?? BorderRadius.circular(size / 4));
+      return ClipRRect(
+        borderRadius: radius,
+        child: Aarna3DView(
+          size: size,
+          thinking: isSearching || showRadarRings,
+          wave: pose == AarnaPose.waving,
+          greetOnLoad: greetOnLoad,
+          onTap: onTap,
         ),
       );
-      return onTap == null
-          ? art
-          : GestureDetector(
-              onTap: onTap,
-              behavior: HitTestBehavior.opaque,
-              child: art,
-            );
     }
     final busy = isSearching || showRadarRings;
     if (popOut) {
@@ -499,9 +493,13 @@ class Aarna3DView extends StatefulWidget {
   State<Aarna3DView> createState() => _Aarna3DViewState();
 }
 
-class _Aarna3DViewState extends State<Aarna3DView> with WidgetsBindingObserver {
+class _Aarna3DViewState extends State<Aarna3DView> with WidgetsBindingObserver, AutomaticKeepAliveClientMixin {
   WebViewController? _web;
   bool _ready = false;
+
+  // The hero card lives in a ListView; without keep-alive every scroll-away recreated the WebView (1-2 s reload).
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -546,8 +544,8 @@ class _Aarna3DViewState extends State<Aarna3DView> with WidgetsBindingObserver {
       case 'ready':
         setState(() => _ready = true);
         if (widget.greetOnLoad || widget.wave) _run('wave()');
+        if (widget.thinking) _run('search(true)');
       case 'tap':
-        _run('wave()');
         widget.onTap?.call();
     }
   }
@@ -559,7 +557,10 @@ class _Aarna3DViewState extends State<Aarna3DView> with WidgetsBindingObserver {
   @override
   void didUpdateWidget(covariant Aarna3DView old) {
     super.didUpdateWidget(old);
-    if (widget.wave && !old.wave && _ready) _run('wave()');
+    if (!_ready) return;
+    if (widget.wave && !old.wave) _run('wave()');
+    // Thinking: she looks left and right and blinks faster; when the answer lands she leans in and waves.
+    if (widget.thinking != old.thinking) _run(widget.thinking ? 'search(true)' : 'search(false);peek()');
   }
 
   @override
@@ -576,6 +577,7 @@ class _Aarna3DViewState extends State<Aarna3DView> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     return SizedBox(
       width: widget.size,
       height: widget.size,
@@ -611,16 +613,27 @@ model-viewer{width:100%;height:100%;background:transparent;--poster-color:transp
  interaction-prompt="none" touch-action="pan-y"></model-viewer>
 <script>
 const m=document.getElementById('m');
-const home='0deg 82deg 2.15m';
+const home='0deg 82deg 2.15m', homeTarget='0m 0.42m 0m', homeFov='30deg';
+let paused=false, searching=false, blinkT, searchT, peekT, flip=1;
 function idle(){m.animationName='Idle';m.play({repetitions:Infinity});}
 function wave(){m.animationName='Wave';m.play({repetitions:1});}
-function pauseAnim(){m.pause();}
-function resumeAnim(){m.play({repetitions:m.animationName==='Wave'?1:Infinity});}
-m.addEventListener('load',()=>{idle();AarnaBridge.postMessage('ready');});
+// The glb has a 0.6 s Blink clip; model-viewer plays one clip at a time, so blinks are short clip swaps.
+function blink(){if(paused||m.animationName==='Wave')return;m.animationName='Blink';m.play({repetitions:1});}
+function scheduleBlink(){clearTimeout(blinkT);blinkT=setTimeout(()=>{blink();scheduleBlink();},(searching?1100:2800)+Math.random()*2400);}
+// "Searching": the camera swings side to side so she appears to look around, with quicker blinks.
+function search(on){searching=on;clearTimeout(searchT);if(!on){m.cameraOrbit=home;return;}
+  const step=()=>{if(!searching)return;flip=-flip;m.cameraOrbit=(flip*22)+'deg 79deg 2.15m';searchT=setTimeout(step,1100+Math.random()*500);};step();}
+// "Peek": she leans out of the frame toward the viewer, waves, then settles back.
+function peek(){clearTimeout(peekT);m.cameraTarget='0m 0.60m 0m';m.fieldOfView='21deg';m.cameraOrbit='-14deg 77deg 1.55m';wave();
+  peekT=setTimeout(()=>{m.cameraTarget=homeTarget;m.fieldOfView=homeFov;m.cameraOrbit=home;},2600);}
+function pauseAnim(){paused=true;m.pause();clearTimeout(blinkT);clearTimeout(searchT);}
+function resumeAnim(){paused=false;m.play({repetitions:m.animationName==='Wave'?1:Infinity});scheduleBlink();if(searching)search(true);}
+m.addEventListener('load',()=>{idle();scheduleBlink();AarnaBridge.postMessage('ready');});
+// Wave and Blink both end back in the idle loop.
 m.addEventListener('finished',idle);
-m.addEventListener('click',()=>AarnaBridge.postMessage('tap'));
+m.addEventListener('click',()=>{peek();AarnaBridge.postMessage('tap');});
 // After a drag the head/body spring back to the rest view instead of staying turned.
-let back;m.addEventListener('camera-change',e=>{if(e.detail.source==='user-interaction'){clearTimeout(back);back=setTimeout(()=>{m.cameraOrbit=home;},700);}});
+let back;m.addEventListener('camera-change',e=>{if(e.detail.source==='user-interaction'&&!searching){clearTimeout(back);back=setTimeout(()=>{m.cameraOrbit=home;},900);}});
 </script></body></html>''';
 }
 

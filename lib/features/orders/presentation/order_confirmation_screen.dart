@@ -543,7 +543,7 @@ class OrderConfirmationScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '${item.quantity} sq.ft × ${currencyFormat.format(item.pricePerSqFt)}/sq.ft',
+            item.pricePerSqFt > 0 ? '${item.quantity} sq.ft × ${currencyFormat.format(item.pricePerSqFt)}/sq.ft' : '${item.quantity} sq.ft × price on request',
             style: GoogleFonts.inter(
               fontSize: 12,
               color: palette.textTertiary,

@@ -15,6 +15,12 @@ class GraziaTheme {
     final p = palette ?? GLuxuryPalettes.gold;
     return ThemeData(
       useMaterial3: true,
+      // Routes pushed outside GoRouter (dialogs, full-screen viewers) get the same unhurried feel as the
+      // custom page transitions in router.dart (Material 3 fade-forwards; this SDK has no Cupertino builder).
+      pageTransitionsTheme: const PageTransitionsTheme(builders: <TargetPlatform, PageTransitionsBuilder>{
+        TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
+        TargetPlatform.iOS: FadeForwardsPageTransitionsBuilder(),
+      }),
       brightness: Brightness.light,
       scaffoldBackgroundColor: p.background,
       colorScheme: ColorScheme.light(
@@ -169,6 +175,12 @@ class GraziaTheme {
     final p = palette ?? GLuxuryPalettes.goldDark;
     return ThemeData(
       useMaterial3: true,
+      // Routes pushed outside GoRouter (dialogs, full-screen viewers) get the same unhurried feel as the
+      // custom page transitions in router.dart (Material 3 fade-forwards; this SDK has no Cupertino builder).
+      pageTransitionsTheme: const PageTransitionsTheme(builders: <TargetPlatform, PageTransitionsBuilder>{
+        TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
+        TargetPlatform.iOS: FadeForwardsPageTransitionsBuilder(),
+      }),
       brightness: Brightness.dark,
       scaffoldBackgroundColor: p.background,
       colorScheme: ColorScheme.dark(

@@ -159,6 +159,7 @@ class ARCameraView extends StatefulWidget {
 
   /// The AI wall clipping is a native-Android feature; the web view has nothing to switch.
   static Future<void> setWallClipping(bool enabled) async {}
+  static Future<void> setApproximateDistance(double meters) async {}
 
   /// Gallery snapshot is a native-Android feature; the web camera has its own record button.
  static Future<Map<String, String>> captureSnapshot() async =>

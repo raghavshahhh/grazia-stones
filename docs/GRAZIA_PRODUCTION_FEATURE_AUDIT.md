@@ -1,102 +1,77 @@
 # Grazia Stones — Production Feature Audit
 
-Date: 2026-10-20 · Branch `main` · Base commit `9b036bc` · Test device: OnePlus NE2211 (Android 16, ARCore 1.57)
+Updated: 2026-10-20 (second pass) · Branch `main` · Last commit `dd9e7bb` + uncommitted second-pass work (see changelog) · Test device: OnePlus NE2211 (Android 16, ARCore 1.57)
+
+Evidence classes used below: **DEVICE-VERIFIED** (observed on the phone, logcat/screenshot), **AUTOMATED-TESTED** (analyzer/tests/builds), **CODE-REVIEWED** (read, not executed), **BLOCKED** (needs an external action), **NOT TESTED**.
 
 ## Executive summary
 
-**Overall readiness: PARTIALLY VERIFIED — not ready for a public release, ready for a supervised client demo on Android after the items under "External actions" are done.**
+**Overall readiness: PARTIALLY VERIFIED.** Android is demo-ready on finished interiors with a salesperson who knows the limits; not ready for a public release until the blockers at the end are closed.
 
-| Feature | Status | One-line verdict |
+| Feature | Status | Evidence class |
 |---|---|---|
-| Live AR (Android) | PARTIAL (device-verified) | Stone now renders correctly on the real wall with AI clipping; placement scale depends on ARCore finding a real plane (upgrade path added); segmenter 3–4× faster. iOS: 4 channel methods missing → BROKEN on iPhone. |
-| Measure (AR ruler) | PASS by code + device launch | Real ARCore anchors; units bug fixed; fake calibration flow removed. Accuracy vs a tape measure NOT yet measured (needs a known target). |
-| Tile Visualizer | PARTIAL | Flutter `Transform` pseudo-3D (not real 3D). Catalogue dimensions now feed the grid; Infinity crash, vertical pattern, tile-count fixed. **Prices are invented (₹385/sqft) — business decision pending.** |
-| AI Studio | PARTIAL (server fixed, not live-tested with a login) | Fake "preview" on failure removed; credits were 503-ing because Vercel names the key `SUPABASE_SECRET_KEY` (fixed in code). Needs a redeploy + one real login test. |
-| Sample Kit | PARTIAL (code-verified, prod table confirmed) | Writes to Supabase `sample_requests`; silent failures and "Dispatched!" wording fixed; validation enforced. No owner alert exists. RLS tightening migration written, not applied. |
-| Aarna AI | PASS (live endpoint verified) | Gemini answers in ~5 s via `/api/aarna`; canned "AI" fallback removed; honest errors; reset race fixed; shortcuts carry the product id. Avatar is 2.5D PNG layers, not 3D. |
+| Live AR (Android) | PARTIAL | DEVICE-VERIFIED: stone on the real wall, picture excluded, mask locked to the placed wall, no flip-flop, 30 s pan stable; segmenter 115–400 ms on a cool phone. NOT OBSERVED: upgrade from the 2 m guess to a real ARCore plane (no plane/point cloud on the raw test walls). |
+| Live AR (iOS) | UNSUPPORTED features hidden | CODE-REVIEWED: shutter hidden and tap-to-place refused on iPhone; 5 channel methods missing in `ARKitPlugin.swift`. NOT TESTED on an iOS device. |
+| Measure (AR ruler) | PARTIAL | DEVICE-VERIFIED: screen, tracking, no stray design. NOT TESTED: accuracy vs a physical reference (no object of known size measured). |
+| Tile Visualizer | PARTIAL | AUTOMATED-TESTED + DEVICE-VERIFIED screen render. Pseudo-3D (see below). Prices now "Price on request" when the catalogue has none. |
+| AI Studio | BLOCKED | CODE-REVIEWED + AUTOMATED-TESTED (node 4/4). Gemini model ids confirmed via the models API. Real generation needs the api deploy + a logged-in account (both need approval/credentials). |
+| Sample Kit | PARTIAL | CODE-REVIEWED; prod table exists (REST 200). Persistence/validation NOT TESTED end to end (a test request needs approval). RLS migration reviewed, not applied. |
+| Aarna AI | PASS (Android) | DEVICE-VERIFIED: real Gemini reply on the phone with live collection cards; offline → honest error bubble; double-send ignored. Reply latency 30–80 s on the phone (prod still runs the old api). |
 
-## Architecture (as found)
+## Live AR
 
-- Flutter 3 app (`lib/`), GoRouter, Riverpod + legacy Provider. Supabase (`jrrmjtbauimrrxwjvmzh`) for catalogue/auth/orders. Vercel project `grazia-stones` hosts the web build and `api/*.js` serverless functions (Gemini proxies, NIM wall-detect, Razorpay).
-- Live AR on Android: `ARCorePlugin.kt` (method channel `com.graziastones.ar/native`) → `ARCoreManager.kt` (ARCore + SceneView 2.3.0/Filament). Wall mask: `WallSegmenter.kt` (ONNX Runtime, EfficientViT-Seg B1 ADE20K) → `WallMaskAccumulator.kt` (mask stored in quad space) → `wall_masked.filamat`.
-- iOS: `ios/Runner/AR/ARKit*.swift` implements most of the channel, but not `placeWallAtScreenPoint`, `detectObjectAtScreenPoint`, `captureSnapshot`, `clearPlacedWall`, `setWallClipping`.
+### Pipeline (Android)
+`ARCorePlugin.kt` → `ARCoreManager.kt`: ARCore session (planes H+V, depth off, light estimation HDR) → `autoPlace` every 400 ms: real hit (vertical Plane / oriented Point) → wall extension → **point-cloud plane fit** (feature points on segmenter wall pixels, RANSAC, vertical) → floor line (tap only) → guessed 2 m (after 2.5 s) → `anchorWall`. `WallSegmenter.kt` (EfficientViT-Seg B1 ADE20K, 160×352, ONNX Runtime XNNPACK, every 900 ms) → `WallMaskAccumulator.kt` (mask stored on an 8×4 m region around the anchor, **only the blob connected to the anchor**, blended over time) → `wall_masked.filamat` (lit, normal-mapped, clipped by the mask, room shading).
 
-## Feature audits
+### Device findings (OnePlus NE2211)
+- Rendering: the uncommitted parallax shader drew a flat brown moiré; the verified lit shader + quad-space mask renders correctly (DEVICE-VERIFIED, screenshots 02:09, 02:12, 03:28, 03:29).
+- Segmenter: 288×640 export took 1.5–4 s/frame (XNNPACK silently off because of cubic `Resize`; intraOp=1; JNI boxing). Now 160×352, linear resize, 3 threads, FloatBuffer: **run 115–400 ms / total 180–565 ms** on a cool phone; 650–1300 ms when throttled (DEVICE-VERIFIED).
+- Thermal: continuous segmentation drove the phone from status 0 to 3 in ~90 s at a 600 ms interval; now 900 ms. Status 3–4 slows ARCore and the UI; the salesperson should expect a warm phone after a few minutes.
+- Placement: on the raw test walls ARCore found one vertical plane once (after 11 s, 0.16×0.75 m) and no usable feature points; every placement used the **guessed distance**, so the stone's physical scale is unverified. The upgrade branch (`AUTO upgraded approximate placement`) and the point-cloud fit (`PLACE pointcloud plane`, now requiring two agreeing frames, `WallGeometry` JUnit 5/5) never fired in the sessions captured → **NOT OBSERVED**. Third pass: the UI now labels this state **"Approximate · tap to set wall distance"** (amber) instead of "Wall detected", and the sheet lets the user enter the real distance (0.5–6 m) so the panel is re-placed at an entered, not measured, scale. Other recovery: tap where the wall meets the floor (floor-line placement, true scale when the floor plane is tracked), or tap the wall once ARCore has a plane. Planes ARCore stopped tracking or merged are now rejected (`plane_not_tracking`).
+- Mask: on the plastered wall with a framed picture the model reports wall 80–88 %, the picture stays uncovered, the mask stays put while panning (DEVICE-VERIFIED). On the flat blue primer wall and peeling plaster the model reports wall 0–16 % and labels the scene floor/bed (ADE classes 3/7): **AI mask limitation, not plane detection**. Behaviour then: coverage gate keeps the mask off, the design shows as a 3×2.7 m panel at the placement, and the settings switch "Clip to wall (AI)" lets the user force either mode.
+- Depth API: with depth on, ARCore 1.57 on this phone returns 9–24 m for a 2 m wall with downward normals (DEVICE-VERIFIED). Depth stays off on OnePlus.
+- Not tested: dim light, long walks, a second phone model, scale against a tape measure.
 
-### 1. Live AR (priority zero)
+### iOS
+`ARKitPlugin.swift` lacks `placeWallAtScreenPoint`, `detectObjectAtScreenPoint`, `captureSnapshot`, `clearPlacedWall`, `setWallClipping`. The app now hides the shutter on iOS and shows a toast on tap-to-place; the plane-based preview and the ruler remain and are NOT TESTED (no iOS device).
 
-Root causes found on the device (logcat tags `ARCoreManager`, `WallSegmenter`):
+## Measure
+- AR ruler: real ARCore anchors (`hitTestWallAtScreenPoint`, `probeSurfaceAtScreenPoint`), units fixed, panel closable, fake calibration removed (AUTOMATED-TESTED, DEVICE launch). **Accuracy NOT TESTED** against a reference; expected ARCore error is not evidence.
+- `/measure`, `/boq-calculator`, `/measure/tile-visualizer`: manual calculators, render on device.
 
-1. **Stone rendered as a flat brown moiré.** The uncommitted parallax-occlusion rewrite of `wall_masked.mat` (cotangent frame + `textureGrad` + POM) broke the base-colour sampling on the Adreno GPU. The committed lit/normal-mapped shader renders correctly. Fix: material rewritten back to the verified lit shader with the new quad-space mask lookup; POM dropped (recompiled with matc 1.56).
-2. **Segmenter 1.5–4 s per frame.** (a) ORT's XNNPACK provider rejected the model's cubic `Resize` ops and silently fell back to CPU; (b) CPU-side ops ran with `intraOp=1`; (c) the 150-class logits were boxed into nested Java arrays through JNI; (d) the 288×640 input is too large for a phone CPU. Fixes: model re-exported at 160×352 with cubic→linear (`tool/export_wall_segmenter.py`), XNNPACK + 3 threads, `FloatBuffer` read, 600 ms request interval. Measured: run 520–1300 ms, total 820–1900 ms (phone was at thermal status 4 during tests; 650 ms when cool).
-3. **"Tiles the wrong size".** After 2.5 s without a real hit, auto-place guesses a wall 2 m away; when ARCore later finds the real plane the design stayed on the guess. Fix: `autoPlace` upgrades an `approximate` placement to the real surface as soon as one exists.
-4. **Mask erased the stone on odd walls.** ADE20K "wall" does not match flat blue paint or peeling plaster. Fixes: coverage gate (`MIN_MASK_COVERAGE`), and a "Clip to wall (AI)" switch in the settings sheet (`setWallClipping`).
-5. **Depth API re-checked on ARCore 1.57: still bogus on OnePlus** (9–24 m for a 2 m wall, inverted normals). Stays disabled; `debug.grazia.depth` prop for re-tests.
-6. Measure-only screen showed the last design / gold placeholder: `autoPlace` now needs a texture; `clearTexture` clears the placed quad.
-7. Settings sheet rendered under the shell's bottom nav (`useRootNavigator: true`).
+## Tile Visualizer
+- **Honest description:** six flat Flutter widgets under a perspective `Matrix4`; the front face is a `CustomPainter` grid of photo crops with fake shading. It is a convincing pseudo-3D card, not a 3D scene (no depth buffer, no lighting model, no real geometry). A genuine 3D version would mean a Filament/SceneView or `flutter_gl` viewport with a textured plane and PBR lighting — a separate project; not attempted.
+- Dimensions: 30 of 95 live rows have `length_cm/width_cm`; the rest come from `CatalogueSpecs` generated from the client's PDF catalogues (`scripts/gen_catalogue_specs.py`). **PDF-derived sizes need owner confirmation** before they drive quantities for a real order.
+- Pricing: **0 of 95 live rows have a price.** The invented ₹385/sqft is removed everywhere; the UI shows "Price on request"/"On request", the PDF says "Quote required", the checkout button says "price on request" when any cart item is unpriced (AUTOMATED-TESTED; DEVICE screenshot of the visualizer strip pending in the QA report).
 
-Device-verified: session start, tracking, auto-place, masked stone on a real wall with a framed picture left uncovered, room shading from the mask, settings toggle, snapshot API unchanged. Not verified: iPhone, dim-light pass, drift over a long walk, scale against a tape measure (no real plane was detected on the raw walls available; the guessed 2 m placement was used).
+## AI Studio
+- Model ids: all seven configured ids exist for this key and support `generateContent` (`gemini-3.1-flash-image`, `gemini-2.5-flash-image`, `gemini-3-pro-image`, `gemini-3-flash-preview`, `gemini-flash-latest`, `gemini-3.8-flash`, `gemini-3.1-flash-lite`) — verified via the Gemini models endpoint on 2026-10-20.
+- Vercel: production deploys from GitHub `raghavshahhh/grazia-stones` `main`; the live deployment is commit `0451af5`; local `main` is 12 commits ahead (api fixes not deployed). Env names present: `GEMINI_API_KEY`, `SUPABASE_SECRET_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `NVIDIA_NIM_API_KEY`; `SUPABASE_SERVICE_ROLE_KEY` absent → credits 503 until the fallback ships.
+- Client: no fake composite on failure; honest messages per status (CODE-REVIEWED). Server: 429 passthrough, 60 s per-model timeout, 504 instead of crash, `maxDuration` (AUTOMATED-TESTED node 4/4).
+- **BLOCKED:** real generation + auth/429/timeout/5xx tests need (a) approval to push/deploy, (b) a logged-in test account.
 
-### 2. Measure
+## Sample Kit
+- Flow `/sample-order` → `sample_requests` (table present in prod). Fixed: errors surface, honest wording, validation with a collapsed address form, email saved, tracking number shown (CODE-REVIEWED, AUTOMATED-TESTED).
+- Migration `20261020000000_sample_requests_insert_policy.sql` review: every app insert into `notifications` uses the signed-in user's own id (sample, quote, order repositories); guests insert `sample_requests` with `user_id = null`; admins are covered by the existing "Admins can manage all" FOR ALL policy; server code uses the service role. → compatible, **not applied** (needs approval; no non-prod project exists to rehearse on).
+- Duplicate prevention: UI only (button disabled while submitting); no server-side constraint. Status vocabulary: `pending/processing/shipped/dispatched/delivered/cancelled` (free text).
+- Owner notification (none today): practical option = Supabase Database Webhook on `sample_requests` INSERT → the existing `send-msg91-sms` Edge Function (SMS to the owner) or an email via Resend. Requires the owner's number/email and dashboard configuration; not implemented.
+- NOT TESTED: a real submission (creates a customer-visible row; needs approval).
 
-- `/ar-measure` ruler: real `hitTestWallAtScreenPoint` → ARCore anchors; `probeSurfaceAtScreenPoint` live crosshair; Auto outline on Android. Fixed: result unit label (showed feet as "mm"), quantity panel could not be closed, taps in Level mode added hidden pins, stream leak, web freeze on `MissingPluginException`.
-- Calibration ("Measure Wall" / "Calibrate Wall Scale") could never succeed on any platform (`calibrationPoints` never filled) → removed; "Measure Wall" now opens the ruler.
-- `calculateTileQuantity` returns metres consistently; panel converts to sq ft for cost. It still measures only the plane patch ARCore has seen.
-- `/measure`, `/boq-calculator`: manual calculators, work on device. BOQ initial value is correct (an earlier report claimed a dropdown assertion; verified false on device after a wrong fix was reverted).
-- Accuracy vs reference: NOT MEASURED (needs an object of known size in front of the phone).
+## Aarna AI
+- DEVICE-VERIFIED: typed question → real Gemini answer with bold product names, live collection cards (Supabase ids), shortcut row; airplane mode → "Could not reach Aarna. Check your connection and try again."; a second tap while busy is ignored; Reset no longer throws.
+- Shortcut/context propagation: CODE-REVIEWED (`_contextStoneId` → `?stoneId=` on `/live-ai`, `/sample-order`, `/wall-calc`, `/quotes/new`, `/ai-viz`); not tapped through on device.
+- Avatar: the chat hero card now renders the rigged `assets/3d/aarna.glb` live (model-viewer in one WebView; Idle/Wave/Blink clips; random blinks, look-around while a reply is pending, lean-in "peek" + wave when it lands or on tap, drag-to-turn). Small 32–38 px avatars remain 2D PNG layers by design. Honest limit: no facial morph targets, so expressions are clip swaps and camera moves. DEVICE check pending. The server prompt still styles her as a "3D design consultant" (text only).
+- Latency: 30–80 s on the phone in two trials (prod api without timeouts); 5 s via curl from the Mac. Worth lowering the per-model timeout / reordering models after deploy.
 
-### 3. Tile Visualizer
+## Shared / security
+- `flutter analyze` 0 issues; `flutter test` 103/103; `node --test` 4/4 (AUTOMATED-TESTED).
+- No secrets in `lib/`, `assets/`, `android/`, `web/`; `.env` gitignored.
+- Android release signing: `android/app/build.gradle.kts` already reads `android/key.properties` and refuses `bundleRelease` without a real keystore; `scripts/generate_upload_keystore.sh` exists. **BLOCKED:** the owner must create/provide the upload keystore (never generated here).
 
-- Rendering: six flat Flutter widgets in a perspective `Matrix4`, front face painted by `TileTextureWallPainter`. Not real 3D geometry; credible for a demo.
-- Fixed: catalogue size/coverage/AR texture now fill the 65 of 95 rows that have no DB dimensions (`_stoneFromRow`), tile count uses unclamped rows/cols, `Infinity`/huge input no longer crashes `build`, "Vertical" pattern swaps the tile.
-- Open: **₹385/sqft is invented** for all 95 stones (0 have a DB price). Options for the owner: load real prices, show "Price on request", or keep the placeholder and say so. Not changed (business decision).
-- Open: texture scale inside each tile is a random crop, PDF total ≠ screen total, unit switch does not convert the typed value.
-
-### 4. AI Studio
-
-- Flow: `SimpleAIStudioScreen` → `/api/generate-visualization` (JWT required) → `consume_ai_credit` RPC → Gemini image models → data URL back.
-- Fixed: client no longer shows a hand-made composite as the "AI render" on any failure (it shows the real reason: login, quota, server, timeout); server passes 429 through, bounds each Gemini call (60 s), returns 504 instead of crashing when all models fail; `maxDuration` set in `vercel.json`; credits key fallback `SUPABASE_SERVICE_ROLE_KEY || SUPABASE_SECRET_KEY` (Vercel only defines the latter → every generation was 503 → fake preview).
-- Verified: `node --test test/api/generate_visualization_credits.test.js` 4/4; Vercel env names: `GEMINI_API_KEY`, `SUPABASE_SECRET_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `NVIDIA_NIM_API_KEY` present.
-- Not verified: a real generation (needs a deploy of the api changes and a logged-in user). Model ids `gemini-3.1-flash-image` / `gemini-3-pro-image` unverified.
-- Open: job/batch pipeline (`ai_job_repository.dart`) still fakes completed jobs with marketing images (dead/unreachable path), "4K" marketing claim, download goes to app documents not the gallery.
-
-### 5. Sample Kit
-
-- Flow: `/sample-order` → `SampleOrderRepository.requestSample` → `public.sample_requests` (confirmed present in prod via REST, HTTP 200) → admin `/admin/samples`.
-- Fixed: insert errors are no longer swallowed (the customer saw "Sample Kit Dispatched!" even when nothing was saved); wording is now "Sample Request Received" + "team will confirm on <phone>"; name/phone validated even when the address form is collapsed; email saved; tracking number shown in history; `dispatched` status coloured.
-- Migration written, **not applied**: `supabase/migrations/20261020000000_sample_requests_insert_policy.sql` tightens `with check (true)` insert policies on `sample_requests` and `notifications`.
-- Open (owner): no email/WhatsApp/push alert on new requests — the team must open `/admin/samples`; an admin account (`profiles.role = 'admin'`) must exist; no courier integration (AWB typed by hand).
-
-### 6. Aarna AI
-
-- Live check: `POST https://grazia-stones.vercel.app/api/aarna` as a guest returned a real Gemini answer in 5.1 s.
-- Fixed: on any failure the app showed a canned template as if Aarna wrote it → now `AarnaUnavailable` with the real reason (busy/429, sign-in/401, not configured/503, timeout, offline) and a retry hint; sanitizer no longer rewrites complete sentences ending in "like/with/and"; Reset during a reply no longer throws `RangeError`; sending during the typewriter is blocked; welcome cards use the live catalogue; mock catalogue fallbacks removed (their ids broke detail pages); shortcuts pass `?stoneId=` of the last recommended stone and go to `/live-ai` directly; server bounds Gemini (20 s), passes 429, no crash when all models fail.
-- Honest avatar description: PNG artwork with transform animations (2.5D). A WebView/glb 3D path exists in code but is never used; UI copy still says "3D consultant".
-- Open: product cards are chosen by local keyword matching, not by the LLM; rate limiting is per-instance memory.
-
-## Shared reliability
-
-- `ARNativeChannel.initialize()` is idempotent (was adding a listener per AR screen open).
-- Snapshot on Android 7–9 no longer throws (saves for Share, not gallery).
-- `flutter analyze`: 0 issues. `flutter test`: 103/103. `node --test`: 4/4.
-
-## Security
-
-- No provider secrets in `lib/`, `assets/`, `android/`, `web/`; root `.env` is gitignored and not bundled. Supabase publishable key is in source (acceptable, public by design).
-- Sample/notification insert RLS `with check (true)` → migration prepared (apply with `supabase db push` after review).
-- `/api/ai-quota` CORS `*`, in-memory rate limits — unchanged, documented.
-
-## External actions required
-
-1. Deploy `api/` + `vercel.json` to Vercel (`vercel --prod`) and test one AI Studio generation with a real login.
-2. Apply `20261020000000_sample_requests_insert_policy.sql` to the Supabase project.
-3. Decide stone pricing (see Tile Visualizer).
-4. Create/confirm an admin account for `/admin/samples`; decide how the team gets notified.
-5. iOS: implement the 5 missing ARKit channel methods or hide Live AR on iPhone until then.
-6. Release signing: the AAB is still debug-signed (`android/app/build.gradle.kts`), see `PLAY_STORE_READINESS.md`.
-
-## Remaining P0/P1/P2
-
-- P0: iOS Live AR tap/snapshot missing; invented prices if the client reads them as real.
-- P1: Live AR scale on plain walls relies on a floor-line tap or a guess until ARCore finds a plane; segmenter semantics on raw/blue walls; AI Studio batch pipeline fakes results (unreachable but present); sample-request owner alert.
-- P2: thermal load from segmentation (now throttled), Tile Visualizer texture scale/PDF totals, Aarna cards not LLM-driven, rate limits per instance.
+## Release blockers (exact)
+1. Live AR scale on plain walls is unverified (guessed 2 m until a plane/floor line exists); AI mask fails on raw/blue walls (user switch exists).
+2. iOS Live AR: 5 channel methods missing; features hidden, preview untested.
+3. api changes not deployed (needs push/deploy approval); AI Studio generation untested with a real account.
+4. Supabase RLS migration not applied (needs approval).
+5. Upload keystore missing (release is debug-signed).
+6. PDF-derived catalogue dimensions and absent prices need owner data.

@@ -1,3 +1,4 @@
+import 'package:grazia_stones/core/utils/formatters.dart';
 import 'package:grazia_stones/core/utils/responsive.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -586,7 +587,7 @@ class _VrShowroomScreenState extends ConsumerState<VrShowroomScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              '₹${stone.pricePerSqFt.toStringAsFixed(0)}/sq.ft',
+                              Formatters.pricePerSqFt(stone.pricePerSqFt),
                               style: GoogleFonts.inter(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,

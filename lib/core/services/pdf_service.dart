@@ -274,7 +274,7 @@ class PDFService {
                   crossAxisAlignment: pw.CrossAxisAlignment.end,
                   children: [
                     pw.Text(
-                      _currencyFormat.format(stone.pricePerSqFt),
+                      stone.hasPrice ? _currencyFormat.format(stone.pricePerSqFt) : 'Price on request',
                       style: pw.TextStyle(
                         fontSize: 14,
                         fontWeight: pw.FontWeight.bold,
@@ -424,10 +424,10 @@ class PDFService {
               ),
               child: pw.Column(
                 children: [
-                  _buildTotalRow('Material Subtotal:', _currencyFormat.format(subtotal)),
-                  _buildTotalRow('GST (18%):', _currencyFormat.format(gst)),
+                  _buildTotalRow('Material Subtotal:', stone.hasPrice ? _currencyFormat.format(subtotal) : 'Quote required'),
+                  _buildTotalRow('GST (18%):', stone.hasPrice ? _currencyFormat.format(gst) : '-'),
                   pw.Divider(color: PdfColors.grey300),
-                  _buildTotalRow('Est. Total (Excl. Freight):', _currencyFormat.format(grandTotal), isBold: true, fontSize: 11),
+                  _buildTotalRow('Est. Total (Excl. Freight):', stone.hasPrice ? _currencyFormat.format(grandTotal) : 'Quote required', isBold: true, fontSize: 11),
                 ],
               ),
             ),

@@ -1,3 +1,4 @@
+import 'package:grazia_stones/core/utils/formatters.dart';
 import 'package:grazia_stones/core/utils/responsive.dart';
 import 'package:grazia_stones/features/wishlist/wishlist_feedback.dart';
 import 'package:flutter/material.dart';
@@ -1026,7 +1027,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> with SingleTickerPr
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '₹${stone.pricePerSqFt.toInt()}/sqft',
+                    Formatters.pricePerSqFt(stone.pricePerSqFt),
                     style: GoogleFonts.inter(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
@@ -1095,7 +1096,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> with SingleTickerPr
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '₹${stone.pricePerSqFt.toInt()}/sqft',
+                    Formatters.pricePerSqFt(stone.pricePerSqFt),
                     style: GoogleFonts.inter(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,

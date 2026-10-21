@@ -1,3 +1,4 @@
+import 'package:grazia_stones/core/utils/formatters.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -633,7 +634,7 @@ class AiToolsHubScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '₹${stone.pricePerSqFt.toStringAsFixed(0)}/sqft',
+                    Formatters.pricePerSqFt(stone.pricePerSqFt),
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,

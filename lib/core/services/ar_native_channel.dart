@@ -354,6 +354,18 @@ class ARNativeChannel {
     return Map<String, String>.from(r as Map);
   }
 
+  /// Distance to the wall for the "approximate" placement (no ARCore surface). Typed by the user, so the
+  /// panel's scale is honest on plain walls instead of the 2 m guess. Android only.
+  static Future<void> setApproximateDistance(double meters) async {
+    try {
+      await _channel.invokeMethod('setApproximateDistance', {'meters': meters});
+    } on PlatformException catch (e) {
+      debugPrint('[ARNativeChannel] setApproximateDistance failed: ${e.message}');
+    } on MissingPluginException {
+      // iOS / web: no approximate placement
+    }
+  }
+
   /// Clip the placed design to the AI wall mask (true) or show the whole placed wall (false). Android only.
   static Future<void> setWallClipping(bool enabled) async {
     try {

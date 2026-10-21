@@ -1,3 +1,4 @@
+import 'package:grazia_stones/core/utils/formatters.dart';
 import 'package:grazia_stones/features/wishlist/wishlist_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -483,8 +484,8 @@ class CollectionDetailScreen extends ConsumerWidget {
   }
 
   String _calculatePriceRange(List<Stone> stones) {
-    if (stones.isEmpty) return '₹385/sqft';
-    final prices = stones.map((s) => s.pricePerSqFt).toList()..sort();
+    final prices = stones.map((s) => s.pricePerSqFt).where((p) => p > 0).toList()..sort();
+    if (prices.isEmpty) return 'Price on request';
     final min = prices.first.toInt();
     final max = prices.last.toInt();
     return min == max ? '₹$min/sqft' : '₹$min - ₹$max / sqft';
@@ -657,7 +658,7 @@ class _CollectionStoneCard extends ConsumerWidget {
                     Row(
                       children: [
                         Text(
-                          '₹${stone.pricePerSqFt.toInt()}',
+                          Formatters.priceTag(stone.pricePerSqFt),
                           style: GoogleFonts.inter(
                             fontSize: 13,
                             fontWeight: FontWeight.w800,
@@ -665,7 +666,7 @@ class _CollectionStoneCard extends ConsumerWidget {
                           ),
                         ),
                         Text(
-                          '/sqft',
+                          Formatters.unitSuffix(stone.pricePerSqFt, '/sqft'),
                           style: GoogleFonts.inter(
                             fontSize: 10,
                             color: palette.textSecondary,

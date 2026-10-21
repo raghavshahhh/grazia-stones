@@ -271,6 +271,11 @@ class ARCorePlugin : FlutterPlugin, MethodCallHandler, StreamHandler {
                 arCoreManager?.clearPlacedWall()
                 result.success(null)
             }
+            "setApproximateDistance" -> {
+                val m = call.argument<Double>("meters")?.toFloat()
+                if (m != null) { arCoreManager?.setApproximateDistance(m); result.success(null) }
+                else result.error("INVALID_ARGS", "Missing meters", null)
+            }
             "setWallClipping" -> {
                 arCoreManager?.wallClippingEnabled = call.argument<Boolean>("enabled") ?: true
                 result.success(null)

@@ -251,6 +251,39 @@ extension ARKitPlugin {
                 result(FlutterError(code: "INVALID_ARGS", message: "Missing textureUrl", details: nil))
             }
             
+        case "placeWallAtScreenPoint":
+            if let args = call.arguments as? [String: Any],
+               let sx = args["screenX"] as? Double, let sy = args["screenY"] as? Double {
+                result(arKitManager.placeWallAtScreenPoint(CGPoint(x: sx, y: sy)))
+            } else {
+                result(FlutterError(code: "INVALID_ARGS", message: "Missing screen coordinates", details: nil))
+            }
+
+        case "clearPlacedWall":
+            arKitManager.clearPlacedWall()
+            result(nil)
+
+        case "setWallClipping":
+            arKitManager.setWallClipping((call.arguments as? [String: Any])?["enabled"] as? Bool ?? true)
+            result(nil)
+
+        case "setApproximateDistance":
+            // iOS raycasts against LiDAR / estimated planes; there is no guessed-distance placement to adjust.
+            result(nil)
+
+        case "captureSnapshot":
+            arKitManager.captureSnapshot { saved, error in
+                if let saved = saved {
+                    result(saved)
+                } else {
+                    result(FlutterError(code: "SNAPSHOT_FAILED", message: error, details: nil))
+                }
+            }
+
+        case "detectObjectAtScreenPoint":
+            // The Auto outline uses the Android camera-image flood fill; not ported to iOS yet.
+            result(["error": "unsupported"])
+
         default:
             result(FlutterMethodNotImplemented)
         }

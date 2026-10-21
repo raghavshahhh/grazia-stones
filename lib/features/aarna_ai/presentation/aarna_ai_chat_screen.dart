@@ -1,3 +1,4 @@
+import 'package:grazia_stones/core/utils/formatters.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -114,7 +115,7 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
       AarnaChatMessage(
         id: 'welcome',
         text:
-            'Hello! I am **Aarna**, your 3D AI architectural consultant for Grazia Stones.\n\n*AARNA — Your Vision, My Intelligence.*\n\nExplore our complete architectural suites and design collections curated below. Tap any collection to view all designs, or ask me for personalized space pairings!',
+            'Hello! I am **Aarna**, your AI architectural consultant for Grazia Stones.\n\n*AARNA — Your Vision, My Intelligence.*\n\nExplore our complete architectural suites and design collections curated below. Tap any collection to view all designs, or ask me for personalized space pairings!',
         isUser: false,
         timestamp: DateTime.now(),
         recommendedCollections: curatedSuites,
@@ -1174,7 +1175,7 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
                           ),
                         ),
                         child: Text(
-                          '₹${stone.pricePerSqFt.toInt()}/sq.ft',
+                          Formatters.pricePerSqFt(stone.pricePerSqFt),
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 9.5,
                             fontWeight: FontWeight.w700,
@@ -1319,11 +1320,16 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
                   ),
                 ),
                 const SizedBox(width: 10),
-                Text(
-                  'Aarna is analyzing architectural options...',
-                  style: GoogleFonts.plusJakartaSans(
-                    color: const Color(0xFF8E8E93),
-                    fontSize: 12,
+                // Flexible: the bubble sits beside the avatar and overflowed by a few px on narrow phones
+                Flexible(
+                  child: Text(
+                    'Aarna is analyzing architectural options...',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.plusJakartaSans(
+                      color: const Color(0xFF8E8E93),
+                      fontSize: 12,
+                    ),
                   ),
                 ),
               ],
@@ -1449,7 +1455,7 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        'Your 3D Architectural AI Consultant for Grazia natural stones, 3D relief walls, finishes & quotes.',
+                        'Your Architectural AI Consultant for Grazia natural stones, 3D relief walls, finishes & quotes.',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 11.5,
                           height: 1.35,

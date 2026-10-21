@@ -23,6 +23,7 @@ class ARCameraView extends StatelessWidget {
   static void updateOpacity(double opacity) {}
   static void showWallBoundary(bool show) {}
   static Future<void> setWallClipping(bool enabled) async {}
+  static Future<void> setApproximateDistance(double meters) async {}
   static void stopCamera() {}
 
   @override

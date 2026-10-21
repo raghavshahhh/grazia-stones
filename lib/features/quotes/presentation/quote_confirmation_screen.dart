@@ -467,7 +467,7 @@ class QuoteConfirmationScreen extends ConsumerWidget {
                 ),
               ),
               Text(
-                '${currencyFormat.format(item.pricePerSqFt)}/sq.ft',
+                item.pricePerSqFt > 0 ? '${currencyFormat.format(item.pricePerSqFt)}/sq.ft' : 'Price on request',
                 style: GoogleFonts.inter(
                   fontSize: 12,
                   color: palette.textSecondary,

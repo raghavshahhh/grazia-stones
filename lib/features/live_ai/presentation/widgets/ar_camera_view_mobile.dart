@@ -99,6 +99,7 @@ class ARCameraView extends StatefulWidget {
   }
 
   static Future<void> setWallClipping(bool enabled) => ARNativeChannel.setWallClipping(enabled);
+  static Future<void> setApproximateDistance(double meters) => ARNativeChannel.setApproximateDistance(meters);
 
   static void showWallBoundary(bool show) {
     _controller.add(_ARUpdate(showBoundary: show));

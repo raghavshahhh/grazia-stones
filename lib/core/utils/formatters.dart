@@ -10,8 +10,13 @@ class Formatters {
   }
 
   static String pricePerSqFt(double price) {
+    if (price <= 0) return 'Price on request';
     return '₹${price.toStringAsFixed(0)}/sqft';
   }
+
+  /// Bare amount for layouts that draw the unit separately; pair with [unitSuffix].
+  static String priceTag(double price) => price > 0 ? '₹${price.toStringAsFixed(0)}' : 'On request';
+  static String unitSuffix(double price, String unit) => price > 0 ? unit : '';
 
   static String phoneNumber(String phone) {
     if (phone.length == 10) {

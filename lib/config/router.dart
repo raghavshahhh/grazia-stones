@@ -77,11 +77,17 @@ LocalKey _pageKey(GoRouterState state) {
   return ValueKey<String>('${state.pageKey.value}::${state.uri}');
 }
 
+/// Page timing: an unhurried ease-out in, a quicker ease-in out, so Back feels light and forward feels settled.
+const Duration _kPageIn = Duration(milliseconds: 340);
+const Duration _kPageOut = Duration(milliseconds: 240);
+
 /// Crossfade only — for bottom nav tab switches.
 CustomTransitionPage<void> _fadePage(Widget child, GoRouterState state) {
   return CustomTransitionPage<void>(
     key: _pageKey(state),
     child: child,
+    transitionDuration: _kPageIn,
+    reverseTransitionDuration: _kPageOut,
     transitionsBuilder: (_, animation, _, child) =>
         FadeTransition(opacity: animation, child: child),
   );
@@ -92,6 +98,8 @@ CustomTransitionPage<void> _slideUpPage(Widget child, GoRouterState state) {
   return CustomTransitionPage<void>(
     key: _pageKey(state),
     child: child,
+    transitionDuration: _kPageIn,
+    reverseTransitionDuration: _kPageOut,
     transitionsBuilder: (_, animation, _, child) {
       final curved = CurvedAnimation(
         parent: animation,
@@ -102,7 +110,7 @@ CustomTransitionPage<void> _slideUpPage(Widget child, GoRouterState state) {
         opacity: curved,
         child: SlideTransition(
           position: Tween<Offset>(
-            begin: const Offset(0, 0.06),
+            begin: const Offset(0, 0.035),
             end: Offset.zero,
           ).animate(curved),
           child: child,
@@ -117,6 +125,8 @@ CustomTransitionPage<void> _slideRightPage(Widget child, GoRouterState state) {
   return CustomTransitionPage<void>(
     key: _pageKey(state),
     child: child,
+    transitionDuration: _kPageIn,
+    reverseTransitionDuration: _kPageOut,
     transitionsBuilder: (_, animation, _, child) {
       final curved = CurvedAnimation(
         parent: animation,
@@ -139,6 +149,8 @@ CustomTransitionPage<void> _scaleFadePage(Widget child, GoRouterState state) {
   return CustomTransitionPage<void>(
     key: _pageKey(state),
     child: child,
+    transitionDuration: _kPageIn,
+    reverseTransitionDuration: _kPageOut,
     transitionsBuilder: (_, animation, _, child) {
       final curved = CurvedAnimation(
         parent: animation,

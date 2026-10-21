@@ -1,3 +1,4 @@
+import 'package:grazia_stones/core/utils/formatters.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:ui' show ImageFilter;
@@ -1180,7 +1181,7 @@ class _CartCard extends StatelessWidget {
                                 ),
                               ),
                               Text(
-                                '₹${item.stone.pricePerSqFt.toInt()}/sqft',
+                                Formatters.pricePerSqFt(item.stone.pricePerSqFt),
                                 style: GoogleFonts.inter(color: palette.textTertiary, fontSize: 10),
                               ),
                             ],

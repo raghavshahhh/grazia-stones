@@ -1,3 +1,4 @@
+import 'package:grazia_stones/core/utils/formatters.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -165,9 +166,10 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
     final grossArea = sqft + bufferArea;
 
     // Rate & Packaging Box
+    // A stone without a catalogue price gives no estimate (0 -> 'On request'); only a typed custom rate does.
     final rate = _useCustomRate || _selectedStone == null
         ? customRate
-        : _selectedStone!.pricePerSqFt;
+        : (_selectedStone!.hasPrice ? _selectedStone!.pricePerSqFt : 0.0);
 
     final sqftPerBox = (_selectedStone != null && _selectedStone!.sqftPerBox > 0)
         ? _selectedStone!.sqftPerBox
@@ -463,7 +465,7 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
     final stoneName = _selectedStone?.name ?? 'Custom Specification';
     final stoneRate = _useCustomRate || _selectedStone == null
         ? '₹${_customRateController.text}/sqft'
-        : '₹${_selectedStone!.pricePerSqFt.toInt()}/sqft';
+        : Formatters.pricePerSqFt(_selectedStone!.pricePerSqFt);
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -555,7 +557,7 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '₹$currencyFormat',
+                      _estimatedCost > 0 ? '₹$currencyFormat' : 'On request',
                       style: GoogleFonts.inter(
                         fontSize: 26,
                         fontWeight: FontWeight.w800,
@@ -1101,7 +1103,7 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
-                                    '₹${stone.pricePerSqFt.toInt()}/sqft',
+                                    Formatters.pricePerSqFt(stone.pricePerSqFt),
                                     style: GoogleFonts.inter(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w800,

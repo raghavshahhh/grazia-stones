@@ -94,7 +94,16 @@ class WallSegmenter(context: Context) {
      * background. [onMask] gets MASK_W x MASK_H wall probabilities (0..255, row 0 = screen top) and the camera
      * brightness (0..1) on the same grid, on the worker thread.
      */
-    fun request(frame: Frame, onMask: (ByteArray, FloatArray) -> Unit) {
+    /** Everything one segmentation produces, all on the MASK_W x MASK_H grid (row 0 = screen top). */
+    class Result(
+        val wall: ByteArray,      // wall probability 0..255
+        val veto: ByteArray,      // 255 where the model is confident the pixel is a door / window / person / picture...
+        val luma: FloatArray,     // camera brightness 0..1
+        val chromaU: FloatArray,  // camera chroma 0..1 (0.5 = neutral)
+        val chromaV: FloatArray,
+    )
+
+    fun request(frame: Frame, onMask: (Result) -> Unit) {
         if (busy) return
         val image = try { frame.acquireCameraImage() } catch (e: Exception) { return }
         busy = true
@@ -111,7 +120,8 @@ class WallSegmenter(context: Context) {
             worker.execute {
                 try {
                     val luma = FloatArray(IN_W * IN_H)
-                    val input = toInput(coords, w, h, yBytes, uBytes, vBytes, yRow, uvRow, uvPix, luma)
+                    val cu = FloatArray(IN_W * IN_H); val cv = FloatArray(IN_W * IN_H)
+                    val input = toInput(coords, w, h, yBytes, uBytes, vBytes, yRow, uvRow, uvPix, luma, cu, cv)
                     val t0 = android.os.SystemClock.elapsedRealtime()
                     var tRun = 0L
                     val mask = OnnxTensor.createTensor(env, input, longArrayOf(1, 3, IN_H.toLong(), IN_W.toLong())).use { tensor ->
@@ -124,7 +134,7 @@ class WallSegmenter(context: Context) {
                     }.let { refineEdges(it, luma) }
                     lastInferenceMs = android.os.SystemClock.elapsedRealtime() - t0
                     lastRunMs = tRun
-                    onMask(mask, downsampleLuma(luma))
+                    onMask(Result(mask, upsampleVeto(lastVeto), downsampleLuma(luma), downsampleLuma(cu), downsampleLuma(cv)))
                 } catch (e: Exception) {
                     Log.e(TAG, "segmentation failed", e)
                 } finally {
@@ -147,7 +157,7 @@ class WallSegmenter(context: Context) {
     /** Nearest-pixel YUV -> RGB sampling of the view grid into a normalised NCHW tensor. */
     private fun toInput(
         coords: FloatArray, w: Int, h: Int, yB: ByteArray, uB: ByteArray, vB: ByteArray, yRow: Int, uvRow: Int, uvPix: Int,
-        luma: FloatArray,
+        luma: FloatArray, chromaU: FloatArray, chromaV: FloatArray,
     ): FloatBuffer {
         val plane = IN_W * IN_H
         val buf = FloatBuffer.allocate(3 * plane)
@@ -160,6 +170,8 @@ class WallSegmenter(context: Context) {
             val uvi = (py / 2) * uvRow + (px / 2) * uvPix
             val u = (uB.getOrElse(uvi) { 128.toByte() }.toInt() and 0xFF) - 128f
             val v = (vB.getOrElse(uvi) { 128.toByte() }.toInt() and 0xFF) - 128f
+            chromaU[i] = (u + 128f) / 255f
+            chromaV[i] = (v + 128f) / 255f
             val r = (yy + 1.402f * v).coerceIn(0f, 255f) / 255f
             val g = (yy - 0.344136f * u - 0.714136f * v).coerceIn(0f, 255f) / 255f
             val b = (yy + 1.772f * u).coerceIn(0f, 255f) / 255f
@@ -174,16 +186,44 @@ class WallSegmenter(context: Context) {
     private fun wallProbability(logits: FloatBuffer): ByteArray {
         val cells = OUT_W * OUT_H
         val out = ByteArray(cells)
+        val hist = IntArray(CLASSES)
+        val veto = ByteArray(cells)
         for (k in 0 until cells) {
-            var max = Float.NEGATIVE_INFINITY
-            for (c in 0 until CLASSES) max = maxOf(max, logits.get(c * cells + k))
+            var max = Float.NEGATIVE_INFINITY; var arg = 0
+            for (c in 0 until CLASSES) {
+                val v = logits.get(c * cells + k)
+                if (v > max) { max = v; arg = c }
+            }
+            hist[arg]++
+            if (arg in VETO_CLASSES) veto[k] = 0xFF.toByte()
             var sum = 0f
             for (c in 0 until CLASSES) sum += exp(logits.get(c * cells + k) - max)
             val p = exp(logits.get(WALL * cells + k) - max) / sum
             out[k] = (p * 255f).toInt().coerceIn(0, 255).toByte()
         }
+        // What the model thinks the scene is, for logcat: "ade#5:48% ade#0:30% ade#2:10%" (ADE20K class ids).
+        lastTopClasses = hist.withIndex().sortedByDescending { it.value }.take(3)
+            .joinToString(" ") { "ade#${it.index}:${it.value * 100 / cells}%" }
+        lastVeto = veto
         return out
     }
+
+    /** ADE20K classes that must never receive stone even if their colour matches the wall. */
+    private val VETO_CLASSES = setOf(8 /*window*/, 10 /*cabinet*/, 12 /*person*/, 14 /*door*/, 18 /*curtain*/,
+        22 /*painting*/, 24 /*shelf*/, 27 /*mirror*/, 89 /*television*/)
+    private var lastVeto = ByteArray(OUT_W * OUT_H)
+
+    /** Nearest-neighbour OUT -> MASK grid (4x); the veto is a coarse "not here" hint, edges come from colour. */
+    private fun upsampleVeto(v: ByteArray): ByteArray {
+        val out = ByteArray(MASK_W * MASK_H)
+        val sx = MASK_W / OUT_W; val sy = MASK_H / OUT_H
+        for (y in 0 until MASK_H) for (x in 0 until MASK_W) out[y * MASK_W + x] = v[(y / sy) * OUT_W + x / sx]
+        return out
+    }
+
+    /** Top-3 ADE20K classes by area in the last frame (0 = wall, 1 = building, 2 = sky, 3 = floor, 5 = ceiling, 8 = window, 14 = door). */
+    @Volatile var lastTopClasses = ""
+        private set
 
     /**
      * Joint bilateral upsampling: the model's 36x80 mask is blocky, so poster / AC / window edges bled.

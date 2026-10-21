@@ -1,3 +1,4 @@
+import 'package:grazia_stones/core/utils/formatters.dart';
 import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:grazia_stones/features/wishlist/wishlist_feedback.dart';
@@ -645,7 +646,7 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                         textBaseline: TextBaseline.alphabetic,
                         children: [
                           Text(
-                            '₹${stone.pricePerSqFt.toInt()}',
+                            Formatters.priceTag(stone.pricePerSqFt),
                             style: GoogleFonts.inter(
                               fontSize: 28,
                               fontWeight: FontWeight.w700,
@@ -654,7 +655,7 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            '/ sq ft',
+                            Formatters.unitSuffix(stone.pricePerSqFt, '/ sq ft'),
                             style: GoogleFonts.inter(
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
@@ -1099,7 +1100,7 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                                   ),
                                 ),
                                 Text(
-                                  '₹${totalEstimatedCost.toInt()}',
+                                  stone.hasPrice ? '₹${totalEstimatedCost.toInt()}' : 'On request',
                                   style: GoogleFonts.inter(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w800,

@@ -1,3 +1,4 @@
+import 'package:grazia_stones/core/utils/formatters.dart';
 import 'package:grazia_stones/core/data/catalogue_specs.dart';
 import 'dart:async';
 import 'dart:ui';
@@ -670,6 +671,18 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
         icon = Icons.check_circle_rounded;
         stateColor = const Color(0xFF4CAF50);
         break;
+      case 'NEED_TAP':
+        // Tracking is fine but no wall surface yet (plain paint): the floor line gives a true-scale wall.
+        label = 'No wall found yet — tap where the wall meets the floor';
+        icon = Icons.touch_app_rounded;
+        stateColor = const Color(0xFFD4AF37);
+        break;
+      case 'APPROXIMATE':
+        // No ARCore surface yet: the design sits at a guessed distance, so its size is not measured.
+        label = 'Approximate · tap to set wall distance';
+        icon = Icons.straighten_rounded;
+        stateColor = const Color(0xFFFFB74D);
+        break;
       case 'LOST':
         label = 'Wall lost — point back at the wall';
         icon = Icons.error_outline_rounded;
@@ -691,7 +704,9 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
       left: 0,
       right: 0,
       child: Center(
-        child: ClipRRect(
+        child: GestureDetector(
+          onTap: _wallState == 'APPROXIMATE' ? _showApproximateDistanceSheet : null,
+          child: ClipRRect(
           borderRadius: BorderRadius.circular(24),
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
@@ -743,6 +758,87 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                 ],
               ),
             ),
+          ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  double _approxDistanceM = 2.0;
+
+  /// The honest fallback for walls ARCore cannot see: the user types how far the wall is, and the native
+  /// side re-places the panel at that distance (scale provenance: "user-entered distance", not measured).
+  void _showApproximateDistanceSheet() {
+    HapticFeedback.selectionClick();
+    showModalBottomSheet<void>(
+      context: context,
+      useRootNavigator: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) => Container(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.92),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            border: Border.all(color: AppColors.goldWarm.withValues(alpha: 0.3), width: 0.8),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'How far is the wall?',
+                style: TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'This wall has no trackable surface yet, so the stone is shown at an approximate size. '
+                'Enter the real distance from the phone to the wall, or tap where the wall meets the floor.',
+                style: TextStyle(fontFamily: 'Inter', fontSize: 12, height: 1.4, color: Colors.white.withValues(alpha: 0.65)),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: Slider(
+                      value: _approxDistanceM,
+                      min: 0.5,
+                      max: 6,
+                      divisions: 55,
+                      activeColor: AppColors.goldWarm,
+                      onChanged: (v) => setSheetState(() => _approxDistanceM = v),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 64,
+                    child: Text(
+                      '${_approxDistanceM.toStringAsFixed(1)} m',
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(fontFamily: 'Inter', fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.goldWarm),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    ARCameraView.setApproximateDistance(_approxDistanceM);
+                    Navigator.of(context).pop();
+                    LuxuryToast.show(context, message: 'Stone re-placed at ${_approxDistanceM.toStringAsFixed(1)} m (entered, not measured)');
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.goldWarm,
+                    foregroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Use this distance', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -909,7 +1005,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
             if (r['recommendedQuantity'] != null)
               _buildQuantityRow('Recommended', '${r['recommendedQuantity']} tiles', highlight: true),
             const SizedBox(height: 12),
-            if (_selectedStone != null && sqFtPerAreaUnit > 0) () {
+            if (_selectedStone != null && _selectedStone!.hasPrice && sqFtPerAreaUnit > 0) () {
               final rawArea = r['wallArea'];
               final areaVal = rawArea is num ? rawArea.toDouble() : (double.tryParse(rawArea?.toString() ?? '') ?? 0.0);
               final rawWastage = r['wastagePercent'];
@@ -1575,8 +1671,8 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                                   const SizedBox(height: 2),
                                   Text(
                                     stone.thickness.trim().isEmpty
-                                        ? '₹${stone.pricePerSqFt}/sq.ft'
-                                        : '₹${stone.pricePerSqFt}/sq.ft  •  ${stone.thickness.trim()} thick',
+                                        ? Formatters.pricePerSqFt(stone.pricePerSqFt)
+                                        : '${Formatters.pricePerSqFt(stone.pricePerSqFt)}  •  ${stone.thickness.trim()} thick',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(

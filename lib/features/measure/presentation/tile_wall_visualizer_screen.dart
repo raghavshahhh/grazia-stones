@@ -1,3 +1,4 @@
+import 'package:grazia_stones/core/utils/formatters.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:grazia_stones/features/measure/presentation/widgets/tile_texture_wall.dart';
@@ -185,11 +186,16 @@ class _TileWallVisualizerScreenState
     );
 
     _cameraAnimController.reset();
-    _cameraAnimController.forward();
-
-    setState(() {
-      _is3DView = is3D;
-    });
+    // Switching to 2D used to flip _is3DView first, which forced the rotation to 0 and made the wall snap
+    // instead of easing; the flag now follows the animation. Switching to 3D still flips immediately.
+    if (is3D) {
+      setState(() => _is3DView = true);
+      _cameraAnimController.forward();
+    } else {
+      _cameraAnimController.forward().whenComplete(() {
+        if (mounted) setState(() => _is3DView = false);
+      });
+    }
   }
 
   Future<void> _exportPdfSpecSheet(
@@ -308,7 +314,7 @@ class _TileWallVisualizerScreenState
     final effectivePrice =
         (_selectedStone != null && _selectedStone!.pricePerSqFt > 0)
         ? _selectedStone!.pricePerSqFt
-        : 385.0;
+        : 0.0; // no price -> 'On request', never an invented rate
 
     int columns = 6;
     int rows = 12;
@@ -2318,7 +2324,9 @@ class _TileWallVisualizerScreenState
               ),
               _buildStatMetric(
                 'Est. Value',
-                '₹${estimatedCost.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}',
+                estimatedCost > 0
+                    ? '₹${estimatedCost.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}'
+                    : 'On request',
                 palette,
                 isGold: true,
               ),
@@ -2528,9 +2536,7 @@ class _TileWallVisualizerScreenState
         itemBuilder: (context, index) {
           final stone = stones[index];
           final isSelected = _selectedStone?.id == stone.id;
-          final stonePrice = stone.pricePerSqFt > 0
-              ? stone.pricePerSqFt
-              : 385.0;
+          final stonePrice = stone.pricePerSqFt;
 
           return InkWell(
             onTap: () {
@@ -2593,7 +2599,10 @@ class _TileWallVisualizerScreenState
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '₹${stonePrice.toInt()}/sqft',
+                          // Short form: "Price on request" wrapped to two lines and overflowed the 150 px card
+                          stonePrice > 0 ? Formatters.pricePerSqFt(stonePrice) : 'On request',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.inter(
                             fontSize: 11,
                             fontWeight: FontWeight.w800,

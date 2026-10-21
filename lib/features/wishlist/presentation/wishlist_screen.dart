@@ -1,3 +1,4 @@
+import 'package:grazia_stones/core/utils/formatters.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -402,7 +403,7 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    '₹${stone.pricePerSqFt.toInt()}',
+                    Formatters.priceTag(stone.pricePerSqFt),
                     style: GoogleFonts.inter(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
@@ -410,7 +411,7 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
                     ),
                   ),
                   Text(
-                    '/sqft',
+                    Formatters.unitSuffix(stone.pricePerSqFt, '/sqft'),
                     style: GoogleFonts.inter(fontSize: 10, color: palette.textTertiary),
                   ),
                   const SizedBox(height: 8),

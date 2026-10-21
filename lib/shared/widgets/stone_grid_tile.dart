@@ -1,3 +1,4 @@
+import 'package:grazia_stones/core/utils/formatters.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -153,7 +154,7 @@ class _StoneGridTileState extends ConsumerState<StoneGridTile> {
                   ),
                 ),
                 child: Text(
-                  '₹${widget.stone.pricePerSqFt.toInt()}',
+                  Formatters.priceTag(widget.stone.pricePerSqFt),
                   style: TextStyle(
                     fontFamily: 'Inter',
                     fontSize: 11,

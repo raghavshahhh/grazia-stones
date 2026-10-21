@@ -1,3 +1,4 @@
+import 'package:grazia_stones/core/utils/formatters.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:grazia_stones/core/models/stone.dart';
@@ -182,7 +183,7 @@ class _HomeHeroCarouselState extends State<HomeHeroCarousel> {
                                 ),
                                 const Spacer(),
                                 Text(
-                                  '₹${stone.pricePerSqFt.toInt()}/sq ft',
+                                  Formatters.pricePerSqFt(stone.pricePerSqFt),
                                   style: GLuxuryTypography.bodyMedium.copyWith(
                                     color: palette.primary,
                                     fontWeight: FontWeight.w700,

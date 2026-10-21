@@ -43,9 +43,8 @@ class StoneRepository {
       productCode: row['product_code'] ?? '',
       collection: collectionName ?? row['collection_id']?.toString() ?? '',
       category: row['category'] ?? '',
-      pricePerSqFt: ((row['price_per_sqft'] as num?)?.toDouble() ?? 0) > 0
-          ? (row['price_per_sqft'] as num).toDouble()
-          : 385.0,
+      // No invented default: 0 means 'Price on request' (0 of 95 live rows carried a price on 2026-10-20).
+      pricePerSqFt: (row['price_per_sqft'] as num?)?.toDouble() ?? 0,
       description: row['description'] ?? '',
       images: images,
       mainImageUrl: row['thumbnail_url'] ?? (images.isNotEmpty ? images.first : null),
