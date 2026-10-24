@@ -127,7 +127,7 @@ class AiToolsHubScreen extends ConsumerWidget {
                   accentColor: palette.primary,
                   onTap: () {
                     HapticFeedback.lightImpact();
-                    context.push('/live-ai');
+                    context.push('/ar-view');
                   },
                 ),
                 const SizedBox(height: 16),

@@ -248,7 +248,7 @@ class _VrShowroomScreenState extends ConsumerState<VrShowroomScreen> {
                             child: ElevatedButton.icon(
                               onPressed: () {
                                 HapticFeedback.mediumImpact();
-                                context.push('/live-ai');
+                                context.push('/ar-view');
                               },
                               icon: const Icon(Icons.view_in_ar_rounded, size: 18, color: Color(0xFF121212)),
                               label: Text(
@@ -321,7 +321,7 @@ class _VrShowroomScreenState extends ConsumerState<VrShowroomScreen> {
                   ),
                 ),
                 TextButton(
-                  onPressed: () => context.push('/live-ai'),
+                  onPressed: () => context.push('/ar-view'),
                   child: Text(
                     'Launch AR >',
                     style: GoogleFonts.inter(
@@ -381,7 +381,7 @@ class _VrShowroomScreenState extends ConsumerState<VrShowroomScreen> {
                   onTap: () {
                     HapticFeedback.lightImpact();
                     final stoneId = space['stoneId'] ?? 'ATHENA';
-                    context.push('/live-ai?stoneId=$stoneId');
+                    context.push('/ar-view?stoneId=$stoneId');
                   },
                   child: Container(
                     decoration: BoxDecoration(
@@ -597,7 +597,7 @@ class _VrShowroomScreenState extends ConsumerState<VrShowroomScreen> {
                             InkWell(
                               onTap: () {
                                 HapticFeedback.mediumImpact();
-                                context.push('/live-ai?stoneId=${stone.id}');
+                                context.push('/ar-view?stoneId=${stone.id}');
                               },
                               borderRadius: BorderRadius.circular(8),
                               child: Container(

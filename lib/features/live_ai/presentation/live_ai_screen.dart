@@ -141,11 +141,10 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
       }
       if (widget.initialStoneId != null) {
         final query = widget.initialStoneId!.toLowerCase().trim();
-        final matchIdx = _filteredStones.indexWhere((s) =>
-            s.id.toLowerCase() == query ||
-            s.name.toLowerCase() == query ||
-            s.name.toLowerCase().contains(query) ||
-            s.productCode.toLowerCase() == query);
+        // Exact id/code/name first: a loose `contains` match on an earlier stone used to win over the real one.
+        var matchIdx = _filteredStones.indexWhere((s) =>
+            s.id.toLowerCase() == query || s.productCode.toLowerCase() == query || s.name.toLowerCase() == query);
+        if (matchIdx < 0) matchIdx = _filteredStones.indexWhere((s) => s.name.toLowerCase().contains(query));
         _selectedStoneIndex = matchIdx >= 0 ? matchIdx : 0;
       } else {
         _selectedStoneIndex = 0;
@@ -673,7 +672,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
         break;
       case 'NEED_TAP':
         // Tracking is fine but no wall surface yet (plain paint): the floor line gives a true-scale wall.
-        label = 'No wall found yet — tap where the wall meets the floor';
+        label = 'Tap the wall to place the design';
         icon = Icons.touch_app_rounded;
         stateColor = const Color(0xFFD4AF37);
         break;
@@ -1632,23 +1631,13 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                           children: [
                             ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: Image.asset(
-                                stone.images.isNotEmpty
-                                    ? stone.images.first
-                                    : 'assets/images/placeholder_stone.png',
+                              child: SmartStoneImage(
+                                // Catalogue images are Supabase URLs; Image.asset threw "Unable to load asset".
+                                imageUrl: stone.images.isNotEmpty ? stone.images.first : stone.imageUrl,
+                                localAsset: 'assets/images/placeholder_stone.png',
                                 width: 38,
                                 height: 38,
                                 fit: BoxFit.cover,
-                                errorBuilder: (ctx, err, stack) => Container(
-                                  width: 38,
-                                  height: 38,
-                                  color: const Color(0xFF2A2A2A),
-                                  child: const Icon(
-                                    Icons.texture,
-                                    color: AppColors.goldWarm,
-                                    size: 18,
-                                  ),
-                                ),
                               ),
                             ),
                             const SizedBox(width: 10),

@@ -97,6 +97,7 @@ class ARCoreManager private constructor(context: Context) {
     var onWallRemoved: ((String) -> Unit)? = null
     var onTrackingStateChanged: ((String) -> Unit)? = null
     var onWallStateChanged: ((String) -> Unit)? = null
+    @Volatile private var needTap = false
     var onMeasurementResult: ((Map<String, Any>) -> Unit)? = null
     var onError: ((String) -> Unit)? = null
 
@@ -189,6 +190,7 @@ class ARCoreManager private constructor(context: Context) {
             lifecycleOwner = ManagerLifecycleOwner()
             configuredSession = null
         }
+        if (sceneView !== view) forgetEngineObjects()
         sceneView = view
         view.lifecycle = lifecycleOwner.lifecycle
         view.planeRenderer.isEnabled = true
@@ -228,6 +230,25 @@ class ARCoreManager private constructor(context: Context) {
     }
 
     private var configuredSession: Session? = null
+
+    /**
+     * Every AR view brings its own Filament engine, but this manager outlives views. Materials, textures and nodes
+     * built on the old engine segfaulted the app (SIGSEGV in libfilament-jni) when Live AR was reopened, so they
+     * are dropped, not destroyed (their engine is already gone). queuedTexture rebuilds the design on attach.
+     */
+    private fun forgetEngineObjects() {
+        maskTexture = null
+        wallMaskedMaterial = null
+        ubershader = null
+        pendingTexture = null
+        wallNode = null
+        placedAnchorNode = null
+        placedQuad = null
+        placedSurface = null
+        measurementNodes.clear()
+        worldMask.reset()
+        maskReady = false
+    }
 
     // Depth finds plain painted walls that plane detection never does. It is only distrusted on OnePlus,
     // where it returned walls 14-36 m away (see fillConfig).
@@ -289,10 +310,12 @@ class ARCoreManager private constructor(context: Context) {
         val res = placeWallAtScreenPoint(px, py, realWallOnly = true)
         if (res?.get("placed") != true && now - wallSeenSinceMs > AUTO_GUESS_AFTER_MS && now - lastNeedTapMs > 2000) {
             lastNeedTapMs = now
+            needTap = true
             onWallStateChanged?.invoke("NEED_TAP")
         }
         if (res?.get("placed") == true) {
             wallSeenSinceMs = 0L
+            needTap = false
             onWallStateChanged?.invoke(if (res["surface"] == "approximate") "APPROXIMATE" else "LOCKED")
         }
     }
@@ -353,7 +376,7 @@ class ARCoreManager private constructor(context: Context) {
      * between masks: they come from different camera poses, and the reprojection already keeps them stable.
      */
     private fun applyMask(view: ARSceneView, mask: ByteArray, vp: FloatArray, quadMask: ByteArray?) {
-        if (sceneView !== view) return
+        if (sceneView !== view || lifecycleOwner.registry.currentState == Lifecycle.State.DESTROYED) return
         latestMask = mask
         maskViewProj = vp
         maskReady = true
@@ -495,6 +518,7 @@ class ARCoreManager private constructor(context: Context) {
     fun detachSceneView(view: ARSceneView) {
         if (sceneView === view) {
             sceneView = null
+            forgetEngineObjects()
         }
     }
 
@@ -522,6 +546,10 @@ class ARCoreManager private constructor(context: Context) {
         // INITIALIZED -> DESTROYED is an illegal transition; if AR never started
         // there is nothing to tear down and moving the state crashes the Activity.
         if (lifecycleOwner.registry.currentState == Lifecycle.State.INITIALIZED) return
+        // Segmentation results still in flight post applyMask after this; with sceneView cleared they drop
+        // out instead of writing into the destroyed engine ("Calling method on destroyed Engine" crash).
+        sceneView = null
+        forgetEngineObjects()
         lifecycleOwner.registry.currentState = Lifecycle.State.DESTROYED
     }
 
@@ -1681,7 +1709,9 @@ class ARCoreManager private constructor(context: Context) {
                 placedSurface == "approximate" -> "APPROXIMATE"
                 else -> "TRACKING"
             }
-            wallPlanes.isEmpty() -> "SEARCHING"
+            // The 200 ms poll used to overwrite autoPlace's NEED_TAP with SEARCHING, so a plain wall never
+            // showed the tap hint and the user waited forever.
+            wallPlanes.isEmpty() -> if (needTap) "NEED_TAP" else "SEARCHING"
             selected != null ->
                 if (selected.trackingState == TrackingState.TRACKING && inCameraView(selected.centerPose)) "TRACKING" else "LOST"
             else -> "DETECTING"

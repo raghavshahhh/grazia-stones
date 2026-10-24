@@ -177,8 +177,10 @@ class _QuoteRequestSupabaseScreenState extends ConsumerState<QuoteRequestSupabas
         }
       }
 
-      // Only fallback to getAllStones() if ZERO stones exist from cart or selection
-      if (targetStones.isEmpty) {
+      // Only fallback to getAllStones() if ZERO stones exist from cart or selection.
+      // The fallback is a list to pick from: pre-ticking it sent quotes for all 95 products.
+      final fromSelection = targetStones.isNotEmpty;
+      if (!fromSelection) {
         targetStones.addAll(await stoneRepo.getAllStones());
       }
 
@@ -186,8 +188,10 @@ class _QuoteRequestSupabaseScreenState extends ConsumerState<QuoteRequestSupabas
         setState(() {
           _stones = targetStones;
           _isLoadingStones = false;
-          for (final s in targetStones) {
-            _selectedStoneIds.add(s.id);
+          if (fromSelection) {
+            for (final s in targetStones) {
+              _selectedStoneIds.add(s.id);
+            }
           }
         });
       }

@@ -253,7 +253,7 @@ class _AiVisualizationResultScreenState extends ConsumerState<AiVisualizationRes
                         palette: palette,
                         onTap: () {
                           HapticFeedback.lightImpact();
-                          context.push('/live-ai');
+                          context.push('/ar-view');
                         },
                       ),
                     ],

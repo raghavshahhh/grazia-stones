@@ -615,7 +615,7 @@ class _CollectionStoneCard extends ConsumerWidget {
                       bottom: 7,
                       left: 7,
                       child: GestureDetector(
-                        onTap: () => context.push('/live-ai?stoneId=${stone.id}'),
+                        onTap: () => context.push('/ar-view?stoneId=${stone.id}'),
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                           decoration: BoxDecoration(
@@ -798,7 +798,7 @@ class _DesignColourGrid extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () => context.push('/live-ai?stoneId=${stone.id}'),
+                    onPressed: () => context.push('/ar-view?stoneId=${stone.id}'),
                     icon: Icon(Icons.view_in_ar_outlined, size: 16, color: palette.primary),
                     label: Text('Live AR', style: TextStyle(color: palette.textPrimary)),
                     style: OutlinedButton.styleFrom(

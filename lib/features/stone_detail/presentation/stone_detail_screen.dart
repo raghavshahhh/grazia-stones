@@ -829,7 +829,7 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                               title: 'Live AR',
                               subtitle: 'Wall View',
                               isPrimary: true,
-                              onTap: () => context.push('/live-ai?stoneId=${stone.id}'),
+                              onTap: () => context.push('/ar-view?stoneId=${stone.id}'),
                             ),
                             const SizedBox(width: 10),
                             _buildVisualizerCard(
@@ -877,55 +877,19 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                         childAspectRatio: 2.2,
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
+                        // Real catalogue values only. Missing fields used to show invented specs
+                        // (GR-STONE, 20 mm, '< 0.15% absorption' on every product); now the tile is hidden.
                         children: [
-                          _buildSpecTile(
-                            palette,
-                            'Product Code',
-                            stone.productCode.isNotEmpty
-                                ? stone.productCode
-                                : 'GR-STONE',
-                          ),
-                          _buildSpecTile(
-                            palette,
-                            'Finish',
-                            stone.finish.isEmpty ? 'Natural' : stone.finish,
-                          ),
-                          _buildSpecTile(
-                            palette,
-                            'Thickness',
-                            stone.thickness.isEmpty ? '20 mm' : stone.thickness,
-                          ),
-                          _buildSpecTile(
-                            palette,
-                            'Size / Types',
-                            stone.size.isEmpty ? '600×150×20mm' : stone.size,
-                          ),
-                          _buildSpecTile(
-                            palette,
-                            'Sqft / Box',
-                            stone.sqftPerBox > 0
-                                ? '${stone.sqftPerBox.toStringAsFixed(2)} Sqft'
-                                : '10.50 Sqft',
-                          ),
-                          _buildSpecTile(
-                            palette,
-                            'Texture',
-                            stone.texture.isEmpty
-                                ? 'Cultured Ledge'
-                                : stone.texture,
-                          ),
-                          _buildSpecTile(
-                            palette,
-                            'Series',
-                            stone.collection.isNotEmpty
-                                ? stone.collection
-                                : 'Grazia Series',
-                          ),
-                          _buildSpecTile(
-                            palette,
-                            'Absorption',
-                            '< 0.15% (Weatherproof)',
-                          ),
+                          for (final (label, value) in [
+                            ('Product Code', stone.productCode),
+                            ('Finish', stone.finish),
+                            ('Thickness', stone.thickness),
+                            ('Size / Types', stone.size),
+                            ('Sqft / Box', stone.sqftPerBox > 0 ? '${stone.sqftPerBox.toStringAsFixed(2)} Sqft' : ''),
+                            ('Texture', stone.texture),
+                            ('Series', stone.collection),
+                          ])
+                            if (value.isNotEmpty) _buildSpecTile(palette, label, value),
                         ],
                       ),
 

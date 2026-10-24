@@ -116,7 +116,7 @@ class VrRoomSelectionScreen extends ConsumerWidget {
                   onTap: () {
                     HapticFeedback.lightImpact();
                     final stoneId = room['stoneId'] ?? 'ATHENA';
-                    context.push('/live-ai?stoneId=$stoneId');
+                    context.push('/ar-view?stoneId=$stoneId');
                   },
                   child: Stack(
                     fit: StackFit.expand,

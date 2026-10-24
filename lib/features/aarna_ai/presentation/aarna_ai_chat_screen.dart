@@ -1101,7 +1101,7 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> with Tick
                             borderRadius: BorderRadius.circular(8),
                             onTap: () {
                               HapticFeedback.selectionClick();
-                              context.push('/live-ai');
+                              context.push('/ar-view');
                             },
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 6),

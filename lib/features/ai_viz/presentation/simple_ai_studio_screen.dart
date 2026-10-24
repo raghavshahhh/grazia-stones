@@ -246,14 +246,11 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
         final all = ref.read(allStonesProvider).valueOrNull;
         if (all != null && all.isNotEmpty) {
           final query = stoneId.toLowerCase().trim();
-          stone = all.firstWhere(
-            (s) =>
-                s.id.toLowerCase() == query ||
-                s.name.toLowerCase() == query ||
-                s.name.toLowerCase().contains(query) ||
-                s.productCode.toLowerCase() == query,
-            orElse: () => all.firstWhere((s) => s.id == stoneId, orElse: () => all.first),
-          );
+          // Never fall back to an unrelated stone: a wrong design in the render is worse than none.
+          stone = all.where((s) =>
+                  s.id.toLowerCase() == query || s.productCode.toLowerCase() == query || s.name.toLowerCase() == query)
+              .followedBy(all.where((s) => s.name.toLowerCase().contains(query)))
+              .firstOrNull;
         }
       }
       if (stone == null) return;
@@ -481,6 +478,8 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
     ].join(', ');
   }
 
+  bool _needsLogin = false;
+
   Future<void> _generate() async {
     if (_roomBytes == null || _designBytes == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -498,8 +497,18 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
       );
       return;
     }
+    // Renders need an account (credits are per user). Ask up front instead of running the progress
+    // animation into a server 401 with no way to log in.
+    if (!ref.read(authRiverpodProvider).isLoggedIn) {
+      setState(() {
+        _needsLogin = true;
+        _error = 'Log in to create your AI render (free credits included).';
+      });
+      return;
+    }
     HapticFeedback.heavyImpact();
     setState(() {
+      _needsLogin = false;
       _generating = true;
       _generationProgress = 0.08;
       _generationStatusText = 'Scanning room depth & wall geometry...';
@@ -540,6 +549,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
         final code = e.response?.statusCode;
         final body = e.response?.data;
         final serverMessage = body is Map && body['error'] is String ? body['error'] as String : null;
+        if (body is Map && body['code'] == 'login_required') _needsLogin = true;
         blockedMessage = switch (code) {
           401 || 429 || 502 || 504 => serverMessage ?? 'AI render is unavailable right now. Please try again.',
           503 => 'AI Studio is not set up on the server yet. Please contact Grazia support.',
@@ -802,7 +812,6 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
 
   @override
   Widget build(BuildContext context) {
-    debugPrint('🔥🔥🔥 BUILDING SimpleAIStudioScreen now! 🔥🔥🔥');
     final canGenerate = _roomBytes != null && _designBytes != null && !_generating;
     final palette = ref.watch(themePaletteProvider);
     final isDark = ref.watch(themePaletteProvider.notifier).isDarkMode;
@@ -1363,6 +1372,16 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
                     Expanded(
                       child: Text(_error!, style: GoogleFonts.inter(color: Colors.redAccent, fontSize: 12)),
                     ),
+                    if (_needsLogin)
+                      TextButton(
+                        onPressed: () {
+                          final back = widget.preSelectedStoneId == null
+                              ? '/ai-viz'
+                              : '/ai-viz?stoneId=${Uri.encodeComponent(widget.preSelectedStoneId!)}';
+                          context.push('/login?redirect=${Uri.encodeComponent(back)}');
+                        },
+                        child: Text('Log in', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+                      ),
                   ],
                 ),
               ),

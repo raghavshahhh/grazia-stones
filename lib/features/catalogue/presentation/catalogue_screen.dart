@@ -489,7 +489,7 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                     bottom: 8,
                     left: 8,
                     child: GestureDetector(
-                      onTap: () => context.push('/live-ai?stoneId=${stone.id}'),
+                      onTap: () => context.push('/ar-view?stoneId=${stone.id}'),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
                         decoration: BoxDecoration(

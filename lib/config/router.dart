@@ -364,9 +364,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         redirect: (context, state) {
           final stoneId = state.uri.queryParameters['stoneId'] ?? state.uri.queryParameters['stoneName'];
           if (stoneId != null && stoneId.isNotEmpty) {
-            return '/live-ai?stoneId=${Uri.encodeComponent(stoneId)}';
+            return '/ar-view?stoneId=${Uri.encodeComponent(stoneId)}';
           }
-          return '/live-ai';
+          return '/ar-view';
         },
       ),
       GoRoute(
@@ -663,9 +663,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           state,
         ),
       ),
+      // Live AR opened from a product, collection or chat. These callers sit on the root navigator above the
+      // bottom-nav shell, and pushing the shell's /live-ai from there rendered a blank page. /live-ai stays
+      // the AR tab; everything that pushes AR comes here.
       GoRoute(
         path: '/ar-view',
-        redirect: (context, state) => '/live-ai',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => _slideUpPage(
+          LiveAIScreen(initialStoneId: state.uri.queryParameters['stoneId']),
+          state,
+        ),
       ),
       GoRoute(
         path: '/ar-measure',

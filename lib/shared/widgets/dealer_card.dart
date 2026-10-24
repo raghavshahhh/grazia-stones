@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/tokens.dart';
 import '../theme/colors.dart';
@@ -49,11 +50,7 @@ class GDealerCard extends StatelessWidget {
             ),
             child: ClipOval(
               child: imageUrl != null
-                  ? Image.asset(
-                      imageUrl!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => _buildAvatar(palette),
-                    )
+                  ? SmartStoneImage(imageUrl: imageUrl, fit: BoxFit.cover)
                   : _buildAvatar(palette),
             ),
           ),
