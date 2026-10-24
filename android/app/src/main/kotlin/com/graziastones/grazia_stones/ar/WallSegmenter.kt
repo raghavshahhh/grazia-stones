@@ -116,6 +116,7 @@ class WallSegmenter(private val context: Context) {
         val chromaV: FloatArray,
         val lab: Array<FloatArray>,  // smoothed Lab at GW x GH (L 0..100, a/b +128)
         val nonWall: BooleanArray,   // GW x GH: confidently not wall per the model (background seeds)
+        val classes: ByteArray,      // OUT_W x OUT_H ADE20K arg-max (WallEdges: is there floor below the wall?)
     )
 
     fun request(frame: Frame, onMask: (Result) -> Unit) {
@@ -154,7 +155,7 @@ class WallSegmenter(private val context: Context) {
                     lastRunMs = tRun
                     val lab = labGrid(gc, w, h, yBytes, uBytes, vBytes, yRow, uvRow, uvPix)
                     onMask(Result(mask, upsampleVeto(lastVeto), downsampleLuma(luma), downsampleLuma(cu), downsampleLuma(cv),
-                        lab, nonWallSeeds(lastNonWall)))
+                        lab, nonWallSeeds(lastNonWall), lastClasses))
                 } catch (e: Exception) {
                     Log.e(TAG, "segmentation failed", e)
                 } finally {
@@ -247,6 +248,7 @@ class WallSegmenter(private val context: Context) {
         val hist = IntArray(CLASSES)
         val veto = ByteArray(cells)
         val nonWall = BooleanArray(cells)
+        val classes = ByteArray(cells)
         for (k in 0 until cells) {
             var max = Float.NEGATIVE_INFINITY; var arg = 0
             for (c in 0 until CLASSES) {
@@ -254,6 +256,7 @@ class WallSegmenter(private val context: Context) {
                 if (v > max) { max = v; arg = c }
             }
             hist[arg]++
+            classes[k] = arg.toByte()
             if (arg in VETO_CLASSES) veto[k] = 0xFF.toByte()
             var sum = 0f
             for (c in 0 until CLASSES) sum += exp(logits.get(c * cells + k) - max)
@@ -267,6 +270,7 @@ class WallSegmenter(private val context: Context) {
             .joinToString(" ") { "ade#${it.index}:${it.value * 100 / cells}%" }
         lastVeto = veto
         lastNonWall = nonWall
+        lastClasses = classes
         return out
     }
 
@@ -275,6 +279,7 @@ class WallSegmenter(private val context: Context) {
         22 /*painting*/, 24 /*shelf*/, 27 /*mirror*/, 89 /*television*/)
     private var lastVeto = ByteArray(OUT_W * OUT_H)
     private var lastNonWall = BooleanArray(OUT_W * OUT_H)
+    private var lastClasses = ByteArray(OUT_W * OUT_H)
 
     /** OUT-grid "confidently not wall" -> GW x GH, eroded 4 px so seeds never sit on a boundary. */
     private fun nonWallSeeds(cells: BooleanArray): BooleanArray {

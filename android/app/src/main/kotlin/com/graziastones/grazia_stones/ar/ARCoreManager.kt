@@ -286,7 +286,7 @@ class ARCoreManager private constructor(context: Context) {
             val frame = view.frame ?: return
             // A guessed-distance placement has the wrong scale; the moment ARCore has real geometry under the
             // wall, move the design onto it (this is where "tiles the wrong size" came from).
-            if (placedSurface == "approximate" && wallVisible) {
+            if ((placedSurface == "approximate" || placedSurface?.startsWith("estimated") == true) && wallVisible) {
                 val before = placedAnchorNode?.anchor?.pose?.translation?.toList()
                 val real = placeWallAtScreenPoint(px, py, realWallOnly = true)
                 if (real?.get("placed") == true) {
@@ -359,6 +359,11 @@ class ARCoreManager private constructor(context: Context) {
         val qw = MASKED_WALL_WIDTH_M; val qh = MASKED_WALL_HEIGHT_M; val zMin = maskZMin()
         // Where on the quad the design was placed: the anchor itself, or 1 m up from a floor-line anchor.
         val seedZ = if (placedOnFloor) 1.0f else 0f
+        // For WallEdges: this frame's camera, the tracked floor (main-thread objects) and which placement it is.
+        val camProj = proj.copyOf(); val camView = viewM.copyOf()
+        val floorY = floorHeight(view)
+        val guessed = placedSurface == "approximate"
+        val placedAt = placedAnchorNode
         seg.request(frame) { result ->
             // Heavy per-texel reprojection stays on the worker so the camera feed never stutters.
             val bytes = quadToWorld?.let {
@@ -366,6 +371,22 @@ class ARCoreManager private constructor(context: Context) {
                 worldMask.toBytes()
             }
             mainHandler.post { applyMask(view, result.wall, vp, bytes) }
+            // A guessed-distance placement faces the camera at 2 m. Once the wall's own edge with the floor or
+            // ceiling is visible, re-place it at the wall's real angle and distance.
+            val wallMask = worldMask.lastWall
+            if (guessed && wallMask != null) {
+                val est = WallEdges.estimate(
+                    wallMask, WallSegmenter.GW, WallSegmenter.GH, result.classes, WallSegmenter.OUT_W, WallSegmenter.OUT_H,
+                    camProj, camView, floorY,
+                )
+                if (est != null) mainHandler.post {
+                    if (sceneView !== view || placedSurface != "approximate" || placedAnchorNode !== placedAt) return@post
+                    Log.i(TAG, "WALL_EDGE aligned from ${est.edge} line: dist=${"%.2f".format(est.distanceM)}m " +
+                        "n=(${"%.2f".format(est.normal[0])},${"%.2f".format(est.normal[2])})")
+                    anchorWall(view, est.base, est.normal, onFloor = true, surface = "estimated_${est.edge}", dist = est.distanceM)
+                    onWallStateChanged?.invoke("LOCKED")
+                }
+            }
         }
     }
 

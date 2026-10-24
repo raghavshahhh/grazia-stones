@@ -30,6 +30,9 @@ class WallMaskAccumulator {
     private val shade = FloatArray(W * H) { 1f }
     @Volatile var hasData = false
         private set
+    /** The last frame's WallGeodesic mask (WallSegmenter.GW x GH, view space), for WallEdges. */
+    @Volatile var lastWall: BooleanArray? = null
+        private set
     /** Share of the quad texels seen in the last update that the segmenter calls wall (0..1). */
     @Volatile var lastCoverage = 0f
         private set
@@ -37,6 +40,7 @@ class WallMaskAccumulator {
     @Synchronized fun reset() {
         acc.fill(0f)
         shade.fill(1f)
+        lastWall = null
         hasData = false
         lastCoverage = 0f
     }
@@ -60,6 +64,7 @@ class WallMaskAccumulator {
         // THE wall: everything reachable from where the design was placed without crossing an edge or leaving
         // the wall's colour/lighting (WallGeodesic), at camera resolution.
         val wall = WallGeodesic.segment(seg.lab, gw, gh, seed % gw, seed / gw, seg.nonWall)
+        lastWall = wall
         val lum = seg.lab[0]
         // Mean brightness of the wall in this frame: the reference for "unshaded".
         var lumSum = 0f; var lumN = 0
