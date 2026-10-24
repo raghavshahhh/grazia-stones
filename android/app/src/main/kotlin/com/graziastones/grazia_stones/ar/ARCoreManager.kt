@@ -604,7 +604,7 @@ class ARCoreManager private constructor(context: Context) {
     private fun mapTrackingFailure(reason: TrackingFailureReason?): String = when (reason) {
         TrackingFailureReason.EXCESSIVE_MOTION -> "LIMITED_EXCESSIVE_MOTION"
         TrackingFailureReason.INSUFFICIENT_FEATURES -> "LIMITED_INSUFFICIENT_FEATURES"
-        TrackingFailureReason.INSUFFICIENT_LIGHT -> "LIMITED_INSUFFICIENT_FEATURES"
+        TrackingFailureReason.INSUFFICIENT_LIGHT -> "LIMITED_INSUFFICIENT_LIGHT"
         TrackingFailureReason.CAMERA_UNAVAILABLE -> "UNAVAILABLE"
         TrackingFailureReason.BAD_STATE -> "LIMITED"
         else -> "INITIALIZING"
@@ -637,9 +637,10 @@ class ARCoreManager private constructor(context: Context) {
         try {
             val raw = BitmapFactory.decodeByteArray(imageData, 0, imageData.size) ?: return
             // Catalogue photos have a light border/vignette that tiles into a grid of seams; trim 8% per side.
-            val bitmap = android.graphics.Bitmap.createBitmap(
+            // ...and every repeat drew a hard photo edge across the wall: cut the tile seamless along its mortar lines.
+            val bitmap = SeamlessTile.make(android.graphics.Bitmap.createBitmap(
                 raw, raw.width * 8 / 100, raw.height * 8 / 100, raw.width * 84 / 100, raw.height * 84 / 100,
-            )
+            ))
             val texture = Texture.Builder()
                 .width(bitmap.width)
                 .height(bitmap.height)

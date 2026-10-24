@@ -19,7 +19,7 @@ import kotlin.math.exp
  * (portrait, close to the phone's screen aspect). ADE20K class 0 is "wall". Output: 36x80 logits.
  * The mask is produced in VIEW space (row 0 = top of the screen), which is what the wall material samples.
  */
-class WallSegmenter(context: Context) {
+class WallSegmenter(private val context: Context) {
     companion object {
         private const val TAG = "WallSegmenter"
         // Model input (portrait). The ONNX graph is exported for exactly this size (tool/export_wall_segmenter.py).
@@ -35,6 +35,11 @@ class WallSegmenter(context: Context) {
         const val MASK_H = IN_H / 2
         private const val CLASSES = 150
         private const val WALL = 0
+        private const val BUILDING = 1 // the model says "building" for some plain plastered walls
+        // Camera-resolution grid for the wall's edges (WallGeodesic). The CPU camera image is 640x480, of which the
+        // portrait view covers ~287x640 pixels, so this is close to native.
+        const val GW = 270
+        const val GH = 600
         private val MEAN = floatArrayOf(0.485f, 0.456f, 0.406f)
         private val STD = floatArrayOf(0.229f, 0.224f, 0.225f)
     }
@@ -88,6 +93,14 @@ class WallSegmenter(context: Context) {
         }
     }
     private val imageCoords = FloatArray(IN_W * IN_H * 2)
+    private val gGrid = FloatArray(GW * GH * 2).also { g ->
+        for (y in 0 until GH) for (x in 0 until GW) {
+            val i = (y * GW + x) * 2
+            g[i] = (x + 0.5f) / GW
+            g[i + 1] = (y + 0.5f) / GH
+        }
+    }
+    private val gCoords = FloatArray(GW * GH * 2)
 
     /**
      * Grabs the current camera image (on the caller's thread: ARCore needs that) and segments it in the
@@ -101,6 +114,8 @@ class WallSegmenter(context: Context) {
         val luma: FloatArray,     // camera brightness 0..1
         val chromaU: FloatArray,  // camera chroma 0..1 (0.5 = neutral)
         val chromaV: FloatArray,
+        val lab: Array<FloatArray>,  // smoothed Lab at GW x GH (L 0..100, a/b +128)
+        val nonWall: BooleanArray,   // GW x GH: confidently not wall per the model (background seeds)
     )
 
     fun request(frame: Frame, onMask: (Result) -> Unit) {
@@ -109,6 +124,8 @@ class WallSegmenter(context: Context) {
         busy = true
         try {
             frame.transformCoordinates2d(Coordinates2d.VIEW_NORMALIZED, viewGrid, Coordinates2d.IMAGE_PIXELS, imageCoords)
+            frame.transformCoordinates2d(Coordinates2d.VIEW_NORMALIZED, gGrid, Coordinates2d.IMAGE_PIXELS, gCoords)
+            val gc = gCoords.copyOf()
             val w = image.width; val h = image.height
             val yP = image.planes[0]; val uP = image.planes[1]; val vP = image.planes[2]
             val yBytes = ByteArray(yP.buffer.remaining()).also { yP.buffer.get(it) }
@@ -116,6 +133,7 @@ class WallSegmenter(context: Context) {
             val vBytes = ByteArray(vP.buffer.remaining()).also { vP.buffer.get(it) }
             val yRow = yP.rowStride; val uvRow = uP.rowStride; val uvPix = uP.pixelStride
             val coords = imageCoords.copyOf()
+            if (dumpEnabled && dumped < MAX_DUMPS) dumpFrame(frame, w, h, yBytes, uBytes, vBytes, yRow, uvRow, uvPix)
             image.close()
             worker.execute {
                 try {
@@ -134,7 +152,9 @@ class WallSegmenter(context: Context) {
                     }.let { refineEdges(it, luma) }
                     lastInferenceMs = android.os.SystemClock.elapsedRealtime() - t0
                     lastRunMs = tRun
-                    onMask(Result(mask, upsampleVeto(lastVeto), downsampleLuma(luma), downsampleLuma(cu), downsampleLuma(cv)))
+                    val lab = labGrid(gc, w, h, yBytes, uBytes, vBytes, yRow, uvRow, uvPix)
+                    onMask(Result(mask, upsampleVeto(lastVeto), downsampleLuma(luma), downsampleLuma(cu), downsampleLuma(cv),
+                        lab, nonWallSeeds(lastNonWall)))
                 } catch (e: Exception) {
                     Log.e(TAG, "segmentation failed", e)
                 } finally {
@@ -146,6 +166,44 @@ class WallSegmenter(context: Context) {
             busy = false
             Log.e(TAG, "camera image read failed", e)
         }
+    }
+
+    // ── Debug frame dump (`adb shell setprop debug.grazia.dump 1`, off otherwise) ──
+    // Raw camera YUV + the view->image mapping + camera matrices, so the mask pipeline can be tuned offline on
+    // real frames from the phone. Files land in Android/data/<pkg>/files/segdump (adb pull, no root needed).
+    private val dumpEnabled = runCatching {
+        Class.forName("android.os.SystemProperties").getMethod("get", String::class.java)
+            .invoke(null, "debug.grazia.dump") as? String
+    }.getOrNull() == "1"
+    private var dumped = 0
+    private val MAX_DUMPS = 12
+
+    private fun dumpFrame(
+        frame: Frame, w: Int, h: Int, yB: ByteArray, uB: ByteArray, vB: ByteArray, yRow: Int, uvRow: Int, uvPix: Int,
+    ) {
+        runCatching {
+            val dir = java.io.File(context.getExternalFilesDir(null), "segdump").apply { mkdirs() }
+            val id = "f%02d".format(dumped++)
+            java.io.File(dir, "$id.y").writeBytes(yB)
+            java.io.File(dir, "$id.u").writeBytes(uB)
+            java.io.File(dir, "$id.v").writeBytes(vB)
+            val corners = floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f, 1f, 1f)
+            val img = FloatArray(8)
+            frame.transformCoordinates2d(Coordinates2d.VIEW_NORMALIZED, corners, Coordinates2d.IMAGE_PIXELS, img)
+            val proj = FloatArray(16); val view = FloatArray(16)
+            frame.camera.getProjectionMatrix(proj, 0, 0.05f, 100f)
+            frame.camera.getViewMatrix(view, 0)
+            val intr = frame.camera.imageIntrinsics
+            val json = org.json.JSONObject()
+                .put("w", w).put("h", h).put("yRow", yRow).put("uvRow", uvRow).put("uvPix", uvPix)
+                .put("viewCornersToImage", org.json.JSONArray(img.toList()))
+                .put("proj", org.json.JSONArray(proj.toList())).put("view", org.json.JSONArray(view.toList()))
+                .put("focal", org.json.JSONArray(intr.focalLength.toList()))
+                .put("pp", org.json.JSONArray(intr.principalPoint.toList()))
+                .put("imgDims", org.json.JSONArray(intr.imageDimensions.toList()))
+            java.io.File(dir, "$id.json").writeText(json.toString())
+            Log.i(TAG, "SEGDUMP $id ${w}x$h -> ${dir.absolutePath}")
+        }.onFailure { Log.w(TAG, "dump failed", it) }
     }
 
     @Volatile var lastInferenceMs = 0L
@@ -188,6 +246,7 @@ class WallSegmenter(context: Context) {
         val out = ByteArray(cells)
         val hist = IntArray(CLASSES)
         val veto = ByteArray(cells)
+        val nonWall = BooleanArray(cells)
         for (k in 0 until cells) {
             var max = Float.NEGATIVE_INFINITY; var arg = 0
             for (c in 0 until CLASSES) {
@@ -198,13 +257,16 @@ class WallSegmenter(context: Context) {
             if (arg in VETO_CLASSES) veto[k] = 0xFF.toByte()
             var sum = 0f
             for (c in 0 until CLASSES) sum += exp(logits.get(c * cells + k) - max)
-            val p = exp(logits.get(WALL * cells + k) - max) / sum
+            // softmax of the arg-max class is 1 / sum
+            nonWall[k] = arg != WALL && arg != BUILDING && 1f / sum > 0.5f
+            val p = (exp(logits.get(WALL * cells + k) - max) + exp(logits.get(BUILDING * cells + k) - max)) / sum
             out[k] = (p * 255f).toInt().coerceIn(0, 255).toByte()
         }
         // What the model thinks the scene is, for logcat: "ade#5:48% ade#0:30% ade#2:10%" (ADE20K class ids).
         lastTopClasses = hist.withIndex().sortedByDescending { it.value }.take(3)
             .joinToString(" ") { "ade#${it.index}:${it.value * 100 / cells}%" }
         lastVeto = veto
+        lastNonWall = nonWall
         return out
     }
 
@@ -212,6 +274,73 @@ class WallSegmenter(context: Context) {
     private val VETO_CLASSES = setOf(8 /*window*/, 10 /*cabinet*/, 12 /*person*/, 14 /*door*/, 18 /*curtain*/,
         22 /*painting*/, 24 /*shelf*/, 27 /*mirror*/, 89 /*television*/)
     private var lastVeto = ByteArray(OUT_W * OUT_H)
+    private var lastNonWall = BooleanArray(OUT_W * OUT_H)
+
+    /** OUT-grid "confidently not wall" -> GW x GH, eroded 4 px so seeds never sit on a boundary. */
+    private fun nonWallSeeds(cells: BooleanArray): BooleanArray {
+        val up = BooleanArray(GW * GH) { k -> cells[((k / GW) * OUT_H / GH) * OUT_W + (k % GW) * OUT_W / GW] }
+        val r = 4
+        val rows = BooleanArray(GW * GH)
+        for (y in 0 until GH) for (x in 0 until GW) {
+            var all = true
+            for (d in -r..r) { val xx = x + d; if (xx !in 0 until GW || !up[y * GW + xx]) { all = false; break } }
+            rows[y * GW + x] = all
+        }
+        return BooleanArray(GW * GH) { k ->
+            val x = k % GW; val y = k / GW
+            (-r..r).all { d -> val yy = y + d; yy in 0 until GH && rows[yy * GW + x] }
+        }
+    }
+
+    /** Camera image at GW x GH in view orientation, Gaussian-smoothed (5x5, sigma 1.2), as Lab. */
+    private fun labGrid(
+        coords: FloatArray, w: Int, h: Int, yB: ByteArray, uB: ByteArray, vB: ByteArray, yRow: Int, uvRow: Int, uvPix: Int,
+    ): Array<FloatArray> {
+        val n = GW * GH
+        val rgb = Array(3) { FloatArray(n) }
+        for (i in 0 until n) {
+            val px = coords[i * 2].toInt().coerceIn(0, w - 1)
+            val py = coords[i * 2 + 1].toInt().coerceIn(0, h - 1)
+            val yy = (yB[py * yRow + px].toInt() and 0xFF).toFloat()
+            val uvi = (py / 2) * uvRow + (px / 2) * uvPix
+            val u = (uB.getOrElse(uvi) { 128.toByte() }.toInt() and 0xFF) - 128f
+            val v = (vB.getOrElse(uvi) { 128.toByte() }.toInt() and 0xFF) - 128f
+            rgb[0][i] = (yy + 1.402f * v).coerceIn(0f, 255f)
+            rgb[1][i] = (yy - 0.344136f * u - 0.714136f * v).coerceIn(0f, 255f)
+            rgb[2][i] = (yy + 1.772f * u).coerceIn(0f, 255f)
+        }
+        val k5 = floatArrayOf(0.0663f, 0.2483f, 0.3707f, 0.2483f, 0.0663f) // sigma 1.2
+        for (ch in rgb) {
+            val tmp = FloatArray(n)
+            for (y in 0 until GH) for (x in 0 until GW) {
+                var acc = 0f
+                for (d in -2..2) acc += k5[d + 2] * ch[y * GW + (x + d).coerceIn(0, GW - 1)]
+                tmp[y * GW + x] = acc
+            }
+            for (y in 0 until GH) for (x in 0 until GW) {
+                var acc = 0f
+                for (d in -2..2) acc += k5[d + 2] * tmp[(y + d).coerceIn(0, GH - 1) * GW + x]
+                ch[y * GW + x] = acc
+            }
+        }
+        val out = Array(3) { FloatArray(n) }
+        for (i in 0 until n) {
+            val lin = FloatArray(3) { c -> SRGB_LIN[rgb[c][i].toInt().coerceIn(0, 255)] }
+            val x = (0.412453f * lin[0] + 0.357580f * lin[1] + 0.180423f * lin[2]) / 0.950456f
+            val y = 0.212671f * lin[0] + 0.715160f * lin[1] + 0.072169f * lin[2]
+            val z = (0.019334f * lin[0] + 0.119193f * lin[1] + 0.950227f * lin[2]) / 1.088754f
+            fun f(t: Float) = if (t > 0.008856f) Math.cbrt(t.toDouble()).toFloat() else 7.787f * t + 16f / 116f
+            out[0][i] = if (y > 0.008856f) 116f * Math.cbrt(y.toDouble()).toFloat() - 16f else 903.3f * y
+            out[1][i] = 500f * (f(x) - f(y)) + 128f
+            out[2][i] = 200f * (f(y) - f(z)) + 128f
+        }
+        return out
+    }
+
+    private val SRGB_LIN = FloatArray(256) { c ->
+        val v = c / 255f
+        if (v <= 0.04045f) v / 12.92f else Math.pow(((v + 0.055f) / 1.055f).toDouble(), 2.4).toFloat()
+    }
 
     /** Nearest-neighbour OUT -> MASK grid (4x); the veto is a coarse "not here" hint, edges come from colour. */
     private fun upsampleVeto(v: ByteArray): ByteArray {

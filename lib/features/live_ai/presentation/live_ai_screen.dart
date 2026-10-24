@@ -1,4 +1,5 @@
 import 'package:grazia_stones/core/utils/formatters.dart';
+import 'package:grazia_stones/core/services/ar_native_channel.dart';
 import 'package:grazia_stones/core/data/catalogue_specs.dart';
 import 'dart:async';
 import 'dart:ui';
@@ -63,6 +64,9 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
   // Wall tracking state (from AR engine)
   String _wallState = 'SEARCHING';
   Timer? _wallStateTimer;
+  // Why ARCore is not tracking right now (dark room, fast motion...), shown instead of the wall hint.
+  String? _trackingIssue;
+  StreamSubscription<String>? _trackingSub;
 
   // Texture controls
   double _textureOpacity = 0.96;
@@ -95,6 +99,10 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     });
     
     // Start polling wall state from AR engine only after camera is ready
+    _trackingSub = ARNativeChannel.onTrackingStateChanged.listen((state) {
+      final issue = state == 'TRACKING' ? null : state;
+      if (mounted && issue != _trackingIssue) setState(() => _trackingIssue = issue);
+    });
     _wallStateTimer = Timer.periodic(const Duration(milliseconds: 200), (_) async {
       if (!mounted) return;
       if (!_cameraReady) return;
@@ -121,6 +129,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
   void dispose() {
     _stonePageController.dispose();
     _wallStateTimer?.cancel();
+    _trackingSub?.cancel();
     super.dispose();
   }
 
@@ -653,7 +662,22 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     IconData icon;
     Color stateColor;
 
-    switch (_wallState) {
+    switch (_trackingIssue ?? _wallState) {
+      case 'LIMITED_INSUFFICIENT_LIGHT':
+        label = 'Too dark. Turn on a light';
+        icon = Icons.light_mode_rounded;
+        stateColor = const Color(0xFFFFB74D);
+        break;
+      case 'LIMITED_EXCESSIVE_MOTION':
+        label = 'Moving too fast. Move slowly';
+        icon = Icons.slow_motion_video_rounded;
+        stateColor = const Color(0xFFFFB74D);
+        break;
+      case 'LIMITED_INSUFFICIENT_FEATURES':
+        label = 'Need more light or detail. Move slowly';
+        icon = Icons.light_mode_rounded;
+        stateColor = const Color(0xFFFFB74D);
+        break;
       case 'SEARCHING':
         label = 'Point at a wall and move slowly';
         icon = Icons.crop_free_rounded;
