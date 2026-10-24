@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:grazia_stones/core/utils/formatters.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -25,20 +26,24 @@ class AarnaAIChatScreen extends ConsumerStatefulWidget {
 class _AarnaCapability {
   final String title;
   final String subtitle;
-  final String imagePath;
   final String prompt;
   final AarnaPose pose;
 
   const _AarnaCapability({
     required this.title,
     required this.subtitle,
-    required this.imagePath,
     required this.prompt,
     required this.pose,
   });
 }
 
-class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
+class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> with TickerProviderStateMixin {
+  // Intro: Aarna stands big on the page until the first message; then she flies into the header circle.
+  bool _introDone = false;
+  bool _flying = false;
+  final GlobalKey _stageKey = GlobalKey();
+  final GlobalKey _headerAvatarKey = GlobalKey();
+
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final List<AarnaChatMessage> _messages = [];
@@ -54,7 +59,6 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
     _AarnaCapability(
       title: 'Hello!',
       subtitle: 'Introduction',
-      imagePath: 'assets/images/aarna/aarna_card_hello.png',
       prompt:
           'Hello Aarna! Introduce yourself and how you help with Grazia Stones.',
       pose: AarnaPose.waving,
@@ -62,14 +66,12 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
     _AarnaCapability(
       title: 'Find designs',
       subtitle: 'Living & Facades',
-      imagePath: 'assets/images/aarna/aarna_card_designs.png',
       prompt: 'Find luxury stone designs for my living room feature wall.',
       pose: AarnaPose.searching,
     ),
     _AarnaCapability(
       title: 'Combinations',
       subtitle: 'Stone Pairings',
-      imagePath: 'assets/images/aarna/aarna_card_combinations.png',
       prompt:
           'Show elegant stone combinations and finishes for modern interiors.',
       pose: AarnaPose.combinations,
@@ -77,14 +79,12 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
     _AarnaCapability(
       title: 'Technical info',
       subtitle: 'Specs & Care',
-      imagePath: 'assets/images/aarna/aarna_card_technical.png',
       prompt: 'What are the technical specs and maintenance for Grazia Stones?',
       pose: AarnaPose.technical,
     ),
     _AarnaCapability(
       title: 'Get a quote',
       subtitle: 'Instant Estimate',
-      imagePath: 'assets/images/aarna/aarna_card_quote.png',
       prompt: 'Help me calculate quantity and get a quote for my project.',
       pose: AarnaPose.quote,
     ),
@@ -158,12 +158,19 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
       timestamp: DateTime.now(),
     );
 
+    final firstSend = !_introDone;
+    if (firstSend) _flyAarnaToHeader();
     final gen = ++_gen;
     setState(() {
       _messages.add(userMsg);
       _isTyping = true;
     });
-    _scrollToBottom();
+    // On the first send the stage is folding away; scrolling during that fold leaves a blank band for a frame.
+    if (firstSend) {
+      Future<void>.delayed(const Duration(milliseconds: 560), _scrollToBottom);
+    } else {
+      _scrollToBottom();
+    }
 
     // Fetch catalogue collections & stones for grounding
     List<Stone> catalogue = [];
@@ -276,7 +283,15 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
         ),
         title: Row(
           children: [
-            AarnaLivingAvatar(
+            AnimatedScale(
+              key: _headerAvatarKey,
+              scale: _introDone && !_flying ? 1 : 0.6,
+              duration: const Duration(milliseconds: 420),
+              curve: Curves.easeOutBack,
+              child: AnimatedOpacity(
+                opacity: _introDone && !_flying ? 1 : 0,
+                duration: const Duration(milliseconds: 200),
+                child: AarnaLivingAvatar(
               size: 38,
               popOut: true,
               pose: _isTyping ? AarnaPose.searching : _activeHeroPose,
@@ -284,6 +299,8 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
               showRadarRings: _isTyping,
               showSparkle: true,
               showOnlineBadge: true,
+                ),
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -366,6 +383,7 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
                 _messages.clear();
                 _isTyping = false;
                 _streamingId = null;
+                _introDone = false;
                 _addInitialGreeting();
               });
             },
@@ -1340,6 +1358,126 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
     );
   }
 
+  Widget _buildAarnaStage(LuxuryPalette palette, bool isDark) {
+    final stage = math.min(MediaQuery.sizeOf(context).width * 0.62, 260.0);
+    final gold = isDark ? const Color(0xFFE8C868) : const Color(0xFF8B6B23);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
+      child: Column(
+        children: [
+          SizedBox(
+            key: _stageKey,
+            width: stage,
+            height: stage,
+            // Hidden (not removed) while the flight copy is in the air, so the live view does not reload.
+            child: Opacity(
+              opacity: _flying ? 0 : 1,
+              child: AarnaLivingAvatar(
+                size: stage,
+                greetOnLoad: true,
+                shape: BoxShape.rectangle,
+                borderRadius: BorderRadius.circular(24),
+                pose: _activeHeroPose,
+                onTap: () => setState(() {
+                  _activeHeroPose = _activeHeroPose == AarnaPose.waving ? AarnaPose.idle : AarnaPose.waving;
+                }),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Meet Aarna',
+            style: GoogleFonts.playfairDisplay(fontSize: 24, fontWeight: FontWeight.w700, color: palette.textPrimary),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'AARNA — Your Vision, My Intelligence.',
+            style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.6, color: gold),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Ask me about stones, walls, finishes or a quote. Type below or tap a capability.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.plusJakartaSans(fontSize: 12.5, height: 1.4, color: palette.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Rect? _rectOf(GlobalKey key) {
+    final box = key.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.attached || !box.hasSize) return null;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
+
+  /// First message: Aarna hops off the stage, shrinks and arcs into the header circle while the stage folds away.
+  void _flyAarnaToHeader() {
+    final from = _rectOf(_stageKey);
+    final to = _rectOf(_headerAvatarKey);
+    if (from == null || to == null) {
+      setState(() => _introDone = true);
+      return;
+    }
+    final overlay = Overlay.of(context);
+    final c = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+    final path = CurvedAnimation(parent: c, curve: const Cubic(0.32, 0.0, 0.12, 1.0));
+    final entry = OverlayEntry(
+      builder: (_) => AnimatedBuilder(
+        animation: c,
+        builder: (_, _) {
+          final t = path.value;
+          final w = from.width + (to.width - from.width) * t;
+          // Hop up first, then an arc that rises above the straight line to the header.
+          final hop = math.sin(math.pi * (c.value / 0.25).clamp(0.0, 1.0)) * -from.height * 0.10;
+          final arc = math.sin(math.pi * t) * -60.0;
+          final cx = from.center.dx + (to.center.dx - from.center.dx) * t;
+          final cy = from.center.dy + (to.center.dy - from.center.dy) * t + hop + arc;
+          final squash = 1 + 0.07 * math.sin(math.pi * 2 * (c.value / 0.3).clamp(0.0, 1.0));
+          final toCircle = Curves.easeInOut.transform(((c.value - 0.55) / 0.4).clamp(0.0, 1.0));
+          return Positioned(
+            left: cx - w / 2,
+            top: cy - w / 2,
+            width: w,
+            height: w,
+            child: IgnorePointer(
+              child: Transform.scale(
+                scaleX: 1 / squash,
+                scaleY: squash,
+                alignment: Alignment.bottomCenter,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Opacity(
+                      opacity: 1 - toCircle,
+                      child: Image.asset(AarnaRenders.bodyHop, fit: BoxFit.contain, gaplessPlayback: true),
+                    ),
+                    if (toCircle > 0)
+                      Opacity(
+                        opacity: toCircle,
+                        child: AarnaLivingAvatar(size: w, popOut: true, showOnlineBadge: toCircle > 0.95),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    overlay.insert(entry);
+    setState(() {
+      _flying = true;
+      _introDone = true;
+    });
+    c.forward().whenComplete(() {
+      entry.remove();
+      c.dispose();
+      HapticFeedback.selectionClick();
+      if (mounted) setState(() => _flying = false);
+    });
+  }
+
   Widget _buildAarnaHeroCard(LuxuryPalette palette, bool isDark) {
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
@@ -1371,29 +1509,17 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Top character profile & brand introduction
-          Padding(
+          // Before the first message Aarna stands on a stage (live 3D, drag to turn, tap to wave); after it she lives
+          // in the header circle and this collapses to the text intro.
+          AnimatedSize(
+            duration: const Duration(milliseconds: 520),
+            curve: Curves.easeInOutCubic,
+            alignment: Alignment.topCenter,
+            child: _introDone ? Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                AarnaLivingAvatar(
-                  size: 120,
-                  greetOnLoad: true,
-                  shape: BoxShape.rectangle,
-                  borderRadius: BorderRadius.circular(18),
-                  pose: _isTyping ? AarnaPose.searching : _activeHeroPose,
-                  isSearching: _isTyping,
-                  showRadarRings: _isTyping,
-                  onTap: () {
-                    setState(() {
-                      _activeHeroPose = _activeHeroPose == AarnaPose.waving
-                          ? AarnaPose.idle
-                          : AarnaPose.waving;
-                    });
-                  },
-                ),
-                const SizedBox(width: 14),
                 // Text details
                 Expanded(
                   child: Column(
@@ -1469,8 +1595,9 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
                 ),
               ],
             ),
+          )
+              : _buildAarnaStage(palette, isDark),
           ),
-
           // Divider
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1565,9 +1692,11 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> {
                 color: isDark
                     ? const Color(0xFF121215)
                     : const Color(0xFFF5F3ED),
+                // The real 3D model playing this capability's clip (wave / think / hop ...).
                 child: Image.asset(
-                  cap.imagePath,
+                  AarnaRenders.forPose(cap.pose, body: true),
                   fit: BoxFit.contain,
+                  gaplessPlayback: true,
                   errorBuilder: (_, _, _) => const Center(
                     child: Icon(
                       Icons.auto_awesome,

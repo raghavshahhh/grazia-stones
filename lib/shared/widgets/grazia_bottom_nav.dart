@@ -108,7 +108,7 @@ class _GraziaBottomNavState extends ConsumerState<GraziaBottomNav> {
                       offset: const Offset(0, 8),
                     ),
                     BoxShadow(
-                      color: const Color(0xFFE040FB).withValues(alpha: isDark ? 0.06 : 0.03),
+                      color: const Color(0xFFC5A059).withValues(alpha: isDark ? 0.12 : 0.05),
                       blurRadius: 20,
                       spreadRadius: 0,
                     ),
@@ -285,52 +285,51 @@ class _LiquidBubblePainter extends CustomPainter {
     final rect = Offset.zero & size;
     final rrect = RRect.fromRectAndRadius(rect, Radius.circular(size.height / 2));
 
-    // 1. Ambient outer prismatic glow
+    // 1. Ambient outer champagne-gold glow
     final glowPaint = Paint()
       ..shader = RadialGradient(
         center: Alignment.center,
         radius: 0.85,
         colors: [
-          const Color(0xFFE040FB).withValues(alpha: isDark ? 0.22 : 0.15),
-          const Color(0xFF00E5FF).withValues(alpha: isDark ? 0.18 : 0.12),
+          const Color(0xFFC5A059).withValues(alpha: isDark ? 0.30 : 0.18),
+          const Color(0xFFD4AF37).withValues(alpha: isDark ? 0.15 : 0.08),
           Colors.transparent,
         ],
       ).createShader(rect)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
     canvas.drawRRect(rrect.deflate(1), glowPaint);
 
-    // 2. Liquid Glass Body (Translucent refractive lens)
+    // 2. Liquid Glass Body (Warm champagne translucent lens)
     final bodyPaint = Paint()
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: isDark
             ? [
-                Colors.white.withValues(alpha: 0.16),
-                const Color(0xFF1E1F24).withValues(alpha: 0.35),
+                Colors.white.withValues(alpha: 0.18),
+                const Color(0xFF2C2416).withValues(alpha: 0.45),
               ]
             : [
-                Colors.white.withValues(alpha: 0.65),
-                Colors.white.withValues(alpha: 0.25),
+                const Color(0xFFFFFDF8),
+                const Color(0xFFF5EEDA).withValues(alpha: 0.85),
               ],
       ).createShader(rect);
     canvas.drawRRect(rrect, bodyPaint);
 
-    // 3. Chromatic Iridescent Refractive Rim (Rainbow edge matching reference)
+    // 3. Fine Italian Champagne Gold Rim
     final rimPaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.8
-      ..shader = SweepGradient(
-        center: Alignment.center,
-        colors: const [
-          Color(0xFF00F0FF), // Electric Cyan
-          Color(0xFF7000FF), // Deep Violet
-          Color(0xFFFF007A), // Hot Magenta / Red
-          Color(0xFFFFB800), // Amber Gold
-          Color(0xFF00FF85), // Emerald / Mint
-          Color(0xFF00F0FF), // Return to Cyan
+      ..strokeWidth = 1.4
+      ..shader = const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Color(0xFFFBF4D8), // Light Champagne Highlight
+          Color(0xFFD4AF37), // Metallic Italian Gold
+          Color(0xFFC5A059), // Rich Ochre Gold
+          Color(0xFFE5C07B), // Warm Gold
         ],
-        stops: const [0.0, 0.22, 0.48, 0.72, 0.88, 1.0],
+        stops: [0.0, 0.35, 0.70, 1.0],
       ).createShader(rect);
     canvas.drawRRect(rrect.deflate(0.9), rimPaint);
 

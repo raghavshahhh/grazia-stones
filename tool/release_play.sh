@@ -15,14 +15,15 @@ MODE="${1:-internal}"
 GOT=$(keytool -printcert -jarfile "$AAB" 2>/dev/null | awk '/SHA1:/{print $2; exit}')
 [ "$GOT" = "$EXPECT_SHA1" ] || { echo "Bundle is signed with $GOT, expected $EXPECT_SHA1. Stop."; exit 1; }
 VC=$(grep -E '^version:' pubspec.yaml | sed -E 's/.*\+//')
+VN=$(grep -E '^version:' pubspec.yaml | sed -E 's/version: *//; s/\+.*//')
 echo "Bundle OK: versionCode $VC, upload key matches."
 
-cfg() { python3 - "$1" "$2" "$3" <<'PY'
+cfg() { python3 - "$1" "$2" "$3" "$VN" <<'PY'
 import json,sys
 l=json.load(open('docs/store-listing/play_listing_en-US.json'))
 track,frac,out=sys.argv[1],sys.argv[2],sys.argv[3]
 json.dump({"package":"com.graziastones.grazia_stones","aab":"build/app/outputs/bundle/release/app-release.aab",
- "track":track,"userFraction":None if frac=="null" else float(frac),"versionName":"1.0.0",
+ "track":track,"userFraction":None if frac=="null" else float(frac),"versionName":sys.argv[4],
  "title":l["title"],"short":l["short"],"full":l["full"],"notes":l["notes"]},open(out,'w'))
 PY
 }

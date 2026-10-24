@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -93,31 +94,10 @@ CustomTransitionPage<void> _fadePage(Widget child, GoRouterState state) {
   );
 }
 
-/// Slide up + fade — for detail screens pushing onto nav stack.
-CustomTransitionPage<void> _slideUpPage(Widget child, GoRouterState state) {
-  return CustomTransitionPage<void>(
-    key: _pageKey(state),
-    child: child,
-    transitionDuration: _kPageIn,
-    reverseTransitionDuration: _kPageOut,
-    transitionsBuilder: (_, animation, _, child) {
-      final curved = CurvedAnimation(
-        parent: animation,
-        curve: Curves.easeOutCubic,
-        reverseCurve: Curves.easeInCubic,
-      );
-      return FadeTransition(
-        opacity: curved,
-        child: SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(0, 0.035),
-            end: Offset.zero,
-          ).animate(curved),
-          child: child,
-        ),
-      );
-    },
-  );
+/// Detail screens: the native iOS push (parallax slide from the right) with the interactive edge swipe-back,
+/// on both platforms. Custom transition pages disable that gesture, which is what made the app feel non-native.
+Page<void> _slideUpPage(Widget child, GoRouterState state) {
+  return CupertinoPage<void>(key: _pageKey(state), child: child);
 }
 
 /// Slide from right — for auth / onboarding flows.

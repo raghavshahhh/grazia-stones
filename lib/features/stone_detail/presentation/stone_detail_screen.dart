@@ -301,7 +301,7 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
             slivers: [
               // 1. Top Image Viewer
               SliverAppBar(
-                expandedHeight: 380,
+                expandedHeight: 410,
                 pinned: true,
                 backgroundColor: palette.background,
                 elevation: 0,
@@ -317,15 +317,20 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                     }
                   },
                   icon: Container(
-                    width: 36,
-                    height: 36,
+                    width: 38,
+                    height: 38,
                     decoration: BoxDecoration(
-                      color: palette.surface.withValues(alpha: 0.85),
+                      color: palette.surface.withValues(alpha: 0.90),
                       shape: BoxShape.circle,
+                      border: Border.all(
+                        color: palette.border.withValues(alpha: 0.6),
+                        width: 0.8,
+                      ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.08),
-                          blurRadius: 8,
+                          color: Colors.black.withValues(alpha: 0.12),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
                         ),
                       ],
                     ),
@@ -345,15 +350,20 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                       stoneName: stone.name,
                     ),
                     icon: Container(
-                      width: 36,
-                      height: 36,
+                      width: 38,
+                      height: 38,
                       decoration: BoxDecoration(
-                        color: palette.surface.withValues(alpha: 0.85),
+                        color: palette.surface.withValues(alpha: 0.90),
                         shape: BoxShape.circle,
+                        border: Border.all(
+                          color: palette.border.withValues(alpha: 0.6),
+                          width: 0.8,
+                        ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.08),
-                            blurRadius: 8,
+                            color: Colors.black.withValues(alpha: 0.12),
+                            blurRadius: 10,
+                            offset: const Offset(0, 2),
                           ),
                         ],
                       ),
@@ -372,7 +382,7 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                                 (w) => w.contains(stone.id),
                               ),
                             )
-                            ? palette.primary
+                            ? const Color(0xFFE53935)
                             : palette.textPrimary,
                       ),
                     ),
@@ -389,9 +399,6 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                         onPageChanged: (i) =>
                             setState(() => _currentImageIndex = i),
                         itemBuilder: (context, i) {
-                          // Slide 1 is the hero/room photo: full-bleed like before. Later slides are close-ups of one
-                          // shade: the whole photo is shown over a blurred copy so a single tile is never zoomed
-                          // into something that looks like one huge piece.
                           return GestureDetector(
                             onTap: () => _openViewer(stone, images, i),
                             child: i == 0
@@ -434,38 +441,64 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                           );
                         },
                       ),
+                      // Subtle dark vignette gradient scrim so white tags pop clearly
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        height: 120,
+                        child: IgnorePointer(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.transparent,
+                                  Colors.black.withValues(alpha: 0.65),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                       if (stone.lengthCm != null &&
                           stone.widthCm != null &&
                           stone.lengthCm! > 0 &&
                           stone.widthCm! > 0)
                         Positioned(
-                          left: 14,
-                          bottom: 30,
+                          left: 16,
+                          bottom: 42,
                           child: IgnorePointer(
                             child: Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 12,
-                                vertical: 8,
+                                vertical: 6.5,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.6),
+                                color: Colors.black.withValues(alpha: 0.55),
                                 borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.20),
+                                  width: 0.8,
+                                ),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   const Icon(
                                     Icons.straighten_rounded,
-                                    color: Colors.white,
-                                    size: 15,
+                                    color: Color(0xFFF3E5AB),
+                                    size: 14,
                                   ),
                                   const SizedBox(width: 6),
                                   Text(
-                                    'Each piece: ${(stone.lengthCm! * 10).round()} x ${(stone.widthCm! * 10).round()} mm',
+                                    'Each piece: ${(stone.lengthCm! * 10).round()} × ${(stone.widthCm! * 10).round()} mm',
                                     style: const TextStyle(
                                       color: Colors.white,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: 0.2,
                                     ),
                                   ),
                                 ],
@@ -474,8 +507,8 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                           ),
                         ),
                       Positioned(
-                        right: 14,
-                        bottom: 30,
+                        right: 16,
+                        bottom: 42,
                         child: GestureDetector(
                           onTap: () => _openViewer(
                             stone,
@@ -486,27 +519,32 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 12,
-                              vertical: 8,
+                              vertical: 6.5,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.6),
+                              color: Colors.black.withValues(alpha: 0.55),
                               borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.20),
+                                width: 0.8,
+                              ),
                             ),
                             child: const Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
                                   Icons.threed_rotation_rounded,
-                                  color: Colors.white,
-                                  size: 16,
+                                  color: Color(0xFFF3E5AB),
+                                  size: 15,
                                 ),
                                 SizedBox(width: 6),
                                 Text(
                                   '360° 3D',
                                   style: TextStyle(
                                     color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.2,
                                   ),
                                 ),
                               ],
@@ -514,28 +552,7 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                           ),
                         ),
                       ),
-                      // Gradient overlay (IgnorePointer: it sits over the 360 3D button and image taps)
-                      Positioned(
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        child: IgnorePointer(
-                          child: Container(
-                            height: 100,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Colors.transparent,
-                                  palette.background,
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      // Page indicator dots
+                      // Asian Paints Signature Active Gold Carousel Indicator
                       if (images.length > 1)
                         Positioned(
                           bottom: 20,
@@ -545,22 +562,18 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: List.generate(
                               images.length,
-                              (i) => Container(
+                              (i) => AnimatedContainer(
+                                duration: const Duration(milliseconds: 250),
                                 margin: const EdgeInsets.symmetric(
                                   horizontal: 3,
                                 ),
-                                width: i == _currentImageIndex ? 20 : 6,
-                                height: 5,
+                                width: i == _currentImageIndex ? 22 : 6,
+                                height: 4,
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(3),
-                                  gradient: i == _currentImageIndex
-                                      ? palette.primaryGradient
-                                      : null,
                                   color: i == _currentImageIndex
-                                      ? null
-                                      : palette.textTertiary.withValues(
-                                          alpha: 0.4,
-                                        ),
+                                      ? const Color(0xFFD4AF37)
+                                      : Colors.white.withValues(alpha: 0.40),
                                 ),
                               ),
                             ),
@@ -571,290 +584,279 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                 ),
               ),
 
-              // 2. Main Content
+              // 2. Main Content Sheet (Overlapping Curved Architectural Card)
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Collection Badge & In Stock
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: palette.primary.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              stone.collection.toUpperCase(),
-                              style: GoogleFonts.inter(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 1.2,
-                                color: palette.primary,
-                              ),
-                            ),
-                          ),
-                          const Spacer(),
-                          if (stone.inStock)
-                            Row(
-                              children: [
-                                Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFF2E7D32),
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'In Stock (Certified Quarry)',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                    color: const Color(0xFF2E7D32),
-                                  ),
-                                ),
-                              ],
-                            ),
-                        ],
+                child: Transform.translate(
+                  offset: const Offset(0, -16),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: palette.background,
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(26),
                       ),
-
-                      const SizedBox(height: 12),
-
-                      // Stone Name
-                      Text(
-                        stone.name,
-                        style: GoogleFonts.playfairDisplay(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w700,
-                          color: palette.textPrimary,
-                        ),
-                      ),
-
-                      const SizedBox(height: 6),
-
-                      // Price
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
-                        children: [
-                          Text(
-                            Formatters.priceTag(stone.pricePerSqFt),
-                            style: GoogleFonts.inter(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w700,
-                              color: palette.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            Formatters.unitSuffix(stone.pricePerSqFt, '/ sq ft'),
-                            style: GoogleFonts.inter(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: palette.textSecondary,
-                            ),
-                          ),
-                          const Spacer(),
-                          if (stone.rating > 0)
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.star_rounded,
-                                  color: palette.primary,
-                                  size: 18,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  stone.rating.toStringAsFixed(1),
-                                  style: GoogleFonts.inter(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: palette.textPrimary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                        ],
-                      ),
-
-                      if (images.length > 1) ...[
-                        const SizedBox(height: 18),
-                        Text(
-                          'COLOURS  •  ${images.length}',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.8,
-                            color: palette.textTertiary,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        SizedBox(
-                          height: 74,
-                          child: ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: images.length,
-                            separatorBuilder: (_, _) =>
-                                const SizedBox(width: 10),
-                            itemBuilder: (_, i) {
-                              final on = i == _currentImageIndex;
-                              return GestureDetector(
-                                onTap: () {
-                                  setState(() => _currentImageIndex = i);
-                                  _pageCtrl.animateToPage(
-                                    i,
-                                    duration: const Duration(milliseconds: 260),
-                                    curve: Curves.easeOut,
-                                  );
-                                },
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 180),
-                                  width: 74,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: on
-                                          ? palette.primary
-                                          : palette.border,
-                                      width: on ? 2.5 : 1,
-                                    ),
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(9),
-                                    child: SmartStoneImage(
-                                      imageUrl: images[i],
-                                      fit: BoxFit.cover,
-                                      palette: palette,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _colourLabels(
-                            stone,
-                            images.length,
-                          )[_currentImageIndex],
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: palette.textSecondary,
-                          ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.08),
+                          blurRadius: 16,
+                          offset: const Offset(0, -4),
                         ),
                       ],
-
-                      const SizedBox(height: 20),
-
-                      // 3. Triple Visualizer CTA Bar
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: () =>
-                                  context.push('/live-ai?stoneId=${stone.id}'),
-                              icon: const Icon(
-                                Icons.view_in_ar_outlined,
-                                size: 16,
-                              ),
-                              label: const Text(
-                                'Live AR',
-                                style: TextStyle(fontSize: 12),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: palette.primary,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 13,
-                                  horizontal: 4,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                elevation: 0,
-                              ),
+                    ),
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Subtle drag handle pill
+                        Center(
+                          child: Container(
+                            width: 36,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: palette.border.withValues(alpha: 0.8),
+                              borderRadius: BorderRadius.circular(2),
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () =>
-                                  context.push('/ai-viz?stoneId=${stone.id}'),
-                              icon: Icon(
-                                Icons.auto_awesome_outlined,
-                                color: palette.primary,
-                                size: 16,
+                        ),
+                        const SizedBox(height: 18),
+
+                        // Collection Badge & In Stock
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4.5,
                               ),
-                              label: Text(
-                                'AI Studio',
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFC5A059).withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: const Color(0xFFD4AF37).withValues(alpha: 0.35),
+                                  width: 0.8,
+                                ),
+                              ),
+                              child: Text(
+                                stone.collection.toUpperCase(),
                                 style: GoogleFonts.inter(
-                                  color: palette.textPrimary,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 12,
-                                ),
-                              ),
-                              style: OutlinedButton.styleFrom(
-                                side: BorderSide(
-                                  color: palette.border,
-                                  width: 1.2,
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 13,
-                                  horizontal: 4,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 1.2,
+                                  color: const Color(0xFFC5A059),
                                 ),
                               ),
                             ),
+                            const Spacer(),
+                            if (stone.inStock)
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 7,
+                                    height: 7,
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFF2E7D32),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'In Stock (Certified Quarry)',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFF2E7D32),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        // Stone Name
+                        Text(
+                          stone.name,
+                          style: GoogleFonts.playfairDisplay(
+                            fontSize: 27,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.3,
+                            color: palette.textPrimary,
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () => context.push(
-                                '/measure/tile-visualizer?stoneId=${stone.id}',
+                        ),
+
+                        const SizedBox(height: 6),
+
+                        // Price
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Text(
+                              Formatters.priceTag(stone.pricePerSqFt),
+                              style: GoogleFonts.inter(
+                                fontSize: 26,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.4,
+                                color: palette.textPrimary,
                               ),
-                              icon: Icon(
-                                Icons.grid_on_rounded,
-                                color: palette.primary,
-                                size: 16,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              Formatters.unitSuffix(stone.pricePerSqFt, '/ sq ft'),
+                              style: GoogleFonts.inter(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w500,
+                                color: palette.textSecondary,
                               ),
-                              label: Text(
-                                '3D Wall',
+                            ),
+                            const Spacer(),
+                            if (stone.rating > 0)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFF9E6),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: const Color(0xFFFFD54F), width: 0.6),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.star_rounded,
+                                      color: Color(0xFFFFA000),
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      stone.rating.toStringAsFixed(1),
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: const Color(0xFF5D4037),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+
+                        // Colour Swatches
+                        if (images.length > 1) ...[
+                          const SizedBox(height: 20),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'COLOURS & FINISHES  •  ${images.length}',
                                 style: GoogleFonts.inter(
-                                  color: palette.textPrimary,
-                                  fontWeight: FontWeight.w600,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 1.6,
+                                  color: palette.textTertiary,
+                                ),
+                              ),
+                              Text(
+                                _colourLabels(stone, images.length)[_currentImageIndex],
+                                style: GoogleFonts.inter(
                                   fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: palette.primary,
                                 ),
                               ),
-                              style: OutlinedButton.styleFrom(
-                                side: BorderSide(
-                                  color: palette.border,
-                                  width: 1.2,
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 13,
-                                  horizontal: 4,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            height: 76,
+                            child: ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: images.length,
+                              separatorBuilder: (_, _) => const SizedBox(width: 12),
+                              itemBuilder: (_, i) {
+                                final on = i == _currentImageIndex;
+                                return GestureDetector(
+                                  onTap: () {
+                                    setState(() => _currentImageIndex = i);
+                                    _pageCtrl.animateToPage(
+                                      i,
+                                      duration: const Duration(milliseconds: 260),
+                                      curve: Curves.easeOut,
+                                    );
+                                  },
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 180),
+                                    width: 76,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(15),
+                                      border: Border.all(
+                                        color: on ? const Color(0xFFD4AF37) : palette.border,
+                                        width: on ? 2.5 : 1,
+                                      ),
+                                      boxShadow: on
+                                          ? [
+                                              BoxShadow(
+                                                color: const Color(0xFFD4AF37).withValues(alpha: 0.28),
+                                                blurRadius: 8,
+                                                offset: const Offset(0, 2),
+                                              ),
+                                            ]
+                                          : null,
+                                    ),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(12.5),
+                                      child: SmartStoneImage(
+                                        imageUrl: images[i],
+                                        fit: BoxFit.cover,
+                                        palette: palette,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                           ),
                         ],
-                      ),
 
-                      const SizedBox(height: 8),
+                        const SizedBox(height: 22),
+
+                        // 3. Asian Paints Style 3-Column Luxury Visualizer Dock
+                        Row(
+                          children: [
+                            _buildVisualizerCard(
+                              context: context,
+                              palette: palette,
+                              icon: Icons.view_in_ar_rounded,
+                              title: 'Live AR',
+                              subtitle: 'Wall View',
+                              isPrimary: true,
+                              onTap: () => context.push('/live-ai?stoneId=${stone.id}'),
+                            ),
+                            const SizedBox(width: 10),
+                            _buildVisualizerCard(
+                              context: context,
+                              palette: palette,
+                              icon: Icons.auto_awesome_rounded,
+                              title: 'AI Studio',
+                              subtitle: 'Room Render',
+                              isPrimary: false,
+                              onTap: () => context.push('/ai-viz?stoneId=${stone.id}'),
+                            ),
+                            const SizedBox(width: 10),
+                            _buildVisualizerCard(
+                              context: context,
+                              palette: palette,
+                              icon: Icons.threed_rotation_rounded,
+                              title: '3D Wall',
+                              subtitle: 'Pattern Grid',
+                              isPrimary: false,
+                              onTap: () => context.push(
+                                '/measure/tile-visualizer?stoneId=${stone.id}',
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 24),
 
                       // 4. Architectural Specifications Grid
                       Text(
@@ -868,6 +870,7 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                       ),
                       const SizedBox(height: 14),
                       GridView.count(
+                        padding: EdgeInsets.zero,
                         crossAxisCount: 2,
                         crossAxisSpacing: 12,
                         mainAxisSpacing: 12,
@@ -1137,35 +1140,38 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                         ),
                       ),
 
-                      const SizedBox(height: 120),
+                      const SizedBox(height: 140),
                     ],
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
+        ),
 
-          // 6. Sticky Bottom Action Bar
+          // 6. Sticky Bottom Action Bar (Luxury Asian Paints Split Floating Dock)
           Positioned(
             bottom: 0,
             left: 0,
             right: 0,
             child: Container(
               padding: EdgeInsets.only(
-                left: 18,
-                right: 18,
+                left: 20,
+                right: 20,
                 top: 14,
-                bottom: MediaQuery.of(context).padding.bottom + 14,
+                bottom: MediaQuery.of(context).padding.bottom > 0
+                    ? MediaQuery.of(context).padding.bottom + 8
+                    : 16,
               ),
               decoration: BoxDecoration(
-                color: palette.surface,
+                color: palette.surface.withValues(alpha: 0.98),
                 border: Border(
-                  top: BorderSide(color: palette.border, width: 1.0),
+                  top: BorderSide(color: palette.border, width: 0.9),
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 16,
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 20,
                     offset: const Offset(0, -4),
                   ),
                 ],
@@ -1180,85 +1186,210 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                   final inCartQty = inCartItem?.quantity ?? 0;
                   final isGreen = _justAdded || isInCart;
 
-                  return ScaleTransition(
-                    scale: _cartBtnScaleAnim,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeOutCubic,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color:
-                                (isGreen
-                                        ? const Color(0xFF10B981)
-                                        : palette.primary)
-                                    .withValues(alpha: isGreen ? 0.38 : 0.28),
-                            blurRadius: isGreen ? 16 : 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: () => _handleAddToCart(stone, palette),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: isGreen
-                                ? const Color(0xFF10B981)
-                                : palette.primary,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            elevation: 0,
-                          ),
-                          child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 250),
-                            transitionBuilder: (child, anim) => FadeTransition(
-                              opacity: anim,
-                              child: ScaleTransition(scale: anim, child: child),
-                            ),
-                            child: Row(
-                              key: ValueKey<String>(
-                                'btn_${_justAdded}_${isInCart}_$inCartQty',
+                  return Row(
+                    children: [
+                      // Left: Price & certification summary
+                      Expanded(
+                        flex: 4,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              Formatters.priceTag(stone.pricePerSqFt),
+                              style: GoogleFonts.inter(
+                                fontSize: 19,
+                                fontWeight: FontWeight.w800,
+                                color: palette.textPrimary,
+                                letterSpacing: -0.3,
                               ),
-                              mainAxisAlignment: MainAxisAlignment.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Row(
                               children: [
-                                Icon(
-                                  isGreen
-                                      ? Icons.check_circle_rounded
-                                      : Icons.shopping_bag_outlined,
-                                  size: 20,
-                                  color: Colors.white,
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF10B981),
+                                    shape: BoxShape.circle,
+                                  ),
                                 ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  _justAdded
-                                      ? 'Added to Cart ✓'
-                                      : isInCart
-                                      ? 'Added to Cart ($inCartQty)'
-                                      : 'Add to Cart',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 0.3,
-                                    color: Colors.white,
+                                const SizedBox(width: 5),
+                                Expanded(
+                                  child: Text(
+                                    'Quarry Direct • GST Incl.',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w500,
+                                      color: palette.textTertiary,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                               ],
                             ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+
+                      // Right: Gold Pill Action Button
+                      Expanded(
+                        flex: 6,
+                        child: ScaleTransition(
+                          scale: _cartBtnScaleAnim,
+                          child: SizedBox(
+                            height: 48,
+                            child: ElevatedButton(
+                              onPressed: () => _handleAddToCart(stone, palette),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: isGreen
+                                    ? const Color(0xFF10B981)
+                                    : palette.primary,
+                                foregroundColor: Colors.white,
+                                elevation: 2,
+                                shadowColor: (isGreen
+                                        ? const Color(0xFF10B981)
+                                        : palette.primary)
+                                    .withValues(alpha: 0.35),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(24),
+                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                              ),
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 250),
+                                transitionBuilder: (child, anim) => FadeTransition(
+                                  opacity: anim,
+                                  child: ScaleTransition(scale: anim, child: child),
+                                ),
+                                child: Row(
+                                  key: ValueKey<String>(
+                                    'btn_${_justAdded}_${isInCart}_$inCartQty',
+                                  ),
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      isGreen
+                                          ? Icons.check_circle_rounded
+                                          : Icons.shopping_bag_outlined,
+                                      size: 18,
+                                      color: Colors.white,
+                                    ),
+                                    const SizedBox(width: 7),
+                                    Text(
+                                      _justAdded
+                                          ? 'Added ✓'
+                                          : isInCart
+                                              ? 'In Cart ($inCartQty)'
+                                              : 'Add to Cart',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 0.2,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                    ],
                   );
                 },
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildVisualizerCard({
+    required BuildContext context,
+    required LuxuryPalette palette,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required bool isPrimary,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap();
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
+          decoration: BoxDecoration(
+            color: isPrimary
+                ? palette.primary.withValues(alpha: 0.08)
+                : palette.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isPrimary
+                  ? palette.primary.withValues(alpha: 0.5)
+                  : palette.border,
+              width: isPrimary ? 1.2 : 0.9,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: isPrimary
+                      ? palette.primary
+                      : const Color(0xFFFBF7EE),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  icon,
+                  color: isPrimary ? Colors.white : const Color(0xFFC5A059),
+                  size: 19,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                title,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: palette.textPrimary,
+                ),
+                maxLines: 1,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: GoogleFonts.inter(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  color: palette.textTertiary,
+                ),
+                maxLines: 1,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

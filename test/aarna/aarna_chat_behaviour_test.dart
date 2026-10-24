@@ -54,7 +54,8 @@ void main() {
       await tester.pumpWidget(MaterialApp(home: Scaffold(body: Center(child: row()))));
       await tester.pump(const Duration(milliseconds: 600));
       for (final e in find.byType(Image).evaluate()) {
-        await precacheImage((e.widget as Image).image, e);
+        // Avatars are animated WebP renders; the test decoder can stall on them, so don't wait forever.
+        await precacheImage((e.widget as Image).image, e).timeout(const Duration(seconds: 5), onTimeout: () {});
       }
     });
     await tester.pump(const Duration(milliseconds: 700));

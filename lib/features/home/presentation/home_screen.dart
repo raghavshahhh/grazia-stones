@@ -28,6 +28,9 @@ import 'package:url_launcher/url_launcher.dart';
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
+  /// The AppBar Aarna avatar: the launch overlay flies Aarna into it and the app tour points at it.
+  static final GlobalKey aarnaAnchorKey = GlobalKey();
+
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
@@ -39,7 +42,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Object? _loadError;
 
   final GlobalKey _aarnaBannerKey = GlobalKey();
-  final GlobalKey _aarnaAppBarKey = GlobalKey();
 
   late PageController _heroPageController;
   late final ScrollController _scrollController;
@@ -69,7 +71,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       pageBuilder: (dialogContext, animation, secondaryAnimation) {
         return AppInteractiveTourOverlay(
           palette: palette,
-          aarnaKey: _aarnaAppBarKey,
+          aarnaKey: HomeScreen.aarnaAnchorKey,
           collectionsKey: GraziaBottomNav.collectionsKey,
           onDismiss: () {
             StorageService.instance.setHasSeenAppTour(true);
@@ -487,120 +489,127 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     final isDark = ref.watch(themePaletteProvider.notifier).isDarkMode;
 
-    return Container(
-      height: heroHeight,
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.10) : palette.border,
-          width: 1.0,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: isDark
-                ? Colors.black.withValues(alpha: 0.45)
-                : const Color(0xFF2C2416).withValues(alpha: 0.08),
-            blurRadius: 28,
-            offset: const Offset(0, 8),
-          ),
-          if (isDark)
-            BoxShadow(
-              color: const Color(0xFFD4AF37).withValues(alpha: 0.08),
-              blurRadius: 20,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          height: heroHeight,
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(26),
+            border: Border.all(
+              color: isDark ? Colors.white.withValues(alpha: 0.10) : palette.border,
+              width: 1.0,
             ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(25),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            Listener(
-              behavior: HitTestBehavior.translucent,
-              onPointerDown: (_) {
-                _isUserTouchingHero = true;
-                _heroTimer?.cancel();
-              },
-              onPointerUp: (_) {
-                _isUserTouchingHero = false;
-                _startHeroTimer(slides.length);
-              },
-              onPointerCancel: (_) {
-                _isUserTouchingHero = false;
-                _startHeroTimer(slides.length);
-              },
-              child: PageView.builder(
-                controller: _heroPageController,
-                itemCount: slides.length,
-                onPageChanged: (idx) {
-                  setState(() => _currentHeroIndex = idx);
-                },
-                itemBuilder: (context, index) => slides[index],
+            boxShadow: [
+              BoxShadow(
+                color: isDark
+                    ? Colors.black.withValues(alpha: 0.45)
+                    : const Color(0xFF2C2416).withValues(alpha: 0.08),
+                blurRadius: 28,
+                offset: const Offset(0, 8),
               ),
-            ),
-
-            // Top Right Indicator Pill Overlay
-            if (slides.length > 1)
-              Positioned(
-                top: 14,
-                right: 14,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.60),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.15),
-                      width: 0.8,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '0${_currentHeroIndex + 1} ',
-                        style: GoogleFonts.inter(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFFD4AF37),
-                        ),
-                      ),
-                      Text(
-                        '/ 0${slides.length}',
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white60,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      // Micro dots
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: List.generate(
-                          slides.length,
-                          (i) => AnimatedContainer(
-                            duration: const Duration(milliseconds: 300),
-                            margin: const EdgeInsets.symmetric(horizontal: 1.5),
-                            width: _currentHeroIndex == i ? 10 : 3.5,
-                            height: 3.5,
-                            decoration: BoxDecoration(
-                              color: _currentHeroIndex == i
-                                  ? const Color(0xFFD4AF37)
-                                  : Colors.white.withValues(alpha: 0.35),
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+              if (isDark)
+                BoxShadow(
+                  color: const Color(0xFFD4AF37).withValues(alpha: 0.08),
+                  blurRadius: 20,
+                ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(25),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Listener(
+                  behavior: HitTestBehavior.translucent,
+                  onPointerDown: (_) {
+                    _isUserTouchingHero = true;
+                    _heroTimer?.cancel();
+                  },
+                  onPointerUp: (_) {
+                    _isUserTouchingHero = false;
+                    _startHeroTimer(slides.length);
+                  },
+                  onPointerCancel: (_) {
+                    _isUserTouchingHero = false;
+                    _startHeroTimer(slides.length);
+                  },
+                  child: PageView.builder(
+                    controller: _heroPageController,
+                    itemCount: slides.length,
+                    onPageChanged: (idx) {
+                      setState(() => _currentHeroIndex = idx);
+                    },
+                    itemBuilder: (context, index) => slides[index],
                   ),
                 ),
-              ),
-          ],
+
+                // Top Right Indicator Pill Overlay
+                if (slides.length > 1)
+                  Positioned(
+                    top: 14,
+                    right: 14,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.60),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.15),
+                          width: 0.8,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '0${_currentHeroIndex + 1} ',
+                            style: GoogleFonts.inter(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFFD4AF37),
+                            ),
+                          ),
+                          Text(
+                            '/ 0${slides.length}',
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white60,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
-      ),
+        if (slides.length > 1) ...[
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(
+              slides.length,
+              (i) => AnimatedContainer(
+                duration: const Duration(milliseconds: 260),
+                curve: Curves.easeOutCubic,
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                width: _currentHeroIndex == i ? 22 : 6,
+                height: 5.5,
+                decoration: BoxDecoration(
+                  color: _currentHeroIndex == i
+                      ? (isDark ? const Color(0xFFD4AF37) : const Color(0xFFC59B27))
+                      : (isDark ? Colors.white24 : const Color(0xFFD8D2C5)),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -886,11 +895,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Widget _buildAarnaAppBarActionBtn(LuxuryPalette palette, bool isDark) {
     return Padding(
-      key: _aarnaAppBarKey,
+      key: HomeScreen.aarnaAnchorKey,
       padding: const EdgeInsets.only(right: 6),
       child: AarnaLivingAvatar(
         size: 36,
-        pose: AarnaPose.waving,
+        pose: AarnaPose.idle,
         showSparkle: true,
         showOnlineBadge: true,
         onTap: () {
@@ -983,51 +992,45 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  // ── 1.2 Luxury Architectural Features Quick-Action Dock (Unified Champagne Gold Theme) ──
+  // ── 1.2 Luxury Architectural Features Quick-Action Dock (Asian Paints 2x3 Grid) ──
   Widget _buildFeaturesQuickDock(LuxuryPalette palette) {
     final isDark = ref.watch(themePaletteProvider.notifier).isDarkMode;
     final goldAccent = isDark ? const Color(0xFFD4AF37) : const Color(0xFF8B6B23);
     final features = [
       {
-        'title': 'AI Studio',
-        'subtitle': '4K Wall Generator',
+        'title': 'AI Room\nStudio',
         'badge': 'AI 4K',
         'icon': Icons.auto_awesome_rounded,
         'route': '/ai-viz',
       },
       {
-        'title': 'Live AR',
-        'subtitle': 'True-Scale Wall View',
+        'title': 'Live AR\nWall View',
         'badge': '3D AR',
         'icon': Icons.view_in_ar_rounded,
         'route': '/live-ai',
       },
       {
-        'title': 'Measure',
-        'subtitle': 'Camera Wall Ruler',
-        'badge': 'AR RULER',
-        'icon': Icons.straighten_rounded,
-        'route': '/ar-measure',
-      },
-      {
-        'title': 'Tile Visualizer',
-        'subtitle': '3D Wall & Layout Grid',
+        'title': '3D Wall\nVisualizer',
         'badge': '3D WALL',
         'icon': Icons.grid_goldenratio_rounded,
         'route': '/measure/tile-visualizer',
       },
       {
-        'title': 'Sample Kit',
-        'subtitle': 'Real Stone Box Delivery',
+        'title': 'Wall Measure\nRuler',
+        'badge': 'RULER',
+        'icon': Icons.straighten_rounded,
+        'route': '/ar-measure',
+      },
+      {
+        'title': 'Real Stone\nSample Kit',
         'badge': 'BOX',
         'icon': Icons.inventory_2_outlined,
         'route': '/sample-order',
       },
       {
-        'title': 'Aarna AI',
-        'subtitle': 'Chat with our design expert',
+        'title': 'Aarna AI\nAdvisor',
         'badge': 'CHAT',
-        'icon': Icons.auto_awesome_rounded,
+        'icon': Icons.support_agent_rounded,
         'route': '/aarna-ai',
       },
     ];
@@ -1035,89 +1038,102 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Section Header
+        // 2x3 Grid matching Asian Paints Benchmark
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Column(
             children: [
               Row(
                 children: [
-                  Container(
-                    width: 3.5,
-                    height: 13,
-                    decoration: BoxDecoration(
-                      color: goldAccent,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
+                  _buildAsianPaintsStyleFeatureCard(features[0], goldAccent, palette, isDark),
                   const SizedBox(width: 8),
-                  Text(
-                    'ARCHITECTURAL SUITE',
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.6,
-                      color: goldAccent,
-                    ),
-                  ),
+                  _buildAsianPaintsStyleFeatureCard(features[1], goldAccent, palette, isDark),
+                  const SizedBox(width: 8),
+                  _buildAsianPaintsStyleFeatureCard(features[2], goldAccent, palette, isDark),
                 ],
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: goldAccent.withValues(alpha: isDark ? 0.12 : 0.08),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: goldAccent.withValues(alpha: isDark ? 0.35 : 0.25),
-                    width: 0.8,
-                  ),
+              const SizedBox(height: 9),
+              Row(
+                children: [
+                  _buildAsianPaintsStyleFeatureCard(features[3], goldAccent, palette, isDark),
+                  const SizedBox(width: 8),
+                  _buildAsianPaintsStyleFeatureCard(features[4], goldAccent, palette, isDark),
+                  const SizedBox(width: 8),
+                  _buildAsianPaintsStyleFeatureCard(features[5], goldAccent, palette, isDark),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // ── Asian Paints Style Horizontal Quick Exploration Strips ──
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildEditorialHorizontalStrip(
+                  tag: 'Grazia Catalogue',
+                  title: 'Colours, Ledges\n& 3D Textures',
+                  accentColor: isDark ? const Color(0xFF231E17) : const Color(0xFFF6F0E4),
+                  textColor: palette.textPrimary,
+                  tagColor: goldAccent,
+                  icon: Icons.menu_book_rounded,
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    context.push('/catalogue');
+                  },
                 ),
-                child: Text(
-                  '6 Interactive Tools',
-                  style: GoogleFonts.inter(
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w600,
-                    color: goldAccent,
-                  ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildEditorialHorizontalStrip(
+                  tag: 'Private Walkthrough',
+                  title: 'Kanpur Experience\nCenter Visit',
+                  accentColor: isDark ? const Color(0xFF22201D) : const Color(0xFFEFE9DC),
+                  textColor: palette.textPrimary,
+                  tagColor: goldAccent,
+                  icon: Icons.storefront_rounded,
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    _launchUrl('https://maps.google.com/?q=Fazalganj+Kanpur+123/477+Kalpi+Road');
+                  },
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 12),
 
-        // 2-by-2 Paired Luxury Feature Cards (Unified Gold)
+        const SizedBox(height: 20),
+
+        // ── Asian Paints Style: "Services right away!" Section ──
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Pair 1: AI Studio & Live AR
-              Row(
-                children: [
-                  Expanded(child: _buildLuxuryFeatureCard(features[0], goldAccent, palette, isDark)),
-                  const SizedBox(width: 10),
-                  Expanded(child: _buildLuxuryFeatureCard(features[1], goldAccent, palette, isDark)),
-                ],
+              Text(
+                'Grazia Architectural Services',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: goldAccent,
+                  letterSpacing: 0.6,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Services right away!',
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: palette.textPrimary,
+                ),
               ),
               const SizedBox(height: 10),
-              // Pair 2: Measure (camera ruler) & Tile Visualizer
-              Row(
-                children: [
-                  Expanded(child: _buildLuxuryFeatureCard(features[2], goldAccent, palette, isDark)),
-                  const SizedBox(width: 10),
-                  Expanded(child: _buildLuxuryFeatureCard(features[3], goldAccent, palette, isDark)),
-                ],
-              ),
-              const SizedBox(height: 10),
-              // Pair 3: Sample Kit & Aarna AI
-              Row(
-                children: [
-                  Expanded(child: _buildLuxuryFeatureCard(features[4], goldAccent, palette, isDark)),
-                  const SizedBox(width: 10),
-                  Expanded(child: _buildLuxuryFeatureCard(features[5], goldAccent, palette, isDark)),
-                ],
-              ),
+              _buildTurnkeyServiceCard(palette, isDark, goldAccent),
             ],
           ),
         ),
@@ -1125,142 +1141,263 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _buildLuxuryFeatureCard(Map<String, dynamic> item, Color accent, LuxuryPalette palette, bool isDark) {
+  Widget _buildAsianPaintsStyleFeatureCard(
+    Map<String, dynamic> item,
+    Color accent,
+    LuxuryPalette palette,
+    bool isDark,
+  ) {
+    return Expanded(
+      child: ApplePressable(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          context.push(item['route'] as String);
+        },
+        child: Container(
+          height: 106,
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1B1814) : Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: isDark
+                  ? accent.withValues(alpha: 0.22)
+                  : const Color(0xFFEDE8E0),
+              width: 0.9,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: isDark
+                    ? Colors.black.withValues(alpha: 0.40)
+                    : const Color(0xFF2C2416).withValues(alpha: 0.05),
+                blurRadius: 14,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? accent.withValues(alpha: 0.14)
+                      : const Color(0xFFFAF6EE),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: accent.withValues(alpha: isDark ? 0.35 : 0.18),
+                    width: 0.8,
+                  ),
+                ),
+                child: Center(
+                  child: Icon(
+                    item['icon'] as IconData,
+                    size: 21,
+                    color: accent,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                item['title'] as String,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  height: 1.25,
+                  color: palette.textPrimary,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEditorialHorizontalStrip({
+    required String tag,
+    required String title,
+    required Color accentColor,
+    required Color textColor,
+    required Color tagColor,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
     return ApplePressable(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        context.push(item['route'] as String);
-      },
+      onTap: onTap,
       child: Container(
-        height: 116,
+        height: 100,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: isDark
-                ? const [
-                    Color(0xFF1E1A14),
-                    Color(0xFF12100C),
-                  ]
-                : const [
-                    Color(0xFFFFFFFF),
-                    Color(0xFFFAF9F6),
-                  ],
-          ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isDark ? accent.withValues(alpha: 0.28) : palette.border,
-            width: 1.0,
-          ),
+          color: accentColor,
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: isDark
-                  ? Colors.black.withValues(alpha: 0.45)
-                  : const Color(0xFF2C2416).withValues(alpha: 0.05),
-              blurRadius: 14,
-              offset: const Offset(0, 4),
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
             ),
-            if (isDark)
-              BoxShadow(
-                color: accent.withValues(alpha: 0.08),
-                blurRadius: 16,
-              ),
           ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // Top Row: Big Glowing Icon Container + Badge & Arrow
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: isDark ? 0.14 : 0.09),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: accent.withValues(alpha: isDark ? 0.45 : 0.25),
-                      width: 1.0,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: accent.withValues(alpha: isDark ? 0.12 : 0.06),
-                        blurRadius: 10,
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    item['icon'] as IconData,
-                    size: 23,
-                    color: accent,
+                Text(
+                  tag,
+                  style: GoogleFonts.inter(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w700,
+                    color: tagColor,
+                    letterSpacing: 0.4,
                   ),
                 ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
+                Icon(icon, size: 16, color: tagColor),
+              ],
+            ),
+            Text(
+              title,
+              style: GoogleFonts.playfairDisplay(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                color: textColor,
+                height: 1.2,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTurnkeyServiceCard(LuxuryPalette palette, bool isDark, Color goldAccent) {
+    return ApplePressable(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        context.push('/quotes/new');
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1B1814) : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isDark ? goldAccent.withValues(alpha: 0.25) : const Color(0xFFEDE8E0),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: isDark ? Colors.black45 : const Color(0xFF2C2416).withValues(alpha: 0.06),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Architectural living room showcase image with subtle overlay
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(19)),
+              child: SizedBox(
+                height: 145,
+                width: double.infinity,
+                child: Stack(
+                  fit: StackFit.expand,
                   children: [
+                    Image.asset(
+                      'assets/ar_textures/ex_midnight_scallop_mosaic.jpg',
+                      fit: BoxFit.cover,
+                      alignment: Alignment.center,
+                    ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
                       decoration: BoxDecoration(
-                        color: accent.withValues(alpha: isDark ? 0.14 : 0.08),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: accent.withValues(alpha: isDark ? 0.40 : 0.22),
-                          width: 0.8,
-                        ),
-                      ),
-                      child: Text(
-                        item['badge'] as String,
-                        style: GoogleFonts.inter(
-                          fontSize: 8.5,
-                          fontWeight: FontWeight.w800,
-                          color: accent,
-                          letterSpacing: 0.4,
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.65),
+                          ],
                         ),
                       ),
                     ),
-                    const SizedBox(width: 4),
-                    Icon(
-                      Icons.arrow_outward_rounded,
-                      size: 13,
-                      color: accent.withValues(alpha: 0.75),
+                    Positioned(
+                      left: 12,
+                      bottom: 10,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.60),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white24),
+                        ),
+                        child: Text(
+                          'Hassle-free architectural stone execution',
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
-            // Bottom Details: Title & Subtitle
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  item['title'] as String,
-                  style: GoogleFonts.inter(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w700,
-                    color: palette.textPrimary,
-                    letterSpacing: 0.15,
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Bespoke Stone Cladding Service',
+                          style: GoogleFonts.playfairDisplay(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: palette.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'From 3D design to site handover in natural stone',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: palette.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2.5),
-                Text(
-                  item['subtitle'] as String,
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w400,
-                    color: palette.textSecondary,
-                    height: 1.15,
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white12 : const Color(0xFFF4EFE6),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 13,
+                      color: goldAccent,
+                    ),
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),

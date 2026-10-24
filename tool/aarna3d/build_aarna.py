@@ -112,11 +112,12 @@ def torus(R, r, nu=48, nv=16):
     return Mesh(P, N, _uv(P, N, (0.5, 0.5)), _orient(P, N, I))
 
 
-def tube(path, radii, ring=14):
+def tube(path, radii, ring=14, closed=False):
     path = np.asarray(path, float)
     P, N, I = [], [], []
+    L = len(path) - 1
     for k, c in enumerate(path):
-        T = path[min(k + 1, len(path) - 1)] - path[max(k - 1, 0)]
+        T = (path[(k + 1) % L] - path[(k - 1) % L]) if closed else path[min(k + 1, len(path) - 1)] - path[max(k - 1, 0)]
         T /= np.linalg.norm(T)
         B = np.array([0, 0, 1.0])
         Nn = np.cross(B, T)
@@ -127,6 +128,16 @@ def tube(path, radii, ring=14):
     I = _grid_idx(len(path) - 1, ring)
     P, N = np.array(P), np.array(N)
     return Mesh(P, N, _uv(P, N, (0.5, 0.5)), _orient(P, N, I))
+
+
+def rrect_path(w, h, r, n=10):
+    pts = []
+    for cx, cy, a0 in ((w / 2 - r, h / 2 - r, 0), (-w / 2 + r, h / 2 - r, 90), (-w / 2 + r, -h / 2 + r, 180), (w / 2 - r, -h / 2 + r, 270)):
+        for k in range(n + 1):
+            a = math.radians(a0 + 90 * k / n)
+            pts.append([cx + r * math.cos(a), cy + r * math.sin(a), 0])
+    pts.append(pts[0])
+    return pts
 
 
 def star_prism(R, r, depth, pts=4):
@@ -161,28 +172,27 @@ def noise(size, cells, seed):
 
 
 def marble_texture(path, size=1024):
-    f = sum(noise(size, 4 * 2 ** o, 11 + o) * 0.55 ** o for o in range(5))
+    f = sum(noise(size, 4 * 2 ** o, 11 + o) * 0.55 ** o for o in range(6))
     f = (f - f.min()) / (f.max() - f.min())
-    g = sum(noise(size, 3 * 2 ** o, 31 + o) * 0.5 ** o for o in range(4))
+    g = sum(noise(size, 3 * 2 ** o, 31 + o) * 0.5 ** o for o in range(5))
     g = (g - g.min()) / (g.max() - g.min())
-    vein = np.exp(-((f - 0.5) ** 2) / (2 * 0.0065 ** 2)) * 0.9 + np.exp(-((g - 0.42) ** 2) / (2 * 0.010 ** 2)) * 0.35
-    vein = np.clip(vein, 0, 1)[..., None]
-    base = np.array([240, 229, 208], np.float32)
-    mott = (noise(size, 24, 5)[..., None] - 0.5) * 18
+    grey = np.exp(-((f - 0.5) ** 2) / (2 * 0.0045 ** 2)) * 0.80 + np.exp(-((f - 0.31) ** 2) / (2 * 0.0035 ** 2)) * 0.50
+    gold = np.exp(-((g - 0.42) ** 2) / (2 * 0.005 ** 2)) * 0.45
+    base = np.array([241, 231, 214], np.float32)
+    mott = (noise(size, 18, 5)[..., None] - 0.5) * 9 + (noise(size, 64, 9)[..., None] - 0.5) * 4
     col = base + mott
-    col = col * (1 - vein) + np.array([196, 150, 98], np.float32) * vein
+    col = col * (1 - grey[..., None]) + np.array([146, 132, 120], np.float32) * grey[..., None]
+    col = col * (1 - gold[..., None]) + np.array([206, 172, 118], np.float32) * gold[..., None]
     seam = np.zeros((size, size), np.float32)
     k = size // 4
     for r in range(4):  # running-bond stone blocks: horizontal joints + staggered verticals
-        seam[r * k : r * k + 3, :] = 1
-        seam[:, (r * k + (k // 2 if r % 2 else 0)) % size : (r * k + (k // 2 if r % 2 else 0)) % size + 3] = np.maximum(seam[:, (r * k + (k // 2 if r % 2 else 0)) % size : (r * k + (k // 2 if r % 2 else 0)) % size + 3], 0)
-    for r in range(4):
-        x0 = (k // 2 if r % 2 else 0)
+        seam[r * k : r * k + 2, :] = 1
+        x0 = k // 2 if r % 2 else 0
         for c in range(0, size, k):
             xx = (c + x0) % size
-            seam[r * k : (r + 1) * k, xx : xx + 3] = 1
-    seam = np.asarray(Image.fromarray((seam * 255).astype(np.uint8)).filter(__import__("PIL.ImageFilter", fromlist=["x"]).GaussianBlur(1.2)), np.float32)[..., None] / 255
-    col = col * (1 - 0.30 * seam) + np.array([168, 128, 84], np.float32) * 0.30 * seam
+            seam[r * k : (r + 1) * k, xx : xx + 2] = 1
+    seam = np.asarray(Image.fromarray((seam * 255).astype(np.uint8)).filter(__import__("PIL.ImageFilter", fromlist=["x"]).GaussianBlur(1.0)), np.float32)[..., None] / 255
+    col = col * (1 - 0.40 * seam) + np.array([168, 140, 110], np.float32) * 0.40 * seam
     Image.fromarray(np.clip(col, 0, 255).astype(np.uint8)).save(path)
 
 
@@ -203,20 +213,17 @@ def qe(x=0, y=0, z=0):
 
 
 # ---------------------------------------------------------------- scene
+CC = "KHR_materials_clearcoat"
 MATS = {
-    "marble": dict(pbrMetallicRoughness=dict(baseColorTexture=dict(index=0), metallicFactor=0.0, roughnessFactor=0.30),
-                   extensions={"KHR_materials_clearcoat": dict(clearcoatFactor=0.45, clearcoatRoughnessFactor=0.12)}),
-    "rose": dict(pbrMetallicRoughness=dict(baseColorFactor=[0.80, 0.48, 0.42, 1], metallicFactor=1.0, roughnessFactor=0.26)),
-    "glass": dict(pbrMetallicRoughness=dict(baseColorFactor=[0.008, 0.008, 0.010, 1], metallicFactor=0.1, roughnessFactor=0.05),
-                  extensions={"KHR_materials_clearcoat": dict(clearcoatFactor=1.0, clearcoatRoughnessFactor=0.03)}),
-    "glow": dict(pbrMetallicRoughness=dict(baseColorFactor=[1, 0.80, 0.50, 1], metallicFactor=0, roughnessFactor=0.5),
-                 emissiveFactor=[1.0, 0.66, 0.26], extensions={"KHR_materials_emissive_strength": dict(emissiveStrength=4.2)}),
-    "blush": dict(pbrMetallicRoughness=dict(baseColorFactor=[0.98, 0.45, 0.50, 1], metallicFactor=0, roughnessFactor=0.6),
-                  emissiveFactor=[0.98, 0.40, 0.46], extensions={"KHR_materials_emissive_strength": dict(emissiveStrength=0.8)}),
-    "bow": dict(pbrMetallicRoughness=dict(baseColorFactor=[0.82, 0.50, 0.50, 1], metallicFactor=0.2, roughnessFactor=0.32),
-                extensions={"KHR_materials_clearcoat": dict(clearcoatFactor=0.6, clearcoatRoughnessFactor=0.2)}),
-    "porcelain": dict(pbrMetallicRoughness=dict(baseColorFactor=[0.97, 0.89, 0.79, 1], metallicFactor=0, roughnessFactor=0.28),
-                      extensions={"KHR_materials_clearcoat": dict(clearcoatFactor=0.5, clearcoatRoughnessFactor=0.15)}),
+    "marble": dict(pbrMetallicRoughness=dict(baseColorTexture=dict(index=0), metallicFactor=0.0, roughnessFactor=0.34),
+                   extensions={CC: dict(clearcoatFactor=0.55, clearcoatRoughnessFactor=0.10)}),
+    "rose": dict(pbrMetallicRoughness=dict(baseColorFactor=[0.88, 0.58, 0.47, 1], metallicFactor=1.0, roughnessFactor=0.20)),
+    "glass": dict(pbrMetallicRoughness=dict(baseColorFactor=[0.006, 0.005, 0.006, 1], metallicFactor=0.0, roughnessFactor=0.06),
+                  extensions={CC: dict(clearcoatFactor=1.0, clearcoatRoughnessFactor=0.02)}),
+    "glow": dict(pbrMetallicRoughness=dict(baseColorFactor=[1, 0.52, 0.14, 1], metallicFactor=0, roughnessFactor=0.5),
+                 emissiveFactor=[1.0, 0.46, 0.10], extensions={"KHR_materials_emissive_strength": dict(emissiveStrength=1.15)}),
+    "bow": dict(pbrMetallicRoughness=dict(baseColorFactor=[0.86, 0.60, 0.55, 1], metallicFactor=0.25, roughnessFactor=0.30),
+                extensions={CC: dict(clearcoatFactor=0.8, clearcoatRoughnessFactor=0.12)}),
 }
 MAT_ORDER = list(MATS)
 
@@ -227,70 +234,71 @@ def node(name, mesh=None, mat=None, t=(0, 0, 0), r=(0, 0, 0, 1), s=(1, 1, 1), ki
 
 def arm(side):
     sx = 1 if side == "R" else -1  # R = +x (viewer's right, the waving arm)
-    fingers = [node(f"Finger{side}{i}", sphere(), "porcelain", t=(sx * (-0.024 + i * 0.016), -0.100, 0), s=(0.0135, 0.034, 0.0135))
+    fingers = [node(f"Finger{side}{i}", sphere(), "marble", t=(sx * (-0.027 + i * 0.018), -0.104, 0.002), s=(0.0175, 0.032, 0.0175))
                for i in range(4)]
-    thumb = node(f"Thumb{side}", sphere(), "porcelain", t=(sx * 0.040, -0.062, 0.004), r=qe(z=-sx * 0.55), s=(0.014, 0.030, 0.014))
-    palm = node(f"Palm{side}", rounded_box(0.074, 0.070, 0.036, 0.016), "porcelain", t=(0, -0.045, 0))
-    ring = node(f"WristRing{side}", torus(0.032, 0.009), "rose", t=(0, 0, 0))
-    wrist = node(f"Wrist{side}", kids=[ring, palm, thumb] + fingers, t=(0, -0.100, 0))
-    fore = node(f"Forearm{side}", rounded_box(0.056, 0.092, 0.056, 0.022), "marble", t=(0, -0.052, 0))
-    elbow_j = node(f"ElbowJoint{side}", sphere(), "rose", s=(0.036, 0.036, 0.036))
-    elbow = node(f"Elbow{side}", kids=[elbow_j, fore, wrist], t=(0, -0.112, 0), r=qe(z=sx * 0.06))
-    upper = node(f"UpperArm{side}", rounded_box(0.062, 0.100, 0.062, 0.024), "marble", t=(0, -0.058, 0))
-    sh_j = node(f"ShoulderJoint{side}", sphere(), "rose", s=(0.046, 0.046, 0.046))
-    return node(f"Shoulder{side}", kids=[sh_j, upper, elbow], t=(sx * 0.158, 0.185, 0), r=qe(z=sx * 0.12))
+    thumb = node(f"Thumb{side}", sphere(), "marble", t=(sx * 0.046, -0.060, 0.010), r=qe(z=-sx * 0.55), s=(0.017, 0.030, 0.017))
+    palm = node(f"Palm{side}", rounded_box(0.086, 0.078, 0.048, 0.022), "marble", t=(0, -0.050, 0))
+    ring = node(f"WristRing{side}", torus(0.035, 0.011), "rose", t=(0, -0.004, 0))
+    wrist = node(f"Wrist{side}", kids=[ring, palm, thumb] + fingers, t=(0, -0.096, 0))
+    fore = node(f"Forearm{side}", rounded_box(0.064, 0.090, 0.064, 0.026), "marble", t=(0, -0.050, 0))
+    elbow_j = node(f"ElbowJoint{side}", sphere(), "rose", s=(0.040, 0.040, 0.040))
+    elbow = node(f"Elbow{side}", kids=[elbow_j, fore, wrist], t=(0, -0.108, 0), r=qe(z=sx * 0.06))
+    upper = node(f"UpperArm{side}", rounded_box(0.070, 0.096, 0.070, 0.028), "marble", t=(0, -0.056, 0))
+    sh_j = node(f"ShoulderJoint{side}", sphere(), "rose", s=(0.052, 0.052, 0.052))
+    return node(f"Shoulder{side}", kids=[sh_j, upper, elbow], t=(sx * 0.178, 0.205, 0), r=qe(z=sx * 0.12))
 
 
-def crescent(up, R, alpha, rad, n=26):
+def crescent(up, R, alpha, rad, n=30):
     ph = np.linspace(-alpha, alpha, n)
     y = (R * np.cos(ph)) * (1 if up else -1)
     y -= y.mean()
     path = np.stack([R * np.sin(ph), y, np.zeros(n)], 1)
     t = np.linspace(0, 1, n)
-    return tube(path, rad * np.sin(np.pi * t) ** 0.55 + 1e-5)
+    return tube(path, rad * np.sin(np.pi * t) ** 0.22 + 1e-5, ring=12)
 
 
 def build_scene():
-    HC = 0.21  # head centre inside the Head node
+    HC = 0.22   # head centre inside the Head node (head box is 0.44 tall, so its bottom sits on the Head origin)
+    FZ = 0.196  # front of the screen glass
     def lashes(sx):
         out = []
-        for k, ang in enumerate((0.55, 0.15, -0.25)):
-            d = np.array([sx * math.cos(ang), math.sin(ang) + 0.2, 0]); d /= np.linalg.norm(d)
-            a = np.array([sx * 0.044, -0.004 - 0.008 * k, 0]); path = np.stack([a + d * f * 0.020 for f in np.linspace(0, 1, 6)])
-            out.append(node(f"Lash{k}", tube(path, 0.0034 * np.sin(np.pi * np.linspace(0.05, 0.95, 6)) ** 0.6 + 1e-5, ring=8), "glow"))
+        for k, ang in enumerate((-0.15, -0.55)):
+            d = np.array([sx * math.cos(ang), math.sin(ang), 0]); d /= np.linalg.norm(d)
+            a = np.array([sx * 0.050, -0.016 - 0.006 * k, 0]); path = np.stack([a + d * f * 0.024 for f in np.linspace(0, 1, 6)])
+            out.append(node(f"Lash{k}", tube(path, 0.0028 * np.sin(np.pi * np.linspace(0.05, 0.95, 6)) ** 0.6 + 1e-5, ring=8), "glow"))
         return out
-    eyeL = node("EyeL", crescent(True, 0.046, 1.0, 0.0125), "glow", t=(-0.085, HC + 0.036, 0.191), kids=lashes(-1))
-    eyeR = node("EyeR", crescent(True, 0.046, 1.0, 0.0125), "glow", t=(0.085, HC + 0.036, 0.191), kids=lashes(1))
-    smile = node("Smile", crescent(False, 0.050, 0.9, 0.0095), "glow", t=(0, HC - 0.048, 0.191))
-    blushL = node("BlushL", sphere(), "blush", t=(-0.128, HC - 0.020, 0.188), s=(0.028, 0.016, 0.004))
-    blushR = node("BlushR", sphere(), "blush", t=(0.128, HC - 0.020, 0.188), s=(0.028, 0.016, 0.004))
-    bezel = node("Bezel", rounded_box(0.350, 0.280, 0.030, 0.016), "rose", t=(0, HC, 0.165))
-    glass = node("Glass", rounded_box(0.316, 0.246, 0.030, 0.012), "glass", t=(0, HC, 0.172))
-    head_box = node("HeadShell", rounded_box(0.460, 0.380, 0.340, 0.075, n=14), "marble", t=(0, HC, 0))
+    eyeL = node("EyeL", crescent(True, 0.050, 1.12, 0.0125), "glow", t=(-0.092, HC + 0.032, FZ), kids=lashes(-1))
+    eyeR = node("EyeR", crescent(True, 0.050, 1.12, 0.0125), "glow", t=(0.092, HC + 0.032, FZ), kids=lashes(1))
+    smile = node("Smile", crescent(False, 0.034, 0.95, 0.0105), "glow", t=(0, HC - 0.060, FZ))
+    bezel = node("Bezel", tube(rrect_path(0.418, 0.318, 0.062), np.full(4 * 11 + 1, 0.022), ring=16, closed=True), "rose", t=(0, HC, FZ))
+    glass = node("Glass", rounded_box(0.404, 0.304, 0.030, 0.012), "glass", t=(0, HC, FZ - 0.016))
+    head_box = node("HeadShell", rounded_box(0.540, 0.440, 0.380, 0.095, n=16), "marble", t=(0, HC, 0))
 
     def cup(sx):
-        return [node("CupShell", cylinder(0.088, 0.072), "marble", t=(sx * 0.262, HC - 0.005, 0), r=qaxis((0, 0, 1), math.pi / 2)),
-                node("CupRing", torus(0.086, 0.012), "rose", t=(sx * 0.298, HC - 0.005, 0), r=qaxis((0, 0, 1), math.pi / 2)),
-                node("CupStar", star_prism(0.046, 0.012, 0.010), "rose", t=(sx * 0.300, HC - 0.005, 0), r=qaxis((0, 1, 0), sx * math.pi / 2))]
+        return [node("CupShell", cylinder(0.102, 0.074, seg=48), "marble", t=(sx * 0.288, HC - 0.010, -0.005), r=qaxis((0, 0, 1), math.pi / 2)),
+                node("CupRing", torus(0.098, 0.016), "rose", t=(sx * 0.326, HC - 0.010, -0.005), r=qaxis((0, 0, 1), math.pi / 2)),
+                node("CupStar", star_prism(0.052, 0.013, 0.012), "rose", t=(sx * 0.328, HC - 0.010, -0.005), r=qaxis((0, 1, 0), sx * math.pi / 2))]
 
-    bow = node("Bow", t=(-0.115, HC + 0.215, 0.085), r=qmul(qe(z=0.30), qe(x=-0.45)), kids=[
-        node("BowL", sphere(), "bow", t=(-0.056, 0.008, 0), r=qe(z=0.30), s=(0.062, 0.050, 0.034)),
-        node("BowR", sphere(), "bow", t=(0.056, 0.008, 0), r=qe(z=-0.30), s=(0.062, 0.050, 0.034)),
-        node("BowKnot", sphere(), "bow", s=(0.030, 0.030, 0.034)),
-        node("BowTailL", sphere(), "bow", t=(-0.018, -0.030, 0), r=qe(z=0.4), s=(0.018, 0.036, 0.012)),
-        node("BowTailR", sphere(), "bow", t=(0.018, -0.030, 0), r=qe(z=-0.4), s=(0.018, 0.036, 0.012))])
-    head = node("Head", t=(0, 0.272, 0), kids=[head_box, bezel, glass, eyeL, eyeR, smile, blushL, blushR, bow] + cup(-1) + cup(1))
+    bow = node("Bow", t=(-0.165, HC + 0.205, 0.105), r=qmul(qe(z=0.40), qe(x=-0.12)), kids=[
+        node("BowL", sphere(), "bow", t=(-0.066, 0.014, 0), r=qe(z=0.42), s=(0.080, 0.050, 0.030)),
+        node("BowR", sphere(), "bow", t=(0.066, 0.014, 0), r=qe(z=-0.42), s=(0.080, 0.050, 0.030)),
+        node("BowKnot", sphere(), "bow", s=(0.032, 0.030, 0.038)),
+        node("BowTailL", sphere(), "bow", t=(-0.026, -0.040, 0.004), r=qe(z=0.45), s=(0.022, 0.044, 0.014)),
+        node("BowTailR", sphere(), "bow", t=(0.026, -0.040, 0.004), r=qe(z=-0.45), s=(0.022, 0.044, 0.014))])
+    head = node("Head", t=(0, 0.258, 0), kids=[head_box, bezel, glass, eyeL, eyeR, smile, bow] + cup(-1) + cup(1))
 
-    a_l = node("A_L", rounded_box(0.014, 0.100, 0.014, 0.006), "rose", t=(-0.022, 0.125, 0.104), r=qe(z=-0.30))
-    a_r = node("A_R", rounded_box(0.014, 0.100, 0.014, 0.006), "rose", t=(0.022, 0.125, 0.104), r=qe(z=0.30))
-    a_b = node("A_Bar", rounded_box(0.040, 0.012, 0.014, 0.005), "rose", t=(0, 0.108, 0.104))
-    spark = node("ChestStar", star_prism(0.026, 0.007, 0.010), "rose", t=(0.062, 0.172, 0.103))
-    chest = node("Chest", kids=[node("Torso", rounded_box(0.270, 0.250, 0.205, 0.058), "marble", t=(0, 0.125, 0)), a_l, a_r, a_b, spark], t=(0, 0, 0))
-    neck = node("Neck", cylinder(0.036, 0.070), "rose", t=(0, 0.270, 0))
+    AZ = 0.117
+    a_l = node("A_L", rounded_box(0.019, 0.112, 0.016, 0.007), "rose", t=(-0.024, 0.128, AZ), r=qe(z=-0.30))
+    a_r = node("A_R", rounded_box(0.019, 0.112, 0.016, 0.007), "rose", t=(0.024, 0.128, AZ), r=qe(z=0.30))
+    a_b = node("A_Bar", rounded_box(0.044, 0.014, 0.016, 0.006), "rose", t=(0, 0.110, AZ))
+    spark = node("ChestStar", star_prism(0.028, 0.0075, 0.012), "rose", t=(0.070, 0.180, AZ))
+    chest = node("Chest", kids=[node("Torso", rounded_box(0.300, 0.270, 0.230, 0.066), "marble", t=(0, 0.135, 0)), a_l, a_r, a_b, spark], t=(0, 0, 0))
+    neck = node("Neck", cylinder(0.040, 0.020), "rose", t=(0, 0.262, 0))
     legs = []
     for sx in (-1, 1):
-        legs.append(node(f"Leg{sx}", cylinder(0.034, 0.090), "marble", t=(sx * 0.068, -0.040, 0)))
-        legs.append(node(f"Foot{sx}", rounded_box(0.108, 0.058, 0.140, 0.024), "rose", t=(sx * 0.068, -0.100, 0.018)))
+        legs.append(node(f"Leg{sx}", cylinder(0.040, 0.080), "marble", t=(sx * 0.072, -0.030, 0)))
+        legs.append(node(f"Foot{sx}", rounded_box(0.118, 0.052, 0.150, 0.024), "marble", t=(sx * 0.072, -0.084, 0.020)))
+        legs.append(node(f"Sole{sx}", rounded_box(0.124, 0.022, 0.156, 0.010), "rose", t=(sx * 0.072, -0.112, 0.020)))
     body = node("Body", t=(0, 0.135, 0), kids=[chest, neck, head, arm("L"), arm("R")] + legs)
     return node("Aarna", kids=[body])
 
@@ -308,11 +316,12 @@ def pose(clip, t):
     P = {}
     br = math.sin(2 * math.pi * t / 3.0)
     P["Chest"] = dict(s=[1 + 0.010 * br, 1 + 0.016 * br, 1 + 0.010 * br])
-    P["Body"] = dict(t=[0, 0.135 + 0.0015 * br, 0], r=qe(y=0.0, z=0.008 * math.sin(2 * math.pi * t / 6.0)))
+    body_y, body_s = 0.135 + 0.0015 * br, 1.0
+    body_r = dict(y=0.0, z=0.008 * math.sin(2 * math.pi * t / 6.0))
     head_r = dict(x=0.035 * math.sin(2 * math.pi * t / 3.0 + 1.0), y=0.10 * math.sin(2 * math.pi * t / 6.0), z=0.015 * math.sin(2 * math.pi * t / 6.0 + 2))
-    raise_w = 0.0
     sh = {"L": -0.12 - 0.025 * math.sin(2 * math.pi * t / 3.0), "R": 0.12 + 0.025 * math.sin(2 * math.pi * t / 3.0)}
-    el = {"L": -0.06, "R": 0.06}
+    shx = {"L": 0.0, "R": 0.0}
+    el = {"L": (0.0, -0.06), "R": (0.0, 0.06)}  # (x, z)
     wr = {"L": 0.0, "R": 0.0}
     fing = [0.0] * 4
     bt = [1.4, 4.1]
@@ -321,19 +330,40 @@ def pose(clip, t):
         osc = sm((t - 0.6) / 0.3) * (1 - sm((t - 2.8) / 0.3))
         ph = 2 * math.pi * 1.7 * (t - 0.6)
         sh["R"] = 0.12 + raise_w * (1.30 - 0.12) + osc * 0.04 * math.sin(ph)
-        el["R"] = 0.06 + raise_w * 1.15
+        shx["R"] = -0.30 * raise_w
+        el["R"] = (0.0, 0.06 + raise_w * 1.15)
         wr["R"] = osc * 0.46 * math.sin(ph)
         fing = [osc * 0.20 * math.sin(ph + i * 0.7) for i in range(4)]
         head_r["z"] += -0.09 * raise_w; head_r["x"] += 0.04 * raise_w * math.sin(2 * math.pi * 1.7 * t)
-        P["Body"]["r"] = qe(y=-0.07 * raise_w, z=0.008 * math.sin(2 * math.pi * t / 6.0))
+        body_r["y"] = -0.07 * raise_w
         bt = [1.0, 2.6]
+    if clip == "Think":  # loops: hand rests under the chin, head tilts and looks up, slow sway
+        k = 1.0
+        sway = math.sin(2 * math.pi * t / 3.0)
+        sh["R"] = -0.05 + 0.02 * sway
+        shx["R"] = -1.05 - 0.04 * sway
+        el["R"] = (-1.75, -0.35)
+        wr["R"] = 0.10 * sway
+        head_r = dict(x=-0.10 + 0.02 * sway, y=-0.10, z=0.16 + 0.03 * sway)
+        body_r["z"] = 0.02 * sway
+        bt = [0.9, 2.4]
+    if clip == "Hop":  # one happy bounce: squash, jump, land, settle (~1 s)
+        air = math.sin(math.pi * min(max((t - 0.18) / 0.42, 0), 1))
+        sq = math.exp(-((t - 0.12) / 0.06) ** 2) * 0.10 + math.exp(-((t - 0.66) / 0.06) ** 2) * 0.08
+        body_y = 0.135 + 0.075 * air - 0.03 * sq
+        body_s = 1 - sq
+        up = air
+        sh["L"], sh["R"] = -0.12 - 0.85 * up, 0.12 + 0.85 * up
+        el["L"], el["R"] = (0.0, -0.06 - 0.5 * up), (0.0, 0.06 + 0.5 * up)
+        head_r = dict(x=-0.08 * air + 0.06 * sq * 10 * 0.1, y=0.0, z=0.06 * math.sin(2 * math.pi * t))
+        bt = []
     if clip == "Blink":
         bt = [0.3]
+    P["Body"] = dict(t=[0, body_y, 0], r=qe(**body_r), s=[1 + 0.5 * (1 - body_s), body_s, 1 + 0.5 * (1 - body_s)])
     P["Head"] = dict(r=qe(**head_r))
-    fwd = -0.30 * (raise_w if clip == "Wave" else 0.0)
     for side in "LR":
-        P[f"Shoulder{side}"] = dict(r=qe(x=fwd if side == "R" else 0.0, z=sh[side]))
-        P[f"Elbow{side}"] = dict(r=qe(z=el[side]))
+        P[f"Shoulder{side}"] = dict(r=qe(x=shx[side], z=sh[side]))
+        P[f"Elbow{side}"] = dict(r=qe(x=el[side][0], z=el[side][1]))
         P[f"Wrist{side}"] = dict(r=qe(z=wr[side]))
     for i in range(4):
         P[f"FingerR{i}"] = dict(r=qe(z=fing[i]))
@@ -344,7 +374,7 @@ def pose(clip, t):
     return P
 
 
-CLIPS = {"Idle": 6.0, "Wave": 3.8, "Blink": 0.6}
+CLIPS = {"Idle": 6.0, "Wave": 3.8, "Blink": 0.6, "Think": 3.0, "Hop": 1.0}
 
 
 # ---------------------------------------------------------------- glTF writer

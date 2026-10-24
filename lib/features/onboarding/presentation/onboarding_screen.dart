@@ -32,7 +32,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       heading1: 'Precision AI',
       heading2: 'Wall Studio',
       heading3: 'Reimagined',
-      tagline: 'Powered by NVIDIA NIM Neural Vision',
+      tagline: 'Your Wall, Visualized in Seconds',
       subtitle:
           'Upload or capture any living space to visualize realistic stone cladding in seconds.',
       imagePath: 'assets/images/home_hero_living_room.jpg',

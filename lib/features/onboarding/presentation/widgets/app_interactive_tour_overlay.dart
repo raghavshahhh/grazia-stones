@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:grazia_stones/core/services/storage_service.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
+import 'package:grazia_stones/shared/widgets/aarna_living_avatar.dart';
 import 'package:grazia_stones/shared/widgets/grazia_bottom_nav.dart';
 
 /// Ultra-luxury Apple-grade interactive tour overlay.
@@ -602,18 +603,15 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
                   ),
                   child: ClipOval(
                     child: Image.asset(
-                      'assets/images/aarna/aarna_avatar_head.png',
+                      AarnaRenders.headWave,
                       width: 50,
                       height: 50,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Image.asset(
-                        'assets/images/aarna_avatar.png',
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => Icon(
-                          Icons.auto_awesome_rounded,
-                          color: gold,
-                          size: 26,
-                        ),
+                      gaplessPlayback: true,
+                      errorBuilder: (_, _, _) => Icon(
+                        Icons.auto_awesome_rounded,
+                        color: gold,
+                        size: 26,
                       ),
                     ),
                   ),

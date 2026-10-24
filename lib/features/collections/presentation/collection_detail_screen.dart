@@ -1,7 +1,7 @@
+import 'package:grazia_stones/core/widgets/animated_widgets.dart';
 import 'package:grazia_stones/core/utils/formatters.dart';
 import 'package:grazia_stones/features/wishlist/wishlist_feedback.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -243,19 +243,32 @@ class CollectionDetailScreen extends ConsumerWidget {
             ],
             flexibleSpace: FlexibleSpaceBar(
               titlePadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-              title: Text(
-                collection.displayName,
-                style: GoogleFonts.playfairDisplay(
-                  fontSize: 19,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
-                  shadows: [
-                    Shadow(
-                      color: Colors.black.withValues(alpha: 0.8),
-                      blurRadius: 10,
+              // White over the photo, ink once the bar has collapsed onto the page colour (a white title with a
+              // dark glow on the light bar read as a doubled, smudged word).
+              title: Builder(
+                builder: (context) {
+                  final bar = context.dependOnInheritedWidgetOfExactType<FlexibleSpaceBarSettings>();
+                  final t = bar == null
+                      ? 0.0
+                      : ((bar.maxExtent - bar.currentExtent) / (bar.maxExtent - bar.minExtent)).clamp(0.0, 1.0);
+                  final collapsed = Curves.easeIn.transform(((t - 0.55) / 0.45).clamp(0.0, 1.0));
+                  return Text(
+                    collection.displayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.playfairDisplay(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w800,
+                      color: Color.lerp(Colors.white, palette.textPrimary, collapsed),
+                      shadows: [
+                        Shadow(
+                          color: Colors.black.withValues(alpha: 0.55 * (1 - collapsed)),
+                          blurRadius: 10,
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
               background: Stack(
                 fit: StackFit.expand,
@@ -427,7 +440,8 @@ class CollectionDetailScreen extends ConsumerWidget {
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
                   final stone = stones[index];
-                  return _CollectionStoneCard(stone: stone, palette: palette);
+                  // Cards rise in as they arrive; the delay cycles so deep rows never wait long.
+                  return FadeInStagger(index: index % 6, child: _CollectionStoneCard(stone: stone, palette: palette));
                 },
                 childCount: stones.length,
               ),
@@ -503,29 +517,34 @@ class _CollectionStoneCard extends ConsumerWidget {
     final wishlist = ref.watch(wishlistProvider);
     final isWishlisted = wishlist.contains(stone.id);
 
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        context.push('/stones/${stone.id}', extra: stone);
-      },
+    // Spring press (with its own haptic), like a native card.
+    return ApplePressable(
+      pressedScale: 0.97,
+      onTap: () => context.push('/stones/${stone.id}', extra: stone),
       child: Container(
         decoration: BoxDecoration(
           color: palette.surface,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(28),
+            bottom: Radius.circular(16),
+          ),
           border: Border.all(
-            color: const Color(0xFFD4AF37).withValues(alpha: 0.25),
-            width: 1.0,
+            color: const Color(0xFFD4AF37).withValues(alpha: 0.28),
+            width: 0.9,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(15),
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(27),
+            bottom: Radius.circular(15),
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

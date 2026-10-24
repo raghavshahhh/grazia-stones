@@ -4,19 +4,39 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
-/// Poses the chat UI can ask for. Only [waving] has its own 3D clip; the rest play the idle clip.
+/// Poses the chat UI can ask for. Each maps to a clip of the 3D model (see [AarnaRenders.forPose]).
 enum AarnaPose { idle, searching, combinations, quote, technical, waving }
 
 const _kGold = Color(0xFFD4AF37);
-// The approved Aarna artwork (glowing eyes, marble veins, rose-gold trim): every size shows this exact image.
-const _kHeadPoster = 'assets/images/aarna/aarna_avatar_head.png';
-const _kFullPoster = 'assets/images/aarna/aarna_character_clean.png';
+
+/// Renders of the real 3D model (assets/3d/aarna.glb), produced by tool/aarna_sprites. Animated WebP plays natively in
+/// Flutter, so every small avatar moves with the model's own clips without a WebGL view per avatar.
+abstract final class AarnaRenders {
+  static const _dir = 'assets/3d/renders';
+  static const headIdle = '$_dir/aarna_head_idle.webp';
+  static const headWave = '$_dir/aarna_head_wave.webp';
+  static const headThink = '$_dir/aarna_head_think.webp';
+  static const bodyIdle = '$_dir/aarna_body_idle.webp';
+  static const bodyIdleAlt = '$_dir/aarna_body_idle_alt.webp';
+  static const bodyWave = '$_dir/aarna_body_wave.webp';
+  static const bodyThink = '$_dir/aarna_body_think.webp';
+  static const bodyHop = '$_dir/aarna_body_hop.webp';
+  static const posterFull = '$_dir/aarna_poster_full.png';
+  static const posterHead = '$_dir/aarna_poster_head.png';
+
+  static String forPose(AarnaPose pose, {bool body = false}) => switch (pose) {
+        AarnaPose.waving => body ? bodyWave : headWave,
+        AarnaPose.searching => body ? bodyThink : headThink,
+        AarnaPose.quote => body ? bodyHop : headIdle,
+        AarnaPose.technical => body ? bodyIdleAlt : headIdle,
+        AarnaPose.combinations || AarnaPose.idle => body ? bodyIdle : headIdle,
+      };
+}
 
 /// Aarna, Grazia's AI consultant.
 ///
-/// Small sizes (AppBar, chat bubbles, prompt pill) show a head render of the real 3D model: a live WebGL view per
-/// 32-44px avatar would cost far more than it adds. From [liveThreshold] up the avatar is the live 3D model
-/// (assets/3d/aarna.glb: joint-animated Idle / Wave clips, blinking eyes) rendered by model-viewer.
+/// From [liveThreshold] up she is the live 3D model rendered by model-viewer (drag to turn, tap to wave). Smaller
+/// avatars play renders of the same model (idle / wave / think clips), so lists of chat bubbles stay smooth.
 class AarnaLivingAvatar extends StatelessWidget {
   static const double liveThreshold = 90;
 
@@ -30,8 +50,7 @@ class AarnaLivingAvatar extends StatelessWidget {
   final BorderRadius? borderRadius;
   final VoidCallback? onTap;
 
-  /// Header style: the head pops out above the ring, and while searching/waving an arm comes
-  /// out beside the circle (magnifying glass / wave).
+  /// Header style: the head rises out of the top of the ring (the bow breaks the circle).
   final bool popOut;
 
   const AarnaLivingAvatar({
@@ -54,350 +73,96 @@ class AarnaLivingAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final busy = isSearching || showRadarRings;
     if (size >= liveThreshold) {
-      // One live model-viewer instance (the hero card). Small avatars stay 2D so chat scrolling stays smooth.
       final radius = shape == BoxShape.circle ? BorderRadius.circular(size / 2) : (borderRadius ?? BorderRadius.circular(size / 4));
       return ClipRRect(
         borderRadius: radius,
         child: Aarna3DView(
           size: size,
-          thinking: isSearching || showRadarRings,
+          thinking: busy,
           wave: pose == AarnaPose.waving,
           greetOnLoad: greetOnLoad,
           onTap: onTap,
         ),
       );
     }
-    final busy = isSearching || showRadarRings;
-    if (popOut) {
-      return _PopOutAvatar(
-        size: size,
-        searching: busy,
-        waving: pose == AarnaPose.waving && !busy,
-        showOnlineBadge: showOnlineBadge,
-        onTap: onTap,
-      );
-    }
+
+    final clip = AarnaRenders.forPose(busy ? AarnaPose.searching : pose);
     final isCircle = shape == BoxShape.circle;
-    final radius = borderRadius ?? BorderRadius.circular(size / 4);
-    Widget face = Container(
+    final radius = isCircle ? BorderRadius.circular(size) : (borderRadius ?? BorderRadius.circular(size / 4));
+    final model = _Interactive3D(
+      child: Image.asset(
+        clip,
+        // Key by clip so switching pose restarts the new animation from its first frame.
+        key: ValueKey(clip),
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        filterQuality: FilterQuality.medium,
+        semanticLabel: 'Aarna',
+      ),
+    );
+
+    final Widget face = SizedBox(
       width: size,
       height: size,
-      decoration: BoxDecoration(
-        shape: shape,
-        borderRadius: isCircle ? null : radius,
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFF7EBDB), Color(0xFFE6D2B5)],
-        ),
-        border: Border.all(color: _kGold.withValues(alpha: 0.65), width: 1.2),
-      ),
-      child: ClipRRect(
-        borderRadius: isCircle ? BorderRadius.circular(size) : radius,
-        child: Padding(
-          padding: EdgeInsets.all(size * 0.08),
-          child: _Interactive3D(
-            child: Image.asset(
-              _kHeadPoster,
-              fit: BoxFit.contain,
-              semanticLabel: 'Aarna',
-            ),
-          ),
-        ),
-      ),
-    );
-    // Searching: Aarna takes out her magnifying glass and sways, all clipped inside the avatar
-    // shape so nothing moves outside the circle.
-    if (busy) face = _SearchingFace(size: size, shape: shape, radius: radius);
-    if (showOnlineBadge) {
-      final d = (size * 0.26).clamp(7.0, 14.0);
-      face = Stack(
+      child: Stack(
         clipBehavior: Clip.none,
         children: [
-          face,
-          Positioned(
-            right: -1,
-            bottom: -1,
-            child: Container(
-              width: d,
-              height: d,
-              decoration: BoxDecoration(
-                color: const Color(0xFF34C759),
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 1.6),
-              ),
+          _Ring(size: size, shape: shape, radius: radius, glow: busy),
+          Positioned.fill(
+            child: ClipPath(
+              clipper: popOut ? _PopOutClipper() : null,
+              clipBehavior: Clip.antiAlias,
+              child: popOut ? Transform.scale(scale: 1.18, alignment: const Alignment(0, 0.4), child: model) : ClipRRect(borderRadius: radius, child: model),
             ),
           ),
+          if (showOnlineBadge)
+            Positioned(
+              right: -1,
+              bottom: -1,
+              child: _OnlineDot(d: (size * 0.26).clamp(7.0, 14.0)),
+            ),
         ],
-      );
-    }
-    return onTap == null
-        ? face
-        : GestureDetector(
-            onTap: onTap,
-            behavior: HitTestBehavior.opaque,
-            child: face,
-          );
-  }
-}
-
-const _kSearchPose = 'assets/images/aarna/aarna_pose_designs.png';
-const _kRoseGold = Color(0xFFC98F7A);
-const _kCream = Color(0xFFFBF1E2);
-
-/// Header avatar: the artwork sits fully inside the ring, bobs gently, and an arm comes out beside the ring when she is searching
-/// (hand + magnifying glass sweeping) or greeting (wave).
-class _PopOutAvatar extends StatefulWidget {
-  final double size;
-  final bool searching;
-  final bool waving;
-  final bool showOnlineBadge;
-  final VoidCallback? onTap;
-
-  const _PopOutAvatar({
-    required this.size,
-    required this.searching,
-    required this.waving,
-    required this.showOnlineBadge,
-    this.onTap,
-  });
-
-  @override
-  State<_PopOutAvatar> createState() => _PopOutAvatarState();
-}
-
-class _PopOutAvatarState extends State<_PopOutAvatar>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1400),
-  )..repeat(reverse: true);
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final s = widget.size;
-    final armOut = widget.searching || widget.waving;
-    final d = (s * 0.26).clamp(7.0, 14.0);
-    final body = AnimatedContainer(
-      duration: const Duration(milliseconds: 260),
-      curve: Curves.easeOutCubic,
-      width: armOut ? s * 1.85 : s,
-      height: s,
-      child: AnimatedBuilder(
-        animation: _c,
-        builder: (_, _) {
-          final t = Curves.easeInOut.transform(_c.value);
-          final bob = (t - 0.5) * s * 0.05;
-          final tilt = widget.searching ? (t - 0.5) * 0.14 : 0.0;
-          return Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                width: s,
-                height: s,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFFF7EBDB), Color(0xFFE6D2B5)],
-                  ),
-                  border: Border.all(
-                    color: _kGold.withValues(alpha: 0.65),
-                    width: 1.2,
-                  ),
-                ),
-              ),
-              ClipOval(
-                child: SizedBox(
-                  width: s,
-                  height: s,
-                  child: Transform.translate(
-                    offset: Offset(0, bob),
-                    child: Transform.rotate(
-                      angle: tilt,
-                      child: Transform.scale(
-                        scale: 1.12,
-                        child: _Interactive3D(
-                          child: Image.asset(
-                            _kHeadPoster,
-                            width: s,
-                            height: s,
-                            fit: BoxFit.cover,
-                            semanticLabel: 'Aarna',
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              if (armOut)
-                Positioned(
-                  left: 0,
-                  top: -s * 0.35,
-                  width: s * 1.85,
-                  height: s * 1.7,
-                  child: IgnorePointer(
-                    child: CustomPaint(
-                      painter: _ArmPainter(s: s, t: t, wave: widget.waving),
-                    ),
-                  ),
-                ),
-              if (widget.showOnlineBadge)
-                Positioned(
-                  left: s - d + 1,
-                  bottom: -1,
-                  child: Container(
-                    width: d,
-                    height: d,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF34C759),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 1.6),
-                    ),
-                  ),
-                ),
-            ],
-          );
-        },
       ),
     );
-    return widget.onTap == null
-        ? body
-        : GestureDetector(
-            onTap: widget.onTap,
-            behavior: HitTestBehavior.opaque,
-            child: body,
-          );
+
+    return onTap == null
+        ? face
+        : GestureDetector(onTap: onTap, behavior: HitTestBehavior.opaque, child: face);
   }
 }
 
-/// Arm + hand that reaches out of the ring. Searching: the hand sweeps a magnifying glass side to side.
-/// Waving: the hand is raised and rocks. Drawn with paths so it needs no extra art.
-class _ArmPainter extends CustomPainter {
-  final double s;
-  final double t;
-  final bool wave;
-
-  _ArmPainter({required this.s, required this.t, required this.wave});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.translate(0, s * 0.35);
-    final sway = (t - 0.5) * 2; // -1..1
-    final shoulder = Offset(s * 0.82, s * 0.86);
-    final hand = wave
-        ? Offset(s * 1.2 + sway * s * 0.05, s * 0.18 + sway.abs() * s * 0.03)
-        : Offset(s * 1.14 + sway * s * 0.13, s * 0.55 + sway * s * 0.05);
-
-    // Upper arm bends through an elbow so it looks like an arm, not a stick.
-    final elbow = Offset(s * 1.12, s * 0.9);
-    final armPath = Path()
-      ..moveTo(shoulder.dx, shoulder.dy)
-      ..quadraticBezierTo(elbow.dx, elbow.dy, hand.dx, hand.dy);
-    canvas.drawPath(
-      armPath,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = s * 0.25
-        ..color = _kRoseGold,
-    );
-    canvas.drawPath(
-      armPath,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = s * 0.19
-        ..color = _kCream,
-    );
-    // Rose-gold cuff just before the hand.
-    final cuffAt = Offset.lerp(elbow, hand, 0.72)!;
-    canvas.drawCircle(cuffAt, s * 0.115, Paint()..color = _kRoseGold);
-    canvas.drawCircle(cuffAt, s * 0.07, Paint()..color = _kCream);
-    // Hand.
-    canvas.drawCircle(hand, s * 0.15, Paint()..color = _kRoseGold);
-    canvas.drawCircle(hand, s * 0.125, Paint()..color = _kCream);
-
-    if (wave) return;
-
-    // Magnifying glass: handle from the hand up to the lens.
-    final lens = hand + Offset(s * 0.28, -s * 0.46);
-    final dir = (lens - hand) / (lens - hand).distance;
-    canvas.drawLine(
-      hand,
-      lens - dir * (s * 0.22),
-      Paint()
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = s * 0.09
-        ..color = const Color(0xFF8A6A1F),
-    );
-    final r = s * 0.22;
-    canvas.drawCircle(
-      lens,
-      r,
-      Paint()..color = Colors.white.withValues(alpha: 0.38),
-    );
-    canvas.drawCircle(
-      lens,
-      r,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = s * 0.075
-        ..color = _kGold,
-    );
-    canvas.drawArc(
-      Rect.fromCircle(center: lens, radius: r * 0.62),
-      3.5,
-      1.1,
-      false,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = s * 0.035
-        ..color = Colors.white.withValues(alpha: 0.85),
-    );
-    // Re-draw the fingers over the handle so the glass looks held.
-    canvas.drawCircle(hand, s * 0.15, Paint()..color = _kRoseGold);
-    canvas.drawCircle(hand, s * 0.125, Paint()..color = _kCream);
-  }
-
-  @override
-  bool shouldRepaint(covariant _ArmPainter old) =>
-      old.t != t || old.wave != wave || old.s != s;
-}
-
-/// Small-avatar "searching" state: Aarna with her magnifying glass, gently swaying with a gold
-/// scan line sweeping across. Everything is clipped to the avatar shape.
-class _SearchingFace extends StatefulWidget {
+/// The marble-cream backdrop and gold hairline ring. While Aarna is thinking the ring breathes.
+class _Ring extends StatefulWidget {
   final double size;
   final BoxShape shape;
   final BorderRadius radius;
+  final bool glow;
 
-  const _SearchingFace({
-    required this.size,
-    required this.shape,
-    required this.radius,
-  });
+  const _Ring({required this.size, required this.shape, required this.radius, required this.glow});
 
   @override
-  State<_SearchingFace> createState() => _SearchingFaceState();
+  State<_Ring> createState() => _RingState();
 }
 
-class _SearchingFaceState extends State<_SearchingFace>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1500),
-  )..repeat(reverse: true);
+class _RingState extends State<_Ring> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1300));
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.glow) _c.repeat(reverse: true);
+  }
+
+  @override
+  void didUpdateWidget(covariant _Ring old) {
+    super.didUpdateWidget(old);
+    if (widget.glow && !_c.isAnimating) _c.repeat(reverse: true);
+    if (!widget.glow && _c.isAnimating) _c.animateTo(0, duration: const Duration(milliseconds: 300));
+  }
 
   @override
   void dispose() {
@@ -407,64 +172,30 @@ class _SearchingFaceState extends State<_SearchingFace>
 
   @override
   Widget build(BuildContext context) {
-    final s = widget.size;
     final isCircle = widget.shape == BoxShape.circle;
     return AnimatedBuilder(
       animation: _c,
       builder: (_, _) {
         final t = Curves.easeInOut.transform(_c.value);
         return Container(
-          width: s,
-          height: s,
+          width: widget.size,
+          height: widget.size,
           decoration: BoxDecoration(
             shape: widget.shape,
             borderRadius: isCircle ? null : widget.radius,
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFFF7EBDB), Color(0xFFE6D2B5)],
+            gradient: const RadialGradient(
+              center: Alignment(-0.3, -0.4),
+              radius: 1.1,
+              colors: [Color(0xFFFFFAF1), Color(0xFFEFE2CC), Color(0xFFDCC6A4)],
+              stops: [0, 0.65, 1],
             ),
-            border: Border.all(
-              color: _kGold.withValues(alpha: 0.45 + 0.5 * t),
-              width: 1.6,
-            ),
-          ),
-          child: ClipRRect(
-            borderRadius: isCircle ? BorderRadius.circular(s) : widget.radius,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                Transform.translate(
-                  offset: Offset((t - 0.5) * s * 0.10, (0.5 - t) * s * 0.04),
-                  child: Transform.scale(
-                    scale: 1.22,
-                    child: Image.asset(
-                      _kSearchPose,
-                      fit: BoxFit.cover,
-                      alignment: const Alignment(0.2, -0.2),
-                      semanticLabel: 'Aarna searching',
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: -s * 0.2 + t * s * 1.2,
-                  top: 0,
-                  bottom: 0,
-                  width: s * 0.2,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          _kGold.withValues(alpha: 0),
-                          _kGold.withValues(alpha: 0.35),
-                          _kGold.withValues(alpha: 0),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            border: Border.all(color: _kGold.withValues(alpha: 0.55 + 0.4 * t), width: 1.1 + 0.6 * t),
+            boxShadow: [
+              BoxShadow(
+                color: _kGold.withValues(alpha: 0.10 + 0.30 * t),
+                blurRadius: 6 + 10 * t,
+              ),
+            ],
           ),
         );
       },
@@ -472,13 +203,46 @@ class _SearchingFaceState extends State<_SearchingFace>
   }
 }
 
-/// Live 3D Aarna. Falls back to the full-body render until the model is ready (and if WebView fails).
+class _OnlineDot extends StatelessWidget {
+  final double d;
+  const _OnlineDot({required this.d});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: d,
+        height: d,
+        decoration: BoxDecoration(
+          color: const Color(0xFF34C759),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 1.6),
+        ),
+      );
+}
+
+/// Circle for the lower half, open above the centre line: the model sits in the ring but her head and bow rise out of it.
+class _PopOutClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size s) => Path()
+    ..addOval(Offset.zero & s)
+    ..addRect(Rect.fromLTRB(-s.width * 0.1, -s.height * 0.4, s.width * 1.1, s.height / 2));
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> old) => false;
+}
+
+/// Camera framings for the live view.
+enum AarnaFraming { fullBody, head }
+
+/// Live 3D Aarna. Shows a still render of the model until WebGL is ready (and if the WebView fails).
 class Aarna3DView extends StatefulWidget {
   final double size;
   final bool wave;
   final bool greetOnLoad;
   final bool thinking;
+  final AarnaFraming framing;
+  final bool interactive;
   final VoidCallback? onTap;
+  final VoidCallback? onReady;
 
   const Aarna3DView({
     super.key,
@@ -486,14 +250,17 @@ class Aarna3DView extends StatefulWidget {
     this.wave = false,
     this.greetOnLoad = false,
     this.thinking = false,
+    this.framing = AarnaFraming.fullBody,
+    this.interactive = true,
     this.onTap,
+    this.onReady,
   });
 
   @override
-  State<Aarna3DView> createState() => _Aarna3DViewState();
+  State<Aarna3DView> createState() => Aarna3DViewState();
 }
 
-class _Aarna3DViewState extends State<Aarna3DView> with WidgetsBindingObserver, AutomaticKeepAliveClientMixin {
+class Aarna3DViewState extends State<Aarna3DView> with WidgetsBindingObserver, AutomaticKeepAliveClientMixin {
   WebViewController? _web;
   bool _ready = false;
 
@@ -511,9 +278,7 @@ class _Aarna3DViewState extends State<Aarna3DView> with WidgetsBindingObserver, 
   Future<void> _boot() async {
     try {
       final js = await rootBundle.loadString('assets/3d/model-viewer.min.js');
-      final glb = base64Encode(
-        (await rootBundle.load('assets/3d/aarna.glb')).buffer.asUint8List(),
-      );
+      final glb = base64Encode((await rootBundle.load('assets/3d/aarna.glb')).buffer.asUint8List());
       final web = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
         ..setBackgroundColor(Colors.transparent)
@@ -521,20 +286,16 @@ class _Aarna3DViewState extends State<Aarna3DView> with WidgetsBindingObserver, 
           NavigationDelegate(
             onNavigationRequest: (r) {
               // Only the inline page may load; never follow links out of the avatar.
-              return r.url == 'about:blank' || r.url.startsWith('data:')
-                  ? NavigationDecision.navigate
-                  : NavigationDecision.prevent;
+              return r.url == 'about:blank' || r.url.startsWith('data:') ? NavigationDecision.navigate : NavigationDecision.prevent;
             },
           ),
         )
         ..addJavaScriptChannel('AarnaBridge', onMessageReceived: _onMessage)
-        ..loadHtmlString(_html(js, glb));
+        ..loadHtmlString(_html(js, glb, widget.framing, widget.interactive));
       if (!mounted) return;
       setState(() => _web = web);
     } catch (e) {
-      debugPrint(
-        'Aarna3D: could not start 3D view, showing render instead: $e',
-      );
+      debugPrint('Aarna3D: could not start 3D view, showing render instead: $e');
     }
   }
 
@@ -543,30 +304,30 @@ class _Aarna3DViewState extends State<Aarna3DView> with WidgetsBindingObserver, 
     switch (m.message) {
       case 'ready':
         setState(() => _ready = true);
-        if (widget.greetOnLoad || widget.wave) _run('wave()');
-        if (widget.thinking) _run('search(true)');
+        if (widget.greetOnLoad || widget.wave) run('wave()');
+        if (widget.thinking) run('search(true)');
+        widget.onReady?.call();
       case 'tap':
         widget.onTap?.call();
     }
   }
 
-  void _run(String code) => _web
-      ?.runJavaScript(code)
-      .catchError((Object e) => debugPrint('Aarna3D js: $e'));
+  /// Runs a command in the model page: wave(), hop(), search(bool), peek().
+  void run(String code) => _web?.runJavaScript(code).catchError((Object e) => debugPrint('Aarna3D js: $e'));
 
   @override
-  void didUpdateWidget(covariant Aarna3DView old) {
-    super.didUpdateWidget(old);
+  void didUpdateWidget(covariant Aarna3DView oldWidget) {
+    super.didUpdateWidget(oldWidget);
     if (!_ready) return;
-    if (widget.wave && !old.wave) _run('wave()');
-    // Thinking: she looks left and right and blinks faster; when the answer lands she leans in and waves.
-    if (widget.thinking != old.thinking) _run(widget.thinking ? 'search(true)' : 'search(false);peek()');
+    if (widget.wave && !oldWidget.wave) run('wave()');
+    // Thinking: she plays her Think clip and glances around; when the answer lands she leans in and waves.
+    if (widget.thinking != oldWidget.thinking) run(widget.thinking ? 'search(true)' : 'search(false);peek()');
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState s) {
+  void didChangeAppLifecycleState(AppLifecycleState state) {
     // Stop rendering while backgrounded so the avatar costs no battery.
-    _run(s == AppLifecycleState.resumed ? 'resumeAnim()' : 'pauseAnim()');
+    run(state == AppLifecycleState.resumed ? 'resumeAnim()' : 'pauseAnim()');
   }
 
   @override
@@ -588,7 +349,7 @@ class _Aarna3DViewState extends State<Aarna3DView> with WidgetsBindingObserver, 
             opacity: _ready ? 0 : 1,
             duration: const Duration(milliseconds: 300),
             child: Image.asset(
-              _kFullPoster,
+              widget.framing == AarnaFraming.head ? AarnaRenders.posterHead : AarnaRenders.posterFull,
               fit: BoxFit.contain,
               semanticLabel: 'Aarna',
             ),
@@ -599,47 +360,58 @@ class _Aarna3DViewState extends State<Aarna3DView> with WidgetsBindingObserver, 
     );
   }
 
-  static String _html(String modelViewerJs, String glbBase64) =>
-      '''
+  static String _html(String modelViewerJs, String glbBase64, AarnaFraming framing, bool interactive) {
+    // Camera presets must match tool/aarna_sprites/shots.json so the live view and the renders line up.
+    final (orbit, target, fov) = switch (framing) {
+      AarnaFraming.fullBody => ('0deg 82deg 2.4m', '0m 0.45m 0m', '28deg'),
+      AarnaFraming.head => ('8deg 84deg 1.72m', '0m 0.63m 0m', '28deg'),
+    };
+    final controls = interactive
+        ? 'camera-controls disable-zoom disable-pan min-camera-orbit="-35deg 68deg auto" max-camera-orbit="35deg 96deg auto"'
+        : '';
+    return '''
 <!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <style>html,body{margin:0;height:100%;background:transparent;overflow:hidden}
 model-viewer{width:100%;height:100%;background:transparent;--poster-color:transparent;outline:none}</style>
 <script type="module">$modelViewerJs</script></head><body>
-<model-viewer id="m" src="data:model/gltf-binary;base64,$glbBase64" camera-controls disable-zoom disable-pan
- camera-orbit="0deg 82deg 2.15m" camera-target="0m 0.42m 0m" field-of-view="30deg"
- min-camera-orbit="-35deg 68deg auto" max-camera-orbit="35deg 96deg auto"
+<model-viewer id="m" src="data:model/gltf-binary;base64,$glbBase64" $controls
+ camera-orbit="$orbit" camera-target="$target" field-of-view="$fov"
  interpolation-decay="90" exposure="1.15" shadow-intensity="0" environment-image="neutral"
  interaction-prompt="none" touch-action="pan-y"></model-viewer>
 <script>
 const m=document.getElementById('m');
-const home='0deg 82deg 2.15m', homeTarget='0m 0.42m 0m', homeFov='30deg';
+const home='$orbit', homeTarget='$target', homeFov='$fov';
+const has=n=>(m.availableAnimations||[]).includes(n);
 let paused=false, searching=false, blinkT, searchT, peekT, flip=1;
-function idle(){m.animationName='Idle';m.play({repetitions:Infinity});}
-function wave(){m.animationName='Wave';m.play({repetitions:1});}
-// The glb has a 0.6 s Blink clip; model-viewer plays one clip at a time, so blinks are short clip swaps.
-function blink(){if(paused||m.animationName==='Wave')return;m.animationName='Blink';m.play({repetitions:1});}
-function scheduleBlink(){clearTimeout(blinkT);blinkT=setTimeout(()=>{blink();scheduleBlink();},(searching?1100:2800)+Math.random()*2400);}
-// "Searching": the camera swings side to side so she appears to look around, with quicker blinks.
-function search(on){searching=on;clearTimeout(searchT);if(!on){m.cameraOrbit=home;return;}
-  const step=()=>{if(!searching)return;flip=-flip;m.cameraOrbit=(flip*22)+'deg 79deg 2.15m';searchT=setTimeout(step,1100+Math.random()*500);};step();}
-// "Peek": she leans out of the frame toward the viewer, waves, then settles back.
+function idle(){m.animationName=searching&&has('Think')?'Think':'Idle';m.play({repetitions:Infinity});}
+function once(n){if(!has(n))return;m.animationName=n;m.play({repetitions:1});}
+function wave(){once('Wave');}
+function hop(){once('Hop');}
+// model-viewer plays one clip at a time, so blinks are short clip swaps while idling.
+function blink(){if(paused||m.animationName!=='Idle')return;once('Blink');}
+function scheduleBlink(){clearTimeout(blinkT);blinkT=setTimeout(()=>{blink();scheduleBlink();},2600+Math.random()*2600);}
+// Thinking: the Think clip loops and the camera drifts side to side so she seems to look around.
+function search(on){searching=on;clearTimeout(searchT);idle();if(!on){m.cameraOrbit=home;return;}
+  const step=()=>{if(!searching)return;flip=-flip;m.cameraOrbit=(flip*16)+'deg 79deg '+home.split(' ')[2];searchT=setTimeout(step,1400+Math.random()*500);};step();}
+// Peek: she leans toward the viewer and waves, then settles back.
 function peek(){clearTimeout(peekT);m.cameraTarget='0m 0.60m 0m';m.fieldOfView='21deg';m.cameraOrbit='-14deg 77deg 1.55m';wave();
   peekT=setTimeout(()=>{m.cameraTarget=homeTarget;m.fieldOfView=homeFov;m.cameraOrbit=home;},2600);}
 function pauseAnim(){paused=true;m.pause();clearTimeout(blinkT);clearTimeout(searchT);}
-function resumeAnim(){paused=false;m.play({repetitions:m.animationName==='Wave'?1:Infinity});scheduleBlink();if(searching)search(true);}
+function resumeAnim(){paused=false;idle();scheduleBlink();if(searching)search(true);}
 m.addEventListener('load',()=>{idle();scheduleBlink();AarnaBridge.postMessage('ready');});
-// Wave and Blink both end back in the idle loop.
+// One-shot clips (Wave, Hop, Blink) all return to the idle loop.
 m.addEventListener('finished',idle);
 m.addEventListener('click',()=>{peek();AarnaBridge.postMessage('tap');});
-// After a drag the head/body spring back to the rest view instead of staying turned.
+// After a drag she springs back to the rest view instead of staying turned.
 let back;m.addEventListener('camera-change',e=>{if(e.detail.source==='user-interaction'&&!searching){clearTimeout(back);back=setTimeout(()=>{m.cameraOrbit=home;},900);}});
 </script></body></html>''';
+  }
 }
 
-/// Makes the Aarna artwork feel 3D: it turns toward the finger while touched (perspective tilt), springs back with a
-/// little overshoot on release, and gives a soft bounce on tap. Uses raw pointer events, so the avatar's own onTap and
-/// any surrounding scroll view keep working.
+/// Makes a small avatar react to touch: it turns toward the finger (perspective tilt), springs back with a little
+/// overshoot on release, and gives a soft bounce on tap. Uses raw pointer events, so the avatar's own onTap and any
+/// surrounding scroll view keep working.
 class _Interactive3D extends StatefulWidget {
   final Widget child;
   const _Interactive3D({required this.child});
@@ -648,17 +420,10 @@ class _Interactive3D extends StatefulWidget {
   State<_Interactive3D> createState() => _Interactive3DState();
 }
 
-class _Interactive3DState extends State<_Interactive3D>
-    with TickerProviderStateMixin {
+class _Interactive3DState extends State<_Interactive3D> with TickerProviderStateMixin {
   static const _maxTilt = 0.5; // radians at the edge
-  late final AnimationController _back = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 650),
-  );
-  late final AnimationController _bounce = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 520),
-  );
+  late final AnimationController _back = AnimationController(vsync: this, duration: const Duration(milliseconds: 650));
+  late final AnimationController _bounce = AnimationController(vsync: this, duration: const Duration(milliseconds: 520));
   Offset _tilt = Offset.zero; // -1..1 from the centre
   Offset _from = Offset.zero;
 
@@ -672,14 +437,8 @@ class _Interactive3DState extends State<_Interactive3D>
   void _track(PointerEvent e, Size size) {
     if (size.isEmpty) return;
     final c = size.center(Offset.zero);
-    final dx = ((e.localPosition.dx - c.dx) / (size.width / 2)).clamp(
-      -1.0,
-      1.0,
-    );
-    final dy = ((e.localPosition.dy - c.dy) / (size.height / 2)).clamp(
-      -1.0,
-      1.0,
-    );
+    final dx = ((e.localPosition.dx - c.dx) / (size.width / 2)).clamp(-1.0, 1.0);
+    final dy = ((e.localPosition.dy - c.dy) / (size.height / 2)).clamp(-1.0, 1.0);
     _back.stop();
     _back.value = 0; // a fresh touch starts from the live finger position, not the spring
     setState(() => _tilt = Offset(dx, dy));
@@ -695,10 +454,7 @@ class _Interactive3DState extends State<_Interactive3D>
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, box) {
-        final size = Size(
-          box.hasBoundedWidth ? box.maxWidth : 0,
-          box.hasBoundedHeight ? box.maxHeight : 0,
-        );
+        final size = Size(box.hasBoundedWidth ? box.maxWidth : 0, box.hasBoundedHeight ? box.maxHeight : 0);
         return Listener(
           behavior: HitTestBehavior.translucent,
           onPointerDown: (e) => _track(e, size),
@@ -709,15 +465,9 @@ class _Interactive3DState extends State<_Interactive3D>
             animation: Listenable.merge([_back, _bounce]),
             builder: (_, child) {
               final tilt = _back.isAnimating
-                  ? Offset.lerp(
-                      _from,
-                      Offset.zero,
-                      Curves.elasticOut.transform(_back.value),
-                    )!
+                  ? Offset.lerp(_from, Offset.zero, Curves.elasticOut.transform(_back.value))!
                   : (_back.value == 1 ? Offset.zero : _tilt);
-              final squash = _bounce.isAnimating
-                  ? 1 - 0.08 * (1 - Curves.elasticOut.transform(_bounce.value))
-                  : 1.0;
+              final squash = _bounce.isAnimating ? 1 - 0.08 * (1 - Curves.elasticOut.transform(_bounce.value)) : 1.0;
               return Transform(
                 alignment: Alignment.center,
                 transform: Matrix4.identity()

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:grazia_stones/core/widgets/animated_widgets.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/core/di.dart';
@@ -327,11 +328,15 @@ class _CollectionListScreenState extends ConsumerState<CollectionListScreen> {
                         final members = nonTest.where((c) => c.catalogueGroup == group).toList()
                           ..sort((a, b) => a.catalogueRank.compareTo(b.catalogueRank));
                         if (members.isEmpty) return const SizedBox.shrink();
-                        return _GroupBox(
-                          group: group,
-                          members: members,
-                          palette: palette,
-                          onOpenGroup: () => setState(() => _selectedCategory = group),
+                        return FadeInStagger(
+                          index: index,
+                          delay: const Duration(milliseconds: 70),
+                          child: _GroupBox(
+                            group: group,
+                            members: members,
+                            palette: palette,
+                            onOpenGroup: () => setState(() => _selectedCategory = group),
+                          ),
                         );
                       },
                       childCount: CatalogueGroups.all.length,
@@ -413,120 +418,150 @@ class _GroupBox extends StatelessWidget {
     final image = members.first.effectiveBannerImage;
     final designs = members.fold<int>(0, (sum, c) => sum + c.stoneCount);
     final subtitle = single
-        ? '$designs designs'
-        : '${members.length} series • ${members.map((c) => c.displayName.replaceAll(RegExp(r' (Ledge )?Series$'), '')).take(4).join(', ')}…';
+        ? '$designs authentic designs'
+        : '${members.length} series • ${members.map((c) => c.displayName.replaceAll(RegExp(r' (Ledge )?Series$'), '')).take(3).join(', ')}';
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      height: 184,
-      decoration: BoxDecoration(
-        color: palette.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: palette.border, width: 0.8),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(19),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
+      margin: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Asian Paints Style Architectural Arched Frame ──
+          ApplePressable(
+            pressedScale: 0.975,
             onTap: () {
-              HapticFeedback.lightImpact();
               if (single) {
                 context.push('/collections/${members.first.id}');
               } else {
                 onOpenGroup();
               }
             },
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                SmartStoneImage(
-                  imageUrl: image.startsWith('http') ? image : null,
-                  localAsset: !image.startsWith('http') ? image : null,
-                  fit: BoxFit.cover,
-                  alignment: Alignment.center,
-                  fallbackColor: palette.surfaceDark,
+            child: Container(
+              height: 200,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(56),
+                  bottom: Radius.circular(20),
                 ),
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.black.withValues(alpha: 0.20),
-                        Colors.black.withValues(alpha: 0.60),
-                        Colors.black.withValues(alpha: 0.94),
-                      ],
-                      stops: const [0.0, 0.40, 1.0],
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.10),
+                    blurRadius: 18,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(56),
+                      bottom: Radius.circular(20),
+                    ),
+                    child: SmartStoneImage(
+                      imageUrl: image.startsWith('http') ? image : null,
+                      localAsset: !image.startsWith('http') ? image : null,
+                      fit: BoxFit.cover,
+                      alignment: Alignment.center,
+                      fallbackColor: palette.surfaceDark,
                     ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              CatalogueGroups.boxTitle(group),
-                              style: GoogleFonts.playfairDisplay(
-                                color: Colors.white,
-                                fontSize: 21,
-                                fontWeight: FontWeight.w800,
-                                height: 1.15,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              subtitle,
-                              style: GoogleFonts.inter(
-                                color: Colors.white.withValues(alpha: 0.85),
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
+                  // Subtle ambient scrim
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(56),
+                        bottom: Radius.circular(20),
                       ),
-                      const SizedBox(width: 12),
-                      Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: palette.primary,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: palette.primary.withValues(alpha: 0.4),
-                              blurRadius: 10,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(Icons.arrow_forward_rounded, color: Colors.black, size: 18),
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.25),
+                          Colors.black.withValues(alpha: 0.60),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ],
+                  // Floating Gold Circular Action Button (↗) matching Asian Paints benchmark
+                  Positioned(
+                    right: 14,
+                    bottom: 14,
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFE5C158), Color(0xFFC59B27)],
+                        ),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFD4AF37).withValues(alpha: 0.45),
+                            blurRadius: 12,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.arrow_outward_rounded,
+                          color: Colors.black,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
+          const SizedBox(height: 10),
+          // ── Clean Editorial Title & Subtitle Below the Arch ──
+          GestureDetector(
+            onTap: () {
+              if (single) {
+                context.push('/collections/${members.first.id}');
+              } else {
+                onOpenGroup();
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    CatalogueGroups.boxTitle(group),
+                    style: GoogleFonts.playfairDisplay(
+                      color: palette.textPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.2,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.inter(
+                      color: palette.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                      height: 1.25,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

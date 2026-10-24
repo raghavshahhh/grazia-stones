@@ -12,7 +12,7 @@ await pg.waitForFunction(() => { const m = document.getElementById("m"); return 
 console.log("clips:", await pg.evaluate(() => document.getElementById("m").availableAnimations.join(",")));
 for (const s of shots) {
   await pg.setViewport({ width: s.w || 900, height: s.h || 900 });
-  await pg.evaluate(async (s) => { const m = document.getElementById("m"); if (s.orbit) m.cameraOrbit = s.orbit; if (s.target) m.cameraTarget = s.target; if (s.fov) m.fieldOfView = s.fov; m.animationName = s.clip; m.play(); m.pause(); m.currentTime = s.t; m.jumpCameraToGoal(); await new Promise(r => setTimeout(r, 700)); }, s);
+  await pg.evaluate(async (s) => { const m = document.getElementById("m"); if (s.orbit) m.cameraOrbit = s.orbit; if (s.target) m.cameraTarget = s.target; if (s.fov) m.fieldOfView = s.fov; m.animationCrossfadeDuration = 0; m.animationName = s.clip; m.play(); await new Promise(r => setTimeout(r, 300)); m.pause(); m.currentTime = s.t; m.jumpCameraToGoal(); await new Promise(r => setTimeout(r, 700)); }, s);
   if (s.transparent) await pg.evaluate(() => { document.body.style.background = 'transparent'; document.documentElement.style.background = 'transparent'; const m = document.getElementById('m'); m.setAttribute('shadow-intensity', '0'); document.querySelector('.bar').style.display = 'none'; }); await pg.screenshot({ path: path.join(root, "out", s.name + ".png"), omitBackground: !!s.transparent }); console.log("shot", s.name);
 }
 await b.close(); srv.close();
