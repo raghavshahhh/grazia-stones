@@ -242,7 +242,7 @@ class CollectionDetailScreen extends ConsumerWidget {
               const SizedBox(width: 8),
             ],
             flexibleSpace: FlexibleSpaceBar(
-              titlePadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+              titlePadding: const EdgeInsets.fromLTRB(72, 0, 20, 16), // clears the back button once the bar collapses
               // White over the photo, ink once the bar has collapsed onto the page colour (a white title with a
               // dark glow on the light bar read as a doubled, smudged word).
               title: Builder(
@@ -584,7 +584,8 @@ class _CollectionStoneCard extends ConsumerWidget {
                       ),
                     ),
 
-                    // Top-Left: Product Code tag
+                    // Top-Left: Product Code tag (rows without a code drew an empty gold pill)
+                    if (stone.productCode.isNotEmpty)
                     Positioned(
                       top: 7,
                       left: 7,
