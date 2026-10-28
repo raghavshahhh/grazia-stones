@@ -252,6 +252,33 @@ const _kCatalogue = <(String, String, String)>[
   ('european stack', 'European Stack Series', CatalogueGroups.ledge),
 ];
 
+int _catalogueIndexForName(String name) {
+  final key = name
+      .toLowerCase()
+      .replaceAll(RegExp(r'\b(series|collection|ledge)\b'), '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+  final i = _kCatalogue.indexWhere((e) => e.$1 == key);
+  if (i >= 0) return i;
+  // "Premium Surface Collection" keeps its word "surface" in the key.
+  return _kCatalogue.indexWhere((e) => e.$1 == name.toLowerCase().replaceAll(RegExp(r'\s*(series|collection)$'), '').trim());
+}
+
+/// The client's group (CatalogueGroups.*) for a collection name as stored on a stone, or null when unknown.
+String? catalogueGroupForName(String collectionName) {
+  final i = _catalogueIndexForName(collectionName);
+  return i >= 0 ? _kCatalogue[i].$3 : null;
+}
+
+/// May Live AR cut this collection's photos seamless along their mortar lines (SeamlessTile)? Only brick and ledge
+/// stone: there the cut follows irregular joints and hides the repeat. Regular designs (chevrons, stripes, arches,
+/// medallions, CNC carving, Travertine's slab grid) are visibly broken by it (2x2 repeat sheets of all 95 products,
+/// docs/LIVE_AR_TEXTURE_AUDIT.md); they repeat as photographed. Unknown collections too.
+bool catalogueAllowsSeamCut(String collectionName) {
+  final group = catalogueGroupForName(collectionName);
+  return group == CatalogueGroups.brick || group == CatalogueGroups.ledge;
+}
+
 extension CollectionCatalogueExtension on Collection {
   String get _catalogueKey => name
       .toLowerCase()
@@ -270,13 +297,7 @@ extension CollectionCatalogueExtension on Collection {
     return !n.startsWith('test') && !n.contains('test collection') && !isCatalogueDuplicate;
   }
 
-  int get _catalogueIndex {
-    final key = _catalogueKey;
-    final i = _kCatalogue.indexWhere((e) => e.$1 == key);
-    if (i >= 0) return i;
-    // "Premium Surface Collection" keeps its word "surface" in the key.
-    return _kCatalogue.indexWhere((e) => e.$1 == name.toLowerCase().replaceAll(RegExp(r'\s*(series|collection)$'), '').trim());
-  }
+  int get _catalogueIndex => _catalogueIndexForName(name);
 
   /// Title exactly as the client wrote it (falls back to the stored name).
   String get displayName => _catalogueIndex >= 0 ? _kCatalogue[_catalogueIndex].$2 : name;

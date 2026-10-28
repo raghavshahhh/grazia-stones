@@ -47,6 +47,12 @@ object WallEdges {
             ?: topLine?.let { fromLine(it, w, h, proj, view, cam, floor + ASSUMED_CEILING_HEIGHT_M, floor, "ceiling") }
     }
 
+    /** Same wall from two frames: within ~5.7 degrees and 7% in distance. */
+    fun agree(a: Estimate, b: Estimate): Boolean {
+        val dot = a.normal[0] * b.normal[0] + a.normal[2] * b.normal[2]
+        return dot > 0.995f && abs(a.distanceM - b.distanceM) <= 0.07f * maxOf(a.distanceM, b.distanceM)
+    }
+
     /** Line y = a + b * x in mask pixels. */
     class Line(val a: Float, val b: Float)
 

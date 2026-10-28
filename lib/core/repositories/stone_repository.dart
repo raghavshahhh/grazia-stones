@@ -51,7 +51,7 @@ class StoneRepository {
       // Bundled cropped textures exist only for a few legacy series. Any other
       // stone (incl. ones an admin adds later) falls through to its own
       // uploaded photo via Stone.arTextureUrl instead of a wrong stone's tile.
-      arTexture: row['ar_texture'] ?? row['texture_url'] ?? spec?.arTexture ?? _findTextureByName(row['name'] ?? ''),
+      arTexture: arTextureFor(row, spec),
       rating: 0.0,
       reviewCount: 0,
       length: lengthMm != null ? '${lengthMm}mm' : '',
@@ -76,7 +76,12 @@ class StoneRepository {
     );
   }
 
-  String? _findTextureByName(String name) {
+  /// The bundled AR texture for a catalogue row, or null to use the product's own photo (Stone.arTextureUrl).
+  /// One function so the app and the Live AR texture audit (tool/live_ar_audit) resolve products identically.
+  static String? arTextureFor(Map<String, dynamic> row, CatalogueSpec? spec) =>
+      row['ar_texture'] ?? row['texture_url'] ?? spec?.arTexture ?? findTextureByName((row['name'] ?? '').toString());
+
+  static String? findTextureByName(String name) {
     final lower = name.toLowerCase();
     if (lower.contains('athena')) return 'assets/images/athena_3d_tex.png';
     if (lower.contains('verona')) return 'assets/images/verona_3d_tex.png';

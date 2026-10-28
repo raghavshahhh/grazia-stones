@@ -104,6 +104,10 @@ Future<void> _loadAndSetTexture(String assetPath, double opacity) async {
 // ── Widget ───────────────────────────────────────────────────────────────────
 
 class ARCameraView extends StatefulWidget {
+  /// Erase / Restore brush is native-AR only; kept so shared screens compile on every platform.
+  static final ValueNotifier<String?> brushMode = ValueNotifier<String?>(null);
+  static final ValueNotifier<List<Offset>?> calibrationTaps = ValueNotifier<List<Offset>?>(null);
+
   const ARCameraView({
     super.key,
     this.onReady,
@@ -128,7 +132,7 @@ class ARCameraView extends StatefulWidget {
 
   // ── Static control API (callable from anywhere in the screen) ──
 
-  static void updateStone(String? assetPath, double opacity, {double? patchHeightM}) {
+  static void updateStone(String? assetPath, double opacity, {double? patchHeightM, bool seamCut = false}) {
     if (assetPath == null) {
       _jsEval('GraziaAR.setTexture(null)');
       return;

@@ -44,13 +44,22 @@ class ARCameraView extends StatefulWidget {
 
   /// Real-world height (m) of the current texture photo, from the catalogue PDFs.
   static double? _patchHeightM;
+  static bool _seamCut = false;
+
+  /// 'erase' / 'restore' while the user fixes the cut edges by hand; null = taps place the design.
+  static final ValueNotifier<String?> brushMode = ValueNotifier<String?>(null);
+
+  /// Non-null while the user marks the two ends of a measured length for "Set true size".
+  static final ValueNotifier<List<Offset>?> calibrationTaps = ValueNotifier<List<Offset>?>(null);
 
   static void updateStone(
     String? assetPath,
     double opacity, {
     double? patchHeightM,
+    bool seamCut = false,
   }) {
     _patchHeightM = patchHeightM;
+    _seamCut = seamCut;
     _controller.add(_ARUpdate(stone: assetPath, opacity: opacity));
     if (assetPath != null) {
       _loadAndSendTexture(assetPath, opacity);
@@ -76,7 +85,7 @@ class ARCameraView extends StatefulWidget {
         final ByteData data = await rootBundle.load(assetPath);
         bytes = data.buffer.asUint8List();
       }
-      await ARNativeChannel.setTexture(bytes, patchHeightM: _patchHeightM);
+      await ARNativeChannel.setTexture(bytes, patchHeightM: _patchHeightM, seamCut: _seamCut);
     } catch (e) {
       debugPrint('[ARCameraView] Failed to load texture: $e');
     }
@@ -219,6 +228,10 @@ class _ARCameraViewState extends State<ARCameraView>
   bool _isPermissionDenied = false;
   String? _error;
   bool _nativeARStarted = false;
+  // Portrait width / height of the camera image. The view is sized to it so the whole frame shows: filling a
+  // 20:9 screen cropped the 4:3 camera to its middle 60% (OnePlus dump 2026-10-27), a ~1.7x zoom that made
+  // walls look much bigger and closer than they are. 3:4 until ARCore reports the real texture size.
+  double _cameraAspect = 3 / 4;
 
   String? _displayStoneTexture;
   double _displayOpacity = 0.72;
@@ -312,6 +325,7 @@ class _ARCameraViewState extends State<ARCameraView>
       // Start AR session
       await ARNativeChannel.startSession();
       _nativeARStarted = true;
+      _loadCameraAspect();
       // The native manager is a process singleton: drop the design left by Live AR so the ruler sees a bare wall.
       if (widget.measureOnly) await ARNativeChannel.clearTexture();
 
@@ -423,6 +437,15 @@ class _ARCameraViewState extends State<ARCameraView>
     });
   }
 
+  int _lastBrushMs = 0;
+
+  void _brush(Offset point, String mode) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (now - _lastBrushMs < 30) return; // ~30 strokes a second is plenty; each one re-uploads the mask
+    _lastBrushMs = now;
+    ARNativeChannel.editMask(point, erase: mode == 'erase');
+  }
+
   Future<void> _placeDesignAt(Offset point) async {
     final dpr = MediaQuery.of(context).devicePixelRatio;
     final layer = context.size;
@@ -458,6 +481,18 @@ class _ARCameraViewState extends State<ARCameraView>
         'Point at the floor and move your phone slowly, then tap where the wall meets the floor.',
     };
     LuxuryToast.show(context, message: message);
+  }
+
+  /// The camera config is known a moment after the session starts; ask a few times.
+  Future<void> _loadCameraAspect() async {
+    for (var i = 0; i < 10 && mounted; i++) {
+      final a = await ARNativeChannel.getCameraAspect();
+      if (a != null && a > 0.3 && a < 1.5) {
+        if (mounted && (a - _cameraAspect).abs() > 0.001) setState(() => _cameraAspect = a);
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    }
   }
 
   void _stopNativeAR() {
@@ -506,6 +541,28 @@ class _ARCameraViewState extends State<ARCameraView>
     if (_isPermissionDenied) return _buildPermissionDenied();
     if (_error != null) return _buildErrorState();
 
+    // Top-left anchored so screen and AR-view coordinates stay the same for every overlay; the rest stays black.
+    // Below a 16:9 camera on a 20:9 phone sits the action row and nav bar; a charcoal panel with a gold hairline
+    // makes that band part of the UI instead of an unexplained black gap.
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF1A1A1A), Color(0xFF0D0D0D)],
+        ),
+      ),
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: AspectRatio(
+          aspectRatio: _cameraAspect,
+          child: _buildARStack(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildARStack() {
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -514,12 +571,41 @@ class _ARCameraViewState extends State<ARCameraView>
 
         // Tap a real wall to place the selected design on it right away (no waiting for plane detection)
         Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onTapUp: (d) => _placeDesignAt(d.localPosition),
+          child: ValueListenableBuilder<String?>(
+            valueListenable: ARCameraView.brushMode,
+            builder: (context, mode, _) => mode == null
+                ? GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onTapUp: (d) => _placeDesignAt(d.localPosition),
+                  )
+                : GestureDetector(
+                    // Brush mode: drag over the wall to paint the stone off (erase) or back on (restore).
+                    behavior: HitTestBehavior.translucent,
+                    onTapUp: (d) => _brush(d.localPosition, mode),
+                    onPanStart: (d) => _brush(d.localPosition, mode),
+                    onPanUpdate: (d) => _brush(d.localPosition, mode),
+                  ),
           ),
         ),
 
+        // Set true size: collect the four corners of something measured (shown as gold markers). Above the place layer, or the
+        // taps re-place the design instead.
+        ValueListenableBuilder<List<Offset>?>(
+          valueListenable: ARCameraView.calibrationTaps,
+          builder: (context, taps, _) => taps == null
+              ? const SizedBox.shrink()
+              : Positioned.fill(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTapUp: (d) {
+                      if (taps.length >= 4) return;
+                      HapticFeedback.selectionClick();
+                      ARCameraView.calibrationTaps.value = [...taps, d.localPosition];
+                    },
+                    child: CustomPaint(painter: _CalibrationPainter(taps)),
+                  ),
+                ),
+        ),
         // Wall boundary bracket (if showing)
         if (_showWallBracket && _selectedWallId != null) _buildWallBracket(),
 
@@ -818,4 +904,27 @@ class _ARCameraViewState extends State<ARCameraView>
       ),
     );
   }
+}
+
+/// Gold markers (and the outline through them) for the four calibration corners.
+class _CalibrationPainter extends CustomPainter {
+  _CalibrationPainter(this.taps);
+  final List<Offset> taps;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const gold = Color(0xFFD4AF37);
+    final line = Paint()..color = gold..strokeWidth = 2.5;
+    for (var i = 1; i < taps.length; i++) {
+      canvas.drawLine(taps[i - 1], taps[i], line);
+    }
+    if (taps.length == 4) canvas.drawLine(taps[3], taps[0], line);
+    for (final p in taps) {
+      canvas.drawCircle(p, 11, Paint()..color = const Color(0x73000000));
+      canvas.drawCircle(p, 7, Paint()..color = gold);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_CalibrationPainter old) => old.taps != taps;
 }

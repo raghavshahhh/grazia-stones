@@ -43,6 +43,16 @@ class WallGeodesicTest {
         assertFalse("board on the wall", at(m, 110, 140))
     }
 
+    @Test fun `a wrong model label on plain wall does not cut the wall in half`() {
+        val lab = scene()
+        // The model calls a band of the wall itself "door" (same colour as the wall) plus the curtain's middle.
+        val nonWall = BooleanArray(w * h) { k -> k % w < 12 || (k / w) in 120..150 && k % w in 30..90 }
+        val m = WallGeodesic.segment(lab, w, h, 60, 80, nonWall)
+        assertTrue("wall inside the mislabelled band", at(m, 60, 135))
+        assertTrue("wall below the mislabelled band", at(m, 60, 185))
+        assertFalse("curtain still excluded", at(m, 8, 100))
+    }
+
     @Test fun `raster geodesic stops at a hard edge`() {
         val s = FloatArray(10 * 10) { k -> if (k % 10 == 5) 100f else 0.01f }
         val d = WallGeodesic.geodesic(s, 10, 10, intArrayOf(0))

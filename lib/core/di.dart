@@ -54,7 +54,9 @@ final appLifecycleServiceProvider = Provider<AppLifecycleService>((ref) {
   return AppLifecycleService.instance;
 });
 
-final stateRestorationServiceProvider = Provider<StateRestorationService>((ref) {
+final stateRestorationServiceProvider = Provider<StateRestorationService>((
+  ref,
+) {
   return StateRestorationService.instance;
 });
 
@@ -107,25 +109,36 @@ final aiJobRepositoryProvider = Provider<AIJobRepository>((ref) {
   return AIJobRepository();
 });
 
-
 // ─── State Notifiers (Riverpod) ───
-final cartRiverpodProvider = StateNotifierProvider<CartRiverpodNotifier, CartRiverpodState>((ref) {
-  return CartRiverpodNotifier();
-});
+final cartRiverpodProvider =
+    StateNotifierProvider<CartRiverpodNotifier, CartRiverpodState>((ref) {
+      ref.watch(
+        authRiverpodProvider.select((s) => s.userId),
+      ); // a new user (or logout) starts from a fresh state
+      return CartRiverpodNotifier();
+    });
 
-final authRiverpodProvider = StateNotifierProvider<AuthRiverpodNotifier, AuthRiverpodState>((ref) {
-  return AuthRiverpodNotifier(ref.watch(authRepositoryProvider));
-});
+final authRiverpodProvider =
+    StateNotifierProvider<AuthRiverpodNotifier, AuthRiverpodState>((ref) {
+      return AuthRiverpodNotifier(ref.watch(authRepositoryProvider));
+    });
 
-final quoteRiverpodProvider = StateNotifierProvider<QuoteRiverpodNotifier, QuoteRiverpodState>((ref) {
-  return QuoteRiverpodNotifier();
-});
+final quoteRiverpodProvider =
+    StateNotifierProvider<QuoteRiverpodNotifier, QuoteRiverpodState>((ref) {
+      ref.watch(
+        authRiverpodProvider.select((s) => s.userId),
+      ); // a new user (or logout) starts from a fresh state
+      return QuoteRiverpodNotifier();
+    });
 
-final orderRiverpodProvider = StateNotifierProvider<OrderRiverpodNotifier, OrderRiverpodState>((ref) {
-  return OrderRiverpodNotifier(ref.watch(orderRepositoryProvider));
-});
+final orderRiverpodProvider =
+    StateNotifierProvider<OrderRiverpodNotifier, OrderRiverpodState>((ref) {
+      ref.watch(
+        authRiverpodProvider.select((s) => s.userId),
+      ); // a new user (or logout) starts from a fresh state
+      return OrderRiverpodNotifier(ref.watch(orderRepositoryProvider));
+    });
 
 /// Indicates whether the initial brand launch animation has completed.
 /// Allows HomeScreen to delay the interactive tour until the launch overlay finishes.
 final appLaunchCompleteProvider = StateProvider<bool>((ref) => false);
-

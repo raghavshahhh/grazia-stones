@@ -5,6 +5,10 @@ library;
 import 'package:flutter/material.dart';
 
 class ARCameraView extends StatelessWidget {
+  /// Erase / Restore brush is native-AR only; kept so shared screens compile on every platform.
+  static final ValueNotifier<String?> brushMode = ValueNotifier<String?>(null);
+  static final ValueNotifier<List<Offset>?> calibrationTaps = ValueNotifier<List<Offset>?>(null);
+
   const ARCameraView({
     super.key,
     this.onReady,
@@ -19,7 +23,7 @@ class ARCameraView extends StatelessWidget {
   final double opacity;
 
   /// No-op on non-web platforms
-  static void updateStone(String? assetPath, double opacity, {double? patchHeightM}) {}
+  static void updateStone(String? assetPath, double opacity, {double? patchHeightM, bool seamCut = false}) {}
   static void updateOpacity(double opacity) {}
   static void showWallBoundary(bool show) {}
   static Future<void> setWallClipping(bool enabled) async {}

@@ -27,6 +27,11 @@ object WallGeodesic {
     private const val ITERS = 3            // raster sweeps; 3 matched Dijkstra exactly on the test frames
     private const val BORDER = 2           // no travelling along the screen edge (objects cut by it leaked in)
     private const val BLOCKED = 1e3f
+    // A model "not wall" pixel only seeds the background if it also LOOKS different from the wall. The model calls
+    // plain plaster "door", "person" or "sky" with high confidence (close-ups, bright light), which cut the wall in
+    // half or left nothing at all; a real curtain, cabinet or window differs in colour or brightness.
+    private const val BG_CHROMA = 10f
+    private const val BG_LIGHT = 30f
 
     /**
      * @param lab L (0..100), a, b (8-bit Lab, +128 offset) at [w] x [h], row 0 = screen top, already smoothed
@@ -38,6 +43,7 @@ object WallGeodesic {
         val cost = dilate3(edgeCost(lab, w, h), w, h)
         // The wall's colour and its own texture noise, measured around the seed.
         val refA = patchMedian(la, w, h, sx, sy, 20); val refB = patchMedian(lb, w, h, sx, sy, 20)
+        val refL = patchMedian(lL, w, h, sx, sy, 20)
         val floor = patchPercentile(cost, w, h, sx, sy, 25, 0.95f)
         val step1 = FloatArray(w * h) { k ->
             val e = max(cost[k] - floor, 0f)
@@ -46,7 +52,10 @@ object WallGeodesic {
             EPS + e * e + LAMBDA_CHROMA * c * c
         }
         val fg = IntArray(25) { i -> ((sy + (i / 5 - 2) * 3).coerceIn(0, h - 1)) * w + (sx + (i % 5 - 2) * 3).coerceIn(0, w - 1) }
-        val bgSeeds = nonWall.indices.filter { nonWall[it] }.toIntArray()
+        val bgSeeds = nonWall.indices.filter { k ->
+            nonWall[k] && (abs(lL[k] - refL) > BG_LIGHT ||
+                sqrt((la[k] - refA) * (la[k] - refA) + (lb[k] - refB) * (lb[k] - refB)) > BG_CHROMA)
+        }.toIntArray()
         val dB = geodesic(step1, w, h, bgSeeds)
         val first = geodesic(step1, w, h, fg)
         val m1 = BooleanArray(w * h) { first[it] < T && first[it] < dB[it] }

@@ -16,6 +16,7 @@ import com.google.ar.core.Config
 import com.google.ar.core.Coordinates2d
 import com.google.ar.core.Plane
 import com.google.ar.core.Pose
+import kotlin.math.abs
 import com.google.ar.core.Session
 import com.google.ar.core.HitResult
 import com.google.ar.core.TrackingFailureReason
@@ -53,7 +54,15 @@ class ARCoreManager private constructor(context: Context) {
         const val MAX_HIT_DISTANCE_M = 8.0f
         const val APPROX_WALL_DISTANCE_M = 2.0f
         const val AUTO_PLACE_INTERVAL_MS = 400L
-        const val AUTO_GUESS_AFTER_MS = 2500L
+        const val AUTO_GUESS_AFTER_MS = 1500L
+        // A placed design stays hidden until the wall mask can cut it to the wall; only if the segmenter never
+        // gets there (raw plaster, bad light) is the plain panel shown after this long.
+        const val SHOW_UNMASKED_AFTER_MS = 6000L
+        const val EDGE_AGREE_WINDOW_MS = 3000L
+        const val A4_INTERVAL_MS = 300L
+        // cos 63 deg: a placed wall seen more obliquely than this means the camera has turned to another wall.
+        const val WALL_TURN_COS = 0.45f
+        const val MAX_REMEMBERED_WALLS = 4
         // How deep the joints read in the parallax relief (Grazia ledger panels are 25-35 mm thick).
         const val STONE_RELIEF_M = 0.02f
         // Larger UV offsets smear the stones into streaks with few march steps on mobile.
@@ -71,6 +80,7 @@ class ARCoreManager private constructor(context: Context) {
         const val PC_AGREE_OFFSET_M = 0.12f
         // Minimum gap between two segmentation requests (the mask is world-locked, so ~1.5 Hz is plenty).
         const val SEG_INTERVAL_MS = 900L // 600 ms still pushed the OnePlus to thermal status 3 within 90 s
+        const val BRUSH_SCREEN_FRACTION = 0.06f
         const val MASKED_WALL_WIDTH_M = 8f
         const val MASKED_WALL_HEIGHT_M = 4f
         // Share of the stone photo shown as-is (emissive) under the lit, normal-mapped shading. Tuned on device.
@@ -147,10 +157,13 @@ class ARCoreManager private constructor(context: Context) {
         // Re-place right away when the current placement is the guess, so the user sees the new scale.
         mainHandler.post {
             val view = sceneView ?: return@post
-            if (placedSurface != "approximate") return@post
-            val (px, py) = wallProbePoint(view) ?: (view.width / 2f to view.height * 0.4f)
-            placeWallAtScreenPoint(px, py)
-            Log.i(TAG, "PLACE approximate distance set to ${approxDistanceM}m by the user")
+            if (Placement.scale(placedSurface) != Placement.Scale.APPROXIMATE) return@post
+            // Keep the wall's angle (it may come from its floor/ceiling line); only its distance changes.
+            if (!replaneAtDistance(view, approxDistanceM, placedSurface ?: "approximate")) {
+                val (px, py) = wallProbePoint(view) ?: (view.width / 2f to view.height * 0.4f)
+                placeWallAtScreenPoint(px, py)
+            }
+            Log.i(TAG, "PLACE distance ${approxDistanceM}m entered by the user (not measured)")
         }
     }
     private var placedOnFloor = false
@@ -186,10 +199,7 @@ class ARCoreManager private constructor(context: Context) {
     fun attachSceneView(view: ARSceneView) {
         // The manager is a process singleton but destroy() runs when the Flutter engine detaches. A destroyed
         // LifecycleRegistry can never be RESUMED again, so reopening the app crashed with "State is 'DESTROYED'".
-        if (lifecycleOwner.registry.currentState == Lifecycle.State.DESTROYED) {
-            lifecycleOwner = ManagerLifecycleOwner()
-            configuredSession = null
-        }
+        reviveLifecycleIfDestroyed()
         if (sceneView !== view) forgetEngineObjects()
         sceneView = view
         view.lifecycle = lifecycleOwner.lifecycle
@@ -200,6 +210,9 @@ class ARCoreManager private constructor(context: Context) {
             // so the ARCore config is applied here, once per session, before anything else.
             if (configuredSession !== session) {
                 configuredSession = session
+                // Anchors of an earlier session mean nothing in this one.
+                rememberedWalls.forEach { runCatching { it.anchor.detach() } }
+                rememberedWalls.clear()
                 try {
                     applySessionConfig(session)
                 } catch (e: Exception) {
@@ -213,7 +226,15 @@ class ARCoreManager private constructor(context: Context) {
             requestWallMask(view, frame)
             autoPlace(view, camera.trackingState)
             updateQuadTransform()
+            placedAnchorNode?.let { val show = !userHidden && designReady(); if (shownState != show) { it.isVisible = show; shownState = show } }
+            sideWall?.let { side ->
+                val show = !userHidden && designReady() && sideReady(side)
+                if (side.shown != show) { side.node.isVisible = show; side.shown = show }
+                side.mi?.let { mi -> quadTransform(mi, side.node.anchor, side.zMin) }
+            }
             logTrackingDiagnostics(camera.trackingState, camera.trackingFailureReason, updated.size, view)
+            validateDepth(session, frame)
+            detectA4(view, frame)
             onTrackingStateChanged?.invoke(
                 if (camera.trackingState == TrackingState.TRACKING) "TRACKING"
                 else mapTrackingFailure(camera.trackingFailureReason)
@@ -222,7 +243,7 @@ class ARCoreManager private constructor(context: Context) {
         view.onTrackingFailureChanged = { reason ->
             onTrackingStateChanged?.invoke(mapTrackingFailure(reason))
         }
-        queuedTexture?.let { (bytes, patch) -> setTexture(bytes, patch) }
+        queuedTexture?.let { (bytes, patch, seam) -> setTexture(bytes, patch, seam) }
         view.onSessionFailed = { e ->
             Log.e(TAG, "AR session failed", e)
             onError?.invoke(e.message ?: "AR session failed")
@@ -230,6 +251,25 @@ class ARCoreManager private constructor(context: Context) {
     }
 
     private var configuredSession: Session? = null
+
+    // Thermal state (PowerManager, API 29+): the segmenter slows down as the phone heats up, so tracking and
+    // rendering keep their share of the CPU (performance guide). Tracking > segmentation frequency.
+    @Volatile private var thermalStatus = 0
+    private val thermalListener: Any? = if (android.os.Build.VERSION.SDK_INT >= 29) {
+        val pm = appContext.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
+        thermalStatus = pm.currentThermalStatus
+        android.os.PowerManager.OnThermalStatusChangedListener { status ->
+            if (status != thermalStatus) Log.i(TAG, "THERMAL status $thermalStatus -> $status (segmentation every ${segIntervalLabel(status)})")
+            thermalStatus = status
+        }.also { pm.addThermalStatusListener(it) }
+    } else null
+
+    private fun segIntervalForThermal(status: Int = thermalStatus): Long? = WallSegmenter.intervalForThermal(status, SEG_INTERVAL_MS)
+
+    private fun segIntervalLabel(status: Int) = segIntervalForThermal(status)?.let { "$it ms" } ?: "paused"
+    private var lastEdgeEstimate: Pair<WallEdges.Estimate, Long>? = null
+    /** Distance from the camera to the wall when the current placement was made (for getPlacementInfo). */
+    private var placedDistanceM = 0f
 
     /**
      * Every AR view brings its own Filament engine, but this manager outlives views. Materials, textures and nodes
@@ -245,16 +285,25 @@ class ARCoreManager private constructor(context: Context) {
         placedAnchorNode = null
         placedQuad = null
         placedSurface = null
+        sideWall = null // its engine objects went with the old view
         measurementNodes.clear()
         worldMask.reset()
         maskReady = false
     }
 
-    // Depth finds plain painted walls that plane detection never does. It is only distrusted on OnePlus,
-    // where it returned walls 14-36 m away (see fillConfig).
-    // `adb shell setprop debug.grazia.depth 1` re-enables depth on a OnePlus for an on-device re-check.
-    private val depthTrusted = debugProp("debug.grazia.depth") == "1" ||
-        !android.os.Build.MANUFACTURER.equals("OnePlus", ignoreCase = true)
+    // Depth finds plain painted walls that plane detection never does, but "supported" does not mean "right":
+    // the OnePlus NE2211 returned walls 9-36 m away for one ~2 m away. DepthValidator checks the depth image
+    // against ARCore's metric feature points at runtime; depth hits are used only once it is TRUSTED, and depth
+    // is switched off for the rest of the process when it is REJECTED (or never becomes checkable).
+    // `adb shell setprop debug.grazia.depth off` forces it off.
+    private val depthValidator = DepthValidator()
+    private var lastDepthCheckMs = 0L
+    private var lastRawDepthTs = -1L
+    private val depthForcedOff get() = debugProp("debug.grazia.depth") == "off"
+    // `setprop debug.grazia.depth measure`: keep depth running for tape-measure tests even after a REJECTED decision
+    // (it is still never used for placement unless TRUSTED) and log DEPTH_PROBE once a second.
+    private val depthMeasureMode get() = debugProp("debug.grazia.depth") == "measure"
+    private var lastProbeMs = 0L
 
     private fun debugProp(name: String): String? = runCatching {
         Class.forName("android.os.SystemProperties").getMethod("get", String::class.java).invoke(null, name) as? String
@@ -286,32 +335,58 @@ class ARCoreManager private constructor(context: Context) {
             val frame = view.frame ?: return
             // A guessed-distance placement has the wrong scale; the moment ARCore has real geometry under the
             // wall, move the design onto it (this is where "tiles the wrong size" came from).
-            if ((placedSurface == "approximate" || placedSurface?.startsWith("estimated") == true) && wallVisible) {
+            if (Placement.upgradable(placedSurface) && wallVisible) {
                 val before = placedAnchorNode?.anchor?.pose?.translation?.toList()
+                val previous = placedSurface
                 val real = placeWallAtScreenPoint(px, py, realWallOnly = true)
                 if (real?.get("placed") == true) {
-                    Log.i(TAG, "AUTO upgraded approximate placement to ${real["surface"]}: " +
+                    Log.i(TAG, "AUTO upgraded $previous placement to ${real["surface"]} (${Placement.provenance(real["surface"] as String?)}): " +
                         "old=$before new=${placedAnchorNode?.anchor?.pose?.translation?.toList()} dist=${real["distanceM"]}")
                     onWallStateChanged?.invoke("LOCKED")
                     return
                 }
             }
-            if (!wallVisible || placedQuadCovers(view, frame, px, py)) return
+            if (!wallVisible || placedQuadCovers(view, frame, px, py) || sideWallCovers(view, frame, px, py)) { wallLeftTicks = 0; return }
+            // Two ticks in a row (~0.8 s), so a quick sweep across a corner does not throw the design away.
+            if (++wallLeftTicks < 2) return
+            wallLeftTicks = 0
             Log.i(TAG, "AUTO wall moved out of the placed design, re-placing")
+            rememberMeasuredWall(view)
             clearPlacedWall()
+            // A wall is in view right now (wallVisible): put the design on it at once instead of waiting
+            // AUTO_GUESS_AFTER_MS again; a real surface, an A4 sheet or the floor line still upgrade it after.
+            wallSeenSinceMs = now - AUTO_GUESS_AFTER_MS - 1
         }
         // Searching since: the first auto-place attempt while tracking. Placement must not wait for the
         // segmenter to call something "wall" (it refuses raw plaster and flat primer): after
         // AUTO_GUESS_AFTER_MS with no real surface the design is placed at the guessed distance anyway, the
         // mask stays off until it is confident, and a tap or a later real hit re-places it.
         if (wallSeenSinceMs == 0L) wallSeenSinceMs = now
-        // Real surfaces only. A design floating at a guessed distance looked fake and the wrong size, so
-        // after AUTO_GUESS_AFTER_MS without one the UI asks for a tap on the wall's floor line instead.
+        // A real surface first. Plain paint gives ARCore none, so after AUTO_GUESS_AFTER_MS the design goes up
+        // anyway where the segmenter sees wall: the geodesic mask cuts it to that wall and WallEdges turns it to
+        // the wall's real angle and distance from its floor/ceiling line. A tap is asked for only when nothing in
+        // view looks like a wall.
         val res = placeWallAtScreenPoint(px, py, realWallOnly = true)
-        if (res?.get("placed") != true && now - wallSeenSinceMs > AUTO_GUESS_AFTER_MS && now - lastNeedTapMs > 2000) {
-            lastNeedTapMs = now
-            needTap = true
-            onWallStateChanged?.invoke("NEED_TAP")
+        if (res?.get("placed") != true && now - wallSeenSinceMs > AUTO_GUESS_AFTER_MS) {
+            // Back on a wall measured earlier this session: its measured placement, not a fresh 2 m guess.
+            if (wallVisible && restoreMeasuredWall(view, px, py)) {
+                wallSeenSinceMs = 0L
+                needTap = false
+                onWallStateChanged?.invoke("LOCKED")
+                return
+            }
+            val guess = if (wallVisible) placeWallAtScreenPoint(px, py, realWallOnly = false) else null
+            if (guess?.get("placed") == true) {
+                wallSeenSinceMs = 0L
+                needTap = false
+                onWallStateChanged?.invoke(if (guess["surface"] == "approximate") "APPROXIMATE" else "LOCKED")
+                return
+            }
+            if (now - lastNeedTapMs > 2000) {
+                lastNeedTapMs = now
+                needTap = true
+                onWallStateChanged?.invoke("NEED_TAP")
+            }
         }
         if (res?.get("placed") == true) {
             wallSeenSinceMs = 0L
@@ -340,7 +415,8 @@ class ARCoreManager private constructor(context: Context) {
         // Back-to-back segmentation pinned the big cores and drove the OnePlus into thermal throttling
         // (status 4), which then slowed ARCore and Flutter too; the world-locked mask does not need more.
         val nowMs = android.os.SystemClock.elapsedRealtime()
-        if (nowMs - lastSegRequestMs < SEG_INTERVAL_MS) return
+        val interval = segIntervalForThermal() ?: return // critical: keep the last mask, run nothing
+        if (nowMs - lastSegRequestMs < interval) return
         lastSegRequestMs = nowMs
         // Camera view-projection for this exact frame; the material reprojects the mask through it.
         val proj = FloatArray(16); val viewM = FloatArray(16); val vp = FloatArray(16)
@@ -357,20 +433,60 @@ class ARCoreManager private constructor(context: Context) {
         // The mask always covers the full MASKED_WALL area around the anchor, whatever size the drawn quad
         // has right now, so switching between the panel and the full wall never invalidates it.
         val qw = MASKED_WALL_WIDTH_M; val qh = MASKED_WALL_HEIGHT_M; val zMin = maskZMin()
-        // Where on the quad the design was placed: the anchor itself, or 1 m up from a floor-line anchor.
-        val seedZ = if (placedOnFloor) 1.0f else 0f
+        // Where the wall flood fill starts: the anchor itself, 1 m up from a floor-line anchor, or beside a
+        // reference object (see anchorWall's refSizeM).
+        val seedZ = placedSeedZ
         // For WallEdges: this frame's camera, the tracked floor (main-thread objects) and which placement it is.
         val camProj = proj.copyOf(); val camView = viewM.copyOf()
         val floorY = floorHeight(view)
-        val guessed = placedSurface == "approximate"
+        // Re-align a guessed placement; an edge placement whose height was assumed may still upgrade to one on
+        // a tracked floor. Measured and user-calibrated placements are never touched.
+        val guessed = placedSurface == "approximate" ||
+            ((placedSurface == "edge_ceiling" || placedSurface == "edge_floor_assumed") && floorY != null)
         val placedAt = placedAnchorNode
+        val gen = placementGen
+        // The corner's second wall, if any: its pose and where it splits the room with the placed wall.
+        val side = sideWall
+        val sideAnchor = side?.node?.anchor?.takeIf { it.trackingState == TrackingState.TRACKING }
+        val sideToWorld = sideAnchor?.let { a -> FloatArray(16).also { a.pose.toMatrix(it, 0) } }
+        val sideDist = sideAnchor?.let { a ->
+            val n = a.pose.getTransformedAxis(1, 1f); val c = a.pose.translation; val cam = frame.camera.pose.translation
+            kotlin.math.abs((cam[0] - c[0]) * n[0] + (cam[1] - c[1]) * n[1] + (cam[2] - c[2]) * n[2])
+        } ?: 0f
+        val corner = side?.corner
         seg.request(frame) { result ->
             // Heavy per-texel reprojection stays on the worker so the camera feed never stutters.
-            val bytes = quadToWorld?.let {
-                worldMask.update(result, WallSegmenter.MASK_W, WallSegmenter.MASK_H, vp, it, qw, qh, zMin, seedZ, camDist)
+            // A result for a placement that has since been replaced would land in the new placement's fresh mask.
+            val bytes = quadToWorld?.takeIf { gen == placementGen }?.let {
+                // At a room corner the placed wall ends at the corner line; the other side is the second wall's.
+                val minX = if (corner != null && corner.keepA > 0) corner.cornerX else -Float.MAX_VALUE
+                val maxX = if (corner != null && corner.keepA < 0) corner.cornerX else Float.MAX_VALUE
+                worldMask.update(result, WallSegmenter.MASK_W, WallSegmenter.MASK_H, vp, it, qw, qh, zMin, seedZ, camDist,
+                    keepMinX = minX, keepMaxX = maxX)
                 worldMask.toBytes()
             }
             mainHandler.post { applyMask(view, result.wall, vp, bytes) }
+            val sideBytes = if (side != null && sideToWorld != null && corner != null && gen == placementGen) {
+                side.mask.update(result, WallSegmenter.MASK_W, WallSegmenter.MASK_H, vp, sideToWorld, qw, qh, side.zMin, corner.seedZ,
+                    sideDist, seedX = corner.seedX,
+                    keepMinX = if (corner.keepB > 0) 0f else -Float.MAX_VALUE, keepMaxX = if (corner.keepB < 0) 0f else Float.MAX_VALUE)
+                side.mask.toBytes()
+            } else null
+            if (side != null && sideBytes != null) mainHandler.post { if (sideWall === side && sceneView === view) uploadSideMask(view, side, sideBytes) }
+            // No second wall yet: is the placed wall's mask ending at a room corner with another wall beyond it?
+            val aMask = worldMask.lastWall
+            if (side == null && quadToWorld != null && aMask != null && gen == placementGen) {
+                val gw = WallSegmenter.GW; val gh = WallSegmenter.GH
+                val model = BooleanArray(gw * gh) { k ->
+                    val mx = (k % gw) * WallSegmenter.MASK_W / gw; val my = (k / gw) * WallSegmenter.MASK_H / gh
+                    (result.wall[my * WallSegmenter.MASK_W + mx].toInt() and 0xFF) > 127
+                }
+                val p0 = floatArrayOf(quadToWorld[12], quadToWorld[13], quadToWorld[14])
+                val n0 = floatArrayOf(quadToWorld[4], 0f, quadToWorld[6])
+                WallCorner.find(aMask, model, gw, gh, camProj, camView, p0, n0)?.let { c ->
+                    mainHandler.post { onCornerCandidate(view, c, gen) }
+                }
+            }
             // A guessed-distance placement faces the camera at 2 m. Once the wall's own edge with the floor or
             // ceiling is visible, re-place it at the wall's real angle and distance.
             val wallMask = worldMask.lastWall
@@ -380,14 +496,150 @@ class ARCoreManager private constructor(context: Context) {
                     camProj, camView, floorY,
                 )
                 if (est != null) mainHandler.post {
-                    if (sceneView !== view || placedSurface != "approximate" || placedAnchorNode !== placedAt) return@post
-                    Log.i(TAG, "WALL_EDGE aligned from ${est.edge} line: dist=${"%.2f".format(est.distanceM)}m " +
+                    if (sceneView !== view || placedAnchorNode !== placedAt) return@post
+                    val surface = when {
+                        est.edge == "floor" && floorY != null -> "edge_floor_tracked"
+                        est.edge == "floor" -> "edge_floor_assumed"
+                        else -> "edge_ceiling"
+                    }
+                    if (surface == placedSurface) return@post
+                    // Two consecutive estimates must agree before the wall moves, so it never jumps on one frame.
+                    val now = android.os.SystemClock.elapsedRealtime()
+                    val prev = lastEdgeEstimate
+                    lastEdgeEstimate = est to now
+                    if (prev == null || now - prev.second > EDGE_AGREE_WINDOW_MS || !WallEdges.agree(prev.first, est)) {
+                        Log.i(TAG, "WALL_EDGE candidate from ${est.edge} line (dist=${"%.2f".format(est.distanceM)}m), waiting for agreement")
+                        return@post
+                    }
+                    Log.i(TAG, "WALL_EDGE accepted: $placedSurface -> $surface (${Placement.provenance(surface)}, " +
+                        "${Placement.scale(surface)}) dist=${"%.2f".format(est.distanceM)}m " +
                         "n=(${"%.2f".format(est.normal[0])},${"%.2f".format(est.normal[2])})")
-                    anchorWall(view, est.base, est.normal, onFloor = true, surface = "estimated_${est.edge}", dist = est.distanceM)
-                    onWallStateChanged?.invoke("LOCKED")
+                    anchorWall(view, est.base, est.normal, onFloor = true, surface = surface, dist = est.distanceM)
+                    onWallStateChanged?.invoke(if (Placement.scale(surface) == Placement.Scale.APPROXIMATE) "APPROXIMATE" else "LOCKED")
                 }
             }
         }
+    }
+
+    // ── A4 reference sheet (A4Reference) ──────────────────────────────
+
+    private val a4 = A4Reference()
+    private val a4Worker = java.util.concurrent.Executors.newSingleThreadExecutor()
+    @Volatile private var a4Busy = false
+    private var lastA4Ms = 0L
+    private var wallLeftTicks = 0
+    private var lastA4: Pair<A4Reference.Measure, Long>? = null
+    @Volatile private var lastA4ScanLogMs = 0L
+
+    /**
+     * Looks for an A4 sheet on the wall a few times a second (slower when hot). Two agreeing sightings anchor
+     * the wall at the sheet's measured distance and angle; after that every sighting is only logged (A4_MEASURE)
+     * next to the anchor's own distance, so a walk-back test shows both.
+     */
+    private fun detectA4(view: ARSceneView, frame: com.google.ar.core.Frame) {
+        if (a4Busy || pendingTexture == null || frame.camera.trackingState != TrackingState.TRACKING) return
+        // ~30-60 ms on one core: cheap next to segmentation, and it is the only metric source on a plain wall,
+        // so it keeps running (slower) even when segmentation is paused for heat.
+        val interval = when {
+            thermalStatus >= 4 -> 1500L
+            thermalStatus >= 3 -> 800L
+            else -> A4_INTERVAL_MS
+        }
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastA4Ms < interval) return
+        lastA4Ms = now
+        val image = try { frame.acquireCameraImage() } catch (e: Exception) { return }
+        val w: Int; val h: Int; val stride: Int; val bytes: ByteArray
+        try {
+            w = image.width; h = image.height
+            val plane = image.planes[0]
+            stride = plane.rowStride
+            bytes = ByteArray(plane.buffer.remaining()).also { plane.buffer.get(it) }
+        } finally {
+            image.close()
+        }
+        val intr = frame.camera.imageIntrinsics
+        val fl = intr.focalLength; val pp = intr.principalPoint
+        val camPose = frame.camera.pose
+        // View-normalized (0,0), (1,0), (0,1) in image px: maps found corners back to the screen for A4_VIEW logs.
+        val v2i = FloatArray(6).also { frame.transformCoordinates2d(Coordinates2d.VIEW_NORMALIZED, floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), Coordinates2d.IMAGE_PIXELS, it) }
+        val vw = view.width; val vh = view.height
+        val projDbg = FloatArray(16).also { frame.camera.getProjectionMatrix(it, 0, 0.05f, 100f) }
+        a4Busy = true
+        a4Worker.execute {
+            try {
+                val t0 = android.os.SystemClock.elapsedRealtime()
+                val corners = a4.find(bytes, w, h, stride)
+                val m = corners?.let { A4Reference.measure(it, fl[0], fl[1], pp[0], pp[1]) }
+                val ms = android.os.SystemClock.elapsedRealtime() - t0
+                if (corners != null && m == null) Log.i(TAG, "A4 rejected: bright quad is not A4-shaped (${ms}ms)")
+                if (corners == null && t0 - lastA4ScanLogMs > 3000L) {
+                    lastA4ScanLogMs = t0
+                    Log.i(TAG, "A4_SCAN ${a4.lastReport} ${ms}ms")
+                }
+                if (m != null && corners != null) {
+                    // image px -> view px through the inverse of the captured affine map.
+                    val ox = v2i[0]; val oy = v2i[1]; val ax = v2i[2] - ox; val ay = v2i[3] - oy; val bx = v2i[4] - ox; val by = v2i[5] - oy
+                    val det = ax * by - ay * bx
+                    val vpts = (0 until 4).joinToString(" ") { k ->
+                        val dx = corners[2 * k] - ox; val dy = corners[2 * k + 1] - oy
+                        val u = (dx * by - dy * bx) / det; val v = (ax * dy - ay * dx) / det
+                        "(${(u * vw).toInt()},${(v * vh).toInt()})"
+                    }
+                    Log.i(TAG, "A4_VIEW corners=$vpts view=${vw}x$vh proj0=${"%.4f".format(projDbg[0])} proj5=${"%.4f".format(projDbg[5])} " +
+                        "proj8=${"%.4f".format(projDbg[8])} proj9=${"%.4f".format(projDbg[9])} fx=${"%.1f".format(fl[0])} fy=${"%.1f".format(fl[1])} " +
+                        "img=${w}x$h v2i=${v2i.joinToString(",") { "%.1f".format(it) }}")
+                }
+                if (m != null) mainHandler.post { onA4(view, m, camPose, ms) }
+            } catch (e: Exception) {
+                Log.w(TAG, "A4 detection failed", e)
+            } finally {
+                a4Busy = false
+            }
+        }
+    }
+
+    private fun onA4(view: ARSceneView, m: A4Reference.Measure, camPose: Pose, ms: Long) {
+        if (sceneView !== view) return
+        val n = camPose.rotateVector(m.normal)
+        val c = camPose.transformPoint(m.centre)
+        val anchorDist = anchorDistance(view)
+        Log.i(TAG, "A4_MEASURE dist=${"%.3f".format(m.distanceM)}m fromWidth=${"%.3f".format(m.distShortM)}m " +
+            "fromHeight=${"%.3f".format(m.distLongM)}m ratio=${"%.3f".format(m.ratio)} cos=${"%.3f".format(m.cosAngle)} " +
+            "nY=${"%.2f".format(n[1])} anchorDist=${anchorDist?.let { "%.3f".format(it) }}m planeDist=${planeDistance(view)?.let { "%.3f".format(it) }}m " +
+            "surface=$placedSurface ${ms}ms")
+        // A sheet on a wall faces sideways; one on a table or the ceiling does not anchor a wall.
+        if (abs(n[1]) > 0.3f) return
+        // Already measured from the sheet, or sized by the user on purpose: log only, never move it.
+        if (placedAnchorNode != null && placedSurface in setOf("a4_reference", "user_rectangle", "user_calibrated")) return
+        val now = android.os.SystemClock.elapsedRealtime()
+        val prev = lastA4
+        lastA4 = m to now
+        if (prev == null || now - prev.second > 1500L || abs(prev.first.distanceM - m.distanceM) > 0.04f * m.distanceM) return
+        val floorY = floorHeight(view)
+        val base = if (floorY != null) floatArrayOf(c[0], floorY, c[2]) else c
+        anchorWall(view, base, floatArrayOf(n[0], 0f, n[2]), onFloor = floorY != null, surface = "a4_reference", dist = m.distanceM,
+            refCentreY = c[1], refSizeM = A4Reference.LONG_M)
+        onWallStateChanged?.invoke("LOCKED")
+    }
+
+    /** Perpendicular camera distance to the nearest tracked ARCore vertical plane: a third, independent reading. */
+    private fun planeDistance(view: ARSceneView): Float? {
+        val cam = view.frame?.camera?.pose ?: return null
+        return view.session?.getAllTrackables(Plane::class.java).orEmpty()
+            .filter { it.trackingState == TrackingState.TRACKING && it.subsumedBy == null && it.type == Plane.Type.VERTICAL }
+            .minOfOrNull {
+                val n = it.centerPose.getTransformedAxis(1, 1f); val p = it.centerPose.translation
+                abs((cam.tx() - p[0]) * n[0] + (cam.ty() - p[1]) * n[1] + (cam.tz() - p[2]) * n[2])
+            }
+    }
+
+    /** Perpendicular distance from the camera to the placed wall right now, or null when nothing is placed. */
+    private fun anchorDistance(view: ARSceneView): Float? {
+        val pose = placedAnchorNode?.anchor?.pose ?: return null
+        val cam = view.frame?.camera?.pose ?: return null
+        val n = pose.getTransformedAxis(1, 1f); val p = pose.translation
+        return abs((cam.tx() - p[0]) * n[0] + (cam.ty() - p[1]) * n[1] + (cam.tz() - p[2]) * n[2])
     }
 
     private var maskViewProj = FloatArray(16).also { Matrix.setIdentityM(it, 0) }
@@ -401,16 +653,7 @@ class ARCoreManager private constructor(context: Context) {
         latestMask = mask
         maskViewProj = vp
         maskReady = true
-        if (quadMask != null && placedAnchorNode != null && worldMask.hasData) {
-            val tex = maskTexture ?: Texture.Builder().width(WallMaskAccumulator.W).height(WallMaskAccumulator.H)
-                .sampler(Texture.Sampler.SAMPLER_2D).format(Texture.InternalFormat.RG8).levels(1).build(view.engine)
-                .also { maskTexture = it }
-            val buf = java.nio.ByteBuffer.allocateDirect(quadMask.size).put(quadMask).also { it.flip() }
-            tex.setImage(view.engine, 0, Texture.PixelBufferDescriptor(buf, Texture.Format.RG, Texture.Type.UBYTE))
-            pendingTexture?.let { bindMask(it) }
-            // Mask confidence changed: switch between the full masked wall and the plain panel.
-            if (maskWanted() != placedBig) rebuildPlacedQuad(view)
-        }
+        if (quadMask != null) uploadQuadMask(view, quadMask)
         val now = android.os.SystemClock.elapsedRealtime()
         if (now - lastSegLogMs > 5000) {
             lastSegLogMs = now
@@ -418,6 +661,45 @@ class ARCoreManager private constructor(context: Context) {
             Log.i(TAG, "SEG wall=$wall% top=[${segmenter?.lastTopClasses}] backend=${segmenter?.backend} run=${segmenter?.lastRunMs}ms total=${segmenter?.lastInferenceMs}ms " +
                 "quadCoverage=${"%.2f".format(worldMask.lastCoverage)} useMask=${maskWanted()}")
         }
+    }
+
+    private fun uploadQuadMask(view: ARSceneView, quadMask: ByteArray) {
+        if (placedAnchorNode == null || !worldMask.hasData) return
+        val tex = maskTexture ?: Texture.Builder().width(WallMaskAccumulator.W).height(WallMaskAccumulator.H)
+            .sampler(Texture.Sampler.SAMPLER_2D).format(Texture.InternalFormat.RG8).levels(1).build(view.engine)
+            .also { maskTexture = it }
+        val buf = java.nio.ByteBuffer.allocateDirect(quadMask.size).put(quadMask).also { it.flip() }
+        tex.setImage(view.engine, 0, Texture.PixelBufferDescriptor(buf, Texture.Format.RG, Texture.Type.UBYTE))
+        pendingTexture?.let { bindMask(it) }
+        // Mask confidence changed: switch between the full masked wall and the plain panel.
+        if (maskWanted() != placedBig) rebuildPlacedQuad(view)
+    }
+
+    /**
+     * Erase / Restore brush: paints the stone off (or back on) the placed wall around a screen point, for the
+     * edges the automatic cut gets wrong (a low-contrast board, a shelf the same colour as the wall).
+     */
+    fun editMask(screenX: Float, screenY: Float, erase: Boolean): Boolean {
+        val view = sceneView ?: return false
+        val frame = view.frame ?: return false
+        val anchor = placedAnchorNode?.anchor?.takeIf { it.trackingState == TrackingState.TRACKING } ?: return false
+        val proj = FloatArray(16); val viewM = FloatArray(16)
+        frame.camera.getProjectionMatrix(proj, 0, 0.05f, 100f)
+        frame.camera.getViewMatrix(viewM, 0)
+        val dir = WallEdges.ray(screenX, screenY, view.width, view.height, proj, viewM)
+        val cam = WallEdges.cameraPosition(viewM)
+        val pose = anchor.pose
+        val n = pose.getTransformedAxis(1, 1f); val p0 = pose.translation
+        val den = n[0] * dir[0] + n[1] * dir[1] + n[2] * dir[2]
+        if (kotlin.math.abs(den) < 1e-4f) return false
+        val t = (n[0] * (p0[0] - cam[0]) + n[1] * (p0[1] - cam[1]) + n[2] * (p0[2] - cam[2])) / den
+        if (t <= 0f) return false
+        val local = pose.inverse().transformPoint(floatArrayOf(cam[0] + t * dir[0], cam[1] + t * dir[1], cam[2] + t * dir[2]))
+        // Brush = BRUSH_SCREEN_FRACTION of the screen width, in metres at this distance (focal px = P0 * width / 2).
+        val radiusM = BRUSH_SCREEN_FRACTION * t / (proj[0] / 2f)
+        worldMask.paint(local[0], local[2], radiusM, erase, MASKED_WALL_WIDTH_M, MASKED_WALL_HEIGHT_M, maskZMin())
+        uploadQuadMask(view, worldMask.toBytes())
+        return true
     }
 
     private fun bindMask(mi: MaterialInstance) {
@@ -444,11 +726,131 @@ class ARCoreManager private constructor(context: Context) {
     // coverage hovering at the threshold flips the quad between panel and full wall every mask.
     private fun maskWanted(): Boolean {
         if (!wallClippingEnabled || !worldMask.hasData) return false
+        if (worldMask.userEdited) return true // the user shaped the mask by hand: always show it
         val threshold = if (placedBig) MIN_MASK_COVERAGE / 3f else MIN_MASK_COVERAGE
         return worldMask.lastCoverage >= threshold
     }
 
     private val worldMask = WallMaskAccumulator()
+
+    /** The second wall of a room corner ([WallCorner]): own anchor, quad, mask and material instance. */
+    private class SideWall(val node: AnchorNode, val corner: WallCorner.Corner, onFloor: Boolean) {
+        val mask = WallMaskAccumulator()
+        val zMin = if (onFloor) 0f else -MASKED_WALL_HEIGHT_M / 2f
+        var maskTex: Texture? = null
+        var mi: MaterialInstance? = null
+        var quad: Node? = null
+        var shown: Boolean? = null
+    }
+    private var sideWall: SideWall? = null
+    private var lastCorner: Pair<WallCorner.Corner, Long>? = null
+
+    /** Two agreeing corner sightings (same side, within 10 cm) add the second wall; one frame never does. */
+    private fun onCornerCandidate(view: ARSceneView, c: WallCorner.Corner, gen: Int) {
+        if (sceneView !== view || gen != placementGen || sideWall != null) return
+        val anchorNode = placedAnchorNode ?: return
+        val now = android.os.SystemClock.elapsedRealtime()
+        val prev = lastCorner
+        lastCorner = c to now
+        if (prev == null || now - prev.second > EDGE_AGREE_WINDOW_MS || prev.first.keepA != c.keepA ||
+            kotlin.math.abs(prev.first.cornerX - c.cornerX) > 0.10f) {
+            Log.i(TAG, "CORNER candidate at x=${"%.2f".format(c.cornerX)}m, waiting for agreement")
+            return
+        }
+        val session = view.session ?: return
+        if (anchorNode.anchor.trackingState != TrackingState.TRACKING) return
+        if (cornerContradicted(view, c)) return
+        val anchor = runCatching { session.createAnchor(uprightWallPose(c.point, c.normal)) }.getOrNull() ?: return
+        val node = AnchorNode(engine = view.engine, anchor = anchor)
+        view.addChildNode(node)
+        val side = SideWall(node, c, placedOnFloor)
+        sideWall = side
+        rebuildSideQuad(view, side)
+        lastSegRequestMs = 0L // outline the new wall on the next frame
+        Log.i(TAG, "CORNER second wall added: corner x=${"%.2f".format(c.cornerX)}m keepA=${c.keepA} " +
+            "n=(${"%.2f".format(c.normal[0])},${"%.2f".format(c.normal[2])}) seed=(${"%.2f".format(c.seedX)},${"%.2f".format(c.seedZ)})")
+    }
+
+    /**
+     * An open doorway or a passage looks like a corner to the masks (the model calls a dark doorway "wall", and
+     * its frame is a vertical line), but what is seen through it lies well behind the would-be second wall.
+     * ARCore feature points in front of / on that plane confirm nothing (plain paint has none); several clearly
+     * behind it reject the corner.
+     */
+    private fun cornerContradicted(view: ARSceneView, c: WallCorner.Corner): Boolean {
+        val frame = view.frame ?: return false
+        val cam = frame.camera.pose.translation
+        val n = c.normal; val ub = floatArrayOf(-n[2], 0f, n[0])
+        var behind = 0; var on = 0
+        runCatching {
+            frame.acquirePointCloud().use { pc ->
+                val b = pc.points
+                while (b.remaining() >= 4) {
+                    val x = b.get(); val y = b.get(); val z = b.get(); val conf = b.get()
+                    if (conf < 0.3f) continue
+                    val d = floatArrayOf(x - cam[0], y - cam[1], z - cam[2])
+                    val den = d[0] * n[0] + d[2] * n[2]
+                    if (kotlin.math.abs(den) < 1e-4f) continue
+                    // Fraction of the way to the point where its ray crosses the second wall's plane.
+                    val f = ((c.point[0] - cam[0]) * n[0] + (c.point[2] - cam[2]) * n[2]) / den
+                    if (f <= 0f) continue
+                    val lx = (cam[0] + f * d[0] - c.point[0]) * ub[0] + (cam[2] + f * d[2] - c.point[2]) * ub[2]
+                    if (lx * c.keepB !in 0f..MASKED_WALL_WIDTH_M / 2f) continue // not seen through that wall
+                    val gap = (1f - f) * kotlin.math.sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]) // metres beyond the plane
+                    if (gap > 0.3f) behind++ else if (gap > -0.15f) on++
+                }
+            }
+        }
+        val rejected = behind >= 5 && behind > on
+        if (rejected) Log.i(TAG, "CORNER rejected: $behind feature points behind the second wall (on it: $on), a doorway or passage")
+        return rejected
+    }
+
+    /** The second wall gets a copy of the stone material (it needs its own wall->quad matrix and mask). */
+    private fun rebuildSideQuad(view: ARSceneView, side: SideWall) {
+        side.quad?.let { side.node.removeChildNode(it); it.destroy() }
+        side.quad = null
+        val src = pendingTexture?.takeIf { it.material.hasParameter("useMask") } ?: return
+        val mi = MaterialInstance.duplicate(src, "side_wall")
+        side.mi = mi
+        side.maskTex?.let { bindSideMask(mi, it) }
+        val patchH = texturePatchHeightM
+        val quad = wallQuad(view, MASKED_WALL_WIDTH_M, MASKED_WALL_HEIGHT_M, patchH * textureAspect, patchH, mi, side.zMin == 0f)
+        side.node.addChildNode(quad)
+        side.quad = quad
+        side.shown = null
+    }
+
+    private fun uploadSideMask(view: ARSceneView, side: SideWall, bytes: ByteArray) {
+        val tex = side.maskTex ?: Texture.Builder().width(WallMaskAccumulator.W).height(WallMaskAccumulator.H)
+            .sampler(Texture.Sampler.SAMPLER_2D).format(Texture.InternalFormat.RG8).levels(1).build(view.engine)
+            .also { side.maskTex = it }
+        val buf = java.nio.ByteBuffer.allocateDirect(bytes.size).put(bytes).also { it.flip() }
+        tex.setImage(view.engine, 0, Texture.PixelBufferDescriptor(buf, Texture.Format.RG, Texture.Type.UBYTE))
+        side.mi?.let { bindSideMask(it, tex) }
+    }
+
+    /** The second wall is always clipped: unclipped, its 8 m quad would cover the first wall and the room. */
+    private fun bindSideMask(mi: MaterialInstance, tex: Texture) {
+        mi.setParameter("maskMap", tex, com.google.android.filament.TextureSampler(
+            com.google.android.filament.TextureSampler.MinFilter.LINEAR,
+            com.google.android.filament.TextureSampler.MagFilter.LINEAR,
+            com.google.android.filament.TextureSampler.WrapMode.CLAMP_TO_EDGE,
+        ))
+        mi.setParameter("useMask", 1f)
+    }
+
+    private fun sideReady(side: SideWall): Boolean =
+        wallClippingEnabled && side.mask.hasData && side.mask.lastCoverage >= MIN_MASK_COVERAGE / 3f
+
+    private fun clearSideWall() {
+        val side = sideWall ?: return
+        sideWall = null
+        lastCorner = null
+        sceneView?.removeChildNode(side.node)
+        runCatching { side.node.anchor.detach() }
+        side.node.destroy()
+    }
 
     private fun quadZMin(): Float = if (placedOnFloor) 0f else -placedHeightM / 2f
     /** Bottom of the mask's region in quad space (the mask spans MASKED_WALL_HEIGHT_M, not the drawn quad). */
@@ -457,13 +859,17 @@ class ARCoreManager private constructor(context: Context) {
     /** Keeps the material's world -> quad transform in step with the anchor (ARCore refines it every frame). */
     private fun updateQuadTransform() {
         val mi = pendingTexture ?: return
-        if (!mi.material.hasParameter("worldToQuad")) return
         val anchor = placedAnchorNode?.anchor ?: return
+        quadTransform(mi, anchor, maskZMin())
+    }
+
+    private fun quadTransform(mi: MaterialInstance, anchor: Anchor, zMin: Float) {
+        if (!mi.material.hasParameter("worldToQuad")) return
         val m = FloatArray(16).also { anchor.pose.toMatrix(it, 0) }
         val inv = FloatArray(16)
         if (!Matrix.invertM(inv, 0, m, 0)) return
         mi.setParameter("worldToQuad", MaterialInstance.FloatElement.MAT4, inv, 0, 1)
-        mi.setParameter("quadSize", MASKED_WALL_WIDTH_M, MASKED_WALL_HEIGHT_M, maskZMin(), 0f)
+        mi.setParameter("quadSize", MASKED_WALL_WIDTH_M, MASKED_WALL_HEIGHT_M, zMin, 0f)
     }
 
     /** View-space wall probability (0..1) at a screen pixel, or null before the first mask. */
@@ -490,6 +896,22 @@ class ARCoreManager private constructor(context: Context) {
     }
 
     /** Does the placed design's quad lie under this screen pixel? */
+    /** Turning from the placed wall to the corner's second wall is not "the wall moved": keep both. */
+    private fun sideWallCovers(view: ARSceneView, frame: com.google.ar.core.Frame, sx: Float, sy: Float): Boolean {
+        val side = sideWall ?: return false
+        val anchor = side.node.anchor.takeIf { it.trackingState == TrackingState.TRACKING } ?: return false
+        val pose = anchor.pose
+        val (o, d) = tapRay(view, frame, sx, sy) ?: return false
+        val n = pose.getTransformedAxis(1, 1f); val c = pose.translation
+        val denom = d[0] * n[0] + d[1] * n[1] + d[2] * n[2]
+        if (kotlin.math.abs(denom) < WALL_TURN_COS) return false
+        val t = ((c[0] - o[0]) * n[0] + (c[1] - o[1]) * n[1] + (c[2] - o[2]) * n[2]) / denom
+        if (t <= 0f) return false
+        val local = pose.inverse().transformPoint(floatArrayOf(o[0] + t * d[0], o[1] + t * d[1], o[2] + t * d[2]))
+        return local[0] * side.corner.keepB in 0f..MASKED_WALL_WIDTH_M / 2f &&
+            local[2] in side.zMin..(side.zMin + MASKED_WALL_HEIGHT_M)
+    }
+
     private fun placedQuadCovers(view: ARSceneView, frame: com.google.ar.core.Frame, sx: Float, sy: Float): Boolean {
         val anchor = placedAnchorNode?.anchor ?: return false
         if (anchor.trackingState != TrackingState.TRACKING) return false
@@ -498,7 +920,9 @@ class ARCoreManager private constructor(context: Context) {
         val n = pose.getTransformedAxis(1, 1f)
         val c = pose.translation
         val denom = d[0] * n[0] + d[1] * n[1] + d[2] * n[2]
-        if (kotlin.math.abs(denom) < 1e-4f) return false
+        // Seen this edge-on, the placed wall is not what the user is looking at: turning to the next wall at a
+        // corner still hits the old wall's (8 m wide) plane, so "inside the quad" alone kept the design stuck there.
+        if (kotlin.math.abs(denom) < WALL_TURN_COS) return false
         val t = ((c[0] - o[0]) * n[0] + (c[1] - o[1]) * n[1] + (c[2] - o[2]) * n[2]) / denom
         if (t <= 0f) return false
         val local = pose.inverse().transformPoint(floatArrayOf(o[0] + t * d[0], o[1] + t * d[1], o[2] + t * d[2]))
@@ -510,14 +934,14 @@ class ARCoreManager private constructor(context: Context) {
         config.planeFindingMode = Config.PlaneFindingMode.HORIZONTAL_AND_VERTICAL
         config.updateMode = Config.UpdateMode.LATEST_CAMERA_IMAGE
         config.focusMode = Config.FocusMode.AUTO
-        // Depth is OFF. On the OnePlus NE2211 (ARCore 1.56) the Depth API reports "supported" but returns
-        // nonsense: hits 14-36 m away on a wall 2 m from the camera, and ARCore logs
-        // `spherical_rectifier.cc RET_CHECK ... unrectified_camera_model_type`. Plane and feature-point hits
-        // are real, so those are used; see AR_DIAG for the support flags.
-        config.depthMode = if (depthTrusted && session.isDepthModeSupported(Config.DepthMode.AUTOMATIC))
+        // Depth stays on only while DepthValidator has not ruled it out; its hits are gated separately.
+        val depthAllowed = !depthForcedOff && (depthMeasureMode ||
+            (depthValidator.state != DepthValidator.State.REJECTED && depthValidator.state != DepthValidator.State.UNAVAILABLE))
+        config.depthMode = if (depthAllowed && session.isDepthModeSupported(Config.DepthMode.AUTOMATIC))
             Config.DepthMode.AUTOMATIC else Config.DepthMode.DISABLED
-        // Lets a tap on a plain, featureless wall still place the design (last-resort branch of placeWallAtScreenPoint).
-        config.instantPlacementMode = Config.InstantPlacementMode.LOCAL_Y_UP
+        // Off: the approximate placement computes its own pose on the tap ray, and the performance guide asks to
+        // keep Instant Placement disabled once tracking runs.
+        config.instantPlacementMode = Config.InstantPlacementMode.DISABLED
         // Match the overlay's brightness to the room's real lighting.
         config.lightEstimationMode = Config.LightEstimationMode.ENVIRONMENTAL_HDR
     }
@@ -534,6 +958,11 @@ class ARCoreManager private constructor(context: Context) {
                 "depthAutoSupported=${session.isDepthModeSupported(Config.DepthMode.AUTOMATIC)} " +
                 "rawDepthSupported=${session.isDepthModeSupported(Config.DepthMode.RAW_DEPTH_ONLY)}"
         )
+        runCatching {
+            val all = session.getSupportedCameraConfigs(com.google.ar.core.CameraConfigFilter(session))
+            Log.i(TAG, "CAMERA_CONFIGS current=${session.cameraConfig.textureSize}/${session.cameraConfig.imageSize} " +
+                "supported=${all.joinToString { "${it.textureSize.width}x${it.textureSize.height}/${it.imageSize.width}x${it.imageSize.height}@${it.fpsRange}" }}")
+        }
     }
 
     fun detachSceneView(view: ARSceneView) {
@@ -549,17 +978,33 @@ class ARCoreManager private constructor(context: Context) {
     private var sessionStartedAtMs = 0L
     private var firstWallLogged = false
 
+    /**
+     * The manager is a process singleton but destroy() runs when an AR screen's engine detaches. A destroyed
+     * LifecycleRegistry can never be RESUMED again ("State is 'DESTROYED' and cannot be moved to RESUMED"), and
+     * startSession can arrive before the next view attaches (opening the AR tab after the product AR page).
+     */
+    private fun reviveLifecycleIfDestroyed() {
+        if (lifecycleOwner.registry.currentState == Lifecycle.State.DESTROYED) {
+            lifecycleOwner = ManagerLifecycleOwner()
+            configuredSession = null
+            sceneView?.lifecycle = lifecycleOwner.lifecycle
+        }
+    }
+
     fun startSession() {
         sessionStartedAtMs = android.os.SystemClock.elapsedRealtime()
         firstWallLogged = false
+        reviveLifecycleIfDestroyed()
         lifecycleOwner.registry.currentState = Lifecycle.State.RESUMED
     }
 
     fun pauseSession() {
+        if (lifecycleOwner.registry.currentState == Lifecycle.State.DESTROYED) return
         lifecycleOwner.registry.currentState = Lifecycle.State.STARTED
     }
 
     fun resumeSession() {
+        reviveLifecycleIfDestroyed()
         lifecycleOwner.registry.currentState = Lifecycle.State.RESUMED
     }
 
@@ -650,18 +1095,21 @@ class ARCoreManager private constructor(context: Context) {
     // ── Texture ──────────────────────────────────────────────────────────
 
     // Dart sends the design before the AR view exists; keep it and apply it on attach instead of dropping it.
-    private var queuedTexture: Pair<ByteArray, Float?>? = null
+    private var queuedTexture: Triple<ByteArray, Float?, Boolean>? = null
 
-    fun setTexture(imageData: ByteArray, patchHeightM: Float? = null) {
-        queuedTexture = imageData to patchHeightM
+    fun setTexture(imageData: ByteArray, patchHeightM: Float? = null, seamCut: Boolean = false) {
+        queuedTexture = Triple(imageData, patchHeightM, seamCut)
         val view = sceneView ?: return
         try {
             val raw = BitmapFactory.decodeByteArray(imageData, 0, imageData.size) ?: return
             // Catalogue photos have a light border/vignette that tiles into a grid of seams; trim 8% per side.
-            // ...and every repeat drew a hard photo edge across the wall: cut the tile seamless along its mortar lines.
-            val bitmap = SeamlessTile.make(android.graphics.Bitmap.createBitmap(
+            val trimmed = android.graphics.Bitmap.createBitmap(
                 raw, raw.width * 8 / 100, raw.height * 8 / 100, raw.width * 84 / 100, raw.height * 84 / 100,
-            ))
+            )
+            // Natural cultured stone: cut seamless along the mortar lines (the repeat edge disappears). Designed
+            // patterns (chevrons, stripes, medallions) are left as photographed; the cut breaks their geometry.
+            val bitmap = if (seamCut) SeamlessTile.make(trimmed) else trimmed
+            Log.i(TAG, "TEXTURE ${raw.width}x${raw.height} seamCut=$seamCut")
             val texture = Texture.Builder()
                 .width(bitmap.width)
                 .height(bitmap.height)
@@ -696,6 +1144,7 @@ class ARCoreManager private constructor(context: Context) {
             // Changing the stone keeps the accumulated wall outline: bind the existing mask to the new material now
             // instead of waiting up to a second for the next segmenter result.
             pendingTexture?.let { if (worldMask.hasData && it.material.hasParameter("useMask")) bindMask(it) }
+            sideWall?.let { rebuildSideQuad(view, it) }
         } catch (e: Exception) {
             Log.e(TAG, "setTexture failed", e)
             onError?.invoke("Failed to set texture: ${e.message}")
@@ -806,7 +1255,9 @@ class ARCoreManager private constructor(context: Context) {
         val range = (hi - lo).coerceAtLeast(1e-3f)
         val height = FloatArray(w * h) { ((blurred[it] - lo) / range).coerceIn(0f, 1f) }
 
-        val strength = 4f
+        // 4 made every joint a 70+ degree slope that caught the environment light as a wet sheen; 1.5 keeps the
+        // joints readable as relief without the glossy rims.
+        val strength = 1.5f
         val normalBuf = java.nio.ByteBuffer.allocateDirect(w * h * 4)
         val heightBuf = java.nio.ByteBuffer.allocateDirect(w * h)
         for (y in 0 until h) for (x in 0 until w) {
@@ -948,6 +1399,8 @@ class ARCoreManager private constructor(context: Context) {
         val quad = wallQuad(view, placedWidthM, placedHeightM, patchW, patchH, materialForWall(view), placedOnFloor)
         node.addChildNode(quad)
         placedQuad = quad
+        // SceneView pushes visibility only to existing children: apply it again for the new quad.
+        (!userHidden && designReady()).let { node.isVisible = it; shownState = it }
     }
 
     /**
@@ -984,7 +1437,9 @@ class ARCoreManager private constructor(context: Context) {
             val n = h.hitPose.getTransformedAxis(1, 1.0f) // surface normal in world space
             val verdict = when {
                 h.distance < MIN_HIT_DISTANCE_M || h.distance > MAX_HIT_DISTANCE_M -> "implausible_distance"
-                t is com.google.ar.core.DepthPoint && !depthTrusted -> "depth_untrusted"
+                t is com.google.ar.core.DepthPoint ->
+                    depthValidator.rejectHit(h.distance, screenX, screenY, android.os.SystemClock.elapsedRealtime())
+                        ?: if (kotlin.math.abs(n[1]) > 0.6f) "floor_or_ceiling" else "ok"
                 // A plane ARCore has stopped tracking or merged into another must not anchor anything.
                 t is Plane && (t.trackingState != TrackingState.TRACKING || t.subsumedBy != null) -> "plane_not_tracking"
                 // A detected wall patch is usually far smaller than the wall, and the wall continues past it.
@@ -1017,7 +1472,9 @@ class ARCoreManager private constructor(context: Context) {
             // Stand the wall on the floor when we know where it is, so it never floats.
             val base = if (floorY != null && floorY < p[1]) floatArrayOf(p[0], floorY, p[2]) else null
             return anchorWall(view, base ?: p, horizontalNormal(n[0], n[2], p, camT), onFloor = base != null,
-                surface = hit.trackable.javaClass.simpleName, dist = hit.distance)
+                surface = hit.trackable.javaClass.simpleName, dist = hit.distance,
+                // A plane anchor stays welded to the plane as ARCore refines it (Anchors guide).
+                attachTo = hit.trackable as? Plane)
         }
 
         // 1b. The finger is on a wall ARCore already found, just beyond its small detected patch.
@@ -1057,14 +1514,36 @@ class ARCoreManager private constructor(context: Context) {
             Log.i(TAG, "PLACE stage=result placed=false reason=$firstRejection")
             return mapOf("placed" to false, "reason" to firstRejection)
         }
-        val instant = frame.hitTestInstantPlacement(screenX, screenY, approxDistanceM).firstOrNull()
-            ?: run {
-                Log.i(TAG, "PLACE stage=result placed=false reason=$firstRejection (no floor, no instant placement)")
-                return mapOf("placed" to false, "reason" to firstRejection)
-            }
-        val ip = instant.hitPose.translation
+        // The guessed distance along the tap ray (what Instant Placement does, without keeping that subsystem running).
+        val (ro, rd) = tapRay(view, frame, screenX, screenY) ?: run {
+            Log.i(TAG, "PLACE stage=result placed=false reason=$firstRejection (no ray)")
+            return mapOf("placed" to false, "reason" to firstRejection)
+        }
+        // tapRay's direction is near->far plane (~100 m long), not unit: normalise, or the guess lands 200 m away.
+        val len = sqrt(rd[0] * rd[0] + rd[1] * rd[1] + rd[2] * rd[2]).coerceAtLeast(1e-6f)
+        val ip = FloatArray(3) { ro[it] + rd[it] / len * approxDistanceM }
         return anchorWall(view, ip, horizontalNormal(0f, 0f, ip, camT), onFloor = false,
             surface = "approximate", dist = approxDistanceM)
+    }
+
+    /**
+     * Moves the placed wall along its own normal so it lies [distanceM] in front of the camera, through the
+     * screen centre. Returns false when nothing is placed or the geometry is degenerate.
+     */
+    private fun replaneAtDistance(view: ARSceneView, distanceM: Float, surface: String): Boolean {
+        val frame = view.frame ?: return false
+        val anchor = placedAnchorNode?.anchor ?: return false
+        val n = anchor.pose.getTransformedAxis(1, 1f)
+        val proj = FloatArray(16); val viewM = FloatArray(16)
+        frame.camera.getProjectionMatrix(proj, 0, 0.05f, 100f)
+        frame.camera.getViewMatrix(viewM, 0)
+        val cam = WallEdges.cameraPosition(viewM)
+        val ray = WallEdges.ray(view.width / 2f, view.height * 0.45f, view.width, view.height, proj, viewM)
+        val p = WallCalibration.pointOnWall(cam, ray, n, distanceM) ?: return false
+        val floorY = floorHeight(view)
+        val base = if (placedOnFloor && floorY != null) floatArrayOf(p[0], floorY, p[2]) else p
+        anchorWall(view, base, floatArrayOf(n[0], 0f, n[2]), onFloor = placedOnFloor && floorY != null, surface = surface, dist = distanceM)
+        return true
     }
 
     /** Height of the floor: the lowest tracked upward-facing plane at least 0.5 m below the camera. */
@@ -1229,6 +1708,7 @@ class ARCoreManager private constructor(context: Context) {
      */
     private fun anchorWall(
         view: ARSceneView, p: FloatArray, n: FloatArray, onFloor: Boolean, surface: String, dist: Float,
+        attachTo: Plane? = null, refCentreY: Float = p[1], refSizeM: Float = 0f,
     ): Map<String, Any> {
         val session = view.session ?: return mapOf("placed" to false, "reason" to "no_session")
         val nx = n[0]; val nz = n[2]
@@ -1236,11 +1716,24 @@ class ARCoreManager private constructor(context: Context) {
         clearPlacedWall()
         worldMask.reset()
         pendingTexture?.let { if (it.material.hasParameter("useMask")) it.setParameter("useMask", 0f) }
-        val node = AnchorNode(engine = view.engine, anchor = session.createAnchor(pose))
+        val anchor = attachTo?.takeIf { it.trackingState == TrackingState.TRACKING }?.let { runCatching { it.createAnchor(pose) }.getOrNull() }
+            ?: session.createAnchor(pose)
+        val node = AnchorNode(engine = view.engine, anchor = anchor)
         view.addChildNode(node)
         placedAnchorNode = node
+        placedAtMs = android.os.SystemClock.elapsedRealtime()
+        lastSegRequestMs = 0L // segment the new wall on the next frame instead of up to one interval later
         placedSurface = surface
+        placedDistanceM = dist
         placedOnFloor = onFloor
+        // A design measured from an A4 sheet or a painting is anchored at that object's centre. Seeding the wall
+        // flood fill there filled only the object (sheet: 2% of the quad), so the mask never switched on; seed
+        // on the bare wall just below it instead (above it when it hangs low).
+        placedSeedZ = if (refSizeM <= 0f) { if (onFloor) 1.0f else 0f } else {
+            val centreZ = if (onFloor) refCentreY - p[1] else 0f
+            val off = refSizeM / 2f + 0.12f
+            if (onFloor && centreZ - off < 0.1f) centreZ + off else centreZ - off
+        }
         clearWallNode() // a placed wall replaces any plane-based overlay
         rebuildPlacedQuad(view)
         Log.i(TAG, "PLACE stage=result placed=true surface=$surface onFloor=$onFloor dist=${"%.2f".format(dist)}m " +
@@ -1267,13 +1760,66 @@ class ARCoreManager private constructor(context: Context) {
         }
     }
 
+    /** A measured wall the camera turned away from: its own anchor (ARCore keeps correcting it) and provenance. */
+    private class RememberedWall(val anchor: com.google.ar.core.Anchor, val surface: String, val dist: Float, val onFloor: Boolean, val seedZ: Float)
+    private val rememberedWalls = ArrayList<RememberedWall>()
+
+    private fun rememberMeasuredWall(view: ARSceneView) {
+        val surface = placedSurface ?: return
+        if (Placement.scale(surface) == Placement.Scale.APPROXIMATE) return
+        val pose = placedAnchorNode?.anchor?.takeIf { it.trackingState == TrackingState.TRACKING }?.pose ?: return
+        val anchor = runCatching { view.session?.createAnchor(pose) }.getOrNull() ?: return
+        // One entry per wall: drop older entries for the same plane, and keep at most a few.
+        rememberedWalls.removeAll { r -> sameWall(r.anchor.pose, pose).also { if (it) r.anchor.detach() } }
+        rememberedWalls.add(RememberedWall(anchor, surface, placedDistanceM, placedOnFloor, placedSeedZ))
+        while (rememberedWalls.size > MAX_REMEMBERED_WALLS) rememberedWalls.removeAt(0).anchor.detach()
+        Log.i(TAG, "WALL_MEMORY stored $surface dist=${"%.2f".format(placedDistanceM)}m (${rememberedWalls.size} walls)")
+    }
+
+    /** Re-places a remembered measured wall if the probe ray meets it face-on enough and inside its extent. */
+    private fun restoreMeasuredWall(view: ARSceneView, sx: Float, sy: Float): Boolean {
+        val frame = view.frame ?: return false
+        val (o, d) = tapRay(view, frame, sx, sy) ?: return false
+        val hit = rememberedWalls.lastOrNull { r ->
+            if (r.anchor.trackingState != TrackingState.TRACKING) return@lastOrNull false
+            val pose = r.anchor.pose
+            val n = pose.getTransformedAxis(1, 1f); val c = pose.translation
+            val denom = d[0] * n[0] + d[1] * n[1] + d[2] * n[2]
+            if (abs(denom) < WALL_TURN_COS) return@lastOrNull false
+            val t = ((c[0] - o[0]) * n[0] + (c[1] - o[1]) * n[1] + (c[2] - o[2]) * n[2]) / denom
+            if (t <= 0f) return@lastOrNull false
+            val local = pose.inverse().transformPoint(floatArrayOf(o[0] + t * d[0], o[1] + t * d[1], o[2] + t * d[2]))
+            abs(local[0]) <= MASKED_WALL_WIDTH_M / 2f
+        } ?: return false
+        rememberedWalls.remove(hit)
+        val pose = hit.anchor.pose
+        val n = pose.getTransformedAxis(1, 1f)
+        anchorWall(view, pose.translation, floatArrayOf(n[0], 0f, n[2]), onFloor = hit.onFloor, surface = hit.surface, dist = hit.dist)
+        placedSeedZ = hit.seedZ
+        hit.anchor.detach()
+        Log.i(TAG, "WALL_MEMORY restored ${hit.surface} dist=${"%.2f".format(hit.dist)}m")
+        return true
+    }
+
+    /** Same physical wall: normals within ~8 degrees and planes within 15 cm. */
+    private fun sameWall(a: Pose, b: Pose): Boolean {
+        val na = a.getTransformedAxis(1, 1f); val nb = b.getTransformedAxis(1, 1f)
+        if (na[0] * nb[0] + na[1] * nb[1] + na[2] * nb[2] < 0.99f) return false
+        val ta = a.translation; val tb = b.translation
+        return abs((tb[0] - ta[0]) * na[0] + (tb[1] - ta[1]) * na[1] + (tb[2] - ta[2]) * na[2]) < 0.15f
+    }
+
     fun clearPlacedWall() {
+        placementGen++
+        clearSideWall()
         placedQuad = null
         placedSurface = null
+        lastEdgeEstimate = null
         worldMask.reset() // a new placement starts from an empty mask; the old wall's outline must not reappear
         lastPcFit = null
         placedAnchorNode?.let {
             sceneView?.removeChildNode(it)
+            runCatching { it.anchor.detach() } // release it so ARCore can drop the trackable (Anchors guide)
             it.destroy()
         }
         placedAnchorNode = null
@@ -1344,6 +1890,156 @@ class ARCoreManager private constructor(context: Context) {
     private var lastDiagAtMs = 0L
 
     /** Logs tracking transitions plus a 5 s heartbeat so wall-detection problems are visible in logcat. */
+    /**
+     * Feeds [depthValidator]: each tracked ARCore feature point (metric) is projected into the raw depth image
+     * (with its confidence image) and the two distances are compared. ~1 check/s until a decision, then every 3 s.
+     */
+    private fun validateDepth(session: Session, frame: com.google.ar.core.Frame) {
+        if (session.config.depthMode == Config.DepthMode.DISABLED) return
+        if (depthMeasureMode) depthProbe(frame)
+        val before = depthValidator.state
+        if (before == DepthValidator.State.REJECTED || before == DepthValidator.State.UNAVAILABLE) return
+        if (frame.camera.trackingState != TrackingState.TRACKING) return
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastDepthCheckMs < (if (before == DepthValidator.State.TRUSTED) 3000L else 1000L)) return
+        lastDepthCheckMs = now
+        val proj = FloatArray(16); val viewM = FloatArray(16); val vp = FloatArray(16)
+        frame.camera.getProjectionMatrix(proj, 0, 0.05f, 100f)
+        frame.camera.getViewMatrix(viewM, 0)
+        Matrix.multiplyMM(vp, 0, proj, 0, viewM, 0)
+        // Feature points -> (depth along the optical axis, view-normalized u, v)
+        val depths = ArrayList<Float>(); val uv = ArrayList<Float>()
+        runCatching {
+            frame.acquirePointCloud().use { pc ->
+                val buf = pc.points
+                for (i in 0 until buf.remaining() / 4) {
+                    val x = buf.get(i * 4); val y = buf.get(i * 4 + 1); val z = buf.get(i * 4 + 2)
+                    if (buf.get(i * 4 + 3) < 0.3f) continue
+                    val cw = vp[3] * x + vp[7] * y + vp[11] * z + vp[15] // = depth along the optical axis
+                    if (cw <= 0.05f) continue
+                    val nx = (vp[0] * x + vp[4] * y + vp[8] * z + vp[12]) / cw
+                    val ny = (vp[1] * x + vp[5] * y + vp[9] * z + vp[13]) / cw
+                    if (nx < -1f || nx > 1f || ny < -1f || ny > 1f) continue
+                    depths.add(cw); uv.add(nx * 0.5f + 0.5f); uv.add(0.5f - ny * 0.5f)
+                }
+            }
+        }
+        val samples = ArrayList<FloatArray>()
+        var freshDepth = true
+        if (depths.isNotEmpty()) {
+            // The depth image follows the GPU texture (its aspect ratio, not the 4:3 CPU image's): per the Depth API
+            // guide, map into TEXTURE_NORMALIZED and scale by the depth image size. Outside [0,1] = no depth there.
+            val tex = FloatArray(uv.size)
+            frame.transformCoordinates2d(Coordinates2d.VIEW_NORMALIZED, uv.toFloatArray(), Coordinates2d.TEXTURE_NORMALIZED, tex)
+            try {
+                // This phone (OnePlus NE2211) never delivers raw depth, only the smoothed image; without the
+                // fallback the validator got 0 samples, went UNAVAILABLE and depth was switched off.
+                val raw = try { frame.acquireRawDepthImage16Bits() } catch (e: com.google.ar.core.exceptions.NotYetAvailableException) { null }
+                (raw ?: frame.acquireDepthImage16Bits()).use { depth ->
+                    // Not every frame brings new raw depth; a repeat is a reprojection and must not count as a new check.
+                    if (depth.timestamp == lastRawDepthTs) { freshDepth = false; return@use }
+                    lastRawDepthTs = depth.timestamp
+                    val conf = if (raw != null) runCatching { frame.acquireRawDepthConfidenceImage() }.getOrNull() else null
+                    try {
+                        val dw = depth.width; val dh = depth.height
+                        val dPlane = depth.planes[0]
+                        val dBuf = dPlane.buffer.order(java.nio.ByteOrder.nativeOrder())
+                        val cPlane = conf?.planes?.get(0)
+                        for (i in depths.indices) {
+                            val tx = tex[i * 2]; val ty = tex[i * 2 + 1]
+                            if (tx !in 0f..1f || ty !in 0f..1f) continue
+                            val px = (tx * dw).toInt().coerceAtMost(dw - 1); val py = (ty * dh).toInt().coerceAtMost(dh - 1)
+                            val mm = dBuf.getShort(py * dPlane.rowStride + px * dPlane.pixelStride).toInt() and 0xFFFF
+                            val c = cPlane?.let { (it.buffer.get(py * it.rowStride + px * it.pixelStride).toInt() and 0xFF) / 255f } ?: -1f
+                            samples.add(floatArrayOf(depths[i], mm / 1000f, c))
+                        }
+                    } finally {
+                        conf?.close()
+                    }
+                }
+            } catch (e: com.google.ar.core.exceptions.NotYetAvailableException) {
+                // no depth frame yet: an empty check still runs the decision timeout
+            } catch (e: Exception) {
+                Log.w(TAG, "DEPTH_CHECK failed: ${e.javaClass.simpleName}: ${e.message}")
+            }
+        }
+        if (!freshDepth) return
+        val after = depthValidator.addCheck(samples, now)
+        Log.i(TAG, "DEPTH_CHECK points=${depths.size} ${depthValidator.lastReport}")
+        if (after != before) {
+            Log.i(TAG, "DEPTH_DECISION $before -> $after (${depthValidator.lastReport})")
+            if ((after == DepthValidator.State.REJECTED || after == DepthValidator.State.UNAVAILABLE) && !depthMeasureMode) {
+                runCatching { applySessionConfig(session) } // fillConfig now turns depth off
+            }
+        }
+    }
+
+    /**
+     * Measurement-mode log (once a second): what each depth source says about the wall at the screen centre.
+     * raw = Raw Depth, confidence >= 128, median of a 9x9 window; smooth = full Depth API; vio = ARCore feature
+     * points projecting near the centre (metric, independent of the Depth API); hits = frame.hitTest at the centre.
+     * All are distances along the optical axis except hits (ray length), equal for a wall faced squarely.
+     */
+    private fun depthProbe(frame: com.google.ar.core.Frame) {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastProbeMs < 1000L) return
+        lastProbeMs = now
+        val view = sceneView ?: return
+        val centre = floatArrayOf(0.5f, 0.5f); val tex = FloatArray(2)
+        frame.transformCoordinates2d(Coordinates2d.VIEW_NORMALIZED, centre, Coordinates2d.TEXTURE_NORMALIZED, tex)
+        fun windowMedian(img: android.media.Image, conf: android.media.Image?): Pair<Float, Int> {
+            val w = img.width; val h = img.height; val pl = img.planes[0]
+            val buf = pl.buffer.order(java.nio.ByteOrder.nativeOrder())
+            val cx = (tex[0] * w).toInt(); val cy = (tex[1] * h).toInt()
+            val vals = ArrayList<Float>()
+            for (y in (cy - 4)..(cy + 4)) for (x in (cx - 4)..(cx + 4)) {
+                if (x !in 0 until w || y !in 0 until h) continue
+                val mm = buf.getShort(y * pl.rowStride + x * pl.pixelStride).toInt() and 0xFFFF
+                if (mm == 0) continue
+                if (conf != null) {
+                    val cp = conf.planes[0]
+                    if ((cp.buffer.get(y * cp.rowStride + x * cp.pixelStride).toInt() and 0xFF) < 128) continue
+                }
+                vals.add(mm / 1000f)
+            }
+            vals.sort()
+            return (if (vals.isEmpty()) -1f else vals[vals.size / 2]) to vals.size
+        }
+        val raw = runCatching {
+            frame.acquireRawDepthImage16Bits().use { d ->
+                val c = runCatching { frame.acquireRawDepthConfidenceImage() }.getOrNull()
+                try { windowMedian(d, c) } finally { c?.close() }
+            }
+        }.getOrNull()
+        val smooth = runCatching { frame.acquireDepthImage16Bits().use { windowMedian(it, null) } }.getOrNull()
+        // Feature points near the centre (within 8% of the view) -> median optical-axis depth.
+        val proj = FloatArray(16); val viewM = FloatArray(16); val vp = FloatArray(16)
+        frame.camera.getProjectionMatrix(proj, 0, 0.05f, 100f); frame.camera.getViewMatrix(viewM, 0)
+        Matrix.multiplyMM(vp, 0, proj, 0, viewM, 0)
+        val vio = ArrayList<Float>()
+        runCatching {
+            frame.acquirePointCloud().use { pc ->
+                val b = pc.points
+                for (i in 0 until b.remaining() / 4) {
+                    if (b.get(i * 4 + 3) < 0.3f) continue
+                    val x = b.get(i * 4); val y = b.get(i * 4 + 1); val z = b.get(i * 4 + 2)
+                    val cw = vp[3] * x + vp[7] * y + vp[11] * z + vp[15]
+                    if (cw <= 0.05f) continue
+                    val nx = (vp[0] * x + vp[4] * y + vp[8] * z + vp[12]) / cw
+                    val ny = (vp[1] * x + vp[5] * y + vp[9] * z + vp[13]) / cw
+                    if (kotlin.math.abs(nx) < 0.16f && kotlin.math.abs(ny) < 0.16f) vio.add(cw)
+                }
+            }
+        }
+        vio.sort()
+        val hits = runCatching { frame.hitTest(view.width / 2f, view.height / 2f) }.getOrDefault(emptyList())
+            .take(3).joinToString(",", "[", "]") { "${it.trackable.javaClass.simpleName} ${"%.2f".format(it.distance)}m" }
+        fun fmt(p: Pair<Float, Int>?) = if (p == null) "n/a" else if (p.first < 0) "none" else "${"%.2f".format(p.first)}m(n=${p.second})"
+        Log.i(TAG, "DEPTH_PROBE raw=${fmt(raw)} smooth=${fmt(smooth)} vio=${if (vio.isEmpty()) "none" else "%.2fm(n=%d)".format(vio[vio.size / 2], vio.size)} " +
+            "hits=$hits tracking=${frame.camera.trackingState} thermal=$thermalStatus validation=${depthValidator.state} " +
+            "placement=${Placement.provenance(placedSurface)}/${Placement.scale(placedSurface)}")
+    }
+
     private fun logTrackingDiagnostics(state: TrackingState, reason: TrackingFailureReason?, updatedPlanes: Int, view: ARSceneView) {
         val now = android.os.SystemClock.elapsedRealtime()
         if (state != lastTrackingState) {
@@ -1357,7 +2053,7 @@ class ARCoreManager private constructor(context: Context) {
             val byType = all.groupingBy { it.type.name }.eachCount()
             val sess = view.session
             val depthSupport = "auto=${sess?.isDepthModeSupported(Config.DepthMode.AUTOMATIC)} raw=${sess?.isDepthModeSupported(Config.DepthMode.RAW_DEPTH_ONLY)}"
-            Log.i(TAG, "AR_DIAG tracking=$state depthMode=$depth depthSupported[$depthSupport] allPlanes=$byType acceptedWalls=${wallPlanes.size} placed=${placedAnchorNode != null} updatedPlanes=$updatedPlanes")
+            Log.i(TAG, "AR_DIAG tracking=$state thermal=$thermalStatus depthMode=$depth depthValidation=${depthValidator.state} depthSupported[$depthSupport] allPlanes=$byType acceptedWalls=${wallPlanes.size} placed=${placedAnchorNode != null} updatedPlanes=$updatedPlanes")
             placedAnchorNode?.let { n ->
                 val cam = view.frame?.camera?.pose
                 Log.i(TAG, "AR_DIAG placedNode world=${n.worldPosition} visible=${n.isVisible} anchor=${n.anchor.trackingState} " +
@@ -1721,14 +2417,112 @@ class ARCoreManager private constructor(context: Context) {
      * A plane/anchor stays tracked after the camera turns away, so without the view test the UI kept
      * saying "Wall detected" while pointing at the floor or a different room.
      */
+    /**
+     * User calibration: [lengthM] between screen points (x1, y1) and (x2, y2) on the placed wall, measured by the
+     * user (a door's width, the wall's width...). Moves the wall to the distance that makes that true.
+     */
+    fun calibrateKnownLength(x1: Float, y1: Float, x2: Float, y2: Float, lengthM: Float): Map<String, Any> {
+        val view = sceneView ?: return mapOf("ok" to false, "reason" to "no_view")
+        val frame = view.frame ?: return mapOf("ok" to false, "reason" to "no_frame")
+        val anchor = placedAnchorNode?.anchor ?: return mapOf("ok" to false, "reason" to "nothing_placed")
+        val proj = FloatArray(16); val viewM = FloatArray(16)
+        frame.camera.getProjectionMatrix(proj, 0, 0.05f, 100f)
+        frame.camera.getViewMatrix(viewM, 0)
+        val r1 = WallEdges.ray(x1, y1, view.width, view.height, proj, viewM)
+        val r2 = WallEdges.ray(x2, y2, view.width, view.height, proj, viewM)
+        val n = anchor.pose.getTransformedAxis(1, 1f)
+        val d = WallCalibration.distanceForKnownLength(r1, r2, n, lengthM)
+            ?: return mapOf("ok" to false, "reason" to "implausible").also {
+                Log.i(TAG, "CALIBRATE rejected: length=${lengthM}m gives no plausible wall distance")
+            }
+        val before = placedDistanceM
+        val ok = replaneAtDistance(view, d, "user_calibrated")
+        Log.i(TAG, "CALIBRATE user length=${"%.2f".format(lengthM)}m -> wall ${"%.2f".format(d)}m (was ${"%.2f".format(before)}m) ok=$ok")
+        return mapOf("ok" to ok, "distanceM" to d.toDouble())
+    }
+
+    /**
+     * User calibration from a rectangle the user measured (a painting, a door, a switchboard, an A4 sheet): its
+     * four tapped corners (screen px, any order) and its real [widthM] x [heightM]. Unlike one tapped length this
+     * fixes the wall's angle too, so a wall seen at a slant gets the right distance.
+     */
+    fun calibrateRectangle(points: FloatArray, widthM: Float, heightM: Float): Map<String, Any> {
+        val view = sceneView ?: return mapOf("ok" to false, "reason" to "no_view")
+        val frame = view.frame ?: return mapOf("ok" to false, "reason" to "no_frame")
+        if (points.size != 8 || widthM <= 0f || heightM <= 0f) return mapOf("ok" to false, "reason" to "bad_input")
+        val proj = FloatArray(16); val viewM = FloatArray(16)
+        frame.camera.getProjectionMatrix(proj, 0, 0.05f, 100f)
+        frame.camera.getViewMatrix(viewM, 0)
+        val c = A4Reference.cyclic(points)
+        val rays = Array(4) { i -> WallEdges.ray(c[2 * i], c[2 * i + 1], view.width, view.height, proj, viewM) }
+        // Hand taps land a few px off: a looser shape match than the automatic A4 finder.
+        val m = A4Reference.measureRays(rays, widthM, heightM, maxRatioErr = 0.15f, maxCos = 0.2f)
+        if (m == null || abs(m.normal[1]) > 0.35f || m.distanceM !in WallCalibration.MIN_DISTANCE_M..WallCalibration.MAX_DISTANCE_M) {
+            Log.i(TAG, "CALIBRATE_RECT rejected: ${widthM}x${heightM}m taps=${c.toList()} ratio=${m?.ratio} nY=${m?.normal?.get(1)}")
+            return mapOf("ok" to false, "reason" to "shape")
+        }
+        val cam = WallEdges.cameraPosition(viewM)
+        val centre = floatArrayOf(cam[0] + m.centre[0], cam[1] + m.centre[1], cam[2] + m.centre[2])
+        val floorY = floorHeight(view)
+        val base = if (floorY != null) floatArrayOf(centre[0], floorY, centre[2]) else centre
+        Log.i(TAG, "CALIBRATE_RECT_DBG taps=${c.joinToString(",") { "%.0f".format(it) }} view=${view.width}x${view.height} " +
+            "proj0=${"%.4f".format(proj[0])} proj5=${"%.4f".format(proj[5])} proj8=${"%.4f".format(proj[8])} proj9=${"%.4f".format(proj[9])}")
+        Log.i(TAG, "CALIBRATE_RECT ${widthM}x${heightM}m -> wall ${"%.3f".format(m.distanceM)}m " +
+            "(fromShort=${"%.3f".format(m.distShortM)} fromLong=${"%.3f".format(m.distLongM)} ratio=${"%.3f".format(m.ratio)} " +
+            "cos=${"%.3f".format(m.cosAngle)}) was ${"%.2f".format(placedDistanceM)}m surface=$placedSurface")
+        anchorWall(view, base, floatArrayOf(m.normal[0], 0f, m.normal[2]), onFloor = floorY != null, surface = "user_rectangle", dist = m.distanceM,
+            refCentreY = centre[1], refSizeM = maxOf(widthM, heightM))
+        onWallStateChanged?.invoke("LOCKED")
+        return mapOf("ok" to true, "distanceM" to m.distanceM.toDouble())
+    }
+
+    /** Portrait width / height of the camera texture ARCore draws behind the scene, or null before a session. */
+    fun cameraAspect(): Double? = runCatching {
+        val s = sceneView?.session?.cameraConfig?.textureSize ?: return null
+        minOf(s.width, s.height).toDouble() / maxOf(s.width, s.height)
+    }.getOrNull()
+
+    /** Hide the placed design so the user can see and tap the real wall (a sheet, a switchboard) underneath. */
+    fun setDesignVisible(visible: Boolean) {
+        userHidden = !visible
+        shownState = null
+    }
+
+    @Volatile private var userHidden = false
+    private var shownState: Boolean? = null
+    private var placedAtMs = 0L
+    private var placedSeedZ = 0f
+    @Volatile private var placementGen = 0
+
+    /**
+     * Whether the placed design may be drawn: only once the wall mask clips it to the real wall. Drawing it
+     * unclipped right after placement covered the whole screen (furniture, floor) before the wall was found.
+     */
+    private fun designReady(): Boolean = !wallClippingEnabled || maskWanted() ||
+        android.os.SystemClock.elapsedRealtime() - placedAtMs > SHOW_UNMASKED_AFTER_MS
+
+    /** Provenance of the current placement for the AR screen's scale badge. */
+    fun getPlacementInfo(): Map<String, Any> = mapOf(
+        "placed" to (placedAnchorNode != null),
+        "surface" to (placedSurface ?: ""),
+        "provenance" to Placement.provenance(placedSurface),
+        "scale" to Placement.scale(placedSurface).name.lowercase(),
+        "distanceM" to placedDistanceM.toDouble(),
+        // Where the camera stands now (the anchor stays put while the user walks): shown in the status pill.
+        "liveDistanceM" to (sceneView?.let { anchorDistance(it) } ?: -1f).toDouble(),
+        // A tracked floor turns the next floor-line estimate into a measured size; the UI asks for it.
+        "floorTracked" to (sceneView?.let { floorHeight(it) } != null),
+    )
+
     fun getWallState(): String {
         val placed = placedAnchorNode?.anchor
         val selected = selectedWallId?.let { wallPlanes[it] }
         val state = when {
             placed != null -> when {
                 placed.trackingState != TrackingState.TRACKING || !inCameraView(placed.pose) -> "LOST"
+                !designReady() -> "DETECTING"
                 // A guessed-distance placement is not a detected wall; the UI must say so.
-                placedSurface == "approximate" -> "APPROXIMATE"
+                Placement.scale(placedSurface) == Placement.Scale.APPROXIMATE -> "APPROXIMATE"
                 else -> "TRACKING"
             }
             // The 200 ms poll used to overwrite autoPlace's NEED_TAP with SEARCHING, so a plain wall never

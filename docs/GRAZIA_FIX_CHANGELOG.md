@@ -16,6 +16,25 @@ I. **iOS claims** → `ARKitPlugin.swift` lacks 5 methods → shutter hidden on 
 J. **Aarna typing bubble overflow (4.7 px)** → fixed-width `Row` → `Flexible` + ellipsis → fixed in code, re-check pending.
 K. **"3D consultant" copy** → greeting/hero text now "AI architectural consultant" → CODE-REVIEWED.
 
+## Fourth pass (2026-10-24/25, Live AR engine; partly in local commits 1a5dbc3 / 90df66d, rest uncommitted)
+
+Evidence levels as above. Device: OnePlus NE2211, NE2211_16.0.3.530(EX01), Android 16, ARCore 1.57.262640093.
+Checked against the ARCore guides (Depth, Raw Depth, Hit-test, Anchors, Performance, Environment).
+
+T. **Stone covered ceiling band, side wall, board** → ADE20K labels every wall "wall" (735/880 cells on the test frame) on a 20×44 grid; colour flood forced similar colours to wall → `WallGeodesic.kt`: geodesic region from the anchor at camera resolution (270×600; CPU image is 640×480 = 287×640 for the view), cost = edges above the wall's own noise + chroma distance + brightness vs a median lighting field; model-confident non-wall cells seed a competing region; replaces colour flood/blob in `WallMaskAccumulator`; mask 256×128 → 512×256 (1.6 cm/texel) → tuned OFFLINE on dumped phone frames (`tool/wall_lab`, `debug.grazia.dump`), AUTOMATED-TESTED `WallGeodesicTest` 2/2, DEVICE-VERIFIED once (ceiling line, curtain, bed edge uncovered) → risk: low-contrast objects (a board as bright as the lit wall above it) still leak; Erase/Restore brush is the recovery.
+U. **Hard seam at every texture repeat** → photo tiles are not seamless → `SeamlessTile.kt` minimum-error boundary cut (image quilting) on load → OFFLINE-VERIFIED (tiled before/after), CODE-REVIEWED on device path; DEVICE look NOT TESTED (room dark).
+V. **Wall angle on plain walls** → no plane, design faced the camera at 2 m → `WallEdges.kt`: RANSAC on the mask's floor/ceiling boundary, back-projected with gravity (yaw), two agreeing estimates required (`agree`, ≤5.7°, ≤7%) → AUTOMATED-TESTED `WallEdgesTest` 3/3 (ray-cast synthetic room), OFFLINE on a real frame: ceiling line → 0.9° / 1.83 m for a wall faced head-on ~2 m away (not tape-measured) → DEVICE NOT TESTED.
+W. **Scale honesty** → `Placement.kt` provenance (`real_plane`, `real_floor`, `floor_edge`, `validated_depth`, `validated_pointcloud`, `user_calibrated`, `approximate`) and scale tier; edge placements with an assumed height stay APPROXIMATE; status pill: "true size" only for measured, "Sized from your measurement" for calibration; `getPlacementInfo` channel → AUTOMATED-TESTED `PlacementTest`.
+X. **Depth** → earlier 6.2/7.2 m DepthPoint hits (ARCore's own hitTest, phone static on a stand; the Depth guide says depth needs motion) → `DepthValidator.kt`: compares raw depth (+confidence ≥ 0.5) with ARCore feature points every 1 s; TRUSTED after 3 agreeing checks (median error ≤ 10 %, p80 ≤ 25 %), REJECTED after 3 with median error > 25 % (sticky, depth then switched off), UNAVAILABLE after 20 s without a decision; DepthPoint hits additionally need a repeat within 10 % → AUTOMATED-TESTED `DepthValidatorTest` 5/5. Own bug found against the Depth guide before any device run: mapping used IMAGE_NORMALIZED (4:3 CPU image) instead of TEXTURE_NORMALIZED (depth follows the GPU texture); raw-depth frames are now de-duplicated by timestamp (the guide's prose and code disagree on the comparison; "differs from the last processed" is safe for both) → DEVICE NOT TESTED (phone disconnected / locked).
+Y. **Anchors / Instant Placement** → plane hits now anchor to the Plane (`Plane.createAnchor`), old anchors detached; approximate pose computed on the tap ray and Instant Placement disabled (performance guide) → CODE-REVIEWED.
+Z. **Thermal** → `PowerManager` thermal listener; segmentation 900 ms → 1300 ms (MODERATE) → 2000 ms (SEVERE) → paused (CRITICAL); `THERMAL` and `AR_DIAG thermal=` logs → AUTOMATED-TESTED `SegmentationBudgetTest`; DEVICE NOT TESTED.
+AA. **Fallbacks** → auto-place where the segmenter sees wall after 1.5 s; "Use a length I measured" (two taps + cm → `WallCalibration.distanceForKnownLength`, exact for a known wall angle); Erase/Restore brush (`editMask`, survives segmenter updates); "Too dark / moving too fast" hints from ARCore's tracking failure reason; "Use a photo instead" (AI Studio, same product) after 12 s of struggling → AUTOMATED-TESTED (calibration geometry, brush); DEVICE NOT TESTED.
+AB. **AR design panel** → black gradient removed, cards 120/100 → 96/78 px, glass chips, info toggle in the header → analyze clean; DEVICE NOT TESTED.
+
+AC. **Live AR screen completely black (regression introduced in this pass)** → `_buildBrushControls()` / `_buildPhotoFallback()` returned a non-positioned `SizedBox.shrink()` into the screen's all-`Positioned` Stack, so the Stack sized itself to 0×0: overlays clipped away, the AR platform view got zero size and was never created (no camera, no ARCore session, empty semantics tree, no exception even in debug). `_buildInfoButton()` had the same latent flaw when no stone was selected yet. Found by on-device bisect (old screen file: 128 AR log lines; mine minus the two widgets: 166; brush widget alone: 0). Fix: positioned `_kNoOverlay` placeholder → DEVICE re-test pending (phone disconnected during install).
+
+Not done / blocked: 1 m / 2 m / 3 m tape-measured depth comparison (needs the user); real-plane placement and approximate→real upgrade NOT OBSERVED on the test walls; second Android device not available.
+
 ## Third pass (2026-10-20, Live AR deep remediation + UI polish, uncommitted)
 
 L. **Approximate placement looked like a detected wall** → UI said "Wall detected" for the 2 m guess → native wall state `APPROXIMATE` (`getWallState`, `autoPlace`), amber chip "Approximate · tap to set wall distance" → CODE-REVIEWED; device check pending.
@@ -65,3 +84,21 @@ U. **iOS Live AR implemented** → `ARKitManager.swift`: `placeWallAtScreenPoint
 - Verify the point-cloud fit and the approximate→plane upgrade on a wall where ARCore tracks (needs a finished room).
 - Measure accuracy vs a reference; dim-light and long-pan AR tests; second Android model.
 - Aarna reply latency (model order / per-model timeout) after deploy; AI Studio job/batch fake-completion path; sample owner alerts; durable rate limiting.
+
+## 2026-10-27 — Live AR measurement, wall memory, material, auth hardening
+
+Device evidence: `docs/evidence/2026-10-27-a4-vs-corners/`. Product scale gaps: `docs/AR_PRODUCT_SCALE_REQUIREMENTS.md`.
+
+| Item | Change | Status |
+|---|---|---|
+| A4 auto-detection | `A4Reference.kt`: edge-barrier regions + sub-pixel outline fit, distance/angle from the four corners; width and height distances logged separately | DEVICE: locks in ~1-3 s; width/height agree within 0.1-2.4 %; absolute accuracy PENDING GROUND TRUTH |
+| Four-corner calibration | Painting / door / A4 corners + real size -> wall distance and angle | Bug found on device: keyboard shrank the AR view (1080x1920 -> 852x1515) between tap and ray, wall 1.24x too close. Fixed (`resizeToAvoidBottomInset: false`); NOT YET RE-VERIFIED |
+| Auto A4 overriding a user calibration | A4 now only logs once a wall is user-sized or A4-measured | NOT YET VERIFIED |
+| Camera framing | AR view sized to the ARCore texture aspect (16:9 on this phone; no 4:3 config exists) instead of cropping to the 20:9 screen | DEVICE: crop 60 % -> 75 % of the sensor width |
+| Wall switching | Re-place when the old wall is seen more obliquely than 63 deg for 2 ticks | DEVICE: switches seen in logs |
+| Wall memory | Measured walls keep their anchor; returning to one restores it instead of a 2 m guess | NOT YET VERIFIED |
+| Depth validator | Falls back to the smoothed depth image (raw never arrives on the OnePlus) | Depth still reads 11-64 m at ~2 m walls; stays rejected |
+| Wet look | `wall_masked.mat`: roughness 0.95, reflectance 0.2; normal strength 4 -> 1.5; filamat recompiled (matc 1.56) | NOT YET VERIFIED |
+| "true size" label | Removed: no product's texture-repeat size is measured; pill says "stone size est." | Code |
+| Auth | Role only from `profiles.role` (never user_metadata, never cached Hive for admin); fake local-account login removed; offline logout clears the local session; per-user providers reset on user change; auth waits for Supabase init | Code + tests; login flows NOT device-tested |
+| Backend | `supabase/migrations/20261027000000_profile_role_insert_lock.sql` (role forced to customer on self-insert) | Written, NOT deployed |

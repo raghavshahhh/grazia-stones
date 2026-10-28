@@ -40,6 +40,16 @@ class WallSegmenter(private val context: Context) {
         // portrait view covers ~287x640 pixels, so this is close to native.
         const val GW = 270
         const val GH = 600
+        /**
+         * Segmentation cadence for a PowerManager thermal status: tracking and rendering come first, so the model
+         * slows down as the phone heats up and stops at CRITICAL (the last mask stays in use). Null = paused.
+         */
+        fun intervalForThermal(status: Int, baseMs: Long): Long? = when {
+            status >= 4 -> null   // CRITICAL / EMERGENCY / SHUTDOWN
+            status >= 3 -> 2000L  // SEVERE
+            status >= 2 -> 1300L  // MODERATE
+            else -> baseMs
+        }
         private val MEAN = floatArrayOf(0.485f, 0.456f, 0.406f)
         private val STD = floatArrayOf(0.229f, 0.224f, 0.225f)
     }
@@ -261,7 +271,7 @@ class WallSegmenter(private val context: Context) {
             var sum = 0f
             for (c in 0 until CLASSES) sum += exp(logits.get(c * cells + k) - max)
             // softmax of the arg-max class is 1 / sum
-            nonWall[k] = arg != WALL && arg != BUILDING && 1f / sum > 0.5f
+            nonWall[k] = arg != WALL && arg != BUILDING && arg !in OUTDOOR_CLASSES && 1f / sum > 0.5f
             val p = (exp(logits.get(WALL * cells + k) - max) + exp(logits.get(BUILDING * cells + k) - max)) / sum
             out[k] = (p * 255f).toInt().coerceIn(0, 255).toByte()
         }
@@ -277,6 +287,11 @@ class WallSegmenter(private val context: Context) {
     /** ADE20K classes that must never receive stone even if their colour matches the wall. */
     private val VETO_CLASSES = setOf(8 /*window*/, 10 /*cabinet*/, 12 /*person*/, 14 /*door*/, 18 /*curtain*/,
         22 /*painting*/, 24 /*shelf*/, 27 /*mirror*/, 89 /*television*/)
+    /**
+     * Outdoor ADE20K classes (sky, tree, road, grass, earth, mountain, water, sea, field, sand, river, hill) the model
+     * reports on plain, close-up or over-exposed indoor walls; they never seed "not wall" (tool/wall_lab/kt_mask.py).
+     */
+    private val OUTDOOR_CLASSES = setOf(2, 4, 6, 9, 13, 16, 21, 26, 29, 46, 60, 68)
     private var lastVeto = ByteArray(OUT_W * OUT_H)
     private var lastNonWall = BooleanArray(OUT_W * OUT_H)
     private var lastClasses = ByteArray(OUT_W * OUT_H)

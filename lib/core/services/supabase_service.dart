@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/retry.dart';
@@ -25,7 +26,20 @@ class SupabaseService {
   bool get isLoggedIn => currentUser != null;
 
   /// Initialize Supabase — call once in main()
+  final _ready = Completer<void>();
+
+  /// Completes once [init] has created the client (or given up), so auth can attach after a non-blocking start.
+  Future<void> get ready => _ready.future;
+
   Future<void> init() async {
+    try {
+      await _init();
+    } finally {
+      if (!_ready.isCompleted) _ready.complete();
+    }
+  }
+
+  Future<void> _init() async {
     const url = String.fromEnvironment(
       'SUPABASE_URL',
       defaultValue: 'https://jrrmjtbauimrrxwjvmzh.supabase.co',
@@ -44,6 +58,7 @@ class SupabaseService {
         publishableKey: anonKey,
       );
       debugPrint('✅ Supabase initialized');
+      if (!_ready.isCompleted) _ready.complete(); // auth may attach now; the connection test is not needed for that
       
       // Test connection
       await _testConnection();

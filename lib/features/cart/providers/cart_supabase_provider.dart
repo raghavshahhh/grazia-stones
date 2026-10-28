@@ -56,10 +56,7 @@ class CartSupabaseNotifier extends StateNotifier<CartSupabaseState> {
       debugPrint('✅ Cart loaded: ${items.length} items');
     } catch (e) {
       debugPrint('❌ Error loading cart: $e');
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString(),
-      );
+      state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
@@ -79,15 +76,12 @@ class CartSupabaseNotifier extends StateNotifier<CartSupabaseState> {
   }) async {
     try {
       state = state.copyWith(clearError: true);
-      
+
       // CartRepository.addToCart handles price lookup from Supabase directly.
       // stoneName, pricePerSqFt, finish, colorHex are stored locally in optimistic
       // UI but the server authoritative price comes from the stones table.
-      await _repository.addToCart(
-        stoneId,
-        quantity,
-      );
-      
+      await _repository.addToCart(stoneId, quantity);
+
       // Reload to get updated cart
       await _loadCart();
     } catch (e) {
@@ -116,10 +110,7 @@ class CartSupabaseNotifier extends StateNotifier<CartSupabaseState> {
       await _repository.updateCartItem(cartItemId, newQuantity);
     } catch (e) {
       // Rollback on error
-      state = state.copyWith(
-        items: previousItems,
-        error: e.toString(),
-      );
+      state = state.copyWith(items: previousItems, error: e.toString());
       debugPrint('❌ Error updating quantity: $e');
       rethrow;
     }
@@ -129,7 +120,9 @@ class CartSupabaseNotifier extends StateNotifier<CartSupabaseState> {
   Future<void> removeItem(String cartItemId) async {
     // Optimistic update
     final previousItems = state.items;
-    final updatedItems = state.items.where((item) => item.id != cartItemId).toList();
+    final updatedItems = state.items
+        .where((item) => item.id != cartItemId)
+        .toList();
 
     state = state.copyWith(items: updatedItems, clearError: true);
 
@@ -137,10 +130,7 @@ class CartSupabaseNotifier extends StateNotifier<CartSupabaseState> {
       await _repository.removeFromCart(cartItemId);
     } catch (e) {
       // Rollback on error
-      state = state.copyWith(
-        items: previousItems,
-        error: e.toString(),
-      );
+      state = state.copyWith(items: previousItems, error: e.toString());
       debugPrint('❌ Error removing from cart: $e');
       rethrow;
     }
@@ -158,10 +148,7 @@ class CartSupabaseNotifier extends StateNotifier<CartSupabaseState> {
       debugPrint('✅ Cart cleared');
     } catch (e) {
       // Rollback on error
-      state = state.copyWith(
-        items: previousItems,
-        error: e.toString(),
-      );
+      state = state.copyWith(items: previousItems, error: e.toString());
       debugPrint('❌ Error clearing cart: $e');
       rethrow;
     }
@@ -185,6 +172,10 @@ class CartSupabaseNotifier extends StateNotifier<CartSupabaseState> {
 }
 
 /// Provider for Supabase-backed cart
-final cartSupabaseProvider = StateNotifierProvider<CartSupabaseNotifier, CartSupabaseState>(
-  (ref) => CartSupabaseNotifier(ref.watch(cartRepositoryProvider)),
-);
+final cartSupabaseProvider =
+    StateNotifierProvider<CartSupabaseNotifier, CartSupabaseState>((ref) {
+      ref.watch(
+        authRiverpodProvider.select((s) => s.userId),
+      ); // a new user (or logout) starts from a fresh state
+      return CartSupabaseNotifier(ref.watch(cartRepositoryProvider));
+    });

@@ -44,7 +44,7 @@ class CatalogueSpecs {
     'florentine': CatalogueSpec(size: '755 × 125 mm', thickness: '20 mm', sqftPerBox: 8.32, patchHeightM: 1.1, arTexture: null),
     'foliage': CatalogueSpec(size: '600 × 300 mm', thickness: '15 mm', sqftPerBox: 11.55, patchHeightM: 0.6, arTexture: null),
     'fossile rock': CatalogueSpec(size: null, thickness: '50 mm', sqftPerBox: 5.5, patchHeightM: 0.35, arTexture: 'assets/ar_textures/fossil_rock.jpg'),
-    'grande': CatalogueSpec(size: '490 × 195 mm', thickness: '35 mm', sqftPerBox: 7.0, patchHeightM: 1.3, arTexture: null),
+    'grande': CatalogueSpec(size: '490 × 195 mm', thickness: '35 mm', sqftPerBox: 7.0, patchHeightM: 0.82, arTexture: null),
     'hexa': CatalogueSpec(size: '230 × 200 mm', thickness: '20 mm', sqftPerBox: 6.4, patchHeightM: 0.7, arTexture: null),
     'lakhori brick': CatalogueSpec(size: '535 × 160 mm', thickness: '35 mm', sqftPerBox: 6.4, patchHeightM: 0.6, arTexture: 'assets/ar_textures/lakhori_brick.jpg'),
     'milano': CatalogueSpec(size: '895 × 595 mm', thickness: '25 mm', sqftPerBox: 5.81, patchHeightM: 0.6, arTexture: null),

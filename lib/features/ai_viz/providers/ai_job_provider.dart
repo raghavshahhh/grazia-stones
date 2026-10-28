@@ -86,16 +86,10 @@ class AIJobListNotifier extends StateNotifier<AIJobListState> {
   }
 
   /// Load jobs from database
-  Future<void> loadJobs({
-    String? status,
-    bool refresh = false,
-  }) async {
+  Future<void> loadJobs({String? status, bool refresh = false}) async {
     if (state.isLoading) return;
 
-    state = state.copyWith(
-      isLoading: true,
-      error: null,
-    );
+    state = state.copyWith(isLoading: true, error: null);
 
     try {
       final jobs = await _repository.getJobs(
@@ -113,10 +107,7 @@ class AIJobListNotifier extends StateNotifier<AIJobListState> {
       debugPrint('✅ Loaded ${jobs.length} AI jobs');
     } catch (e) {
       debugPrint('❌ Error loading AI jobs: $e');
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString(),
-      );
+      state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
@@ -194,10 +185,10 @@ class AIJobListNotifier extends StateNotifier<AIJobListState> {
     try {
       final newJob = await _repository.retryJob(jobId);
       await refresh();
-      
+
       // Trigger processing for new job
       await _repository.processJob(newJob.id);
-      
+
       return newJob;
     } catch (e) {
       debugPrint('❌ Error retrying job: $e');
@@ -229,10 +220,14 @@ class AIJobListNotifier extends StateNotifier<AIJobListState> {
 }
 
 /// Provider for AI job list
-final aiJobListProvider = StateNotifierProvider<AIJobListNotifier, AIJobListState>((ref) {
-  final repository = ref.watch(aiJobRepositoryProvider);
-  return AIJobListNotifier(repository);
-});
+final aiJobListProvider =
+    StateNotifierProvider<AIJobListNotifier, AIJobListState>((ref) {
+      ref.watch(
+        authRiverpodProvider.select((s) => s.userId),
+      ); // a new user (or logout) starts from a fresh state
+      final repository = ref.watch(aiJobRepositoryProvider);
+      return AIJobListNotifier(repository);
+    });
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SINGLE JOB TRACKING PROVIDER
@@ -245,7 +240,8 @@ class AIJobTrackingNotifier extends StateNotifier<AIJobTrackingState> {
   StreamSubscription? _subscription;
   Timer? _pollingTimer;
 
-  AIJobTrackingNotifier(this._repository, this.jobId) : super(const AIJobTrackingState()) {
+  AIJobTrackingNotifier(this._repository, this.jobId)
+    : super(const AIJobTrackingState()) {
     _init();
   }
 
@@ -259,10 +255,7 @@ class AIJobTrackingNotifier extends StateNotifier<AIJobTrackingState> {
     try {
       final job = await _repository.getJobById(jobId);
       if (job != null) {
-        state = state.copyWith(
-          job: job,
-          progress: job.progressPercentage,
-        );
+        state = state.copyWith(job: job, progress: job.progressPercentage);
 
         // Stop polling if terminal state
         if (job.isTerminal) {
@@ -278,29 +271,30 @@ class AIJobTrackingNotifier extends StateNotifier<AIJobTrackingState> {
   /// Start polling for job updates
   void _startPolling() {
     _subscription?.cancel();
-    _subscription = _repository.subscribeToJob(jobId).listen(
-      (job) {
-        state = state.copyWith(
-          job: job,
-          progress: job.progressPercentage,
-          isPolling: true,
-        );
+    _subscription = _repository
+        .subscribeToJob(jobId)
+        .listen(
+          (job) {
+            state = state.copyWith(
+              job: job,
+              progress: job.progressPercentage,
+              isPolling: true,
+            );
 
-        debugPrint('🔄 Job update: ${job.status} (${job.progressPercentage}%)');
+            debugPrint(
+              '🔄 Job update: ${job.status} (${job.progressPercentage}%)',
+            );
 
-        // Stop polling if terminal state
-        if (job.isTerminal) {
-          _stopPolling();
-        }
-      },
-      onError: (e) {
-        debugPrint('❌ Job polling error: $e');
-        state = state.copyWith(
-          error: e.toString(),
-          isPolling: false,
+            // Stop polling if terminal state
+            if (job.isTerminal) {
+              _stopPolling();
+            }
+          },
+          onError: (e) {
+            debugPrint('❌ Job polling error: $e');
+            state = state.copyWith(error: e.toString(), isPolling: false);
+          },
         );
-      },
-    );
   }
 
   /// Stop polling
@@ -335,12 +329,15 @@ class AIJobTrackingNotifier extends StateNotifier<AIJobTrackingState> {
 }
 
 /// Provider family for tracking individual jobs
-final aiJobTrackingProvider = StateNotifierProvider.family<AIJobTrackingNotifier, AIJobTrackingState, String>(
-  (ref, jobId) {
-    final repository = ref.watch(aiJobRepositoryProvider);
-    return AIJobTrackingNotifier(repository, jobId);
-  },
-);
+final aiJobTrackingProvider =
+    StateNotifierProvider.family<
+      AIJobTrackingNotifier,
+      AIJobTrackingState,
+      String
+    >((ref, jobId) {
+      final repository = ref.watch(aiJobRepositoryProvider);
+      return AIJobTrackingNotifier(repository, jobId);
+    });
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ACTIVE JOBS STREAM PROVIDER
@@ -359,41 +356,45 @@ final activeJobsStreamProvider = StreamProvider<List<AIJob>>((ref) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Kicks off a 4-variant generation batch and returns its id for tracking.
-final createBatchProvider = Provider<
-    Future<String> Function({
-      required String inputImageUrl,
-      String? stoneId,
-      String? stoneName,
-      String? color,
-      String? finish,
-      Map<String, dynamic>? metadata,
-    })>((ref) {
-  final repository = ref.watch(aiJobRepositoryProvider);
-  return ({
-    required inputImageUrl,
-    stoneId,
-    stoneName,
-    color,
-    finish,
-    metadata,
-  }) async {
-    final jobs = await repository.createVisualizationBatch(
-      inputImageUrl: inputImageUrl,
-      stoneId: stoneId,
-      stoneName: stoneName,
-      color: color,
-      finish: finish,
-      metadata: metadata,
-    );
-    return jobs.first.batchId!;
-  };
-});
+final createBatchProvider =
+    Provider<
+      Future<String> Function({
+        required String inputImageUrl,
+        String? stoneId,
+        String? stoneName,
+        String? color,
+        String? finish,
+        Map<String, dynamic>? metadata,
+      })
+    >((ref) {
+      final repository = ref.watch(aiJobRepositoryProvider);
+      return ({
+        required inputImageUrl,
+        stoneId,
+        stoneName,
+        color,
+        finish,
+        metadata,
+      }) async {
+        final jobs = await repository.createVisualizationBatch(
+          inputImageUrl: inputImageUrl,
+          stoneId: stoneId,
+          stoneName: stoneName,
+          color: color,
+          finish: finish,
+          metadata: metadata,
+        );
+        return jobs.first.batchId!;
+      };
+    });
 
 /// Live view of the 4 jobs in a batch.
 /// Keeps only the newest job per variant slot, so retrying a variant
 /// replaces its tile instead of adding a duplicate.
-final batchTrackingProvider =
-    StreamProvider.family<List<AIJob>, String>((ref, batchId) {
+final batchTrackingProvider = StreamProvider.family<List<AIJob>, String>((
+  ref,
+  batchId,
+) {
   final repository = ref.watch(aiJobRepositoryProvider);
   return repository.subscribeToBatchJobs(batchId).map((jobs) {
     final byVariant = <int, AIJob>{};
@@ -423,17 +424,20 @@ final activeJobsCountProvider = Provider<int>((ref) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Provider for room analysis
-final roomAnalysisProvider = FutureProvider.family<Map<String, dynamic>, String>((ref, imageUrl) async {
-  final repository = ref.watch(aiJobRepositoryProvider);
-  return repository.analyzeRoom(imageUrl: imageUrl);
-});
+final roomAnalysisProvider =
+    FutureProvider.family<Map<String, dynamic>, String>((ref, imageUrl) async {
+      final repository = ref.watch(aiJobRepositoryProvider);
+      return repository.analyzeRoom(imageUrl: imageUrl);
+    });
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ADMIN JOB STATISTICS PROVIDER
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Provider for admin job statistics
-final adminJobStatisticsProvider = FutureProvider<Map<String, int>>((ref) async {
+final adminJobStatisticsProvider = FutureProvider<Map<String, int>>((
+  ref,
+) async {
   final repository = ref.watch(aiJobRepositoryProvider);
   return repository.getJobStatistics();
 });

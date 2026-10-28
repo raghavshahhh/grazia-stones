@@ -129,7 +129,7 @@ class ARCorePlugin : FlutterPlugin, MethodCallHandler, StreamHandler {
             "setTexture" -> {
                 val imageData = call.argument<ByteArray>("imageData")
                 imageData?.let {
-                    arCoreManager?.setTexture(it, call.argument<Double>("patchHeightM")?.toFloat())
+                    arCoreManager?.setTexture(it, call.argument<Double>("patchHeightM")?.toFloat(), call.argument<Boolean>("seamCut") ?: false)
                     result.success(null)
                 } ?: result.error("INVALID_ARGS", "Missing imageData", null)
             }
@@ -248,6 +248,22 @@ class ARCorePlugin : FlutterPlugin, MethodCallHandler, StreamHandler {
                 val ids = call.argument<List<String>>("ids") ?: emptyList()
                 result.success(arCoreManager?.projectMeasurementAnchors(ids) ?: emptyList<Map<String, Any>>())
             }
+            "calibrateKnownLength" -> {
+                val x1 = call.argument<Double>("x1")?.toFloat(); val y1 = call.argument<Double>("y1")?.toFloat()
+                val x2 = call.argument<Double>("x2")?.toFloat(); val y2 = call.argument<Double>("y2")?.toFloat()
+                val len = call.argument<Double>("lengthM")?.toFloat()
+                if (x1 == null || y1 == null || x2 == null || y2 == null || len == null) {
+                    result.error("INVALID_ARGS", "Missing points or length", null)
+                } else result.success(arCoreManager?.calibrateKnownLength(x1, y1, x2, y2, len) ?: mapOf("ok" to false))
+            }
+            "getPlacementInfo" -> result.success(arCoreManager?.getPlacementInfo() ?: mapOf("placed" to false))
+            "editMask" -> {
+                val x = call.argument<Double>("screenX")?.toFloat()
+                val y = call.argument<Double>("screenY")?.toFloat()
+                val erase = call.argument<Boolean>("erase") ?: true
+                if (x != null && y != null) result.success(arCoreManager?.editMask(x, y, erase) ?: false)
+                else result.error("INVALID_ARGS", "Missing screen coordinates", null)
+            }
             "placeWallAtScreenPoint" -> {
                 val screenX = call.argument<Double>("screenX")?.toFloat()
                 val screenY = call.argument<Double>("screenY")?.toFloat()
@@ -275,6 +291,17 @@ class ARCorePlugin : FlutterPlugin, MethodCallHandler, StreamHandler {
                 val m = call.argument<Double>("meters")?.toFloat()
                 if (m != null) { arCoreManager?.setApproximateDistance(m); result.success(null) }
                 else result.error("INVALID_ARGS", "Missing meters", null)
+            }
+            "getCameraAspect" -> result.success(arCoreManager?.cameraAspect())
+            "calibrateRectangle" -> {
+                val pts = call.argument<List<Double>>("points")?.map { it.toFloat() }?.toFloatArray() ?: FloatArray(0)
+                val w = call.argument<Double>("widthM")?.toFloat() ?: 0f
+                val h = call.argument<Double>("heightM")?.toFloat() ?: 0f
+                result.success(arCoreManager?.calibrateRectangle(pts, w, h) ?: mapOf("ok" to false, "reason" to "no_manager"))
+            }
+            "setDesignVisible" -> {
+                arCoreManager?.setDesignVisible(call.argument<Boolean>("visible") ?: true)
+                result.success(null)
             }
             "setWallClipping" -> {
                 arCoreManager?.wallClippingEnabled = call.argument<Boolean>("enabled") ?: true
@@ -313,7 +340,7 @@ class ARCorePlatformView(
 ) : PlatformView {
 
     private val arCoreManager = ARCoreManager.getInstance(context)
-    private val sceneView = ARSceneView(context)
+    private val sceneView = FlutterARSceneView(context)
 
     init {
         arCoreManager.attachSceneView(sceneView)
@@ -324,5 +351,27 @@ class ARCorePlatformView(
     override fun dispose() {
         arCoreManager.detachSceneView(sceneView)
         sceneView.destroy()
+    }
+}
+
+/**
+ * SceneView destroys itself (engine, camera stream, ARCore session) in onDetachedFromWindow. Flutter detaches
+ * and re-attaches platform views when the app comes back from the background, so Live AR came back to a black
+ * camera with "Wall lost" for good. Detaching skips that here; [ARCorePlatformView.dispose] still destroys it.
+ */
+class FlutterARSceneView(context: Context) : ARSceneView(context) {
+    override fun onDetachedFromWindow() {
+        val f = destroyedFlag ?: return super.onDetachedFromWindow()
+        if (f.getBoolean(this)) return super.onDetachedFromWindow()
+        // ponytail: flips SceneView's private isDestroyed so its detach skips destroy(); re-check on a SceneView upgrade.
+        f.setBoolean(this, true)
+        try { super.onDetachedFromWindow() } finally { f.setBoolean(this, false) }
+    }
+
+    private companion object {
+        val destroyedFlag = runCatching {
+            io.github.sceneview.SceneView::class.java.getDeclaredField("isDestroyed").apply { isAccessible = true }
+        }.onFailure { android.util.Log.w("ARCorePlugin", "SceneView.isDestroyed not found; AR view dies on detach", it) }
+            .getOrNull()
     }
 }

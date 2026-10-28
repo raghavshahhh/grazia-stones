@@ -201,11 +201,12 @@ class ARNativeChannel {
   // MARK: - Texture Management
   
   /// Set the texture for the selected wall
-  static Future<void> setTexture(Uint8List imageData, {double? patchHeightM}) async {
+  static Future<void> setTexture(Uint8List imageData, {double? patchHeightM, bool seamCut = false}) async {
     try {
       await _channel.invokeMethod('setTexture', {
         'imageData': imageData,
         'patchHeightM': ?patchHeightM,
+        'seamCut': seamCut,
       });
       debugPrint('[ARNativeChannel] Texture set (${imageData.length} bytes)');
     } on PlatformException catch (e) {
@@ -347,6 +348,71 @@ class ARNativeChannel {
     }
   }
 
+  /// Where the current placement's size comes from: {placed, provenance, scale: measured|user|approximate, distanceM}.
+  static Future<Map<String, dynamic>> getPlacementInfo() async {
+    try {
+      final r = await _channel.invokeMethod('getPlacementInfo');
+      return r == null ? const {} : Map<String, dynamic>.from(r as Map);
+    } on PlatformException {
+      return const {};
+    } on MissingPluginException {
+      return const {};
+    }
+  }
+
+  /// User calibration: [lengthM] between two screen points on the placed wall. Returns {ok, distanceM | reason}.
+  static Future<Map<String, dynamic>> calibrateKnownLength(Offset a, Offset b, double lengthM) async {
+    try {
+      final pa = _toNativeScreenPoint(a);
+      final pb = _toNativeScreenPoint(b);
+      final r = await _channel.invokeMethod('calibrateKnownLength',
+          {'x1': pa.dx, 'y1': pa.dy, 'x2': pb.dx, 'y2': pb.dy, 'lengthM': lengthM});
+      return r == null ? const {'ok': false} : Map<String, dynamic>.from(r as Map);
+    } on PlatformException catch (e) {
+      return {'ok': false, 'reason': e.message ?? 'error'};
+    } on MissingPluginException {
+      return const {'ok': false, 'reason': 'unsupported'};
+    }
+  }
+
+  /// User calibration from a rectangle the user measured (painting, door, sheet): its four corners (screen
+  /// points, any order) and real size. Fixes the wall's distance and angle. Returns {ok, distanceM | reason}.
+  static Future<Map<String, dynamic>> calibrateRectangle(List<Offset> corners, double widthM, double heightM) async {
+    try {
+      final pts = [for (final c in corners) ...() { final p = _toNativeScreenPoint(c); return [p.dx, p.dy]; }()];
+      final r = await _channel.invokeMethod('calibrateRectangle', {'points': pts, 'widthM': widthM, 'heightM': heightM});
+      return r == null ? const {'ok': false} : Map<String, dynamic>.from(r as Map);
+    } on PlatformException catch (e) {
+      return {'ok': false, 'reason': e.message ?? 'error'};
+    } on MissingPluginException {
+      return const {'ok': false, 'reason': 'unsupported'};
+    }
+  }
+
+  /// Camera image width / height in portrait, or null before the session has a camera config (or on iOS).
+  static Future<double?> getCameraAspect() async {
+    try {
+      return await _channel.invokeMethod<double>('getCameraAspect');
+    } on PlatformException {
+      return null;
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
+  /// Erase / Restore brush on the placed design at a screen point (Android). False when nothing is placed there.
+  static Future<bool> editMask(Offset screenPoint, {required bool erase}) async {
+    try {
+      final p = _toNativeScreenPoint(screenPoint);
+      return await _channel.invokeMethod<bool>('editMask', {'screenX': p.dx, 'screenY': p.dy, 'erase': erase}) ?? false;
+    } on PlatformException catch (e) {
+      debugPrint('[ARNativeChannel] editMask failed: ${e.message}');
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
   /// Captures the AR view (camera + placed design) to the gallery. Returns {uri, path} or throws a
   /// [PlatformException] whose message is safe to show to the user.
   static Future<Map<String, String>> captureSnapshot() async {
@@ -363,6 +429,17 @@ class ARNativeChannel {
       debugPrint('[ARNativeChannel] setApproximateDistance failed: ${e.message}');
     } on MissingPluginException {
       // iOS / web: no approximate placement
+    }
+  }
+
+  /// Hide (false) or show the placed design, e.g. while the user taps a measured object under it. Android only.
+  static Future<void> setDesignVisible(bool visible) async {
+    try {
+      await _channel.invokeMethod('setDesignVisible', {'visible': visible});
+    } on PlatformException catch (e) {
+      debugPrint('[ARNativeChannel] setDesignVisible failed: ${e.message}');
+    } on MissingPluginException {
+      // iOS / web: nothing placed natively
     }
   }
 

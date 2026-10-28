@@ -90,7 +90,17 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
   StreamSubscription<sb.AuthState>? _authSub;
 
   AuthRiverpodNotifier(this._repo) : super(AuthRiverpodState()) {
-    _loadPersistedState();
+    _start();
+  }
+
+  /// The first frame renders before Supabase finishes initialising (main.dart), so wait for the client before
+  /// restoring the session and attaching the listener; reading it earlier skipped both.
+  Future<void> _start() async {
+    if (SupabaseService.instance.authOrNull == null) {
+      await SupabaseService.instance.ready.timeout(const Duration(seconds: 10), onTimeout: () {});
+    }
+    if (!mounted) return;
+    await _loadPersistedState();
     _listenForDeepLinkSignIn();
   }
 
@@ -146,7 +156,8 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
             userPhone: userData['phone'] as String?,
             userEmail: userData['email'] as String?,
             avatarUrl: userData['avatar_url'] as String?,
-            userRole: userData['role'] as String? ?? 'customer',
+            // Offline cache only: browsing stays signed in, but admin needs a live session and profile.
+            userRole: (userData['role'] as String? ?? 'customer') == 'admin' ? 'customer' : userData['role'] as String? ?? 'customer',
             isLoggedIn: true,
             onboardingComplete: onboardingComplete,
           );
@@ -211,23 +222,7 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
       final user = await _repo.login(email.trim(), password);
       await _saveAndSetState(user);
     } catch (e) {
-      // Check local registered accounts (including pre-seeded architect@graziastones.com)
-      // Debug builds only: store builds must authenticate against Supabase.
-      final localAcc = kReleaseMode ? null : _storage.findRegisteredAccount(email.trim(), password);
-      if (localAcc != null) {
-        final user = User(
-          id: 'user_${email.trim().hashCode.abs()}',
-          name: (localAcc['name'] as String?)?.isNotEmpty == true
-              ? localAcc['name'] as String
-              : 'Architect',
-          email: localAcc['email'] as String? ?? email.trim(),
-          phone: localAcc['phone'] as String?,
-          role: localAcc['role'] as String? ?? 'architect',
-          createdAt: DateTime.now(),
-        );
-        await _saveAndSetState(user);
-        return;
-      }
+      // No local-account fallback: it signed in a fake user (also in profile builds) whenever Supabase failed.
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
@@ -353,15 +348,16 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
   Future<void> logout() async {
     try {
       await _repo.logout();
-      await _storage.clearAllExceptTheme();
-
-      state = AuthRiverpodState(
-        onboardingComplete: state.onboardingComplete,
-      );
-
-      debugPrint('✅ User logged out');
     } catch (e) {
+      // Offline: the server call failed before the local session was removed. Drop it locally anyway, or the
+      // user stays signed in while the UI shows the login screen.
       debugPrint('❌ Logout error: $e');
+      try {
+        await SupabaseService.instance.authOrNull?.signOut(scope: sb.SignOutScope.local);
+      } catch (_) {}
+    } finally {
+      await _storage.clearAllExceptTheme();
+      state = AuthRiverpodState(onboardingComplete: state.onboardingComplete);
     }
   }
 
@@ -432,12 +428,13 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
     // Role is the backend profiles table's business — never trust client
     // metadata or email heuristics for authorization. Fetch the real
     // profile; fall back to the session claim only if the fetch fails.
-    var role = user.role.toLowerCase() == 'admin' ? 'admin' : user.role;
+    // Only profiles.role (server, RLS-protected) grants a role; if it cannot be read, the user is a customer.
+    var role = 'customer';
     try {
       final profile = await _repo.getProfile();
       if (profile.role.isNotEmpty) role = profile.role;
     } catch (_) {
-      // Profile fetch failed (e.g. trigger lag) — keep session role as-is.
+      // Profile fetch failed (e.g. trigger lag): no elevated role without proof.
     }
 
     await _storage.saveUser({

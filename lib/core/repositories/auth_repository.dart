@@ -19,7 +19,8 @@ class AuthRepository {
       email: u.email ?? '',
       phone: u.phone ?? u.userMetadata?['phone'] as String?,
       avatarUrl: u.userMetadata?['avatar_url'] as String?,
-      role: u.userMetadata?['role'] as String? ?? 'customer',
+      // user_metadata is writable by the user: never a source of roles. _saveAndSetState reads profiles.role.
+      role: 'customer',
       createdAt: DateTime.tryParse(u.createdAt) ?? DateTime.now(),
     );
   }

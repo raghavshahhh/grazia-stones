@@ -69,8 +69,10 @@ def rd(name):
 # ── Cultured series (Ledge / Design Surface / Brick / CNC) ───────────────────
 # ponytail: patch height = real height of the catalogue photo, ESTIMATED by
 # counting stone courses against the PDF tile size; refine on a real device.
+# grande 0.82: measured 2026-10-28 from the panel seams in aty_10.jpeg (seam rows ~62 px apart
+# = one 195 mm panel, 260 px photo); the old course-count guess 1.3 drew the stones ~1.6x too big.
 SERIES_PATCH_M = {
-    'grande': 1.3, 'country': 1.1, 'mountain': 1.1, 'classic': 0.9, 'opus': 1.2, 'vantage': 1.0,
+    'grande': 0.82, 'country': 1.1, 'mountain': 1.1, 'classic': 0.9, 'opus': 1.2, 'vantage': 1.0,
     'rockface linear': 1.0, 'castle': 0.55, 'cuarzo': 1.25, 'venetian': 1.3, 'andorra': 1.3,
     'european stack': 0.9, 'veines': 1.0, 'travertine': 1.0, 'sleepwood': 1.3, 'sierra': 0.8,
     'fossile rock': 0.35, 'tevoli': 0.9, 'rustic brick': 0.56, 'tarnished brick': 0.6,

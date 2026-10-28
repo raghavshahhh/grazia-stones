@@ -9,7 +9,7 @@
 material {
     name : grazia_wall_masked,
     shadingModel : lit,
-    blending : transparent,
+    blending : fade, // transparent kept the specular highlights where the mask hides the stone ("wet glass")
     doubleSided : true,
     requires : [ uv0 ],
     parameters : [
@@ -43,8 +43,11 @@ fragment {
         base.rgb *= shade;
 
         material.baseColor = float4(base.rgb * a, a);
-        material.roughness = 0.85;
+        // Matte stone: with the default reflectance (0.5) and the HDR environment light, the photo-derived
+        // normals threw bright fresnel rims on every joint, which read as wet glass on the OnePlus.
+        material.roughness = 0.95;
         material.metallic = 0.0;
+        material.reflectance = 0.2;
         material.emissive = float4(base.rgb * materialParams.emissiveLevel * a, 0.0);
     }
 }

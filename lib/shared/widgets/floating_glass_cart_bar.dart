@@ -47,7 +47,9 @@ class _FloatingGlassCartBarState extends ConsumerState<FloatingGlassCartBar>
     if (cart.isEmpty) return const SizedBox.shrink();
 
     final location = GoRouterState.of(context).uri.path;
-    if (location == '/cart' || location == '/checkout' || location.startsWith('/admin')) {
+    // Not over the camera: Live AR and AI Studio are full-screen tools with their own bottom controls.
+    if (location == '/cart' || location == '/checkout' || location.startsWith('/admin') ||
+        location == '/live-ai' || location == '/tools') {
       return const SizedBox.shrink();
     }
 
@@ -61,7 +63,9 @@ class _FloatingGlassCartBarState extends ConsumerState<FloatingGlassCartBar>
     return Positioned(
       left: 0,
       right: 0,
-      bottom: (bottomPadding > 0 ? bottomPadding + 6 : 14) + 72,
+      // In the shell (extendBody) padding.bottom already includes the floating nav bar; adding the nav height
+      // again lifted the capsule into the middle of every page.
+      bottom: bottomPadding + 8,
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 325),
@@ -165,7 +169,8 @@ class _FloatingGlassCartBarState extends ConsumerState<FloatingGlassCartBar>
                                 ),
                               ),
                               Text(
-                                '₹${totalPrice.toStringAsFixed(0)}',
+                                // 0 means "no catalogue price", never a ₹0 total.
+                                cart.any((i) => !i.stone.hasPrice) ? 'Price on request' : '₹${totalPrice.toStringAsFixed(0)}',
                                 style: GoogleFonts.playfairDisplay(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w800,

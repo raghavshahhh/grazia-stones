@@ -11,11 +11,7 @@ class WishlistState {
   final bool isLoading;
   final String? error;
 
-  WishlistState({
-    this.stoneIds = const [],
-    this.isLoading = false,
-    this.error,
-  });
+  WishlistState({this.stoneIds = const [], this.isLoading = false, this.error});
 
   bool contains(String stoneId) => stoneIds.contains(stoneId);
   int get count => stoneIds.length;
@@ -53,11 +49,7 @@ class WishlistNotifier extends StateNotifier<WishlistState> {
       debugPrint('✅ Wishlist loaded: ${stoneIds.length} items');
     } catch (e) {
       debugPrint('ℹ️ Wishlist guest / unauthenticated: $e');
-      state = state.copyWith(
-        stoneIds: [],
-        isLoading: false,
-        clearError: true,
-      );
+      state = state.copyWith(stoneIds: [], isLoading: false, clearError: true);
     }
   }
 
@@ -75,7 +67,7 @@ class WishlistNotifier extends StateNotifier<WishlistState> {
       stoneIds: [...state.stoneIds, stoneId],
       clearError: true,
     );
-    
+
     try {
       await _repository.addToWishlist(stoneId);
     } catch (e) {
@@ -92,21 +84,18 @@ class WishlistNotifier extends StateNotifier<WishlistState> {
   /// Remove stone from wishlist
   Future<void> removeStone(String stoneId) async {
     final previousIds = state.stoneIds;
-    
+
     // Optimistic update
     state = state.copyWith(
       stoneIds: state.stoneIds.where((id) => id != stoneId).toList(),
       clearError: true,
     );
-    
+
     try {
       await _repository.removeFromWishlist(stoneId);
     } catch (e) {
       // Rollback on error
-      state = state.copyWith(
-        stoneIds: previousIds,
-        error: e.toString(),
-      );
+      state = state.copyWith(stoneIds: previousIds, error: e.toString());
       debugPrint('❌ Error removing from wishlist: $e');
       rethrow;
     }
@@ -134,23 +123,18 @@ class WishlistNotifier extends StateNotifier<WishlistState> {
   /// Remove multiple stones
   Future<void> removeMultiple(List<String> stoneIds) async {
     final previousIds = state.stoneIds;
-    
+
     // Optimistic update
     state = state.copyWith(
-      stoneIds: state.stoneIds
-          .where((id) => !stoneIds.contains(id))
-          .toList(),
+      stoneIds: state.stoneIds.where((id) => !stoneIds.contains(id)).toList(),
       clearError: true,
     );
-    
+
     try {
       await _repository.removeMultiple(stoneIds);
     } catch (e) {
       // Rollback on error
-      state = state.copyWith(
-        stoneIds: previousIds,
-        error: e.toString(),
-      );
+      state = state.copyWith(stoneIds: previousIds, error: e.toString());
       debugPrint('❌ Error removing multiple from wishlist: $e');
       rethrow;
     }
@@ -159,19 +143,16 @@ class WishlistNotifier extends StateNotifier<WishlistState> {
   /// Clear entire wishlist
   Future<void> clear() async {
     final previousIds = state.stoneIds;
-    
+
     // Optimistic update
     state = state.copyWith(stoneIds: [], clearError: true);
-    
+
     try {
       await _repository.clearWishlist();
       debugPrint('✅ Wishlist cleared');
     } catch (e) {
       // Rollback on error
-      state = state.copyWith(
-        stoneIds: previousIds,
-        error: e.toString(),
-      );
+      state = state.copyWith(stoneIds: previousIds, error: e.toString());
       debugPrint('❌ Error clearing wishlist: $e');
       rethrow;
     }
@@ -183,5 +164,10 @@ class WishlistNotifier extends StateNotifier<WishlistState> {
 
 /// Provider for wishlist
 final wishlistProvider = StateNotifierProvider<WishlistNotifier, WishlistState>(
-  (ref) => WishlistNotifier(ref.watch(wishlistRepositoryProvider)),
+  (ref) {
+    ref.watch(
+      authRiverpodProvider.select((s) => s.userId),
+    ); // a new user (or logout) starts from a fresh state
+    return WishlistNotifier(ref.watch(wishlistRepositoryProvider));
+  },
 );
