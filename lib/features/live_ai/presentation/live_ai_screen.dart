@@ -74,6 +74,9 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
   // Camera-to-wall distance now (m), shown once the size is measured; -1 = unknown.
   double _liveDistance = -1;
   int _placementPollTick = 0;
+  // Confirmed walls of the room from native ({id, label, selected, state, scale, angle}); the picker shows 2+.
+  List<Map<String, dynamic>> _roomWalls = const [];
+  String _roomWallsSig = '';
   // When Live AR started struggling (no tracking / no wall), for the "Use a photo instead" fallback.
   DateTime? _troubleSince;
 
@@ -121,7 +124,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
       if (mounted && state != null && state != _wallState) {
         setState(() => _wallState = state);
       }
-      final struggling = _trackingIssue != null || _wallState == 'NEED_TAP' || _wallState == 'SEARCHING' || _wallState == 'LOST';
+      final struggling = _trackingIssue != null || _wallState == 'NEED_TAP' || _wallState == 'NO_OUTLINE' || _wallState == 'SEARCHING' || _wallState == 'LOST';
       if (struggling && _troubleSince == null) _troubleSince = DateTime.now();
       if (!struggling && _troubleSince != null && mounted) setState(() => _troubleSince = null);
       // Where the placement's size comes from (measured / user / approximate), once a second.
@@ -132,6 +135,17 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
         final floor = info['floorTracked'] == true;
         final live = ((info['liveDistanceM'] as num?)?.toDouble() ?? -1);
         final liveRounded = live < 0 ? -1.0 : (live * 20).round() / 20; // 5 cm steps: no flicker
+        final walls = ((info['walls'] as List?) ?? const [])
+            .map((w) => Map<String, dynamic>.from(w as Map))
+            .toList();
+        // Rebuild only when a wall appears, goes or changes selection / visibility, never every poll.
+        final sig = walls.map((w) => '${w['id']}:${w['selected']}:${w['state']}:${w['angle']}').join('|');
+        if (mounted && sig != _roomWallsSig) {
+          setState(() {
+            _roomWalls = walls;
+            _roomWallsSig = sig;
+          });
+        }
         if (mounted &&
             (scale != _placementScale || surface != _placementSurface || floor != _floorTracked || liveRounded != _liveDistance)) {
           setState(() {
@@ -289,55 +303,78 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
   Future<void> _askCalibrationSize(List<Offset> corners) async {
     final w = TextEditingController();
     final h = TextEditingController();
+    var inches = false;
     double? parse(TextEditingController c) => double.tryParse(c.text.trim().replaceAll(',', '.'));
-    InputDecoration field(String label, String hint) =>
-        InputDecoration(labelText: label, suffixText: 'cm', hintText: hint);
     final size = await showDialog<(double, double)>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('How big is it?'),
-        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Real width and height of what you tapped (a tape, or the iPhone Measure app). A4 is 21 x 29.7.',
-              style: TextStyle(fontSize: 13)),
-          const SizedBox(height: 12),
-          TextField(
-            controller: w,
-            autofocus: true,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: field('Width', 'e.g. 50'),
-          ),
-          TextField(
-            controller: h,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: field('Height', 'e.g. 36'),
-          ),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () {
-              final a = parse(w), b = parse(h);
-              Navigator.pop(ctx, a == null || b == null ? null : (a, b));
-            },
-            child: const Text('Set size'),
-          ),
-        ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          InputDecoration field(String label, String hint) =>
+              InputDecoration(labelText: label, suffixText: inches ? 'in' : 'cm', hintText: hint);
+          return AlertDialog(
+            title: const Text('How big is it?'),
+            content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Real width and height of what you tapped, from a tape. A4 is 21 x 29.7 cm.',
+                  style: TextStyle(fontSize: 13)),
+              const SizedBox(height: 8),
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(value: false, label: Text('cm')),
+                  ButtonSegment(value: true, label: Text('inches')),
+                ],
+                selected: {inches},
+                onSelectionChanged: (v) => setDialogState(() => inches = v.first),
+              ),
+              TextField(
+                controller: w,
+                autofocus: true,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: field('Width', inches ? 'e.g. 24' : 'e.g. 61'),
+              ),
+              TextField(
+                controller: h,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: field('Height', inches ? 'e.g. 24' : 'e.g. 61'),
+              ),
+            ]),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              TextButton(
+                onPressed: () {
+                  final a = parse(w), b = parse(h);
+                  final k = inches ? 2.54 : 1.0;
+                  Navigator.pop(ctx, a == null || b == null ? null : (a * k, b * k));
+                },
+                child: const Text('Set size'),
+              ),
+            ],
+          );
+        },
       ),
     );
     ARCameraView.calibrationTaps.value = null;
+    debugPrint('[Calibrate] size ${size == null ? 'cancelled' : '${size.$1.toStringAsFixed(1)} x ${size.$2.toStringAsFixed(1)} cm'}');
     if (!mounted || size == null) return;
     final (wc, hc) = size;
-    if (wc < 5 || hc < 5 || wc > 2000 || hc > 2000) return;
+    if (wc < 5 || hc < 5 || wc > 2000 || hc > 2000) {
+      LuxuryToast.show(context, message: 'Size must be between 5 cm and 20 m. Tap the 4 corners again.');
+      return;
+    }
     final r = await ARNativeChannel.calibrateRectangle(corners, wc / 100, hc / 100);
+    debugPrint('[Calibrate] result $r');
     if (!mounted) return;
     final d = (r['distanceM'] as num?)?.toDouble();
+    final reason = r['reason'];
     LuxuryToast.show(
       context,
       message: r['ok'] == true && d != null
-          ? 'Wall is ${d.toStringAsFixed(2)} m away (from your ${wc.toStringAsFixed(0)} x ${hc.toStringAsFixed(0)} cm)'
-          : r['reason'] == 'unsupported'
+          ? 'Wall is ${d.toStringAsFixed(2)} m (${(d / 0.0254).toStringAsFixed(0)} in) away, from your '
+              '${wc.toStringAsFixed(0)} x ${hc.toStringAsFixed(0)} cm'
+          : reason == 'unsupported'
               ? 'Corner sizing is not available on this phone yet'
-              : 'Those corners do not match ${wc.toStringAsFixed(0)} x ${hc.toStringAsFixed(0)} cm. Tap the 4 corners again.',
+              : reason == 'shape'
+                  ? 'Those corners do not match ${wc.toStringAsFixed(0)} x ${hc.toStringAsFixed(0)} cm. Tap the 4 corners again.'
+                  : 'Could not size the wall ($reason). Hold steady on the wall and try again.',
     );
   }
 
@@ -845,6 +882,11 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
           // 10. Wall state overlay — mutually exclusive: ONLY in standard preview when camera is ready
           if (_cameraReady && !isOverlayActive) _buildWallStateOverlay(),
+
+          // 11. Room walls (a corner's two walls, walls kept while panning): pick which get the stone
+          if (_cameraReady && !isOverlayActive && !widget.measureOnly && _roomWalls.length >= 2 &&
+              ARCameraView.brushMode.value == null && ARCameraView.calibrationTaps.value == null)
+            _buildRoomWallPicker(),
         ],
       ),
     );
@@ -906,6 +948,12 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
         label = 'Point at a wall and move slowly';
         icon = Icons.crop_free_rounded;
         stateColor = const Color(0xFFD4AF37);
+        break;
+      case 'NO_OUTLINE':
+        // The wall outline could not be found; the stone is not drawn uncut over the room.
+        label = "Can't find this wall's edges · tap the wall, or use Fix edges";
+        icon = Icons.touch_app_rounded;
+        stateColor = const Color(0xFFFFB74D);
         break;
       case 'DETECTING':
         label = 'Detecting wall...';
@@ -1127,6 +1175,113 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Room wall picker ─────────────────────────────────────────────────────
+
+  Future<void> _toggleRoomWall(Map<String, dynamic> wall) async {
+    final id = wall['id'] as int;
+    final selected = wall['selected'] != true;
+    if (!selected && _roomWalls.where((w) => w['selected'] == true).length <= 1) {
+      LuxuryToast.show(context, message: 'Keep at least one wall selected');
+      return;
+    }
+    HapticFeedback.selectionClick();
+    setState(() {
+      _roomWalls = [
+        for (final w in _roomWalls) w['id'] == id ? {...w, 'selected': selected} : w,
+      ];
+      _roomWallsSig = ''; // let the next poll confirm what native did
+    });
+    await ARNativeChannel.setWallSelected(id, selected);
+  }
+
+  Widget _buildRoomWallPicker() {
+    final chosen = _roomWalls.where((w) => w['selected'] == true).length;
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 162,
+      left: 16,
+      right: 16,
+      child: Center(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(22),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: AppColors.goldWarm.withValues(alpha: 0.35), width: 0.8),
+              ),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${_roomWalls.length} walls · $chosen with stone',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white.withValues(alpha: 0.8),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    for (final w in _roomWalls) _roomWallChip(w),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _roomWallChip(Map<String, dynamic> w) {
+    final on = w['selected'] == true;
+    final inView = w['state'] == 'IN_VIEW';
+    // A corner wall whose angle could not be measured is placed square to its neighbour: say so.
+    final assumed = w['angle'] == 'assumed_90';
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Semantics(
+        button: true,
+        selected: on,
+        label: 'Wall ${w['label']}${on ? ', has stone' : ', no stone'}',
+        child: GestureDetector(
+          onTap: () => _toggleRoomWall(w),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            constraints: const BoxConstraints(minHeight: 32),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: on ? AppColors.goldWarm.withValues(alpha: inView ? 0.95 : 0.6) : Colors.white.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.goldWarm.withValues(alpha: on ? 0 : 0.5), width: 0.8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(on ? Icons.check_rounded : Icons.add_rounded, size: 14, color: on ? Colors.black : AppColors.goldWarm),
+                const SizedBox(width: 4),
+                Text(
+                  'Wall ${w['label']}${assumed ? ' · 90° est.' : ''}',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: on ? Colors.black : Colors.white,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

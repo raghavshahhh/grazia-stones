@@ -142,4 +142,29 @@ class A4ReferenceTest {
         val rays = Array(4) { i -> floatArrayOf((c[2 * i] - cx) / f, -(c[2 * i + 1] - cy) / f, -1f) }
         assertNull(A4Reference.measureRays(rays, 0.50f, 0.20f, maxRatioErr = 0.15f, maxCos = 0.2f))
     }
+
+    /**
+     * The on-device path end to end: OnePlus NE2211's logged projection (1080x1920 view), screen taps turned into
+     * rays by WallEdges.ray exactly as calibrateRectangle does. A 61 x 61 cm tape square 1.626 m away, taps up to
+     * 5 px off, must come back within 3 %: if the device reads ~1.80 m, the error is not in this geometry.
+     */
+    @Test fun `tape square through the phone's projection gives the tape distance`() {
+        val vw = 1080; val vh = 1920
+        val proj = FloatArray(16).also { it[0] = 2.5097f; it[5] = 1.4117f; it[8] = -0.0099f; it[9] = 0.0264f; it[10] = -1f; it[11] = -1f; it[14] = -0.1f }
+        val view = FloatArray(16).also { it[0] = 1f; it[5] = 1f; it[10] = 1f; it[15] = 1f }
+        val d = 1.626f; val s = 0.61f
+        fun px(x: Float, y: Float, z: Float): FloatArray {
+            val cxp = proj[0] * x + proj[8] * z; val cyp = proj[5] * y + proj[9] * z; val wc = -z
+            return floatArrayOf((cxp / wc + 1f) / 2f * vw, (1f - cyp / wc) / 2f * vh)
+        }
+        val world = listOf(floatArrayOf(-0.1f, 0.4f), floatArrayOf(0.51f, 0.4f), floatArrayOf(0.51f, -0.21f), floatArrayOf(-0.1f, -0.21f))
+        val noise = floatArrayOf(4f, -5f, -3f, 4f, 5f, 3f, -4f, -2f)
+        val taps = FloatArray(8)
+        world.forEachIndexed { k, p -> val q = px(p[0], p[1], -d); taps[2 * k] = q[0] + noise[2 * k]; taps[2 * k + 1] = q[1] + noise[2 * k + 1] }
+        val c = A4Reference.cyclic(taps)
+        val rays = Array(4) { i -> WallEdges.ray(c[2 * i], c[2 * i + 1], vw, vh, proj, view) }
+        val m = A4Reference.measureRays(rays, s, s, maxRatioErr = 0.15f, maxCos = 0.2f)
+        assertNotNull(m)
+        assertEquals(d, m!!.distanceM, d * 0.03f)
+    }
 }

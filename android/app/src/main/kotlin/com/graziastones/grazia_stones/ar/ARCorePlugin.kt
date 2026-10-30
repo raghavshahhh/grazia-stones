@@ -303,6 +303,10 @@ class ARCorePlugin : FlutterPlugin, MethodCallHandler, StreamHandler {
                 arCoreManager?.setDesignVisible(call.argument<Boolean>("visible") ?: true)
                 result.success(null)
             }
+            "setWallSelected" -> {
+                val id = call.argument<Int>("id") ?: -1
+                result.success(arCoreManager?.setWallSelected(id, call.argument<Boolean>("selected") ?: true) ?: false)
+            }
             "setWallClipping" -> {
                 arCoreManager?.wallClippingEnabled = call.argument<Boolean>("enabled") ?: true
                 result.success(null)

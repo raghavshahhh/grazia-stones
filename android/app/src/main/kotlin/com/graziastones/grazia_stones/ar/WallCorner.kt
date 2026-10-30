@@ -31,7 +31,52 @@ object WallCorner {
     class Corner(
         val cornerX: Float, val keepA: Int, val point: FloatArray, val normal: FloatArray, val keepB: Int,
         val seedX: Float, val seedZ: Float,
+        /** True once [refineAngle] measured the second wall's angle; false = the square-corner assumption. */
+        val angleMeasured: Boolean = false,
+        /** Angle between the two walls' faces, degrees (90 until measured). */
+        val angleDeg: Float = 90f,
     )
+
+    private const val REFINE_MIN_POINTS = 8
+    private const val REFINE_MAX_DEV = 0.6f       // rad (~35 deg) from square: beyond that it is not this wall
+    private const val REFINE_MAX_MAD = 0.06f      // rad: the points must agree on one direction
+    private const val REFINE_NEAR_M = 0.6f        // max distance of a candidate point from the square-corner plane
+
+    /**
+     * Turns the second wall about the corner line to where ARCore's feature points on it say it is. Room corners
+     * are often not 90 degrees; plain paint has no feature points, and then the square assumption stays (and
+     * [Corner.angleMeasured] says so). [points] are world positions (confidence-filtered), [cam] the camera.
+     */
+    fun refineAngle(c: Corner, points: List<FloatArray>, cam: FloatArray): Corner {
+        val n0 = c.normal
+        val ub0 = floatArrayOf(-n0[2], 0f, n0[0])
+        // Direction from the corner into the second wall, as assumed (square corner).
+        val dx = ub0[0] * c.keepB; val dz = ub0[2] * c.keepB
+        val dev = ArrayList<Float>()
+        for (p in points) {
+            val vx = p[0] - c.point[0]; val vz = p[2] - c.point[2]
+            val along = vx * dx + vz * dz
+            val off = vx * n0[0] + vz * n0[2]
+            if (along < 0.3f || along > 4f || abs(off) > REFINE_NEAR_M) continue
+            if (abs(p[1] - c.point[1]) > 2.5f) continue
+            dev.add(kotlin.math.atan2(off, along))
+        }
+        if (dev.size < REFINE_MIN_POINTS) return c
+        val phi = median(dev)
+        if (abs(phi) > REFINE_MAX_DEV || median(dev.map { abs(it - phi) }) > REFINE_MAX_MAD) return c
+        val cos = kotlin.math.cos(phi); val sin = kotlin.math.sin(phi)
+        val ex = dx * cos + n0[0] * sin; val ez = dz * cos + n0[2] * sin // measured direction into wall B
+        var nb = floatArrayOf(-ez, 0f, ex)
+        if ((cam[0] - c.point[0]) * nb[0] + (cam[2] - c.point[2]) * nb[2] < 0f) nb = floatArrayOf(ez, 0f, -ex)
+        val ub = floatArrayOf(-nb[2], 0f, nb[0])
+        // Same seed point in the world, expressed along the turned wall.
+        val sx = c.point[0] + ub0[0] * c.seedX; val sz = c.point[2] + ub0[2] * c.seedX
+        val seedX = (sx - c.point[0]) * ub[0] + (sz - c.point[2]) * ub[2]
+        val keepB = if (ex * ub[0] + ez * ub[2] >= 0f) 1 else -1
+        // Interior angle between the faces: the normal faces the room, so turning toward it (phi > 0) closes the corner.
+        val angle = 90f - Math.toDegrees(phi.toDouble()).toFloat()
+        return Corner(c.cornerX, c.keepA, c.point, nb, keepB, seedX, c.seedZ, angleMeasured = true, angleDeg = angle)
+    }
 
     /**
      * @param a the placed wall's mask (WallGeodesic), [w] x [h], row 0 = screen top

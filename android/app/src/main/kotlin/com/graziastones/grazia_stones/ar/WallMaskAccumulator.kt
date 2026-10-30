@@ -41,6 +41,9 @@ class WallMaskAccumulator {
     /** Share of the quad texels seen in the last update that the segmenter calls wall (0..1). */
     @Volatile var lastCoverage = 0f
         private set
+    /** Why the last update did what it did (seed pixel, flood-fill size), for the SEG log line. */
+    @Volatile var lastDebug = ""
+        private set
 
     @Synchronized fun reset() {
         acc.fill(0f)
@@ -66,11 +69,11 @@ class WallMaskAccumulator {
         quadW: Float, quadH: Float, zMin: Float, seedZ: Float, camDistanceM: Float,
         seedX: Float = 0f, keepMinX: Float = -Float.MAX_VALUE, keepMaxX: Float = Float.MAX_VALUE,
     ) {
-        if (camDistanceM < MIN_UPDATE_DISTANCE_M && hasData) return
+        if (camDistanceM < MIN_UPDATE_DISTANCE_M && hasData) { lastDebug = "skip=too_close"; return }
         val m = FloatArray(16)
         android.opengl.Matrix.multiplyMM(m, 0, vp, 0, quadToWorld, 0) // quad-local -> clip
         val gw = WallSegmenter.GW; val gh = WallSegmenter.GH
-        val seed = seedPixel(m, seedX, seedZ, gw, gh) ?: return   // design off-screen: keep the remembered mask
+        val seed = seedPixel(m, seedX, seedZ, gw, gh) ?: run { lastDebug = "skip=seed_off_screen"; return } // keep the remembered mask
         // THE wall: everything reachable from where the design was placed without crossing an edge or leaving
         // the wall's colour/lighting (WallGeodesic), at camera resolution.
         val wall = WallGeodesic.segment(seg.lab, gw, gh, seed % gw, seed / gw, seg.nonWall)
@@ -109,6 +112,7 @@ class WallMaskAccumulator {
             }
         }
         if (seen > 0) lastCoverage = wallSeen.toFloat() / seen
+        lastDebug = "seed=(${seed % gw},${seed / gw}) fill=${wall.count { it } * 100 / wall.size}% seen=$seen"
         hasData = true
     }
 

@@ -600,6 +600,7 @@ class _ARCameraViewState extends State<ARCameraView>
                     onTapUp: (d) {
                       if (taps.length >= 4) return;
                       HapticFeedback.selectionClick();
+                      debugPrint('[Calibrate] tap ${taps.length + 1}/4 at ${d.localPosition} in ${context.size}');
                       ARCameraView.calibrationTaps.value = [...taps, d.localPosition];
                     },
                     child: CustomPaint(painter: _CalibrationPainter(taps)),

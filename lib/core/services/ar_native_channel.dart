@@ -443,6 +443,18 @@ class ARNativeChannel {
     }
   }
 
+  /// Put the stone on (or take it off) one of the room's walls ([id] from getPlacementInfo's `walls`). Android only.
+  static Future<bool> setWallSelected(int id, bool selected) async {
+    try {
+      return await _channel.invokeMethod<bool>('setWallSelected', {'id': id, 'selected': selected}) ?? false;
+    } on PlatformException catch (e) {
+      debugPrint('[ARNativeChannel] setWallSelected failed: ${e.message}');
+      return false;
+    } on MissingPluginException {
+      return false; // iOS / web: one wall only
+    }
+  }
+
   /// Clip the placed design to the AI wall mask (true) or show the whole placed wall (false). Android only.
   static Future<void> setWallClipping(bool enabled) async {
     try {

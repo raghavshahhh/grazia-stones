@@ -1,8 +1,10 @@
 package com.graziastones.grazia_stones.ar
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class WallCornerTest {
@@ -49,6 +51,43 @@ class WallCornerTest {
         val ub = floatArrayOf(-c.normal[2], 0f, c.normal[0])
         val seedZw = c.point[2] + ub[2] * c.seedX
         assert(seedZw in -2f..-0.6f) { "seed z $seedZw" }
+    }
+
+    // Corner at (0.4, 0, -2): wall A along X at z = -2, the assumed square wall B runs from it toward the camera (+Z).
+    private fun squareCorner() = WallCorner.Corner(
+        cornerX = -0.4f, keepA = 1, point = floatArrayOf(0.4f, 0f, -2f), normal = floatArrayOf(-1f, 0f, 0f),
+        keepB = -1, seedX = -0.8f, seedZ = 0f,
+    )
+
+    /** Points on a wall through the corner, running into the room at [deg] from wall A's face. */
+    private fun wallPoints(deg: Double): List<FloatArray> {
+        val rad = Math.toRadians(deg)
+        // Wall A's face direction away from wall B is -X; B leaves the corner toward +Z, turned from square by deg-90.
+        val ex = -kotlin.math.cos(rad).toFloat(); val ez = kotlin.math.sin(rad).toFloat()
+        return (0 until 20).map { i -> val s = 0.4f + i * 0.08f; floatArrayOf(0.4f + ex * s, (i % 5) * 0.3f - 0.6f, -2f + ez * s) }
+    }
+
+    @Test fun `feature points turn the second wall to a 100 degree corner`() {
+        val c = WallCorner.refineAngle(squareCorner(), wallPoints(100.0), floatArrayOf(0f, 0f, 0f))
+        assertTrue(c.angleMeasured)
+        assertEquals(100f, c.angleDeg, 1.5f)
+        // The normal is perpendicular to the measured wall direction and faces the camera.
+        val rad = Math.toRadians(100.0)
+        val ex = -kotlin.math.cos(rad).toFloat(); val ez = kotlin.math.sin(rad).toFloat()
+        assertEquals(0f, c.normal[0] * ex + c.normal[2] * ez, 0.02f)
+        assertTrue((0f - c.point[0]) * c.normal[0] + (0f - c.point[2]) * c.normal[2] > 0f)
+    }
+
+    @Test fun `no feature points keeps the square assumption and says so`() {
+        val c = WallCorner.refineAngle(squareCorner(), emptyList(), floatArrayOf(0f, 0f, 0f))
+        assertFalse(c.angleMeasured)
+        assertEquals(-1f, c.normal[0], 1e-4f)
+    }
+
+    @Test fun `scattered points do not turn the wall`() {
+        val rnd = java.util.Random(1)
+        val pts = (0 until 30).map { floatArrayOf(0.4f + rnd.nextFloat() * 1.2f - 0.6f, 0f, -2f + rnd.nextFloat() * 2f) }
+        assertFalse(WallCorner.refineAngle(squareCorner(), pts, floatArrayOf(0f, 0f, 0f)).angleMeasured)
     }
 
     @Test fun `a single flat wall has no corner`() {
