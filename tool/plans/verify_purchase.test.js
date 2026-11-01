@@ -19,51 +19,63 @@ const usageRow = {
 };
 
 test('android subscription checks', () => {
-  const sub = { subscriptionState: 'SUBSCRIPTION_STATE_ACTIVE', lineItems: [{ productId: 'grazia_pro_monthly', expiryTime: future }] };
-  assert.deepEqual(checkAndroidSubscription(sub, 'grazia_pro_monthly'), { plan: 'pro', periodEnd: future });
-  assert.equal(checkAndroidSubscription({ ...sub, subscriptionState: 'SUBSCRIPTION_STATE_IN_GRACE_PERIOD' }, 'grazia_pro_monthly').plan, 'pro');
-  assert.throws(() => checkAndroidSubscription({ ...sub, subscriptionState: 'SUBSCRIPTION_STATE_EXPIRED' }, 'grazia_pro_monthly'), { code: 'purchase_not_active' });
-  assert.throws(() => checkAndroidSubscription(sub, 'grazia_plus_monthly'), { code: 'product_mismatch' });
+  const sub = {
+    subscriptionState: 'SUBSCRIPTION_STATE_ACTIVE',
+    lineItems: [{ productId: 'grazia_pro_monthly', expiryTime: future }],
+    externalAccountIdentifiers: { obfuscatedExternalAccountId: USER },
+  };
+  assert.deepEqual(checkAndroidSubscription(sub, 'grazia_pro_monthly', USER), { plan: 'pro', periodEnd: future });
+  assert.equal(checkAndroidSubscription({ ...sub, subscriptionState: 'SUBSCRIPTION_STATE_IN_GRACE_PERIOD' }, 'grazia_pro_monthly', USER).plan, 'pro');
+  assert.throws(() => checkAndroidSubscription({ ...sub, subscriptionState: 'SUBSCRIPTION_STATE_EXPIRED' }, 'grazia_pro_monthly', USER), { code: 'purchase_not_active' });
+  assert.throws(() => checkAndroidSubscription(sub, 'grazia_plus_monthly', USER), { code: 'product_mismatch' });
   const past = { ...sub, lineItems: [{ productId: 'grazia_pro_monthly', expiryTime: '2020-01-01T00:00:00Z' }] };
-  assert.throws(() => checkAndroidSubscription(past, 'grazia_pro_monthly'), { code: 'purchase_expired' });
+  assert.throws(() => checkAndroidSubscription(past, 'grazia_pro_monthly', USER), { code: 'purchase_expired' });
+  // A token bought by another account (or outside the app) cannot be claimed.
+  assert.throws(() => checkAndroidSubscription(sub, 'grazia_pro_monthly', 'someone-else'), { code: 'purchase_account_mismatch' });
+  assert.throws(() => checkAndroidSubscription({ ...sub, externalAccountIdentifiers: undefined }, 'grazia_pro_monthly', USER), { code: 'purchase_account_mismatch' });
 });
 
 test('apple transaction checks', () => {
-  const tx = { bundleId: 'com.x', productId: 'grazia_plus_monthly', expiresDate: Date.now() + 1e6, originalTransactionId: '100', transactionId: '200' };
-  assert.equal(checkAppleTransaction(tx, 'grazia_plus_monthly', 'com.x').bindKey, '100');
-  assert.throws(() => checkAppleTransaction(tx, 'grazia_plus_monthly', 'com.y'), { code: 'bundle_mismatch' });
-  assert.throws(() => checkAppleTransaction(tx, 'grazia_pro_monthly', 'com.x'), { code: 'product_mismatch' });
-  assert.throws(() => checkAppleTransaction({ ...tx, expiresDate: Date.now() - 1 }, 'grazia_plus_monthly', 'com.x'), { code: 'purchase_expired' });
-  assert.throws(() => checkAppleTransaction({ ...tx, revocationDate: 1 }, 'grazia_plus_monthly', 'com.x'), { code: 'purchase_revoked' });
+  const tx = { bundleId: 'com.x', productId: 'grazia_plus_monthly', expiresDate: Date.now() + 1e6, originalTransactionId: '100', transactionId: '200', appAccountToken: USER.toUpperCase() };
+  assert.equal(checkAppleTransaction(tx, 'grazia_plus_monthly', 'com.x', USER).bindKey, '100');
+  assert.throws(() => checkAppleTransaction(tx, 'grazia_plus_monthly', 'com.y', USER), { code: 'bundle_mismatch' });
+  assert.throws(() => checkAppleTransaction(tx, 'grazia_pro_monthly', 'com.x', USER), { code: 'product_mismatch' });
+  assert.throws(() => checkAppleTransaction({ ...tx, expiresDate: Date.now() - 1 }, 'grazia_plus_monthly', 'com.x', USER), { code: 'purchase_expired' });
+  assert.throws(() => checkAppleTransaction({ ...tx, revocationDate: 1 }, 'grazia_plus_monthly', 'com.x', USER), { code: 'purchase_revoked' });
+  assert.throws(() => checkAppleTransaction(tx, 'grazia_plus_monthly', 'com.x', '22222222-2222-2222-2222-222222222222'), { code: 'purchase_account_mismatch' });
+  assert.throws(() => checkAppleTransaction({ ...tx, appAccountToken: undefined }, 'grazia_plus_monthly', 'com.x', USER), { code: 'purchase_account_mismatch' });
 });
 
-test('ES256 JWT signature verifies and JWS payload decodes', () => {
+test('ES256 JWT signs; a JWS without a certificate chain is refused', () => {
   const { privateKey, publicKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });
   const jwt = signJwt({ alg: 'ES256' }, { a: 1 }, privateKey, 'ES256');
   const [h, p, s] = jwt.split('.');
   assert.ok(crypto.verify('sha256', Buffer.from(`${h}.${p}`), { key: publicKey, dsaEncoding: 'ieee-p1363' }, Buffer.from(s, 'base64url')));
-  assert.deepEqual(decodeJws(jwt), { a: 1 });
+  assert.throws(() => decodeJws(jwt), { code: 'store_bad_signature' });
 });
 
-test('JWS with x5c: valid signature passes, tampered payload fails', (t) => {
+test('JWS chain must end at Apple Root CA G3', (t) => {
   const { execFileSync } = require('node:child_process');
   const fs = require('node:fs');
   const os = require('node:os');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jws-'));
+  const ossl = (...a) => execFileSync('openssl', a, { stdio: 'ignore' });
   try {
-    execFileSync('openssl', ['req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256', '-nodes',
-      '-keyout', path.join(dir, 'k.pem'), '-out', path.join(dir, 'c.pem'), '-subj', '/CN=test', '-days', '1'], { stdio: 'ignore' });
+    // A self-made root + leaf: signature and chain are valid, but the root is not Apple's.
+    ossl('req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256', '-nodes',
+      '-keyout', path.join(dir, 'rk.pem'), '-out', path.join(dir, 'rc.pem'), '-subj', '/CN=fake root', '-days', '1');
+    ossl('req', '-new', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256', '-nodes',
+      '-keyout', path.join(dir, 'lk.pem'), '-out', path.join(dir, 'l.csr'), '-subj', '/CN=leaf');
+    ossl('x509', '-req', '-in', path.join(dir, 'l.csr'), '-CA', path.join(dir, 'rc.pem'), '-CAkey', path.join(dir, 'rk.pem'),
+      '-CAcreateserial', '-out', path.join(dir, 'lc.pem'), '-days', '1');
   } catch {
     t.skip('openssl not available');
     return;
   }
-  const key = fs.readFileSync(path.join(dir, 'k.pem'));
-  const der = new crypto.X509Certificate(fs.readFileSync(path.join(dir, 'c.pem'))).raw.toString('base64');
-  const jws = signJwt({ alg: 'ES256', x5c: [der] }, { productId: 'grazia_plus_monthly' }, key, 'ES256');
-  assert.equal(decodeJws(jws).productId, 'grazia_plus_monthly');
-  const [h, , sig] = jws.split('.');
-  const forged = `${h}.${Buffer.from(JSON.stringify({ productId: 'grazia_pro_monthly' })).toString('base64url')}.${sig}`;
-  assert.throws(() => decodeJws(forged), { code: 'store_bad_signature' });
+  const der = (f) => new crypto.X509Certificate(fs.readFileSync(path.join(dir, f))).raw.toString('base64');
+  const jws = signJwt({ alg: 'ES256', x5c: [der('lc.pem'), der('rc.pem')] }, { productId: 'grazia_plus_monthly' },
+    fs.readFileSync(path.join(dir, 'lk.pem')), 'ES256');
+  assert.throws(() => decodeJws(jws), { code: 'store_bad_signature' });
   fs.rmSync(dir, { recursive: true });
 });
 
@@ -96,7 +108,7 @@ function setupFetch({ boundTo = [], ackState = 'ACKNOWLEDGEMENT_STATE_PENDING' }
     if (u.endsWith('/auth/v1/user')) return json(200, { id: USER });
     if (u.startsWith('https://oauth2.googleapis.com/token')) return json(200, { access_token: 'gtok', expires_in: 3600 });
     if (u.includes('/subscriptionsv2/tokens/')) {
-      return json(200, { subscriptionState: 'SUBSCRIPTION_STATE_ACTIVE', acknowledgementState: ackState, lineItems: [{ productId: 'grazia_plus_monthly', expiryTime: future }] });
+      return json(200, { subscriptionState: 'SUBSCRIPTION_STATE_ACTIVE', acknowledgementState: ackState, lineItems: [{ productId: 'grazia_plus_monthly', expiryTime: future }], externalAccountIdentifiers: { obfuscatedExternalAccountId: USER } });
     }
     if (u.includes(':acknowledge')) return json(200, {});
     if (u.includes('/rest/v1/subscriptions?select=')) return json(200, boundTo.map((id) => ({ user_id: id })));

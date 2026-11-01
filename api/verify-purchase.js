@@ -87,7 +87,11 @@ async function googleAccessToken() {
 }
 
 /** Pure check of a subscriptionsv2 resource. Returns { plan, periodEnd } or throws HttpError. */
-function checkAndroidSubscription(sub, productId, now = Date.now()) {
+function checkAndroidSubscription(sub, productId, userId, now = Date.now()) {
+  // The app starts every purchase with applicationUserName = the user's id, which Play stores as the
+  // obfuscated account id. Without this check a leaked purchase token could be claimed by another account.
+  const owner = sub.externalAccountIdentifiers && sub.externalAccountIdentifiers.obfuscatedExternalAccountId;
+  if (!owner || owner !== userId) throw new HttpError(403, 'purchase_account_mismatch');
   if (!ANDROID_OK_STATES.includes(sub.subscriptionState)) {
     throw new HttpError(400, 'purchase_not_active');
   }
@@ -98,7 +102,7 @@ function checkAndroidSubscription(sub, productId, now = Date.now()) {
   return { plan: PRODUCT_PLANS[productId], periodEnd: new Date(expiry).toISOString() };
 }
 
-async function verifyAndroid(productId, purchaseToken) {
+async function verifyAndroid(productId, purchaseToken, userId) {
   const token = await googleAccessToken();
   const headers = { Authorization: `Bearer ${token}` };
   const resp = await fetch(`${PLAY_API}/subscriptionsv2/tokens/${encodeURIComponent(purchaseToken)}`, { headers });
@@ -108,7 +112,7 @@ async function verifyAndroid(productId, purchaseToken) {
     throw new HttpError(502, 'store_unavailable');
   }
   const sub = await resp.json();
-  const { plan, periodEnd } = checkAndroidSubscription(sub, productId);
+  const { plan, periodEnd } = checkAndroidSubscription(sub, productId, userId);
 
   // Play refunds purchases that are not acknowledged within 3 days. Done after
   // the DB write (see handler) so a failed write never leaves a paid user
@@ -142,17 +146,19 @@ function appleConfig() {
 
 /**
  * Decodes a JWS (signedTransactionInfo). Also checks the signature against the
- * x5c leaf certificate and that each certificate is signed by the next one.
- * ponytail: the chain is not pinned to Apple Root CA G3; trust comes from
- * fetching the JWS from Apple's API over TLS with our own key. Pin the root if
- * JWS ever arrives from the client or from RTDN.
+ * x5c leaf certificate, that each certificate is signed by the next one, and that
+ * the chain ends at Apple Root CA - G3 (SHA-256 fingerprint checked against
+ * https://www.apple.com/certificateauthority/AppleRootCA-G3.cer, 2026-11-01).
  */
+const APPLE_ROOT_G3_SHA256 =
+  '63:34:3A:BF:B8:9A:6A:03:EB:B5:7E:9B:3F:5F:A7:BE:7C:4F:5C:75:6F:30:17:B3:A8:C4:88:C3:65:3E:91:79';
 function decodeJws(jws) {
   const parts = String(jws).split('.');
   if (parts.length !== 3) throw new HttpError(502, 'store_bad_response');
   const header = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8'));
   const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
-  if (Array.isArray(header.x5c) && header.x5c.length) {
+  if (!Array.isArray(header.x5c) || header.x5c.length < 2) throw new HttpError(502, 'store_bad_signature');
+  {
     const certs = header.x5c.map((c) => new crypto.X509Certificate(Buffer.from(c, 'base64')));
     const okSig = crypto.verify(
       'sha256',
@@ -161,14 +167,19 @@ function decodeJws(jws) {
       Buffer.from(parts[2], 'base64url'),
     );
     const okChain = certs.every((c, i) => i === certs.length - 1 || c.verify(certs[i + 1].publicKey));
-    if (!okSig || !okChain) throw new HttpError(502, 'store_bad_signature');
+    const okRoot = certs[certs.length - 1].fingerprint256 === APPLE_ROOT_G3_SHA256;
+    if (!okSig || !okChain || !okRoot) throw new HttpError(502, 'store_bad_signature');
   }
   return payload;
 }
 
 /** Pure check of a decoded JWSTransactionDecodedPayload. */
-function checkAppleTransaction(tx, productId, bundleId, now = Date.now()) {
+function checkAppleTransaction(tx, productId, bundleId, userId, now = Date.now()) {
   if (tx.bundleId !== bundleId) throw new HttpError(400, 'bundle_mismatch');
+  // applicationUserName (the user's UUID) becomes the transaction's appAccountToken; see checkAndroidSubscription.
+  if (!tx.appAccountToken || String(tx.appAccountToken).toLowerCase() !== String(userId).toLowerCase()) {
+    throw new HttpError(403, 'purchase_account_mismatch');
+  }
   if (tx.productId !== productId) throw new HttpError(400, 'product_mismatch');
   if (tx.revocationDate) throw new HttpError(400, 'purchase_revoked');
   if (!(Number(tx.expiresDate) > now)) throw new HttpError(400, 'purchase_expired');
@@ -180,7 +191,7 @@ function checkAppleTransaction(tx, productId, bundleId, now = Date.now()) {
   };
 }
 
-async function verifyIos(productId, transactionId) {
+async function verifyIos(productId, transactionId, userId) {
   const cfg = appleConfig();
   if (!cfg) throw new HttpError(503, 'ios_verification_not_configured');
   const now = Math.floor(Date.now() / 1000);
@@ -208,7 +219,7 @@ async function verifyIos(productId, transactionId) {
   if (!body || !body.signedTransactionInfo) throw new HttpError(400, 'invalid_purchase');
 
   const tx = decodeJws(body.signedTransactionInfo);
-  return { ...checkAppleTransaction(tx, productId, cfg.bundleId), source: 'app_store', acknowledge: null };
+  return { ...checkAppleTransaction(tx, productId, cfg.bundleId, userId), source: 'app_store', acknowledge: null };
 }
 
 // ---------------------------------------------------------------------------
@@ -302,7 +313,7 @@ async function handler(req, res) {
   }
 
   try {
-    const v = platform === 'android' ? await verifyAndroid(productId, purchaseToken) : await verifyIos(productId, purchaseToken);
+    const v = platform === 'android' ? await verifyAndroid(productId, purchaseToken, auth.userId) : await verifyIos(productId, purchaseToken, auth.userId);
     await bindSubscription(auth.userId, productId, v);
     if (v.acknowledge) await v.acknowledge();
     res.status(200).json({ ok: true, usage: await credits.status(auth.userId) });
