@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'supabase_service.dart';
 
 /// Shared HTTP client for the Vercel-hosted AI proxy endpoints
@@ -18,7 +19,9 @@ import 'supabase_service.dart';
 class AIEndpointClient {
   static const String baseUrl = 'https://grazia-stones.vercel.app';
 
-  static final Dio _dio = Dio(
+  /// Tests swap its httpClientAdapter so no real render (or quota) is spent.
+  @visibleForTesting
+  static final Dio dio = Dio(
     BaseOptions(
       baseUrl: baseUrl,
       connectTimeout: const Duration(seconds: 30),
@@ -29,16 +32,20 @@ class AIEndpointClient {
 
   static Future<Map<String, dynamic>> post(
     String path,
-    Map<String, dynamic> body,
-  ) async {
+    Map<String, dynamic> body, {
+    ProgressCallback? onSendProgress,
+    ProgressCallback? onReceiveProgress,
+  }) async {
     final accessToken =
         SupabaseService.instance.clientOrNull?.auth.currentSession?.accessToken;
-    final response = await _dio.post(
+    final response = await dio.post(
       path,
       data: body,
       options: accessToken != null
           ? Options(headers: {'Authorization': 'Bearer $accessToken'})
           : null,
+      onSendProgress: onSendProgress,
+      onReceiveProgress: onReceiveProgress,
     );
     return response.data as Map<String, dynamic>;
   }

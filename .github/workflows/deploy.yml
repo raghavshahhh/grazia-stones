@@ -1,8 +1,10 @@
-name: Build & Deploy Flutter Web to Vercel
+name: Deploy API + legal site to Vercel
 
+# The Vercel project serves only api/ and site/ (see vercel.json); the Flutter app
+# ships through the stores. Production deploys are manual so nothing goes live
+# from a push without the owner's approval. Needs a valid VERCEL_TOKEN secret.
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -10,18 +12,5 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.47.3'
-          channel: 'stable'
-
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Build web
-        run: flutter build web --release --dart-define=SUPABASE_URL=https://jrrmjtbauimrrxwjvmzh.supabase.co --dart-define=SUPABASE_ANON_KEY=sb_publishable_l0K305hiCMwZ8Mh3lON3YQ_ueSMXo4a
-
       - name: Deploy to Vercel
-        run: npx vercel --prod --yes --token=${{ secrets.VERCEL_TOKEN }}
-
+        run: npx vercel@65 --prod --yes --token=${{ secrets.VERCEL_TOKEN }}

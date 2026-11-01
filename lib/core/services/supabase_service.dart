@@ -126,13 +126,14 @@ class SupabaseService {
   }
 
   /// Sign in with Google OAuth
-  /// Browser OAuth. On a phone the session comes back through [redirectTo] (the app's deep link); Safari /
-  /// Chrome itself, not an in-app view, so Google's own sign-in session and passkeys work.
+  /// Browser OAuth. On a phone the session comes back through [redirectTo] (the app's deep link). In-app browser
+  /// (Custom Tabs / Safari view): full Chrome may refuse to hand the final graziastones:// redirect back to the
+  /// app because it was not started by a tap, which left Android users stuck after choosing their Google account.
   Future<bool> signInWithOAuth(OAuthProvider provider, {String? redirectTo}) async {
     return await _withAuthRetryBool(() => auth.signInWithOAuth(
           provider,
           redirectTo: redirectTo,
-          authScreenLaunchMode: kIsWeb ? LaunchMode.platformDefault : LaunchMode.externalApplication,
+          authScreenLaunchMode: kIsWeb ? LaunchMode.platformDefault : LaunchMode.inAppBrowserView,
         ));
   }
 

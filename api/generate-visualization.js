@@ -125,7 +125,9 @@ module.exports = async (req, res) => {
     return;
   }
 
+  const t0 = Date.now();
   const auth = await verifyRequestAuth(req);
+  const tAuth = Date.now();
   if (auth.invalid) {
     res.status(401).json({ error: 'Invalid or expired session' });
     return;
@@ -212,6 +214,7 @@ module.exports = async (req, res) => {
     });
     return;
   }
+  const tCredits = Date.now();
   const refundCredit = () => credits.refund(auth.userId).catch((e) => console.error('[generate-visualization] refund failed', e.message));
   let usedModel = null;
   // Started before the response is sent and awaited after it, so it adds no latency; never throws.
@@ -235,24 +238,31 @@ module.exports = async (req, res) => {
           { inline_data: { mime_type: mimeType, data: base64Data } },
         ];
 
-    const body = JSON.stringify({
-      contents: [{ parts: requestParts }],
-      generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
-    });
+    // Image only: the app never shows the text part, and skipping it saves output tokens and time.
+    // A model that rejects image-only (400) is asked once more the old way, TEXT + IMAGE.
+    const makeBody = (responseModalities) =>
+      JSON.stringify({ contents: [{ parts: requestParts }], generationConfig: { responseModalities } });
+    const imageOnlyBody = makeBody(['IMAGE']);
     let geminiRes;
     for (const model of GEMINI_IMAGE_MODELS) {
       usedModel = model;
-      try {
-        geminiRes = await fetch(geminiUrl(model), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-          body,
-          // Image generation can hang; bound each model so three tries still fit the function budget.
-          signal: AbortSignal.timeout(60_000),
-        });
-      } catch (_) {
-        continue; // network blip or timeout: try the next model
+      let networkError = false;
+      for (const body of [imageOnlyBody, null]) {
+        try {
+          geminiRes = await fetch(geminiUrl(model), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+            body: body || makeBody(['TEXT', 'IMAGE']),
+            // Image generation can hang; bound each model so three tries still fit the function budget.
+            signal: AbortSignal.timeout(60_000),
+          });
+        } catch (_) {
+          networkError = true;
+          break; // network blip or timeout: try the next model
+        }
+        if (geminiRes.status !== 400) break;
       }
+      if (networkError) continue;
       if (geminiRes.ok || ![404, 429, 500, 503].includes(geminiRes.status)) break;
     }
 
@@ -278,6 +288,10 @@ module.exports = async (req, res) => {
     }
 
     const result = await geminiRes.json();
+    // Stage timings (ms) for Vercel logs; no user data.
+    console.log('[generate-visualization] timing', JSON.stringify({
+      auth: tAuth - t0, credits: tCredits - tAuth, gemini: Date.now() - tCredits, model: usedModel,
+    }));
     const parts = result?.candidates?.[0]?.content?.parts || [];
     const imagePart = parts.find((p) => p.inline_data || p.inlineData);
     const inline = imagePart?.inline_data || imagePart?.inlineData;

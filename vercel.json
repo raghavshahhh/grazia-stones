@@ -27,5 +27,8 @@
       "destination": "/privacy",
       "permanent": true
     }
+  ],
+  "regions": [
+    "sin1"
   ]
 }

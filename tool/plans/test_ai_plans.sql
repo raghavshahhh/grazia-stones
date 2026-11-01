@@ -51,6 +51,7 @@ grant execute on function public.is_admin() to anon, authenticated;
 \ir ../../supabase/migrations/20261009000000_ai_credits.sql
 \ir ../../supabase/migrations/20261030000000_ai_plans.sql
 \ir ../../supabase/migrations/20261030000000_ai_plans.sql
+\ir ../../supabase/migrations/20261102000000_admin_unlimited_renders.sql
 
 -- ---------------------------------------------------------------------------
 -- Fixtures
@@ -299,5 +300,16 @@ begin
 end;
 $$;
 reset role;
+
+-- Admins are never refused, but their renders are still counted.
+do $$
+declare s record; u record;
+begin
+  select * into s from pg_temp.spend('00000000-0000-0000-0000-000000000005', 30);
+  assert s.ok_count = 30, 'admin was limited: ' || s.ok_count;
+  select * into u from public.get_ai_usage('00000000-0000-0000-0000-000000000005');
+  assert u.daily_used >= 30, 'admin renders not counted';
+end;
+$$;
 
 \echo 'ALL AI PLAN TESTS PASSED'

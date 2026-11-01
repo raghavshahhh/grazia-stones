@@ -80,14 +80,6 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
     super.dispose();
   }
 
-  /// Each image of a stone row is one colour variant (the DB rarely carries colour names).
-  List<String> _colourLabels(Stone stone, int count) => List.generate(
-    count,
-    (i) => stone.availableColors.length == count
-        ? stone.availableColors[i]
-        : 'Shade ${i + 1}',
-  );
-
   void _openViewer(
     Stone stone,
     List<String> images,
@@ -101,7 +93,7 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
         builder: (_) => StoneFullscreenViewer(
           title: stone.name,
           images: images,
-          labels: _colourLabels(stone, images.length),
+          labels: stone.colourLabels(images.length),
           initialIndex: index,
           thicknessMm: thickness > 0 ? thickness : 20,
           start3D: start3D,
@@ -781,7 +773,7 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                                 ),
                               ),
                               Text(
-                                _colourLabels(stone, images.length)[_currentImageIndex],
+                                stone.colourLabels(images.length)[_currentImageIndex],
                                 style: GoogleFonts.inter(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,

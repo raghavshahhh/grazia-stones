@@ -126,6 +126,10 @@ class Stone {
   // Backward compatibility - get first image as imageUrl
   String? get imageUrl => mainImageUrl ?? (images.isNotEmpty ? images.first : null);
 
+  /// Name of each of [count] colour variants (one per catalogue image); the DB rarely carries colour names.
+  List<String> colourLabels(int count) =>
+      List.generate(count, (i) => availableColors.length == count ? availableColors[i] : 'Shade ${i + 1}');
+
   // Compatibility getters for admin and filters
   List<String> get colors => availableColors;
   List<String> get tags => idealFor;

@@ -1,8 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
-import 'package:image/image.dart' as img;
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +12,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:grazia_stones/core/services/ai_endpoint_client.dart';
 import 'package:grazia_stones/core/providers/ai_usage_provider.dart';
+import 'package:grazia_stones/features/ai_viz/services/ai_studio_render.dart';
 import 'package:grazia_stones/features/ai_viz/services/branded_render.dart';
 import 'package:grazia_stones/features/pro/presentation/grazia_pro_screen.dart' show openPaywall;
 import 'package:grazia_stones/features/pro/presentation/widgets/plan_widgets.dart' show AiUsageChip;
@@ -19,6 +21,7 @@ import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/providers/stone_providers.dart' show allStonesProvider;
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
+import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 
 /// Architectural Color & Finish Variant Model
 class StudioColorVariant {
@@ -197,6 +200,11 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
   // Real catalogue size of the chosen stone, sent so the render scales the pattern correctly.
   String? _preSelectedStoneSpec;
   bool _loadingPreSelectedStone = false;
+  // The catalogue stone and image behind _designBytes (null for samples and uploads): drives the suggestions.
+  Stone? _selectedStone;
+  String? _designUrl;
+  // Image URL (colour) or stone id (related) being loaded from a suggestion tap.
+  String? _loadingSuggestion;
 
   StudioColorVariant get _activeVariant => _studioColorVariants.first;
 
@@ -212,8 +220,15 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
     return _resultBytesCache!;
   }
   bool _generating = false;
-  double _generationProgress = 0.0;
-  String _generationStatusText = 'Creating image';
+  // Progress card state: real stages (0 preparing, 1 uploading, 2 designing) timed against the
+  // user's own recent renders.
+  DateTime _genStartedAt = DateTime.now();
+  int _genStage = 0;
+  double? _uploadFraction;
+  bool _genDone = false;
+  int _estimateMs = RenderEta.defaultMs;
+  // JPEG data URL per picked image, started off the UI thread as soon as the image is chosen.
+  final _jpegCache = Expando<Future<String>>();
   String? _statusNote;
   String? _error;
   bool _showOriginal = false;
@@ -221,6 +236,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
   @override
   void initState() {
     super.initState();
+    RenderEta.estimateMs().then((ms) => _estimateMs = ms);
     // Start empty so user can upload/select their own room and stone.
     // Only load stone into Step 2 if explicitly navigated with a preSelectedStoneId.
     if (widget.preSelectedStoneId != null) {
@@ -279,29 +295,9 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
         return;
       }
 
-      Uint8List? bytes;
-      if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
-        final response = await Dio().get<List<int>>(
-          imageUrl,
-          options: Options(responseType: ResponseType.bytes),
-        );
-        final data = response.data;
-        if (data != null) {
-          bytes = Uint8List.fromList(data);
-        }
-      } else {
-        final byteData = await rootBundle.load(imageUrl);
-        bytes = byteData.buffer.asUint8List();
-      }
-
-      if (bytes == null || !mounted) return;
-      setState(() {
-        _designBytes = bytes;
-        _preSelectedStoneName = stone!.name;
-        _preSelectedStoneSpec = _specFor(stone);
-        _resultImage = null;
-        _error = null;
-      });
+      final bytes = await _loadImageBytes(imageUrl);
+      if (!mounted) return;
+      _setDesign(stone, imageUrl, bytes);
     } catch (e) {
       debugPrint('[SimpleAIStudio] Error loading stone $stoneId: $e');
     } finally {
@@ -339,10 +335,13 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
             _designBytes = bytes;
             _preSelectedStoneName = label;
             _preSelectedStoneSpec = null;
+            _selectedStone = null;
+            _designUrl = null;
           }
           _resultImage = null;
           _error = null;
         });
+        _prewarm();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
@@ -377,13 +376,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
       final bytes = result['bytes'] as Uint8List;
       HapticFeedback.lightImpact();
       if (!mounted) return;
-      setState(() {
-        _designBytes = bytes;
-        _preSelectedStoneName = stone.name;
-        _preSelectedStoneSpec = _specFor(stone);
-        _resultImage = null;
-        _error = null;
-      });
+      _setDesign(stone, result['imageUrl'] as String?, bytes);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
@@ -436,10 +429,13 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
           _designBytes = bytes;
           _preSelectedStoneName = 'Custom Stone Texture';
           _preSelectedStoneSpec = null;
+          _selectedStone = null;
+          _designUrl = null;
         }
         _resultImage = null;
         _error = null;
       });
+      _prewarm();
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -475,6 +471,94 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
         ),
       );
     }
+  }
+
+  /// Makes [stone] (shown as [imageUrl]) the Step 2 design.
+  void _setDesign(Stone stone, String? imageUrl, Uint8List bytes) {
+    setState(() {
+      _designBytes = bytes;
+      _preSelectedStoneName = stone.name;
+      _preSelectedStoneSpec = _specFor(stone);
+      _selectedStone = stone;
+      _designUrl = imageUrl;
+      _resultImage = null;
+      _error = null;
+    });
+    _prewarm();
+  }
+
+  Future<String> _jpegFor(Uint8List bytes, int maxSide) =>
+      _jpegCache[bytes] ??= compute(renderJpegDataUrl, (bytes, maxSide));
+
+  /// Starts the resize/encode while the user is still on the screen, so Generate can upload at once.
+  void _prewarm() {
+    if (_roomBytes != null) _jpegFor(_roomBytes!, roomMaxSide).ignore();
+    if (_designBytes != null) _jpegFor(_designBytes!, designMaxSide).ignore();
+  }
+
+  /// "Try it in another colour": renders the same stone with another of its catalogue colours.
+  Future<void> _renderColour(StoneColour colour) async {
+    final stone = _selectedStone;
+    if (stone == null || _generating || _loadingSuggestion != null) return;
+    HapticFeedback.selectionClick();
+    setState(() => _loadingSuggestion = colour.imageUrl);
+    try {
+      final bytes = await _loadImageBytes(colour.imageUrl);
+      if (!mounted) return;
+      _loadingSuggestion = null;
+      _setDesign(stone, colour.imageUrl, bytes);
+      await _generate();
+    } catch (e) {
+      debugPrint('[AIStudio] colour load failed: $e');
+      if (mounted) {
+        setState(() => _loadingSuggestion = null);
+        _showLoadError();
+      }
+    }
+  }
+
+  /// "You may also like": makes [stone] the design; the user taps Generate (one render per tap).
+  Future<void> _selectRelated(Stone stone) async {
+    if (_generating || _loadingSuggestion != null) return;
+    final imageUrl = stone.arTexture ?? stone.mainImageUrl ?? (stone.images.isNotEmpty ? stone.images.first : null);
+    if (imageUrl == null || imageUrl.isEmpty) return;
+    HapticFeedback.selectionClick();
+    setState(() => _loadingSuggestion = stone.id);
+    try {
+      final bytes = await _loadImageBytes(imageUrl);
+      if (!mounted) return;
+      _loadingSuggestion = null;
+      _setDesign(stone, imageUrl, bytes);
+      if (_scrollController.hasClients) _scrollController.jumpTo(0);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${stone.name} selected. Tap Generate to see it in your room.',
+              style: GoogleFonts.inter(color: Colors.white, fontSize: 13)),
+          backgroundColor: const Color(0xFF1E1E22),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    } catch (e) {
+      debugPrint('[AIStudio] related stone load failed: $e');
+      if (mounted) {
+        setState(() => _loadingSuggestion = null);
+        _showLoadError();
+      }
+    }
+  }
+
+  void _showLoadError() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Could not load that stone. Check your connection and try again.',
+            style: GoogleFonts.inter(color: Colors.white)),
+        backgroundColor: const Color(0xFFE53935),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   /// "Size 490x195 mm, thickness 35 mm" from the catalogue, or null if unknown.
@@ -517,15 +601,23 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
       return;
     }
     HapticFeedback.heavyImpact();
+    final watch = Stopwatch()..start();
     setState(() {
       _needsLogin = false;
       _generating = true;
-      _generationProgress = 0.08;
-      _generationStatusText = 'Scanning room depth & wall geometry...';
+      _genStartedAt = DateTime.now();
+      _genStage = 0;
+      _uploadFraction = null;
+      _genDone = false;
+      // A failed re-render must show its error, which lives on the photo slots view.
+      _resultImage = null;
       _error = null;
       _statusNote = null;
       _showOriginal = false;
     });
+    void stage(int s) {
+      if (mounted && _generating && s > _genStage) setState(() => _genStage = s);
+    }
 
     String? generatedB64;
     String statusNote = 'AI render';
@@ -534,114 +626,109 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
     // Set on a 402 (plan limit): the reason is shown and the paywall opens.
     String? limitReason;
     bool offerUpgrade = false;
+    // Stage timings for device logs (ms since the tap; no user data).
+    int? encodedAt, uploadedAt, firstByteAt;
 
-    final inferenceFuture = () async {
-      try {
-        final roomDataUrl = _jpegDataUrl(_roomBytes!);
-        final designDataUrl = _jpegDataUrl(_designBytes!);
+    try {
+      // Usually already done by _prewarm; otherwise both encode in parallel off the UI thread.
+      final images = await Future.wait([
+        _jpegFor(_roomBytes!, roomMaxSide),
+        _jpegFor(_designBytes!, designMaxSide),
+      ]);
+      encodedAt = watch.elapsedMilliseconds;
+      stage(1);
 
-        final data = await AIEndpointClient.post('/api/generate-visualization', {
-          'image': roomDataUrl,
-          'designImage': designDataUrl,
+      final data = await AIEndpointClient.post(
+        '/api/generate-visualization',
+        {
+          'image': images[0],
+          'designImage': images[1],
           'stoneName': _preSelectedStoneName ?? 'Natural Stone',
           if (_preSelectedStoneSpec != null) 'designSpec': _preSelectedStoneSpec,
-        });
+        },
+        onSendProgress: (sent, total) {
+          if (total <= 0 || !mounted || !_generating) return;
+          final f = sent / total;
+          if (f >= 1) {
+            uploadedAt ??= watch.elapsedMilliseconds;
+            stage(2);
+          } else if (f - (_uploadFraction ?? 0) >= 0.05) {
+            setState(() => _uploadFraction = f);
+          }
+        },
+        // The endpoint answers only when the render is done, so the first byte marks server time.
+        onReceiveProgress: (_, _) => firstByteAt ??= watch.elapsedMilliseconds,
+      );
 
-        final returnedImage = data['resultImage'] as String?;
-        if (returnedImage != null && returnedImage.isNotEmpty) {
-          generatedB64 = returnedImage;
-          final left = data['creditsRemaining'];
-          final today = data['dailyRemaining'];
-          statusNote = left is int && today is int
-              ? 'AI render • $left credits left ($today more today)'
-              : 'AI render';
-          return;
-        }
+      final returnedImage = data['resultImage'] as String?;
+      if (returnedImage != null && returnedImage.isNotEmpty) {
+        generatedB64 = returnedImage;
+        final left = data['creditsRemaining'];
+        final today = data['dailyRemaining'];
+        statusNote = left is int && today is int
+            ? 'AI render • $left credits left ($today more today)'
+            : 'AI render';
+      } else {
         blockedMessage = 'The AI did not return an image. Please try another photo.';
-      } on DioException catch (e) {
-        final code = e.response?.statusCode;
-        final body = e.response?.data;
-        final serverMessage = body is Map && body['error'] is String ? body['error'] as String : null;
-        if (body is Map && body['code'] == 'login_required') _needsLogin = true;
-        if (code == 402) {
-          limitReason = limitReachedMessage(body);
-          offerUpgrade = limitReachedUsage(body)?.plan != 'pro';
-        }
-        blockedMessage = switch (code) {
-          402 => limitReason,
-          401 || 429 || 502 || 504 => serverMessage ?? 'AI render is unavailable right now. Please try again.',
-          503 => 'AI Studio is not set up on the server yet. Please contact Grazia support.',
-          413 => 'The photos are too large. Please use smaller images.',
-          _ => e.type == DioExceptionType.connectionTimeout || e.type == DioExceptionType.receiveTimeout
-              ? 'The AI render took too long. Please try again.'
-              : 'Could not reach the AI service. Check your connection and try again.',
-        };
-        debugPrint('[AIStudio] generate-visualization failed ($code): $e');
-      } catch (e) {
-        blockedMessage = 'Could not generate the render. Please try again.';
-        debugPrint('[AIStudio] generate-visualization failed: $e');
       }
-    }();
-
-    // Sequence of animated neural synthesis steps matching user's design (0.08 -> 0.43 -> 0.89 -> 1.0)
-    final steps = [
-      (0.24, 'Detecting furniture & sofa occlusion boundaries...'),
-      (0.43, 'Isolating foreground decor, plants & ceiling fixtures...'),
-      (0.68, 'Synthesizing ${_preSelectedStoneName ?? "stone"} texture onto wall...'),
-      (0.89, 'Rendering ambient contact drop-shadows & light wash...'),
-      (0.98, 'Finalizing photorealistic architectural render...'),
-    ];
-
-    for (final step in steps) {
-      await Future.delayed(const Duration(milliseconds: 550));
-      if (!mounted || !_generating) return;
-      setState(() {
-        _generationProgress = step.$1;
-        _generationStatusText = step.$2;
-      });
+    } on DioException catch (e) {
+      final code = e.response?.statusCode;
+      final body = e.response?.data;
+      final serverMessage = body is Map && body['error'] is String ? body['error'] as String : null;
+      if (body is Map && body['code'] == 'login_required') _needsLogin = true;
+      if (code == 402) {
+        limitReason = limitReachedMessage(body);
+        offerUpgrade = limitReachedUsage(body)?.plan != 'pro';
+      }
+      blockedMessage = switch (code) {
+        402 => limitReason,
+        401 || 429 || 502 || 504 => serverMessage ?? 'AI render is unavailable right now. Please try again.',
+        503 => 'AI Studio is not set up on the server yet. Please contact Grazia support.',
+        413 => 'The photos are too large. Please use smaller images.',
+        _ => e.type == DioExceptionType.connectionTimeout || e.type == DioExceptionType.receiveTimeout
+            ? 'The AI render took too long. Please try again.'
+            : 'Could not reach the AI service. Check your connection and try again.',
+      };
+      debugPrint('[AIStudio] generate-visualization failed ($code): ${e.type}');
+    } catch (e) {
+      blockedMessage = 'Could not generate the render. Please try again.';
+      debugPrint('[AIStudio] generate-visualization failed: ${e.runtimeType}');
     }
 
-    // Await background inference completion
-    await inferenceFuture;
+    final totalMs = watch.elapsedMilliseconds;
+    final up = uploadedAt ?? encodedAt;
+    debugPrint('[AIStudio] timing encode=${encodedAt}ms '
+        'upload=${up != null && encodedAt != null ? up - encodedAt : null}ms '
+        'server=${firstByteAt != null && up != null ? firstByteAt! - up : null}ms '
+        'download=${firstByteAt != null ? totalMs - firstByteAt! : null}ms '
+        'total=${totalMs}ms ok=${generatedB64 != null}');
 
     if (!mounted) return;
-    setState(() {
-      _generationProgress = 1.0;
-      _generationStatusText = 'Synthesis complete!';
-    });
-
-    await Future.delayed(const Duration(milliseconds: 350));
-    if (!mounted) return;
-
     // Renders and refusals both change the counts on the usage chip.
     ref.invalidate(aiUsageProvider);
 
-    if (blockedMessage != null) {
+    if (generatedB64 == null) {
       setState(() {
         _generating = false;
-        _error = blockedMessage;
+        _error = blockedMessage ?? 'Could not generate preview. Please try another photo.';
       });
       if (limitReason != null && offerUpgrade) openPaywall(context, reason: limitReason);
       return;
     }
 
-    if (generatedB64 != null) {
-      setState(() {
-        _resultImage = generatedB64;
-        _generating = false;
-        _statusNote = statusNote;
-      });
-      // The haptic fires from _RenderReveal when the render lands.
-      _scrollToResult();
-    } else {
-      setState(() {
-        _generating = false;
-        _error = 'Could not generate preview. Please try another photo.';
-      });
-    }
+    RenderEta.record(totalMs).then((_) => RenderEta.estimateMs()).then((ms) => _estimateMs = ms);
+    // A short "Ready" beat at 100% so the card does not just vanish.
+    setState(() => _genDone = true);
+    await Future.delayed(const Duration(milliseconds: 250));
+    if (!mounted) return;
+    setState(() {
+      _resultImage = generatedB64;
+      _generating = false;
+      _statusNote = statusNote;
+    });
+    // The haptic fires from _RenderReveal when the render lands.
+    _scrollToResult();
   }
-
-
 
   void _openFullscreenViewer() {
     if (_resultImage == null) return;
@@ -698,19 +785,6 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
   }
 
 
-
-  /// Downscaled JPEG data URL for the AI proxy: keeps the request under
-  /// Vercel's ~4.5 MB body limit and labels the bytes with their real type.
-  String _jpegDataUrl(Uint8List bytes) {
-    var decoded = img.decodeImage(bytes);
-    if (decoded == null) return 'data:image/jpeg;base64,${base64Encode(bytes)}';
-    if (decoded.width > 1536 || decoded.height > 1536) {
-      decoded = decoded.width >= decoded.height
-          ? img.copyResize(decoded, width: 1536)
-          : img.copyResize(decoded, height: 1536);
-    }
-    return 'data:image/jpeg;base64,${base64Encode(img.encodeJpg(decoded, quality: 85))}';
-  }
 
   Future<void> _shareResult() async {
     if (_resultImage == null) return;
@@ -777,8 +851,11 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
           // ─── CASE 1: AI GENERATION IN PROGRESS (Screenshots 3 & 4 Dot Matrix Animation) ───
           if (_generating) ...[
             _NeuralSynthesisWidget(
-              progress: _generationProgress,
-              statusText: _generationStatusText,
+              startedAt: _genStartedAt,
+              estimateMs: _estimateMs,
+              stage: _genStage,
+              uploadFraction: _uploadFraction,
+              done: _genDone,
             ),
           ]
 
@@ -1119,6 +1196,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
                 ),
               ),
             ),
+            if (_selectedStone != null) _buildSuggestions(_selectedStone!, palette, accentGold),
           ]
 
           // ─── CASE 3: INITIAL PHOTO SLOTS SELECTION ───
@@ -1298,6 +1376,155 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
                 ),
               ),
             ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Under a render: the stone's other catalogue colours (tap = new render, same plan limits)
+  /// and related stones (tap = select). Tinted so it reads apart from the result card.
+  Widget _buildSuggestions(Stone stone, LuxuryPalette palette, Color accentGold) {
+    final colours = stoneColours(stone);
+    final related = relatedStones(stone, ref.watch(allStonesProvider).valueOrNull ?? const []);
+    if (colours.isEmpty && related.isEmpty) return const SizedBox.shrink();
+
+    Widget heading(IconData icon, String text) => Row(
+          children: [
+            Icon(icon, size: 16, color: accentGold),
+            const SizedBox(width: 6),
+            Text(
+              text,
+              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: palette.textPrimary),
+            ),
+          ],
+        );
+
+    Widget tile({
+      required String key,
+      required String? imageUrl,
+      required String label,
+      required bool selected,
+      required bool loading,
+      required VoidCallback? onTap,
+      double size = 76,
+    }) =>
+        Semantics(
+          button: true,
+          selected: selected,
+          label: label,
+          child: GestureDetector(
+            key: ValueKey(key),
+            onTap: onTap,
+            child: SizedBox(
+              width: size,
+              child: Column(
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    width: size,
+                    height: size,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: selected ? accentGold : palette.border, width: selected ? 2.5 : 1),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          SmartStoneImage(imageUrl: imageUrl, localAsset: imageUrl, palette: palette),
+                          if (loading)
+                            Container(
+                              color: Colors.black.withValues(alpha: 0.55),
+                              alignment: Alignment.center,
+                              child: SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: accentGold),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    label,
+                    maxLines: 2,
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                      color: selected ? accentGold : palette.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+    final busy = _generating || _loadingSuggestion != null;
+    return Container(
+      margin: const EdgeInsets.only(top: 18),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+      decoration: BoxDecoration(
+        color: accentGold.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: accentGold.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (colours.isNotEmpty) ...[
+            heading(Icons.palette_outlined, 'Try it in another colour'),
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 112,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: colours.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 10),
+                itemBuilder: (_, i) {
+                  final c = colours[i];
+                  final selected = c.imageUrl == _designUrl;
+                  return tile(
+                    key: 'colour-$i',
+                    imageUrl: c.imageUrl,
+                    label: c.label,
+                    selected: selected,
+                    loading: _loadingSuggestion == c.imageUrl,
+                    onTap: selected || busy ? null : () => _renderColour(c),
+                  );
+                },
+              ),
+            ),
+          ],
+          if (colours.isNotEmpty && related.isNotEmpty) const SizedBox(height: 10),
+          if (related.isNotEmpty) ...[
+            heading(Icons.auto_awesome_outlined, 'You may also like'),
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 112,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: related.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 10),
+                itemBuilder: (_, i) {
+                  final r = related[i];
+                  return tile(
+                    key: 'related-${r.id}',
+                    imageUrl: r.imageUrl,
+                    label: r.name,
+                    selected: false,
+                    loading: _loadingSuggestion == r.id,
+                    onTap: busy ? null : () => _selectRelated(r),
+                  );
+                },
+              ),
+            ),
           ],
         ],
       ),
@@ -1629,6 +1856,15 @@ class _LuxuryImageSlot extends StatelessWidget {
   }
 }
 
+/// Bytes of a catalogue image: a network URL or a bundled asset path.
+Future<Uint8List> _loadImageBytes(String url) async {
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    final response = await Dio().get<List<int>>(url, options: Options(responseType: ResponseType.bytes));
+    return Uint8List.fromList(response.data!);
+  }
+  return (await rootBundle.load(url)).buffer.asUint8List();
+}
+
 class _SourceSelectorSheet extends ConsumerStatefulWidget {
   final bool isRoom;
 
@@ -1651,23 +1887,14 @@ class _SourceSelectorSheetState extends ConsumerState<_SourceSelectorSheet> {
         throw Exception('No texture available for this stone');
       }
 
-      Uint8List bytes;
-      if (imageUrl.startsWith('assets/')) {
-        final data = await rootBundle.load(imageUrl);
-        bytes = data.buffer.asUint8List();
-      } else {
-        final response = await Dio().get<List<int>>(
-          imageUrl,
-          options: Options(responseType: ResponseType.bytes),
-        );
-        bytes = Uint8List.fromList(response.data!);
-      }
+      final bytes = await _loadImageBytes(imageUrl);
 
       if (!mounted) return;
       Navigator.pop(context, {
         'source': 'stone_model',
         'stone': stone,
         'bytes': bytes,
+        'imageUrl': imageUrl,
       });
     } catch (e) {
       if (!mounted) return;
@@ -2308,13 +2535,22 @@ class _RenderRevealState extends State<_RenderReveal> with SingleTickerProviderS
   }
 }
 
+/// The "Creating image" card: real stages, a countdown from the user's own recent render
+/// times that switches to "Almost there…" instead of reaching 0, and the dot-matrix fill.
 class _NeuralSynthesisWidget extends StatefulWidget {
-  final double progress;
-  final String statusText;
+  final DateTime startedAt;
+  final int estimateMs;
+  /// 0 preparing photos, 1 uploading, 2 designing (upload finished, waiting on the AI).
+  final int stage;
+  final double? uploadFraction;
+  final bool done;
 
   const _NeuralSynthesisWidget({
-    required this.progress,
-    required this.statusText,
+    required this.startedAt,
+    required this.estimateMs,
+    required this.stage,
+    required this.uploadFraction,
+    required this.done,
   });
 
   @override
@@ -2323,7 +2559,11 @@ class _NeuralSynthesisWidget extends StatefulWidget {
 
 class _NeuralSynthesisWidgetState extends State<_NeuralSynthesisWidget>
     with SingleTickerProviderStateMixin {
+  static const _steps = ['Upload', 'Design', 'Finish'];
+
   late AnimationController _waveController;
+  // Refreshes the countdown and stage text; the wave controller drives per-frame motion.
+  late final Timer _clock;
 
   @override
   void initState() {
@@ -2332,12 +2572,15 @@ class _NeuralSynthesisWidgetState extends State<_NeuralSynthesisWidget>
       vsync: this,
       duration: const Duration(milliseconds: 1600),
     );
+    _clock = Timer.periodic(const Duration(milliseconds: 250), (_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Reduce Motion: hold the dots and the shimmer still; the % pill and status text still update.
+    // Reduce Motion: hold the dots and the shimmer still; the countdown, bar and text still update.
     if (MediaQuery.disableAnimationsOf(context)) {
       _waveController.stop();
     } else if (!_waveController.isAnimating) {
@@ -2347,13 +2590,42 @@ class _NeuralSynthesisWidgetState extends State<_NeuralSynthesisWidget>
 
   @override
   void dispose() {
+    _clock.cancel();
     _waveController.dispose();
     super.dispose();
   }
 
+  int get _elapsedMs => DateTime.now().difference(widget.startedAt).inMilliseconds;
+
+  double get _progress => widget.done ? 1 : RenderEta.progress(_elapsedMs, widget.estimateMs);
+
+  /// 0 preparing, 1 uploading, 2 designing, 3 finishing (late in the wait), 4 ready.
+  int get _displayStage {
+    if (widget.done) return 4;
+    if (widget.stage == 2 && _elapsedMs > widget.estimateMs * 0.7) return 3;
+    return widget.stage;
+  }
+
+  String get _statusText => switch (_displayStage) {
+        0 => 'Preparing your photos',
+        1 => widget.uploadFraction == null
+            ? 'Uploading photo'
+            : 'Uploading photo · ${(widget.uploadFraction! * 100).round()}%',
+        2 => 'Designing your wall',
+        3 => 'Adding finishing light',
+        _ => 'Ready',
+      };
+
+  String get _timeText {
+    if (widget.done) return 'Done';
+    final left = RenderEta.secondsLeft(_elapsedMs, widget.estimateMs);
+    return left == null ? 'Almost there…' : '~$left s left';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final percent = (widget.progress * 100).toInt().clamp(0, 100);
+    // Upload is step 0, design 1, finish 2 (preparing counts as upload).
+    final activeStep = switch (_displayStage) { 0 || 1 => 0, 2 => 1, 3 => 2, _ => 3 };
 
     return Container(
       height: 380,
@@ -2375,7 +2647,7 @@ class _NeuralSynthesisWidgetState extends State<_NeuralSynthesisWidget>
       ),
       child: Stack(
         children: [
-          // Animated Dot Matrix Painter
+          // Animated Dot Matrix Painter, filled by the estimated progress every frame.
           Positioned.fill(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(24),
@@ -2384,7 +2656,7 @@ class _NeuralSynthesisWidgetState extends State<_NeuralSynthesisWidget>
                 builder: (context, _) {
                   return CustomPaint(
                     painter: _DotMatrixPainter(
-                      progress: widget.progress,
+                      progress: _progress,
                       wavePhase: _waveController.value,
                     ),
                   );
@@ -2413,29 +2685,83 @@ class _NeuralSynthesisWidgetState extends State<_NeuralSynthesisWidget>
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Container(
-                      width: 7,
-                      height: 7,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF38BDF8),
-                        shape: BoxShape.circle,
+                    // Breathing "live" dot (still under Reduce Motion).
+                    AnimatedBuilder(
+                      animation: _waveController,
+                      builder: (context, _) => Container(
+                        width: 7,
+                        height: 7,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF38BDF8).withValues(
+                            alpha: 0.55 + 0.45 * math.sin(_waveController.value * math.pi),
+                          ),
+                          shape: BoxShape.circle,
+                        ),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 6),
-                Text(
-                  widget.statusText,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: const Color(0xFF94A3B8),
+                Semantics(
+                  liveRegion: true,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: Text(
+                      _statusText,
+                      key: ValueKey(_displayStage),
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: const Color(0xFF94A3B8),
+                      ),
+                    ),
                   ),
+                ),
+                const SizedBox(height: 12),
+                AnimatedBuilder(
+                  animation: _waveController,
+                  builder: (context, _) => ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: LinearProgressIndicator(
+                      value: _progress,
+                      minHeight: 3,
+                      backgroundColor: const Color(0xFF131B2E),
+                      valueColor: const AlwaysStoppedAnimation(Color(0xFF38BDF8)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    for (var i = 0; i < _steps.length; i++) ...[
+                      if (i > 0)
+                        Container(
+                          width: 14,
+                          height: 1,
+                          margin: const EdgeInsets.symmetric(horizontal: 6),
+                          color: const Color(0xFF334155),
+                        ),
+                      Icon(
+                        i < activeStep ? Icons.check_circle_rounded : Icons.circle,
+                        size: i < activeStep ? 12 : 7,
+                        color: i <= activeStep ? const Color(0xFF38BDF8) : const Color(0xFF334155),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        _steps[i],
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: i == activeStep ? FontWeight.w700 : FontWeight.w500,
+                          color: i <= activeStep ? Colors.white : const Color(0xFF64748B),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
           ),
 
-          // Progress percentage pill on bottom right
+          // Time left pill on bottom right
           Positioned(
             bottom: 22,
             right: 22,
@@ -2450,7 +2776,7 @@ class _NeuralSynthesisWidgetState extends State<_NeuralSynthesisWidget>
                 ),
               ),
               child: Text(
-                '$percent%',
+                _timeText,
                 style: GoogleFonts.inter(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -2481,8 +2807,8 @@ class _DotMatrixPainter extends CustomPainter {
     const int rows = 22;
 
     final cellW = size.width / (cols + 1);
-    final cellH = (size.height - 90) / (rows + 1);
-    const startY = 74.0;
+    final cellH = (size.height - 130) / (rows + 1);
+    const startY = 104.0; // below the header, bar and steps
 
     final inactivePaint = Paint()
       ..color = const Color(0xFF0F172A)
