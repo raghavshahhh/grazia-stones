@@ -16,7 +16,9 @@ import 'package:grazia_stones/shared/widgets/luxury_toast.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 
 class MeasureScreen extends ConsumerStatefulWidget {
-  const MeasureScreen({super.key});
+  /// `?stoneId=` from the stone page / AR: estimate for that stone instead of an arbitrary first one.
+  final String? initialStoneId;
+  const MeasureScreen({super.key, this.initialStoneId});
 
   @override
   ConsumerState<MeasureScreen> createState() => _MeasureScreenState();
@@ -43,7 +45,7 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
   double _grossAreaSqFt = 138.0;
   double _wastageAreaSqFt = 18.0;
   int _boxCount = 14;
-  double _estimatedCost = 62100.0;
+  double _estimatedCost = 0;
   int _tileCount = 18;
   int _adhesiveBags = 4;
   int _groutKg = 6;
@@ -127,6 +129,19 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
     return v > 0 ? '~$v sqft/box' : '~10.5 sqft/box (estimate)';
   }
 
+  /// One piece of the selected stone in sq ft, from its real catalogue size; null when the size is not listed.
+  double? get _stonePieceSqFt {
+    final l = _selectedStone?.lengthCm ?? 0, w = _selectedStone?.widthCm ?? 0;
+    return l > 0 && w > 0 ? l * w / 929.0304 : null;
+  }
+
+  /// What one counted piece is: the stone's real size, or the generic slab chosen below.
+  String get _pieceLabel {
+    if (_stonePieceSqFt == null) return _selectedTileSize;
+    String n(double v) => v == v.roundToDouble() ? v.toInt().toString() : v.toString();
+    return '${n(_selectedStone!.lengthCm!)}×${n(_selectedStone!.widthCm!)} cm';
+  }
+
   String get _customRateLabel {
     final t = _customRateController.text.trim();
     return t.isEmpty ? 'Enter rate' : '₹$t/sqft';
@@ -194,7 +209,9 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
     } else if (_selectedTileSize == '48" × 96"') {
       tileSqft = 32.0;
     }
-    final tilePcs = (grossArea / tileSqft).ceil();
+    // Pieces of the real stone when its size is listed; the generic slab grid only drives the drawing then.
+    final pieceSqft = _stonePieceSqFt ?? tileSqft;
+    final tilePcs = (grossArea / pieceSqft).ceil();
 
     // Calculate grid dimensions for visualization
     final lengthInFeet = _unit == 'meters'
@@ -310,14 +327,14 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final stonesAsync = ref.watch(allStonesProvider);
 
-    // Default to first stone once loaded if not already selected
+    // The stone this page was opened for. Without one nothing is preselected: an arbitrary first stone made the
+    // box count look specific to a product the user never chose.
     stonesAsync.whenData((stones) {
-      if (_selectedStone == null && stones.isNotEmpty) {
+      final match = _selectedStone == null && !_useCustomRate ? findStone(stones, widget.initialStoneId) : null;
+      if (match != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && _selectedStone == null) {
-            setState(() {
-              _selectedStone = stones.first;
-            });
+            setState(() => _selectedStone = match);
             _calculate(silent: true);
           }
         });
@@ -471,7 +488,7 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
           (m) => '${m[1]},',
         );
 
-    final stoneName = _selectedStone?.name ?? 'Custom Specification';
+    final stoneName = _selectedStone?.name ?? (_useCustomRate ? 'Custom rate' : 'none yet, choose one below');
     final stoneRate = _useCustomRate || _selectedStone == null
         ? _customRateLabel
         : Formatters.pricePerSqFt(_selectedStone!.pricePerSqFt);
@@ -623,7 +640,7 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
             children: [
               _buildMiniSpec('NET SURFACE', '${_netAreaSqFt.toStringAsFixed(1)} sq ft', palette),
               _buildMiniSpec('CUT BUFFER', '+${_wastageAreaSqFt.toStringAsFixed(1)} sq ft (${_wastageController.text}%)', palette),
-              _buildMiniSpec('SLAB TILES', '~$_tileCount pcs ($_selectedTileSize)', palette),
+              _buildMiniSpec(_stonePieceSqFt == null ? 'SLAB TILES' : 'PIECES', '~$_tileCount pcs ($_pieceLabel)', palette),
             ],
           ),
           const SizedBox(height: 8),
@@ -1054,7 +1071,11 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
               physics: const BouncingScrollPhysics(),
               child: Row(
                 children: [
-                  ...stones.take(10).map((stone) {
+                  // The chosen stone stays in view even when it is not one of the first ten.
+                  ...[
+                    if (_selectedStone != null && !stones.take(10).any((s) => s.id == _selectedStone!.id)) _selectedStone!,
+                    ...stones.take(10),
+                  ].map((stone) {
                     final isSelected = !_useCustomRate && _selectedStone?.id == stone.id;
                     return Padding(
                       padding: const EdgeInsets.only(right: 10),
@@ -1684,7 +1705,7 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
           _buildBreakdownRow('Total Gross Coverage Needed', '${_grossAreaSqFt.toStringAsFixed(1)} sq ft', palette, isBold: true),
           const Divider(height: 20),
           _buildBreakdownRow('Packaging Boxes Required', '$_boxCount Boxes ($_sqftPerBoxLabel)', palette),
-          _buildBreakdownRow('Estimated Slab Tiles ($_selectedTileSize)', '$_tileCount Units', palette),
+          _buildBreakdownRow('Estimated Pieces ($_pieceLabel)', '$_tileCount Units', palette),
           _buildBreakdownRow('Adhesive (20kg polymer bag)', '$_adhesiveBags Bags (~40 sqft/bag)', palette),
           _buildBreakdownRow('Epoxy / Cement Grout', '$_groutKg kg (~25 sqft/kg)', palette),
         ],
@@ -1698,14 +1719,18 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: isBold ? FontWeight.w700 : FontWeight.w400,
-              color: isBold ? palette.textPrimary : palette.textSecondary,
+          // Long values ('14 Boxes (~10.5 sqft/box (estimate))') overflowed the row on a phone; the label wraps now.
+          Expanded(
+            child: Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: isBold ? FontWeight.w700 : FontWeight.w400,
+                color: isBold ? palette.textPrimary : palette.textSecondary,
+              ),
             ),
           ),
+          const SizedBox(width: 12),
           Text(
             val,
             style: GoogleFonts.inter(

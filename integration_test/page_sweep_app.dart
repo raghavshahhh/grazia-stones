@@ -17,7 +17,7 @@ import 'package:grazia_stones/main.dart' as app;
 
 const _email = String.fromEnvironment('QA_EMAIL');
 const _password = String.fromEnvironment('QA_PASSWORD');
-// Optional comma-separated subset, e.g. --dart-define=ROUTES=/cart,/measure
+// Optional comma-separated subset, e.g. --dart-define=ROUTES=/cart,/measure ('+/x' = push /x on top)
 const _only = String.fromEnvironment('ROUTES');
 // Optional: also scroll each page to its end and take a second '<name>_end' shot (--dart-define=SCROLL_END=true).
 const _scrollEnd = bool.fromEnvironment('SCROLL_END');
@@ -184,7 +184,8 @@ Future<void> main() async {
   for (final route in routes) {
     i++;
     current = route;
-    router.go(route);
+    // '+/path' pushes onto the current page (the real tap flow, e.g. stone detail -> AR) instead of go().
+    route.startsWith('+') ? router.push(route.substring(1)).ignore() : router.go(route);
     await Future.delayed(const Duration(milliseconds: 4500));
     final landed = router.routerDelegate.currentConfiguration.uri.toString();
     final errorWidgets = _count((w) => w is ErrorWidget || w is GraziaGlobalErrorWidget);

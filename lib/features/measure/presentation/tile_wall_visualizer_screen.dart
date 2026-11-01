@@ -277,20 +277,7 @@ class _TileWallVisualizerScreenState
         stonesAsync.value != null &&
         stonesAsync.value!.isNotEmpty) {
       final stones = stonesAsync.value!;
-      Stone? match;
-      if (widget.initialStoneId != null) {
-        final q = widget.initialStoneId!.toLowerCase().trim();
-        match = stones
-            .where(
-              (s) =>
-                  s.id.toLowerCase() == q ||
-                  s.name.toLowerCase() == q ||
-                  s.name.toLowerCase().contains(q) ||
-                  s.productCode.toLowerCase() == q,
-            )
-            .firstOrNull;
-      }
-      _selectedStone = match ?? stones.first;
+      _selectedStone = findStone(stones, widget.initialStoneId) ?? stones.first;
     }
 
     final widthFt = _widthValue != null ? _toFeet(_widthValue!) : null;
@@ -620,23 +607,8 @@ class _TileWallVisualizerScreenState
                     if (_selectedStone == null && stones.isNotEmpty) {
                       WidgetsBinding.instance.addPostFrameCallback((_) {
                         if (mounted && _selectedStone == null) {
-                          Stone? match;
-                          if (widget.initialStoneId != null) {
-                            final q = widget.initialStoneId!
-                                .toLowerCase()
-                                .trim();
-                            match = stones
-                                .where(
-                                  (s) =>
-                                      s.id.toLowerCase() == q ||
-                                      s.name.toLowerCase() == q ||
-                                      s.name.toLowerCase().contains(q) ||
-                                      s.productCode.toLowerCase() == q,
-                                )
-                                .firstOrNull;
-                          }
                           setState(
-                            () => _selectedStone = match ?? stones.first,
+                            () => _selectedStone = findStone(stones, widget.initialStoneId) ?? stones.first,
                           );
                         }
                       });

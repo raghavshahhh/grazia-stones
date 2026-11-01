@@ -421,13 +421,10 @@ class _SavedDesignsScreenState extends ConsumerState<SavedDesignsScreen> {
                         ),
                       ),
                       GestureDetector(
-                        onTap: () {
-                          if (design.hasStone) {
-                            context.push('/stones/${design.stoneId}');
-                          } else {
-                            context.push('/quotes');
-                          }
-                        },
+                        // Labelled Quote, so it opens the quote form (it used to open the product page).
+                        onTap: () => context.push(
+                          design.hasStone ? '/quotes/new?stoneId=${design.stoneId}' : '/quotes/new',
+                        ),
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
@@ -484,6 +481,24 @@ class _SavedDesignsScreenState extends ConsumerState<SavedDesignsScreen> {
                 _downloadDesign(design);
               },
             ),
+            if (design.hasStone) ...[
+              ListTile(
+                leading: Icon(Icons.view_in_ar_rounded, color: palette.primary),
+                title: Text('Try on my wall (Live AR)', style: TextStyle(color: palette.textPrimary)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  context.push('/ar-view?stoneId=${Uri.encodeQueryComponent(design.stoneId!)}');
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.auto_awesome_rounded, color: palette.primary),
+                title: Text('New render in AI Studio', style: TextStyle(color: palette.textPrimary)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  context.push('/ai-viz?stoneId=${Uri.encodeQueryComponent(design.stoneId!)}');
+                },
+              ),
+            ],
             if (design.hasStone)
               ListTile(
                 leading: Icon(Icons.info_outline, color: palette.primary),

@@ -340,3 +340,15 @@ class Stone {
     origin: origin ?? this.origin,
   );
 }
+
+/// The stone a `?stoneId=` link means: exact id / product code / name first, then a name containing the query.
+/// Shared by Live AR, AI Studio, Measure and the 3D wall so a design opened from one page lands on the same stone
+/// everywhere (a loose `contains` match on an earlier stone used to win over the real one).
+Stone? findStone(Iterable<Stone> stones, String? query) {
+  final q = query?.toLowerCase().trim() ?? '';
+  if (q.isEmpty) return null;
+  return stones
+      .where((s) => s.id.toLowerCase() == q || s.productCode.toLowerCase() == q || s.name.toLowerCase() == q)
+      .followedBy(stones.where((s) => s.name.toLowerCase().contains(q)))
+      .firstOrNull;
+}

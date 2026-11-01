@@ -9,26 +9,22 @@ import 'package:grazia_stones/features/aarna_ai/services/aarna_ai_service.dart';
 import 'package:grazia_stones/shared/widgets/aarna_living_avatar.dart';
 
 void main() {
-  final svc = AarnaAIService.instance;
-  final cols = MockDataService.collections;
+  final stones = MockDataService.stones;
 
-  test('small talk gets no product cards', () {
-    for (final q in ['hey', 'Hello', 'hi aarna', 'how are you', 'kaise ho', 'thanks', 'ok', 'namaste', 'who are you']) {
-      expect(svc.wantsProducts(q, cols), isFalse, reason: q);
-    }
+  test('no designs from the server means no cards (plain answers stay plain)', () {
+    expect(AarnaAIService.resolveDesigns(null, stones), isEmpty);
+    expect(AarnaAIService.resolveDesigns(const [], stones), isEmpty);
   });
 
-  test('product questions in English, Hindi and Hinglish do get cards', () {
-    for (final q in [
-      'living room wall ke liye stone batao',
-      'show me exterior options',
-      'mujhe fluted panel chahiye',
-      'price of brick series',
-      'bedroom design suggest karo',
-      'Exclusive Patina Series',
-    ]) {
-      expect(svc.wantsProducts(q, cols), isTrue, reason: q);
-    }
+  test('server designs map to catalogue stones by id, then name, in order; unknown ones dropped', () {
+    final a = stones[0], b = stones[1];
+    final out = AarnaAIService.resolveDesigns([
+      {'id': b.id, 'name': b.name},
+      {'id': 'not-in-catalogue', 'name': a.name.toUpperCase()},
+      {'id': 'missing', 'name': 'Does Not Exist'},
+      {'id': b.id, 'name': b.name},
+    ], stones);
+    expect(out, [b, a]);
   });
 
   testWidgets('header avatar renders idle, searching and waving (writes PNG for review)', (tester) async {

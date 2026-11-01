@@ -99,4 +99,28 @@ class WallCornerTest {
         val (a, m) = scene(0.4f, bLeaksAsWall = false)
         assertNull(WallCorner.find(a, m, w, h, proj, view, floatArrayOf(0f, 0f, -2f), floatArrayOf(0f, 0f, 1f)))
     }
+
+    @Test fun `two wall planes meet at their real corner line and angle`() {
+        // A: z = -2 facing +Z. B: through (1, -2) turned 80 deg (not square) facing the camera at the origin.
+        val a = 80.0 * Math.PI / 180
+        val nb = floatArrayOf(-kotlin.math.sin(a).toFloat(), 0f, kotlin.math.cos(a).toFloat())
+        val c = WallCorner.planeCorner(floatArrayOf(0f, 0f, -2f), floatArrayOf(0f, 0f, 1f), floatArrayOf(1.2f, 0f, -2f + 0.2f * kotlin.math.tan(a).toFloat()), nb)
+        assertNotNull(c)
+        assertEquals(1f, c!![0], 1e-3f)
+        assertEquals(-2f, c[1], 1e-3f)
+        assertEquals(80f, WallCorner.normalAngleDeg(floatArrayOf(0f, 0f, 1f), nb), 0.01f)
+        // Near-parallel walls and a far-away line give no corner.
+        assertNull(WallCorner.planeCorner(floatArrayOf(0f, 0f, -2f), floatArrayOf(0f, 0f, 1f), floatArrayOf(0f, 0f, -2.5f), floatArrayOf(0.2f, 0f, 0.98f)))
+        assertNull(WallCorner.planeCorner(floatArrayOf(0f, 0f, -2f), floatArrayOf(0f, 0f, 1f), floatArrayOf(6f, 0f, -1f), floatArrayOf(-1f, 0f, 0f)))
+    }
+
+    @Test fun `a wall steps half-way to its tracked plane and stops inside 1 deg and 15 mm`() {
+        val o = floatArrayOf(0f, 1f, -2f); val n = floatArrayOf(0f, 0f, 1f)
+        assertTrue(WallCorner.coplanar(o, n, floatArrayOf(0.5f, 1.2f, -2.05f), floatArrayOf(0.1f, 0f, -0.99f)))
+        assertFalse(WallCorner.coplanar(o, n, floatArrayOf(0f, 1f, -2.3f), floatArrayOf(0f, 0f, 1f)))
+        val (o1, n1) = WallCorner.refineStep(o, n, floatArrayOf(0f, 0f, -2.1f), floatArrayOf(0f, 0f, -1f))!!
+        assertEquals(-2.05f, o1[2], 1e-4f)
+        assertEquals(1f, n1[2], 1e-4f) // plane normal flipped to the wall's side
+        assertNull(WallCorner.refineStep(o, n, floatArrayOf(0f, 0f, -2.01f), floatArrayOf(0f, 0f, 1f)))
+    }
 }

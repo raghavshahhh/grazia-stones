@@ -490,7 +490,7 @@ class ProfileScreen extends ConsumerWidget {
                     icon: Icons.calculate_outlined,
                     title: 'BOQ & Project Calculator',
                     subtitle: 'Calculate surface area, box counts & wastage',
-                    onTap: () => context.push('/boq-calculator'),
+                    onTap: () => context.push('/measure'),
                   ),
                   _MenuItem(
                     palette: palette,

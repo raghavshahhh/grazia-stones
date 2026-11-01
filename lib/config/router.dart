@@ -58,7 +58,6 @@ import '../features/legal/presentation/delete_account_screen.dart';
 import '../features/legal/presentation/privacy_policy_screen.dart';
 import '../features/legal/presentation/terms_of_service_screen.dart';
 import '../features/support/presentation/help_support_screen.dart';
-import '../features/measure/presentation/boq_calculator_screen.dart';
 import '../features/custom_design/presentation/custom_design_screen.dart';
 import '../features/aarna_ai/presentation/aarna_ai_chat_screen.dart';
 import '../core/di.dart';
@@ -77,6 +76,12 @@ const _tabRoutes = [
 
 /// Generates a unique, stable Page key that combines route pattern with exact URI
 /// to prevent duplicate key crashes in Navigator when navigating between parameterized routes (e.g. /stones/:id).
+/// `?colour=` on AR / AI Studio links: index of the shade shown on the product page (0 or absent = default).
+int? _colour(GoRouterState state) => int.tryParse(state.uri.queryParameters['colour'] ?? '');
+
+/// Alias routes keep the query (`?stoneId=` etc.) so a design opened through an old link still arrives.
+String _withQuery(String path, GoRouterState state) => state.uri.hasQuery ? '$path?${state.uri.query}' : path;
+
 LocalKey _pageKey(GoRouterState state) {
   return ValueKey<String>('${state.pageKey.value}::${state.uri}');
 }
@@ -358,6 +363,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) =>
                 _fadePage(SimpleAIStudioScreen(
                   preSelectedStoneId: state.uri.queryParameters['stoneId'],
+                  preSelectedColour: _colour(state),
                 ), state),
           ),
           GoRoute(
@@ -365,11 +371,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) =>
                 _fadePage(LiveAIScreen(
                   initialStoneId: state.uri.queryParameters['stoneId'],
+                  initialColour: _colour(state),
                 ), state),
           ),
           GoRoute(
             path: '/vr-showroom',
-            redirect: (context, state) => '/live-ai',
+            redirect: (context, state) => _withQuery('/live-ai', state),
           ),
           GoRoute(
             path: '/profile',
@@ -407,7 +414,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/customize-design',
-        redirect: (context, state) => '/ai-viz',
+        redirect: (context, state) {
+          // The old result screen links here with ?stoneName=; AI Studio resolves names too.
+          final stone = state.uri.queryParameters['stoneId'] ?? state.uri.queryParameters['stoneName'];
+          return stone == null || stone.isEmpty ? '/ai-viz' : '/ai-viz?stoneId=${Uri.encodeQueryComponent(stone)}';
+        },
       ),
       GoRoute(
         path: '/compare-designs',
@@ -415,7 +426,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/vr-spaces',
-        redirect: (context, state) => '/live-ai',
+        redirect: (context, state) => _withQuery('/live-ai', state),
       ),
       // /pro and /resources listed invented CAD/texture files whose download
       // button only showed a toast. Nothing links to them; keep deep links safe.
@@ -444,11 +455,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/resources',
         redirect: (context, state) => '/home',
       ),
+      // The BOQ page was a static mock (fixed 'Desert Stone', invented panel sizes). The real estimator replaces it.
       GoRoute(
         path: '/boq-calculator',
-        parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) =>
-            _slideUpPage(const BoqCalculatorScreen(), state),
+        redirect: (context, state) => _withQuery('/measure', state),
       ),
 
       // --- Detail screens (slide up, no bottom nav) ---
@@ -659,11 +669,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/studio',
-        redirect: (context, state) => '/tools',
+        redirect: (context, state) => _withQuery('/tools', state),
       ),
       GoRoute(
         path: '/ai-studio',
-        redirect: (context, state) => '/ai-viz',
+        redirect: (context, state) => _withQuery('/ai-viz', state),
       ),
       GoRoute(
         path: '/ai-jobs',
@@ -704,6 +714,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _scaleFadePage(
           SimpleAIStudioScreen(
             preSelectedStoneId: state.uri.queryParameters['stoneId'],
+            preSelectedColour: _colour(state),
           ),
           state,
         ),
@@ -723,7 +734,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/ar-view',
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => _slideUpPage(
-          LiveAIScreen(initialStoneId: state.uri.queryParameters['stoneId']),
+          LiveAIScreen(initialStoneId: state.uri.queryParameters['stoneId'], initialColour: _colour(state)),
           state,
         ),
       ),
@@ -737,7 +748,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/measure',
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
-            _slideUpPage(const MeasureScreen(), state),
+            _slideUpPage(MeasureScreen(initialStoneId: state.uri.queryParameters['stoneId']), state),
       ),
       GoRoute(
         path: '/measure/tile-visualizer',

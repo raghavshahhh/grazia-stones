@@ -232,6 +232,7 @@ class ARCoreManager private constructor(context: Context) {
             val camera = frame.camera
             requestWallMask(view, frame)
             autoPlace(view, camera.trackingState)
+            if (camera.trackingState == TrackingState.TRACKING) refineAndJoinWalls(view)
             updateQuadTransform()
             placedAnchorNode?.let { val show = !userHidden && primarySelected && designReady(); if (shownState != show) { it.isVisible = show; shownState = show } }
             for (w in roomWalls) {
@@ -292,6 +293,7 @@ class ARCoreManager private constructor(context: Context) {
         placedAnchorNode = null
         placedQuad = null
         placedSurface = null
+        placedPlane = null
         clearRoomWalls(engineGone = true) // their engine objects went with the old view
         primaryCorner = null
         measurementNodes.clear()
@@ -776,7 +778,7 @@ class ARCoreManager private constructor(context: Context) {
      */
     private class RoomWall(
         val id: Int, val node: AnchorNode, val mask: WallMaskAccumulator, val zMin: Float, val surface: String,
-        val seedX: Float, val seedZ: Float, val keepMinX: Float, val keepMaxX: Float, var partnerGen: Int,
+        val seedX: Float, val seedZ: Float, keepMinX: Float, keepMaxX: Float, var partnerGen: Int,
         /** "own" (its own measurement), "measured" (corner angle from feature points) or "assumed_90". */
         val angle: String, val angleDeg: Float,
     ) {
@@ -785,6 +787,11 @@ class ARCoreManager private constructor(context: Context) {
         var quad: Node? = null
         var shown: Boolean? = null
         @Volatile var selected = true
+        // Corner clip in its anchor's local X; moved by refineAndJoinWalls when a neighbour's plane meets this one.
+        @Volatile var keepMinX = keepMinX
+        @Volatile var keepMaxX = keepMaxX
+        /** The tracked ARCore plane this wall follows (see refineWalls), once adopted. */
+        var plane: Plane? = null
     }
     private val roomWalls = java.util.concurrent.CopyOnWriteArrayList<RoomWall>()
     private var nextWallId = 0
@@ -836,6 +843,112 @@ class ARCoreManager private constructor(context: Context) {
         Log.i(TAG, "CORNER wall ${label(w.id)} added beside ${label(placedWallId)}: corner x=${"%.2f".format(c.cornerX)}m keepA=${c.keepA} " +
             "angle=${"%.0f".format(c.angleDeg)}deg (${w.angle}) n=(${"%.2f".format(c.normal[0])},${"%.2f".format(c.normal[2])}) " +
             "seed=(${"%.2f".format(c.seedX)},${"%.2f".format(c.seedZ)})")
+    }
+
+    private var placedPlane: Plane? = null
+    private var lastJoinMs = 0L
+    private var lastJoinLog = ""
+
+    /** [p] or the plane that subsumed it (ARCore merges walls as it learns them), if that one is still tracked. */
+    private fun livePlane(p: Plane?): Plane? {
+        var q = p
+        while (q?.subsumedBy != null) q = q.subsumedBy
+        return q?.takeIf { it.trackingState == TrackingState.TRACKING }
+    }
+
+    /**
+     * Port of iOS refineWalls + updateCorners, every 0.5 s. (1) A wall placed on a feature point, a point-cloud fit,
+     * a floor/A4/edge estimate or a corner's square guess adopts the tracked vertical plane ARCore later finds under
+     * it (15 deg, 0.15 m); a wall on a plane follows that plane half-way per step for changes over 1 deg / 15 mm.
+     * (2) Every pair of walls whose planes meet within 4 m of both (and differ by > 25 deg) is clipped at that
+     * line, each keeping the side its own anchor is on, so two walls join at the real corner at its real angle.
+     * User-calibrated walls never move. Approximate (guessed-distance) placements are left to autoPlace's upgrade.
+     */
+    private fun refineAndJoinWalls(view: ARSceneView) {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastJoinMs < 500L) return
+        lastJoinMs = now
+        val session = view.session ?: return
+        val planes = session.getAllTrackables(Plane::class.java).filter {
+            it.type == Plane.Type.VERTICAL && it.trackingState == TrackingState.TRACKING && it.subsumedBy == null
+        }
+        var moved = false
+        /** Refines [node] onto its plane; returns the plane it now follows. */
+        fun refine(id: Int, node: AnchorNode, surface: String?, plane0: Plane?): Plane? {
+            if (surface == null || surface.startsWith("user_") || Placement.scale(surface) == Placement.Scale.APPROXIMATE) return plane0
+            val a = node.anchor.takeIf { it.trackingState == TrackingState.TRACKING } ?: return plane0
+            val o = a.pose.translation; val n = a.pose.getTransformedAxis(1, 1f)
+            var plane = livePlane(plane0)
+            if (plane == null) {
+                plane = planes.firstOrNull { WallCorner.coplanar(o, n, it.centerPose.translation, it.centerPose.getTransformedAxis(1, 1f)) }
+                    ?: return null
+                Log.i(TAG, "[ARCore] WALL ${label(id)} adopted tracked plane ($surface) extent=${"%.1f".format(plane.extentX)}x${"%.1f".format(plane.extentZ)}m")
+            }
+            val (no, nn) = WallCorner.refineStep(o, n, plane.centerPose.translation, plane.centerPose.getTransformedAxis(1, 1f)) ?: return plane
+            val fresh = runCatching { plane.createAnchor(uprightWallPose(no, nn)) }.getOrNull() ?: return plane
+            val old = node.anchor
+            node.anchor = fresh
+            runCatching { old.detach() }
+            moved = true
+            Log.i(TAG, "[ARCore] WALL ${label(id)} refined to plane: turn=${"%.2f".format(WallCorner.normalAngleDeg(n, nn))}deg " +
+                "shift=${"%.0f".format(distance(o, no) * 1000)}mm")
+            return plane
+        }
+        placedAnchorNode?.let { placedPlane = refine(placedWallId, it, placedSurface, placedPlane) }
+        for (w in roomWalls) w.plane = refine(w.id, w.node, w.surface, w.plane)
+
+        // (2) Corners between every pair of walls (iOS updateCorners).
+        class J(val id: Int, val o: FloatArray, val n: FloatArray, val x: FloatArray, val room: RoomWall?)
+        val walls = ArrayList<J>()
+        placedAnchorNode?.anchor?.takeIf { it.trackingState == TrackingState.TRACKING }?.pose?.let {
+            walls.add(J(placedWallId, it.translation, it.getTransformedAxis(1, 1f), it.getTransformedAxis(0, 1f), null))
+        }
+        for (w in roomWalls) w.node.anchor.takeIf { it.trackingState == TrackingState.TRACKING }?.pose?.let {
+            walls.add(J(w.id, it.translation, it.getTransformedAxis(1, 1f), it.getTransformedAxis(0, 1f), w))
+        }
+        val logs = ArrayList<String>()
+        var changed = false
+        // ponytail: first corner per wall side wins (the primary keeps one corner, a room wall one per side); a
+        // pillar seen from three walls would need iOS's up-to-3 clip list.
+        val taken = HashSet<String>()
+        for (i in walls.indices) for (k in i + 1 until walls.size) {
+            val a = walls[i]; val b = walls[k]
+            val c = WallCorner.planeCorner(a.o, a.n, b.o, b.n) ?: continue
+            val sides = ArrayList<String>()
+            for ((w, other) in listOf(a to b, b to a)) {
+                // Corner line in this wall's local X (its anchor is at x = 0).
+                val s = (c[0] - w.o[0]) * w.x[0] + (c[1] - w.o[2]) * w.x[2]
+                val room = w.room
+                if (room != null) {
+                    val lo = room.keepMinX; val hi = room.keepMaxX
+                    // A corner partner's anchor sits on the corner itself: keep the side it already keeps.
+                    if (kotlin.math.abs(s) <= 0.05f && lo == -Float.MAX_VALUE && hi == Float.MAX_VALUE) continue
+                    val keepPositive = if (kotlin.math.abs(s) > 0.05f) s < 0f else lo > -Float.MAX_VALUE
+                    if (!taken.add("${w.id}${if (keepPositive) "+" else "-"}")) continue
+                    if (keepPositive) { if (kotlin.math.abs(lo - s) > 0.002f) { room.keepMinX = s; changed = true } }
+                    else if (kotlin.math.abs(hi - s) > 0.002f) { room.keepMaxX = s; changed = true }
+                    sides.add("${label(w.id)}:${if (keepPositive) "x>=" else "x<="}${"%.3f".format(s)}")
+                } else {
+                    val prev = primaryCorner
+                    val keepA = if (kotlin.math.abs(s) > 0.05f) (if (s < 0f) 1 else -1) else prev?.keepA ?: continue
+                    if (!taken.add("${w.id}")) continue
+                    if (prev == null || prev.keepA != keepA || kotlin.math.abs(prev.cornerX - s) > 0.002f) {
+                        val p = floatArrayOf(c[0], w.o[1], c[1])
+                        primaryCorner = WallCorner.Corner(s, keepA, p, other.n, 1, 0f, 0f, angleMeasured = true,
+                            angleDeg = 180f - WallCorner.normalAngleDeg(a.n, b.n))
+                        changed = true
+                    }
+                    sides.add("${label(w.id)}:${if (keepA > 0) "x>=" else "x<="}${"%.3f".format(s)}")
+                }
+            }
+            logs.add("walls ${label(a.id)}/${label(b.id)} angle=${"%.1f".format(WallCorner.normalAngleDeg(a.n, b.n))}deg " +
+                "line=(${"%.3f".format(c[0])},${"%.3f".format(c[1])}) clips ${sides.joinToString(" ")}")
+        }
+        if (changed || moved) {
+            lastSegRequestMs = 0L // re-cut the masks at the new corner line on the next frame
+            val line = logs.joinToString(" | ").ifEmpty { "none (${walls.size} walls)" }
+            if (line != lastJoinLog) { lastJoinLog = line; Log.i(TAG, "[ARCore] CORNER $line") }
+        }
     }
 
     /** ARCore feature points this frame with confidence >= 0.3, world space. */
@@ -965,6 +1078,7 @@ class ARCoreManager private constructor(context: Context) {
             partnerGen = -1, angle = "own", angleDeg = 0f,
         )
         w.selected = primarySelected
+        w.plane = placedPlane
         roomWalls.forEach { if (it.partnerGen == placementGen) it.partnerGen = -1 } // its corner partner stays too
         placedQuad?.let { node.removeChildNode(it); it.destroy() }
         placedQuad = null
@@ -1601,6 +1715,8 @@ class ARCoreManager private constructor(context: Context) {
         Log.i(TAG, "PLACE stage=hits count=${hits.size}")
         var chosen: HitResult? = null
         var firstRejection = "no_hit"
+        // hitTest sorts by distance, so a feature point a few cm in front of a tracked wall plane came first and its
+        // noisy estimated normal set the wall's angle (and so the corner angle). A tracked plane wins (iOS too).
         hits.forEachIndexed { i, h ->
             val t = h.trackable
             val n = h.hitPose.getTransformedAxis(1, 1.0f) // surface normal in world space
@@ -1626,7 +1742,7 @@ class ARCoreManager private constructor(context: Context) {
                 "PLACE hit#$i ${t.javaClass.simpleName} dist=${"%.2f".format(h.distance)}m " +
                     "normal=(${"%.2f".format(n[0])},${"%.2f".format(n[1])},${"%.2f".format(n[2])}) verdict=$verdict"
             )
-            if (verdict == "ok" && chosen == null) chosen = h
+            if (verdict == "ok" && (chosen == null || (t is Plane && chosen?.trackable !is Plane))) chosen = h
             else if (verdict != "ok" && firstRejection == "no_hit") firstRejection = verdict
         }
 
@@ -1897,6 +2013,7 @@ class ARCoreManager private constructor(context: Context) {
         val node = AnchorNode(engine = view.engine, anchor = anchor)
         view.addChildNode(node)
         placedAnchorNode = node
+        placedPlane = attachTo?.takeIf { it.trackingState == TrackingState.TRACKING && it.subsumedBy == null }
         placedAtMs = android.os.SystemClock.elapsedRealtime()
         lastSegRequestMs = 0L // segment the new wall on the next frame instead of up to one interval later
         placedSurface = surface
@@ -1914,6 +2031,8 @@ class ARCoreManager private constructor(context: Context) {
         rebuildPlacedQuad(view)
         Log.i(TAG, "PLACE stage=result placed=true surface=$surface onFloor=$onFloor dist=${"%.2f".format(dist)}m " +
             "p=(${"%.2f".format(p[0])},${"%.2f".format(p[1])},${"%.2f".format(p[2])}) n=(${"%.2f".format(nx)},${"%.2f".format(nz)})")
+        Log.i(TAG, "[ARCore] WALL placed ${label(placedWallId)} surface=$surface plane=${placedPlane != null} dist=${"%.2f".format(dist)}m " +
+            "n=(${"%.3f".format(nx)},${"%.3f".format(nz)}) roomWalls=${roomWalls.size}")
         return mapOf("placed" to true, "surface" to surface, "distanceM" to dist, "onFloor" to onFloor)
     }
 
@@ -2010,6 +2129,7 @@ class ARCoreManager private constructor(context: Context) {
             it.destroy()
         }
         placedAnchorNode = null
+        placedPlane = null
     }
 
     // ── Snapshot ─────────────────────────────────────────────────────────

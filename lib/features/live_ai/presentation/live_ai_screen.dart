@@ -25,11 +25,14 @@ import 'widgets/corner_adjust_overlay.dart';
 class LiveAIScreen extends ConsumerStatefulWidget {
   final String? initialStoneId;
 
+  /// `&colour=` index into the stone's images: the shade picked on the product page.
+  final int? initialColour;
+
   /// Opens straight into the camera ruler (tap two points on a real wall), like the iPhone Measure
   /// app: no stone texture on the wall, closing the ruler leaves the screen.
   final bool measureOnly;
 
-  const LiveAIScreen({super.key, this.initialStoneId, this.measureOnly = false});
+  const LiveAIScreen({super.key, this.initialStoneId, this.initialColour, this.measureOnly = false});
 
   @override
   ConsumerState<LiveAIScreen> createState() => _LiveAIScreenState();
@@ -45,11 +48,15 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
   // Camera state
   bool _cameraReady = false;
+
   /// Measure screen opened on a device/simulator without an AR camera.
   bool _noCamera = false;
 
   // Info card toggle (shown via the "i" button)
   bool _showInfoCard = false;
+
+  // Designs panel: collapsed to one bar so the camera stays clear; swipe up / tap the handle for everything else.
+  bool _panelOpen = false;
 
   // Measure mode toggle (shown via the ruler button)
   bool _measureMode = false;
@@ -97,10 +104,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
   @override
   void initState() {
     super.initState();
-    _stonePageController = PageController(
-      viewportFraction: 0.32,
-      initialPage: 0,
-    );
+    _stonePageController = PageController(viewportFraction: 0.32, initialPage: 0);
     _updateFilteredStones();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -109,10 +113,11 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
         }
         if (_filteredStones.isNotEmpty) {
           _selectStone(_selectedStoneIndex);
+          _applyInitialColour();
         }
       }
     });
-    
+
     // Start polling wall state from AR engine only after camera is ready
     ARCameraView.brushMode.addListener(_onBrushModeChanged);
     ARCameraView.calibrationTaps.addListener(_onCalibrationTaps);
@@ -128,7 +133,12 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
       if (mounted && state != null && state != _wallState) {
         setState(() => _wallState = state);
       }
-      final struggling = _trackingIssue != null || _wallState == 'NEED_TAP' || _wallState == 'NO_OUTLINE' || _wallState == 'SEARCHING' || _wallState == 'LOST';
+      final struggling =
+          _trackingIssue != null ||
+          _wallState == 'NEED_TAP' ||
+          _wallState == 'NO_OUTLINE' ||
+          _wallState == 'SEARCHING' ||
+          _wallState == 'LOST';
       if (struggling && _troubleSince == null) _troubleSince = DateTime.now();
       if (!struggling && _troubleSince != null && mounted) setState(() => _troubleSince = null);
       // Where the placement's size comes from (measured / user / approximate), once a second.
@@ -139,9 +149,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
         final floor = info['floorTracked'] == true;
         final live = ((info['liveDistanceM'] as num?)?.toDouble() ?? -1);
         final liveRounded = live < 0 ? -1.0 : (live * 20).round() / 20; // 5 cm steps: no flicker
-        final walls = ((info['walls'] as List?) ?? const [])
-            .map((w) => Map<String, dynamic>.from(w as Map))
-            .toList();
+        final walls = ((info['walls'] as List?) ?? const []).map((w) => Map<String, dynamic>.from(w as Map)).toList();
         // Rebuild only when a wall appears, goes or changes selection / visibility, never every poll.
         final sig = walls.map((w) => '${w['id']}:${w['selected']}:${w['state']}:${w['angle']}').join('|');
         if (mounted && sig != _roomWallsSig) {
@@ -151,7 +159,10 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
           });
         }
         if (mounted &&
-            (scale != _placementScale || surface != _placementSurface || floor != _floorTracked || liveRounded != _liveDistance)) {
+            (scale != _placementScale ||
+                surface != _placementSurface ||
+                floor != _floorTracked ||
+                liveRounded != _liveDistance)) {
           setState(() {
             _placementScale = scale;
             _placementSurface = surface;
@@ -169,10 +180,27 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     if (oldWidget.initialStoneId != widget.initialStoneId && widget.initialStoneId != null) {
       _updateFilteredStones();
       _selectStone(_selectedStoneIndex);
+      _applyInitialColour();
       if (_stonePageController.hasClients) {
         _stonePageController.jumpToPage(_selectedStoneIndex);
       }
     }
+  }
+
+  /// Puts the shade from `&colour=` on the wall when it belongs to the linked stone. Only for series whose colour
+  /// photos are wall shots (same rule as the colour strip); other series keep their AR texture.
+  void _applyInitialColour() {
+    final c = widget.initialColour, stone = _selectedStone;
+    if (c == null || c <= 0 || stone == null || widget.measureOnly) return;
+    if (findStone(_filteredStones, widget.initialStoneId)?.id != stone.id) return;
+    if (c < stone.images.length && _coloursAreWallPhotos(stone)) _selectColour(stone, c);
+  }
+
+  /// The texture on the wall: the chosen colour photo, else the stone's AR texture.
+  String? _texturePath(Stone? stone) {
+    if (stone == null) return null;
+    if (_colourIndex > 0 && _colourIndex < stone.images.length) return stone.images[_colourIndex];
+    return stone.arTextureUrl ?? stone.mainImageUrl;
   }
 
   @override
@@ -195,19 +223,29 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
         _filteredStones = List<Stone>.from(allStones);
       } else {
         _filteredStones = allStones
-            .where((s) =>
-                s.category.toLowerCase().contains(_selectedCategory.toLowerCase()) ||
-                s.collection.toLowerCase().contains(_selectedCategory.toLowerCase()))
+            .where(
+              (s) =>
+                  s.category.toLowerCase().contains(_selectedCategory.toLowerCase()) ||
+                  s.collection.toLowerCase().contains(_selectedCategory.toLowerCase()),
+            )
             .toList();
         if (_filteredStones.isEmpty) {
           _filteredStones = List<Stone>.from(allStones);
         }
       }
+      final rank = {for (var i = 0; i < CatalogueGroups.all.length; i++) CatalogueGroups.all[i]: i};
+      final order = {for (var i = 0; i < _filteredStones.length; i++) _filteredStones[i].id: i};
+      int rankOf(Stone s) => rank[_groupOf(s)] ?? rank[CatalogueGroups.designSurface]!;
+      _filteredStones.sort((a, b) {
+        final r = rankOf(a).compareTo(rankOf(b));
+        return r != 0 ? r : order[a.id]!.compareTo(order[b.id]!);
+      });
       if (widget.initialStoneId != null) {
         final query = widget.initialStoneId!.toLowerCase().trim();
         // Exact id/code/name first: a loose `contains` match on an earlier stone used to win over the real one.
-        var matchIdx = _filteredStones.indexWhere((s) =>
-            s.id.toLowerCase() == query || s.productCode.toLowerCase() == query || s.name.toLowerCase() == query);
+        var matchIdx = _filteredStones.indexWhere(
+          (s) => s.id.toLowerCase() == query || s.productCode.toLowerCase() == query || s.name.toLowerCase() == query,
+        );
         if (matchIdx < 0) matchIdx = _filteredStones.indexWhere((s) => s.name.toLowerCase().contains(query));
         _selectedStoneIndex = matchIdx >= 0 ? matchIdx : 0;
       } else {
@@ -219,9 +257,8 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     }
   }
 
-  Stone? get _selectedStone => _filteredStones.isEmpty
-      ? null
-      : _filteredStones[_selectedStoneIndex % _filteredStones.length];
+  Stone? get _selectedStone =>
+      _filteredStones.isEmpty ? null : _filteredStones[_selectedStoneIndex % _filteredStones.length];
 
   int _colourIndex = 0;
   String _pickerGroup = 'All';
@@ -243,7 +280,10 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
       LuxuryToast.show(
         context,
         message: inGallery
-            ? (defaultTargetPlatform == TargetPlatform.iOS ? 'Saved to Photos. Tap Share to send it.' : 'Saved to Gallery (Pictures/Grazia). Tap Share to send it.') : 'Photo ready. Tap Share to send it.',
+            ? (defaultTargetPlatform == TargetPlatform.iOS
+                  ? 'Saved to Photos. Tap Share to send it.'
+                  : 'Saved to Gallery (Pictures/Grazia). Tap Share to send it.')
+            : 'Photo ready. Tap Share to send it.',
       );
     } on Object catch (e) {
       if (!mounted) return;
@@ -258,10 +298,9 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     final path = _lastCapturePath;
     if (path == null) return;
     final stone = _selectedStone;
-    await Share.shareXFiles(
-      [XFile(path)],
-      text: stone == null ? 'My Grazia Stones design' : '${stone.name} on my wall, Grazia Stones',
-    );
+    await Share.shareXFiles([
+      XFile(path),
+    ], text: stone == null ? 'My Grazia Stones design' : '${stone.name} on my wall, Grazia Stones');
   }
 
   Widget _buildPhotoFallback() {
@@ -280,11 +319,17 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
           },
           child: _glass(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            child: const Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.photo_camera_back_rounded, size: 16, color: AppColors.goldWarm),
-              SizedBox(width: 8),
-              Text('Not working here? Use a photo instead', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
-            ]),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.photo_camera_back_rounded, size: 16, color: AppColors.goldWarm),
+                SizedBox(width: 8),
+                Text(
+                  'Not working here? Use a photo instead',
+                  style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -319,30 +364,36 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
               InputDecoration(labelText: label, suffixText: inches ? 'in' : 'cm', hintText: hint);
           return AlertDialog(
             title: const Text('How big is it?'),
-            content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Real width and height of what you tapped, from a tape. A4 is 21 x 29.7 cm.',
-                  style: TextStyle(fontSize: 13)),
-              const SizedBox(height: 8),
-              SegmentedButton<bool>(
-                segments: const [
-                  ButtonSegment(value: false, label: Text('cm')),
-                  ButtonSegment(value: true, label: Text('inches')),
-                ],
-                selected: {inches},
-                onSelectionChanged: (v) => setDialogState(() => inches = v.first),
-              ),
-              TextField(
-                controller: w,
-                autofocus: true,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: field('Width', inches ? 'e.g. 24' : 'e.g. 61'),
-              ),
-              TextField(
-                controller: h,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: field('Height', inches ? 'e.g. 24' : 'e.g. 61'),
-              ),
-            ]),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Real width and height of what you tapped, from a tape. A4 is 21 x 29.7 cm.',
+                  style: TextStyle(fontSize: 13),
+                ),
+                const SizedBox(height: 8),
+                SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(value: false, label: Text('cm')),
+                    ButtonSegment(value: true, label: Text('inches')),
+                  ],
+                  selected: {inches},
+                  onSelectionChanged: (v) => setDialogState(() => inches = v.first),
+                ),
+                TextField(
+                  controller: w,
+                  autofocus: true,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: field('Width', inches ? 'e.g. 24' : 'e.g. 61'),
+                ),
+                TextField(
+                  controller: h,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: field('Height', inches ? 'e.g. 24' : 'e.g. 61'),
+                ),
+              ],
+            ),
             actions: [
               TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
               TextButton(
@@ -359,7 +410,9 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
       ),
     );
     ARCameraView.calibrationTaps.value = null;
-    debugPrint('[Calibrate] size ${size == null ? 'cancelled' : '${size.$1.toStringAsFixed(1)} x ${size.$2.toStringAsFixed(1)} cm'}');
+    debugPrint(
+      '[Calibrate] size ${size == null ? 'cancelled' : '${size.$1.toStringAsFixed(1)} x ${size.$2.toStringAsFixed(1)} cm'}',
+    );
     if (!mounted || size == null) return;
     final (wc, hc) = size;
     if (wc < 5 || hc < 5 || wc > 2000 || hc > 2000) {
@@ -375,12 +428,12 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
       context,
       message: r['ok'] == true && d != null
           ? 'Wall is ${d.toStringAsFixed(2)} m (${(d / 0.0254).toStringAsFixed(0)} in) away, from your '
-              '${wc.toStringAsFixed(0)} x ${hc.toStringAsFixed(0)} cm'
+                '${wc.toStringAsFixed(0)} x ${hc.toStringAsFixed(0)} cm'
           : reason == 'unsupported'
-              ? 'Corner sizing is not available on this phone yet'
-              : reason == 'shape'
-                  ? 'Those corners do not match ${wc.toStringAsFixed(0)} x ${hc.toStringAsFixed(0)} cm. Tap the 4 corners again.'
-                  : 'Could not size the wall ($reason). Hold steady on the wall and try again.',
+          ? 'Corner sizing is not available on this phone yet'
+          : reason == 'shape'
+          ? 'Those corners do not match ${wc.toStringAsFixed(0)} x ${hc.toStringAsFixed(0)} cm. Tap the 4 corners again.'
+          : 'Could not size the wall ($reason). Hold steady on the wall and try again.',
     );
   }
 
@@ -389,45 +442,60 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     // what makes a wall without a found outline drawable.
     final placed = const {'TRACKING', 'LOCKED', 'APPROXIMATE', 'NO_OUTLINE', 'DETECTING'}.contains(_wallState);
     if (!placed) return _kNoOverlay;
-    return Positioned(
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
       left: 16,
-      bottom: _navClearance(context) + _kPanelHeight + 14,
+      bottom: _navClearance(context) + _panelHeight + 14,
       child: ValueListenableBuilder<String?>(
         valueListenable: ARCameraView.brushMode,
         builder: (context, mode, _) {
           Widget button(IconData icon, String label, bool active, VoidCallback onTap) => GestureDetector(
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  onTap();
-                },
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 10),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 46,
-                        height: 46,
-                        decoration: BoxDecoration(
-                          color: active ? AppColors.goldWarm : Colors.black.withValues(alpha: 0.6),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: active ? AppColors.goldWarm : Colors.white38),
-                        ),
-                        child: Icon(icon, color: active ? Colors.black : Colors.white, size: 21),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(label, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
-                    ],
+            onTap: () {
+              HapticFeedback.selectionClick();
+              onTap();
+            },
+            child: Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: active ? AppColors.goldWarm : Colors.black.withValues(alpha: 0.6),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: active ? AppColors.goldWarm : Colors.white38),
+                    ),
+                    child: Icon(icon, color: active ? Colors.black : Colors.white, size: 21),
                   ),
-                ),
-              );
+                  const SizedBox(height: 4),
+                  Text(
+                    label,
+                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+          );
           if (mode == null) {
-            return button(Icons.auto_fix_high_rounded, 'Fix edges', false, () => ARCameraView.brushMode.value = 'erase');
+            return button(
+              Icons.auto_fix_high_rounded,
+              'Fix edges',
+              false,
+              () => ARCameraView.brushMode.value = 'erase',
+            );
           }
           return Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              button(Icons.remove_circle_outline_rounded, 'Erase', mode == 'erase', () => ARCameraView.brushMode.value = 'erase'),
+              button(
+                Icons.remove_circle_outline_rounded,
+                'Erase',
+                mode == 'erase',
+                () => ARCameraView.brushMode.value = 'erase',
+              ),
               button(Icons.brush_rounded, 'Restore', mode == 'restore', () => ARCameraView.brushMode.value = 'restore'),
               button(Icons.check_rounded, 'Done', false, () => ARCameraView.brushMode.value = null),
             ],
@@ -440,9 +508,11 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
   Widget _buildCaptureControls() {
     final bottomInset = MediaQuery.of(context).padding.bottom;
     final double navClearance = _navClearance(context);
-    return Positioned(
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
       right: 16,
-      bottom: widget.measureOnly ? bottomInset + 130 : navClearance + _kPanelHeight + 14,
+      bottom: widget.measureOnly ? bottomInset + 130 : navClearance + _panelHeight + 14,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -468,7 +538,10 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
               width: 66,
               height: 66,
               padding: const EdgeInsets.all(5),
-              decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 3)),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 3),
+              ),
               child: Container(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
@@ -503,105 +576,122 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setSheet) {
-        final groups = ['All', ...CatalogueGroups.all];
-        final list = _filteredStones.where((s) => _pickerGroup == 'All' || _groupOf(s) == _pickerGroup).toList();
-        return DraggableScrollableSheet(
-          initialChildSize: 0.72,
-          minChildSize: 0.4,
-          maxChildSize: 0.95,
-          expand: false,
-          builder: (_, scroll) => Container(
-            decoration: const BoxDecoration(
-              color: Color(0xFF14110D),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            child: Column(
-              children: [
-                const SizedBox(height: 10),
-                Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
-                const SizedBox(height: 14),
-                SizedBox(
-                  height: 38,
-                  child: ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    scrollDirection: Axis.horizontal,
-                    itemCount: groups.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 8),
-                    itemBuilder: (_, i) {
-                      final on = groups[i] == _pickerGroup;
-                      return GestureDetector(
-                        onTap: () => setSheet(() => _pickerGroup = groups[i]),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: on ? AppColors.goldWarm : Colors.white10,
-                            borderRadius: BorderRadius.circular(19),
-                          ),
-                          child: Text(groups[i],
-                              style: TextStyle(color: on ? Colors.black : Colors.white70, fontSize: 12.5, fontWeight: FontWeight.w700)),
-                        ),
-                      );
-                    },
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          final groups = ['All', ...CatalogueGroups.all];
+          final list = _filteredStones.where((s) => _pickerGroup == 'All' || _groupOf(s) == _pickerGroup).toList();
+          return DraggableScrollableSheet(
+            initialChildSize: 0.72,
+            minChildSize: 0.4,
+            maxChildSize: 0.95,
+            expand: false,
+            builder: (_, scroll) => Container(
+              decoration: const BoxDecoration(
+                color: Color(0xFF14110D),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                children: [
+                  const SizedBox(height: 10),
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
                   ),
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: GridView.builder(
-                    controller: scroll,
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 130,
-                      childAspectRatio: 0.80,
-                      crossAxisSpacing: 10,
-                      mainAxisSpacing: 10,
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    height: 38,
+                    child: ListView.separated(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      scrollDirection: Axis.horizontal,
+                      itemCount: groups.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 8),
+                      itemBuilder: (_, i) {
+                        final on = groups[i] == _pickerGroup;
+                        return GestureDetector(
+                          onTap: () => setSheet(() => _pickerGroup = groups[i]),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: on ? AppColors.goldWarm : Colors.white10,
+                              borderRadius: BorderRadius.circular(19),
+                            ),
+                            child: Text(
+                              groups[i],
+                              style: TextStyle(
+                                color: on ? Colors.black : Colors.white70,
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                    itemCount: list.length,
-                    itemBuilder: (_, i) {
-                      final s = list[i];
-                      final on = _selectedStone?.id == s.id;
-                      return GestureDetector(
-                        onTap: () {
-                          _pickStone(s);
-                          Navigator.of(ctx).pop();
-                        },
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: on ? AppColors.goldWarm : Colors.white12, width: on ? 2.5 : 1),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: SizedBox.expand(
-                                    child: SmartStoneImage(
-                                      imageUrl: s.images.isNotEmpty ? s.images.first : s.imageUrl,
-                                      fit: BoxFit.cover,
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: GridView.builder(
+                      controller: scroll,
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                        maxCrossAxisExtent: 130,
+                        childAspectRatio: 0.80,
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
+                      ),
+                      itemCount: list.length,
+                      itemBuilder: (_, i) {
+                        final s = list[i];
+                        final on = _selectedStone?.id == s.id;
+                        return GestureDetector(
+                          onTap: () {
+                            _pickStone(s);
+                            Navigator.of(ctx).pop();
+                          },
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: on ? AppColors.goldWarm : Colors.white12,
+                                      width: on ? 2.5 : 1,
+                                    ),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: SizedBox.expand(
+                                      child: SmartStoneImage(
+                                        imageUrl: s.images.isNotEmpty ? s.images.first : s.imageUrl,
+                                        fit: BoxFit.cover,
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(s.name,
+                              const SizedBox(height: 4),
+                              Text(
+                                s.name,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
-                          ],
-                        ),
-                      );
-                    },
+                                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        );
-      }),
+          );
+        },
+      ),
     );
   }
 
@@ -619,7 +709,13 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     if (i < 0 || i >= stone.images.length) return;
     HapticFeedback.selectionClick();
     setState(() => _colourIndex = i);
-    ARCameraView.updateStone(stone.images[i], _textureOpacity, patchHeightM: _patchHeightFor(stone), seamCut: _seamCutFor(stone), trimFraction: _trimFor(stone));
+    ARCameraView.updateStone(
+      stone.images[i],
+      _textureOpacity,
+      patchHeightM: _patchHeightFor(stone),
+      seamCut: _seamCutFor(stone),
+      trimFraction: _trimFor(stone),
+    );
   }
 
   Widget _buildColourStrip(Stone stone) {
@@ -662,8 +758,14 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     if (stone == null) return;
     final path = stone.arTextureUrl ?? stone.mainImageUrl;
     if (path != null) {
-      ARCameraView.updateStone(path, _textureOpacity, patchHeightM: _patchHeightFor(stone), seamCut: _seamCutFor(stone), trimFraction: _trimFor(stone));
-      
+      ARCameraView.updateStone(
+        path,
+        _textureOpacity,
+        patchHeightM: _patchHeightFor(stone),
+        seamCut: _seamCutFor(stone),
+        trimFraction: _trimFor(stone),
+      );
+
       // Preload adjacent carousel textures for instant switching
       final int currentIndex = _selectedStoneIndex;
       final int prevIndex = (currentIndex - 1 + _filteredStones.length) % _filteredStones.length;
@@ -676,7 +778,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
       if (preloadUrls.isNotEmpty) {
         ARCameraView.preloadTextures(preloadUrls);
       }
-      
+
       // Parse tile dimensions from stone size (e.g., "600×150×18-20mm")
       final sizeParts = stone.size.split('×');
       if (sizeParts.length >= 2) {
@@ -758,47 +860,54 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     final result = dims == null
         ? null
         : await ARCameraView.calculateTileQuantity(
-            tileWidth: dims.$1, tileHeight: dims.$2, tileUnit: 'mm', wastagePercent: 15.0);
+            tileWidth: dims.$1,
+            tileHeight: dims.$2,
+            tileUnit: 'mm',
+            wastagePercent: 15.0,
+          );
     if (!mounted) return;
     final area = (result?['wallArea'] as num?)?.toDouble() ?? 0;
-    final next = area >= 0.3 ? result : null;   // a few mesh cells is not a wall yet
+    final next = area >= 0.3 ? result : null; // a few mesh cells is not a wall yet
     if (next?['recommendedQuantity'] != _liveEstimate?['recommendedQuantity'] ||
         next?['wallArea'] != _liveEstimate?['wallArea']) {
       setState(() => _liveEstimate = next);
     }
   }
 
-  Widget _buildLiveEstimate() {
+  /// Live material estimate (area scanned so far, pieces with wastage); tap for the full quantity card.
+  Widget _buildEstimatePill() {
     final r = _liveEstimate!;
     final unit = r['unit']?.toString() ?? 'm';
-    return Positioned(
-      right: 12,
-      top: MediaQuery.of(context).size.height * 0.40,
-      child: GestureDetector(
-        onTap: () {
-          HapticFeedback.selectionClick();
-          setState(() => _quantityResult = r);
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.62),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.goldWarm.withValues(alpha: 0.35)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text('${r['recommendedQuantity']} pcs',
-                  style: const TextStyle(color: AppColors.goldWarm, fontSize: 17, fontWeight: FontWeight.w700, fontFamily: 'Inter')),
-              const SizedBox(height: 2),
-              Text('${(r['wallArea'] as num).toStringAsFixed(1)} $unit² · +${(r['wastagePercent'] as num? ?? 15).round()}% wastage',
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 11.5, fontFamily: 'Inter')),
-              Text((r['walls'] as num? ?? 1) > 1 ? '${r['walls']} walls · scanning' : 'scanning',
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 10, fontFamily: 'Inter')),
-            ],
-          ),
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        setState(() => _quantityResult = r);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.goldWarm.withValues(alpha: 0.45)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              '${r['recommendedQuantity']} pcs',
+              style: const TextStyle(
+                color: AppColors.goldWarm,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w800,
+                fontFamily: 'Inter',
+              ),
+            ),
+            Text(
+              '${(r['wallArea'] as num).toStringAsFixed(1)} $unit²',
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 9.5, fontFamily: 'Inter'),
+            ),
+          ],
         ),
       ),
     );
@@ -818,7 +927,10 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     );
     if (!mounted) return;
     if (result == null) {
-      LuxuryToast.show(context, message: 'No wall detected yet. Move your phone slowly across the wall, then try again.');
+      LuxuryToast.show(
+        context,
+        message: 'No wall detected yet. Move your phone slowly across the wall, then try again.',
+      );
       return;
     }
     setState(() => _quantityResult = result);
@@ -845,7 +957,9 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
       return;
     }
     try {
-      await ref.read(userRepositoryProvider).saveDesign(
+      await ref
+          .read(userRepositoryProvider)
+          .saveDesign(
             stoneId: stone.id,
             stoneName: stone.name,
             generatedImageUrl: image,
@@ -865,7 +979,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     HapticFeedback.mediumImpact();
     final stone = _selectedStone;
     if (stone == null) return;
-    
+
     // Quote form with this stone preselected (router reads ?stoneId=)
     context.push('/quotes/new?stoneId=${stone.id}');
   }
@@ -878,16 +992,20 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
       final stones = next.valueOrNull;
       if (stones != null && stones.isNotEmpty) {
         _updateFilteredStones(stones);
-        final path = _selectedStone?.arTextureUrl ?? _selectedStone?.mainImageUrl;
+        _applyInitialColour();
+        final path = _texturePath(_selectedStone);
         if (path != null && _cameraReady) {
-          ARCameraView.updateStone(path, _textureOpacity, patchHeightM: _patchHeightFor(_selectedStone), seamCut: _seamCutFor(_selectedStone), trimFraction: _trimFor(_selectedStone));
+          ARCameraView.updateStone(
+            path,
+            _textureOpacity,
+            patchHeightM: _patchHeightFor(_selectedStone),
+            seamCut: _seamCutFor(_selectedStone),
+            trimFraction: _trimFor(_selectedStone),
+          );
         }
       }
     });
-    final isOverlayActive = _measureMode ||
-        _adjustingCorners ||
-        _selectingWall ||
-        _quantityResult != null;
+    final isOverlayActive = _measureMode || _adjustingCorners || _selectingWall || _quantityResult != null;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -944,14 +1062,12 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
           // 6. Manual wall-corner adjustment overlay — only when camera is ready
           if (_adjustingCorners && _cameraReady)
-            CornerAdjustOverlay(
-                onClose: () => setState(() => _adjustingCorners = false)),
+            CornerAdjustOverlay(onClose: () => setState(() => _adjustingCorners = false)),
 
           // 7. Wall selection overlay (when multiple walls detected) — only when camera is ready
           if (_selectingWall && _cameraReady) _buildWallSelectionOverlay(),
 
-          // 8. Live material estimate (area scanned so far, pieces with wastage)
-          if (_cameraReady && !isOverlayActive && !widget.measureOnly && _liveEstimate != null) _buildLiveEstimate(),
+          // 8. Live material estimate now sits in the designs panel header (_buildEstimatePill).
 
           // 9. Quantity result display
           if (_quantityResult != null) _buildQuantityDisplay(),
@@ -960,8 +1076,13 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
           if (_cameraReady && !isOverlayActive) _buildWallStateOverlay(),
 
           // 11. Room walls (a corner's two walls, walls kept while panning): pick which get the stone
-          if (_cameraReady && !isOverlayActive && !widget.measureOnly && _roomWalls.length >= 2 &&
-              ARCameraView.brushMode.value == null && ARCameraView.calibrationTaps.value == null)
+          if (_cameraReady &&
+              !isOverlayActive &&
+              !widget.measureOnly &&
+              _panelOpen &&
+              _roomWalls.length >= 2 &&
+              ARCameraView.brushMode.value == null &&
+              ARCameraView.calibrationTaps.value == null)
             _buildRoomWallPicker(),
         ],
       ),
@@ -979,7 +1100,9 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     final calib = ARCameraView.calibrationTaps.value;
     switch (calib != null
         ? 'CALIBRATE_${calib.length}'
-        : brush != null ? 'BRUSH_$brush' : _trackingIssue ?? _wallState) {
+        : brush != null
+        ? 'BRUSH_$brush'
+        : _trackingIssue ?? _wallState) {
       case 'CALIBRATE_0':
         // Four corners, not one length: they fix the wall's angle too (A4 test, 2026-10-26: a tapped width gave
         // 1.67 m and a height 1.79 m on the same wall, because the angle was unknown).
@@ -1062,7 +1185,8 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
         // No ARCore surface yet. Plain paint gives none, so the size comes from the wall's floor line: ask the
         // user to show it instead of asking for a distance. A tap still opens the manual sheet as a fallback.
         label = switch (_placementSurface) {
-          'edge_floor_assumed' || 'edge_ceiling' when !_floorTracked => 'Auto-sized · show the floor briefly for exact size',
+          'edge_floor_assumed' ||
+          'edge_ceiling' when !_floorTracked => 'Auto-sized · show the floor briefly for exact size',
           'edge_floor_assumed' || 'edge_ceiling' => 'Auto-sizing…',
           _ => 'Stick an A4 sheet on the wall, or tilt down to the floor line',
         };
@@ -1092,66 +1216,58 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
       child: Center(
         child: GestureDetector(
           // Any placed wall can be re-sized from a measured object, not only an approximate one.
-          onTap: const {'APPROXIMATE', 'LOCKED', 'TRACKING'}.contains(_wallState) ? _showApproximateDistanceSheet : null,
+          onTap: const {'APPROXIMATE', 'LOCKED', 'TRACKING'}.contains(_wallState)
+              ? _showApproximateDistanceSheet
+              : null,
           child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.55),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: stateColor.withValues(alpha: 0.45), width: 0.9),
-                boxShadow: [
-                  BoxShadow(
-                    color: stateColor.withValues(alpha: 0.15),
-                    blurRadius: 16,
-                    spreadRadius: 1,
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 7,
-                    height: 7,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: stateColor,
-                      boxShadow: [
-                        BoxShadow(
-                          color: stateColor.withValues(alpha: 0.8),
-                          blurRadius: 6,
-                          spreadRadius: 1,
+            borderRadius: BorderRadius.circular(24),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.55),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: stateColor.withValues(alpha: 0.45), width: 0.9),
+                  boxShadow: [BoxShadow(color: stateColor.withValues(alpha: 0.15), blurRadius: 16, spreadRadius: 1)],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: stateColor,
+                        boxShadow: [
+                          BoxShadow(color: stateColor.withValues(alpha: 0.8), blurRadius: 6, spreadRadius: 1),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(icon, color: stateColor, size: 14),
+                    const SizedBox(width: 7),
+                    // Long hints wrapped off-screen on narrow phones; wrap them inside the pill instead.
+                    Flexible(
+                      child: Text(
+                        label,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                          letterSpacing: 0.3,
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Icon(icon, color: stateColor, size: 14),
-                  const SizedBox(width: 7),
-                  // Long hints wrapped off-screen on narrow phones; wrap them inside the pill instead.
-                  Flexible(
-                   child: Text(
-                    label,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                      letterSpacing: 0.3,
-                    ),
-                   ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
           ),
         ),
       ),
@@ -1190,53 +1306,66 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
               Text(
                 canEnterDistance
                     ? 'This wall has no trackable surface yet, so the stone is shown at an approximate size. '
-                        'Enter the real distance from the phone to the wall, or size it from something you measured.'
+                          'Enter the real distance from the phone to the wall, or size it from something you measured.'
                     : 'Check the stone size against something you measured with a tape: a door, a frame or an A4 sheet.',
-                style: TextStyle(fontFamily: 'Inter', fontSize: 12, height: 1.4, color: Colors.white.withValues(alpha: 0.65)),
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 12,
+                  height: 1.4,
+                  color: Colors.white.withValues(alpha: 0.65),
+                ),
               ),
               const SizedBox(height: 14),
               if (canEnterDistance) ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: Slider(
-                      value: _approxDistanceM,
-                      min: 0.5,
-                      max: 6,
-                      divisions: 55,
-                      activeColor: AppColors.goldWarm,
-                      onChanged: (v) => setSheetState(() => _approxDistanceM = v),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Slider(
+                        value: _approxDistanceM,
+                        min: 0.5,
+                        max: 6,
+                        divisions: 55,
+                        activeColor: AppColors.goldWarm,
+                        onChanged: (v) => setSheetState(() => _approxDistanceM = v),
+                      ),
                     ),
-                  ),
-                  SizedBox(
-                    width: 64,
-                    child: Text(
-                      '${_approxDistanceM.toStringAsFixed(1)} m',
-                      textAlign: TextAlign.right,
-                      style: const TextStyle(fontFamily: 'Inter', fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.goldWarm),
+                    SizedBox(
+                      width: 64,
+                      child: Text(
+                        '${_approxDistanceM.toStringAsFixed(1)} m',
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.goldWarm,
+                        ),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    ARCameraView.setApproximateDistance(_approxDistanceM);
-                    Navigator.of(context).pop();
-                    LuxuryToast.show(context, message: 'Stone re-placed at ${_approxDistanceM.toStringAsFixed(1)} m (entered, not measured)');
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.goldWarm,
-                    foregroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: const Text('Use this distance', style: TextStyle(fontWeight: FontWeight.w700)),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 8),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      ARCameraView.setApproximateDistance(_approxDistanceM);
+                      Navigator.of(context).pop();
+                      LuxuryToast.show(
+                        context,
+                        message: 'Stone re-placed at ${_approxDistanceM.toStringAsFixed(1)} m (entered, not measured)',
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.goldWarm,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('Use this distance', style: TextStyle(fontWeight: FontWeight.w700)),
+                  ),
+                ),
+                const SizedBox(height: 8),
               ],
               SizedBox(
                 width: double.infinity,
@@ -1344,14 +1473,20 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
             constraints: const BoxConstraints(minHeight: 32),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: on ? AppColors.goldWarm.withValues(alpha: inView ? 0.95 : 0.6) : Colors.white.withValues(alpha: 0.08),
+              color: on
+                  ? AppColors.goldWarm.withValues(alpha: inView ? 0.95 : 0.6)
+                  : Colors.white.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: AppColors.goldWarm.withValues(alpha: on ? 0 : 0.5), width: 0.8),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(on ? Icons.check_rounded : Icons.add_rounded, size: 14, color: on ? Colors.black : AppColors.goldWarm),
+                Icon(
+                  on ? Icons.check_rounded : Icons.add_rounded,
+                  size: 14,
+                  color: on ? Colors.black : AppColors.goldWarm,
+                ),
                 const SizedBox(width: 4),
                 Text(
                   'Wall ${w['label']}${assumed ? ' · 90° est.' : ''}',
@@ -1400,11 +1535,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                 const SizedBox(height: 8),
                 Text(
                   'Tap a wall to select it for visualization',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.7),
-                    fontSize: 13,
-                    fontFamily: 'Inter',
-                  ),
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13, fontFamily: 'Inter'),
                 ),
                 const SizedBox(height: 20),
                 SizedBox(
@@ -1414,9 +1545,13 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                     itemBuilder: (context, index) {
                       final wall = _detectedWalls[index];
                       final rawArea = wall['area'];
-                      final area = rawArea is num ? rawArea.toDouble() : (double.tryParse(rawArea?.toString() ?? '') ?? 0.0);
+                      final area = rawArea is num
+                          ? rawArea.toDouble()
+                          : (double.tryParse(rawArea?.toString() ?? '') ?? 0.0);
                       final rawConf = wall['confidence'];
-                      final confidence = rawConf is num ? rawConf.toDouble() : (double.tryParse(rawConf?.toString() ?? '') ?? 0.0);
+                      final confidence = rawConf is num
+                          ? rawConf.toDouble()
+                          : (double.tryParse(rawConf?.toString() ?? '') ?? 0.0);
                       return ListTile(
                         leading: CircleAvatar(
                           backgroundColor: AppColors.goldWarm.withValues(alpha: 0.2),
@@ -1463,7 +1598,11 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     final isMeasured = r['isCalibrated'] == true;
     // Both producers send every length in [unit]: the AR ruler in ft, the native detected plane in m.
     final unit = r['unit']?.toString() ?? 'm';
-    final sqFtPerAreaUnit = switch (unit) { 'm' => 10.7639, 'ft' => 1.0, _ => 0.0 };
+    final sqFtPerAreaUnit = switch (unit) {
+      'm' => 10.7639,
+      'ft' => 1.0,
+      _ => 0.0,
+    };
 
     return Positioned(
       bottom: MediaQuery.of(context).padding.bottom + 100,
@@ -1486,7 +1625,12 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                 const SizedBox(width: 8),
                 Text(
                   'Material Estimate',
-                  style: TextStyle(color: AppColors.goldWarm, fontSize: 15, fontWeight: FontWeight.w700, fontFamily: 'Inter'),
+                  style: TextStyle(
+                    color: AppColors.goldWarm,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'Inter',
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Container(
@@ -1494,10 +1638,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                   decoration: BoxDecoration(
                     color: isMeasured ? Colors.green.withValues(alpha: 0.2) : Colors.orange.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: isMeasured ? Colors.green : Colors.orange,
-                      width: 0.5,
-                    ),
+                    border: Border.all(color: isMeasured ? Colors.green : Colors.orange, width: 0.5),
                   ),
                   child: Text(
                     isMeasured ? 'MEASURED ($unit)' : 'DETECTED SO FAR ($unit)',
@@ -1534,18 +1675,28 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
             if (r['recommendedQuantity'] != null)
               _buildQuantityRow('Recommended', '${r['recommendedQuantity']} tiles', highlight: true),
             const SizedBox(height: 12),
-            if (_selectedStone != null && _selectedStone!.hasPrice && sqFtPerAreaUnit > 0) () {
-              final rawArea = r['wallArea'];
-              final areaVal = rawArea is num ? rawArea.toDouble() : (double.tryParse(rawArea?.toString() ?? '') ?? 0.0);
-              final rawWastage = r['wastagePercent'];
-              final wastageVal = rawWastage is num ? rawWastage.toDouble() : (double.tryParse(rawWastage?.toString() ?? '') ?? 10.0);
-              // pricePerSqFt needs the area in sq ft whatever unit the producer used
-              final cost = _selectedStone!.pricePerSqFt * areaVal * sqFtPerAreaUnit * (1 + wastageVal / 100);
-              return Text(
-                'Est. Cost: ₹${cost.toStringAsFixed(0)}',
-                style: const TextStyle(color: AppColors.goldWarm, fontSize: 14, fontWeight: FontWeight.w600, fontFamily: 'Inter'),
-              );
-            }(),
+            if (_selectedStone != null && _selectedStone!.hasPrice && sqFtPerAreaUnit > 0)
+              () {
+                final rawArea = r['wallArea'];
+                final areaVal = rawArea is num
+                    ? rawArea.toDouble()
+                    : (double.tryParse(rawArea?.toString() ?? '') ?? 0.0);
+                final rawWastage = r['wastagePercent'];
+                final wastageVal = rawWastage is num
+                    ? rawWastage.toDouble()
+                    : (double.tryParse(rawWastage?.toString() ?? '') ?? 10.0);
+                // pricePerSqFt needs the area in sq ft whatever unit the producer used
+                final cost = _selectedStone!.pricePerSqFt * areaVal * sqFtPerAreaUnit * (1 + wastageVal / 100);
+                return Text(
+                  'Est. Cost: ₹${cost.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    color: AppColors.goldWarm,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'Inter',
+                  ),
+                );
+              }(),
           ],
         ),
       ),
@@ -1558,8 +1709,19 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13, fontFamily: 'Inter')),
-          Text(value, style: TextStyle(color: highlight ? AppColors.goldWarm : Colors.white, fontSize: 13, fontWeight: highlight ? FontWeight.w700 : FontWeight.w500, fontFamily: 'Inter')),
+          Text(
+            label,
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13, fontFamily: 'Inter'),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              color: highlight ? AppColors.goldWarm : Colors.white,
+              fontSize: 13,
+              fontWeight: highlight ? FontWeight.w700 : FontWeight.w500,
+              fontFamily: 'Inter',
+            ),
+          ),
         ],
       ),
     );
@@ -1567,7 +1729,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
   /// Camera feed
   Widget _buildCamera() {
-    final assetPath = widget.measureOnly ? null : (_selectedStone?.arTextureUrl ?? _selectedStone?.mainImageUrl);
+    final assetPath = widget.measureOnly ? null : _texturePath(_selectedStone);
 
     return Positioned.fill(
       child: ARCameraView(
@@ -1582,7 +1744,13 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
             if (widget.measureOnly) _measureMode = true;
           });
           if (assetPath != null) {
-            ARCameraView.updateStone(assetPath, _textureOpacity, patchHeightM: _patchHeightFor(_selectedStone), seamCut: _seamCutFor(_selectedStone), trimFraction: _trimFor(_selectedStone));
+            ARCameraView.updateStone(
+              assetPath,
+              _textureOpacity,
+              patchHeightM: _patchHeightFor(_selectedStone),
+              seamCut: _seamCutFor(_selectedStone),
+              trimFraction: _trimFor(_selectedStone),
+            );
             // Set tile dimensions for accurate pattern generation
             final stone = _selectedStone;
             if (stone != null) {
@@ -1631,7 +1799,10 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                 children: [
                   Icon(Icons.arrow_back_ios_new_rounded, size: 14, color: Colors.white),
                   SizedBox(width: 6),
-                  Text('Back', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                  Text(
+                    'Back',
+                    style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
                 ],
               ),
             ),
@@ -1655,10 +1826,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Colors.black.withValues(alpha: 0.85),
-              Colors.black.withValues(alpha: 0.0),
-            ],
+            colors: [Colors.black.withValues(alpha: 0.85), Colors.black.withValues(alpha: 0.0)],
           ),
         ),
         child: Row(
@@ -1672,10 +1840,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.45),
                     shape: BoxShape.circle,
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.22),
-                      width: 0.8,
-                    ),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.22), width: 0.8),
                   ),
                   child: IconButton(
                     onPressed: () {
@@ -1685,11 +1850,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                         context.go('/home');
                       }
                     },
-                    icon: const Icon(
-                      Icons.arrow_back_ios_new_rounded,
-                      size: 15,
-                      color: Colors.white,
-                    ),
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 15, color: Colors.white),
                   ),
                 ),
               ),
@@ -1709,12 +1870,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                     fontWeight: FontWeight.w700,
                     color: AppColors.goldWarm,
                     letterSpacing: 2.2,
-                    shadows: [
-                      Shadow(
-                        color: Colors.black.withValues(alpha: 0.6),
-                        blurRadius: 10,
-                      ),
-                    ],
+                    shadows: [Shadow(color: Colors.black.withValues(alpha: 0.6), blurRadius: 10)],
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -1742,19 +1898,12 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.45),
                     shape: BoxShape.circle,
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.22),
-                      width: 0.8,
-                    ),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.22), width: 0.8),
                   ),
                   child: IconButton(
                     tooltip: 'AR Settings',
                     onPressed: _showSettingsSheet,
-                    icon: const Icon(
-                      Icons.tune_rounded,
-                      size: 17,
-                      color: Colors.white,
-                    ),
+                    icon: const Icon(Icons.tune_rounded, size: 17, color: Colors.white),
                   ),
                 ),
               ),
@@ -1781,25 +1930,47 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
   /// Height of the designs panel with a colour strip (header 34 + colours 42 + cards 76 + CTAs 46 + padding).
   static const double _kPanelHeight = 214;
 
+  /// Height of the collapsed panel (handle + header row + design cards; colours and actions stay hidden).
+  static const double _kPanelCollapsed = 62 + 76;
+
+  double get _panelHeight => _panelOpen ? _kPanelHeight : _kPanelCollapsed;
+
+  void _setPanelOpen(bool open) {
+    if (open == _panelOpen) return;
+    HapticFeedback.selectionClick();
+    setState(() {
+      _panelOpen = open;
+      if (!open) _showInfoCard = false;
+    });
+    // The carousel is rebuilt on open; put it back on the selected design.
+    if (open) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_stonePageController.hasClients) _stonePageController.jumpToPage(_selectedStoneIndex);
+      });
+    }
+  }
+
   /// Translucent chip, readable over any camera image without hiding it. No BackdropFilter: a permanent blur over
   /// the AR platform view blacked out the whole screen on the OnePlus (Impeller + hybrid composition).
   Widget _glass({required Widget child, EdgeInsets padding = const EdgeInsets.all(8)}) => Container(
-        padding: padding,
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.45),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
-        ),
-        child: child,
-      );
+    padding: padding,
+    decoration: BoxDecoration(
+      color: Colors.black.withValues(alpha: 0.45),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+    ),
+    child: child,
+  );
 
   Widget _buildDesignsUnavailableBar() {
     final state = ref.watch(allStonesProvider);
     final bottomInset = MediaQuery.of(context).padding.bottom;
     final double navClearance = _navClearance(context);
     final failed = state.hasError;
-    debugPrint('[LiveAI] designs unavailable: loading=${state.isLoading} error=${state.error} '
-        'value=${state.valueOrNull?.length}');
+    debugPrint(
+      '[LiveAI] designs unavailable: loading=${state.isLoading} error=${state.error} '
+      'value=${state.valueOrNull?.length}',
+    );
     return Positioned(
       left: 16,
       right: 16,
@@ -1814,7 +1985,11 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
         child: Row(
           children: [
             if (!failed)
-              const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.goldWarm)),
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.goldWarm),
+              ),
             if (!failed) const SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -1825,7 +2000,10 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
             if (failed)
               GestureDetector(
                 onTap: () => ref.invalidate(allStonesProvider),
-                child: const Text('Retry', style: TextStyle(color: AppColors.goldWarm, fontWeight: FontWeight.w800)),
+                child: const Text(
+                  'Retry',
+                  style: TextStyle(color: AppColors.goldWarm, fontWeight: FontWeight.w800),
+                ),
               ),
           ],
         ),
@@ -1848,239 +2026,291 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 640),
           // No backdrop: the camera stays visible behind the panel; only the chips carry a light glass.
-          child: Padding(
-            padding: const EdgeInsets.only(top: 6, bottom: 4),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // All designs, grouped exactly like the Collections tab
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: Row(
-                    children: [
-                      GestureDetector(
-                        onTap: _openDesignPicker,
+          // Swipe up for colours, designs and actions; swipe down to clear the camera again.
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onVerticalDragEnd: (d) {
+              final v = d.primaryVelocity ?? 0;
+              if (v < -150) _setPanelOpen(true);
+              if (v > 150) _setPanelOpen(false);
+            },
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 2, bottom: 4),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Handle: tap or drag to open / close the panel
+                    GestureDetector(
+                      onTap: () => _setPanelOpen(!_panelOpen),
+                      child: Container(
+                        width: 120,
+                        height: 18,
+                        alignment: Alignment.center,
+                        color: Colors.transparent,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                          width: 38,
+                          height: 4,
                           decoration: BoxDecoration(
-                            color: AppColors.goldWarm,
-                            borderRadius: BorderRadius.circular(18),
+                            color: Colors.white.withValues(alpha: 0.7),
+                            borderRadius: BorderRadius.circular(2),
                           ),
-                          child: Row(mainAxisSize: MainAxisSize.min, children: [
-                            const Icon(Icons.grid_view_rounded, size: 13, color: Colors.black),
-                            const SizedBox(width: 5),
-                            Text('Designs  \u2022  ${_filteredStones.length}',
-                                style: const TextStyle(color: Colors.black, fontSize: 11, fontWeight: FontWeight.w800)),
-                          ]),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: GestureDetector(
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            setState(() => _showInfoCard = !_showInfoCard);
-                          },
-                          child: _glass(
-                            padding: const EdgeInsets.fromLTRB(12, 6, 8, 6),
-                            child: Row(mainAxisSize: MainAxisSize.min, children: [
-                              Flexible(
-                                child: Text(
-                                  _selectedStone?.name ?? '',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-                                ),
+                    ),
+                    // All designs, grouped exactly like the Collections tab
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                      child: Row(
+                        children: [
+                          GestureDetector(
+                            onTap: _openDesignPicker,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                              decoration: BoxDecoration(
+                                color: AppColors.goldWarm,
+                                borderRadius: BorderRadius.circular(18),
                               ),
-                              const SizedBox(width: 6),
-                              Icon(_showInfoCard ? Icons.close_rounded : Icons.info_outline_rounded,
-                                  size: 15, color: AppColors.goldWarm),
-                            ]),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Colours of the selected design (each image = one colour)
-                if (_selectedStone != null && _selectedStone!.images.length > 1 && _coloursAreWallPhotos(_selectedStone!)) ...[
-                  _buildColourStrip(_selectedStone!),
-                  const SizedBox(height: 6),
-                ],
-                // Product carousel
-                SizedBox(
-                  height: 76,
-                  child: PageView.builder(
-                    controller: _stonePageController,
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _filteredStones.length,
-                    onPageChanged: (index) => _selectStone(index),
-                    itemBuilder: (context, index) {
-                      final item = _filteredStones[index];
-                      final isSelected = index == _selectedStoneIndex;
-                      final thumbPath = item.images.isNotEmpty
-                          ? item.images.first
-                          : 'assets/images/placeholder_stone.png';
-
-                      return Center(
-                        child: GestureDetector(
-                          onTap: () {
-                            _stonePageController.animateToPage(
-                              index,
-                              duration: const Duration(milliseconds: 350),
-                              curve: Curves.easeOutCubic,
-                            );
-                            _selectStone(index);
-                          },
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 300),
-                            margin: EdgeInsets.symmetric(
-                              horizontal: isSelected ? 6 : 12,
-                              vertical: 6,
-                            ),
-                            width: isSelected ? 96 : 78,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(16),
-                              gradient: isSelected
-                                  ? const LinearGradient(
-                                      colors: [
-                                        AppColors.goldWarm,
-                                        AppColors.goldLight,
-                                        AppColors.goldWarm,
-                                      ],
-                                    )
-                                  : null,
-                              color: isSelected
-                                  ? null
-                                  : Colors.black.withValues(alpha: 0.4),
-                              border: !isSelected
-                                  ? Border.all(
-                                      color: Colors.white.withValues(alpha: 0.2),
-                                      width: 1,
-                                    )
-                                  : null,
-                              boxShadow: isSelected
-                                  ? [
-                                      BoxShadow(
-                                        color: AppColors.goldWarm.withValues(alpha: 0.4),
-                                        blurRadius: 20,
-                                        spreadRadius: 2,
-                                      ),
-                                    ]
-                                  : null,
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(16),
-                              child: Stack(
-                                fit: StackFit.expand,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  SmartStoneImage(
-                                    imageUrl: thumbPath,
-                                    fit: BoxFit.cover,
-                                  ),
-                                  if (isSelected)
-                                    Positioned(
-                                      bottom: 0,
-                                      left: 0,
-                                      right: 0,
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                        decoration: BoxDecoration(
-                                          gradient: LinearGradient(
-                                            begin: Alignment.bottomCenter,
-                                            end: Alignment.topCenter,
-                                            colors: [
-                                              Colors.black.withValues(alpha: 0.9),
-                                              Colors.transparent,
-                                            ],
-                                          ),
-                                        ),
-                                        child: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              item.productCode.isNotEmpty
-                                                  ? item.productCode
-                                                  : item.name.split(' ').first,
-                                              style: const TextStyle(
-                                                fontFamily: 'Inter',
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w700,
-                                                color: Colors.white,
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                            if (item.size.isNotEmpty)
-                                              Text(
-                                                item.size,
-                                                style: TextStyle(
-                                                  fontFamily: 'Inter',
-                                                  fontSize: 9,
-                                                  color: Colors.white.withValues(alpha: 0.7),
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                          ],
-                                        ),
-                                      ),
+                                  const Icon(Icons.grid_view_rounded, size: 13, color: Colors.black),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    'Designs  \u2022  ${_filteredStones.length}',
+                                    style: const TextStyle(
+                                      color: Colors.black,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
                                     ),
+                                  ),
                                 ],
                               ),
                             ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-
-                // CTAs Row
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    physics: const BouncingScrollPhysics(),
-                    child: Row(
-                      children: [
-                        _buildCtaButton(
-                          icon: Icons.arrow_forward_rounded,
-                          label: 'View Product',
-                          onTap: _navigateToProduct,
-                          isPrimary: true,
-                        ),
-                        const SizedBox(width: 8),
-                        _buildCtaButton(
-                          icon: Icons.straighten_rounded,
-                          label: 'Measure Wall',
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            // The AR ruler: real anchors on the real wall, W × H feeds the quantity panel.
-                            setState(() => _measureMode = true);
-                          },
-                          isPrimary: false,
-                        ),
-                        const SizedBox(width: 8),
-                        _buildCtaButton(
-                          icon: Icons.bookmark_add_rounded,
-                          label: 'Save Design',
-                          onTap: _saveDesign,
-                          isPrimary: false,
-                        ),
-                        const SizedBox(width: 8),
-                        _buildCtaButton(
-                          icon: Icons.request_quote_rounded,
-                          label: 'Get Quote',
-                          onTap: _requestQuote,
-                          isPrimary: false,
-                        ),
-                      ],
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: GestureDetector(
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                setState(() => _showInfoCard = !_showInfoCard);
+                              },
+                              child: _glass(
+                                padding: const EdgeInsets.fromLTRB(12, 6, 8, 6),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        _selectedStone?.name ?? '',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Icon(
+                                      _showInfoCard ? Icons.close_rounded : Icons.info_outline_rounded,
+                                      size: 15,
+                                      color: AppColors.goldWarm,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (_liveEstimate != null) ...[const SizedBox(width: 8), _buildEstimatePill()],
+                          const SizedBox(width: 4),
+                          GestureDetector(
+                            onTap: () => _setPanelOpen(!_panelOpen),
+                            child: _glass(
+                              padding: const EdgeInsets.all(5),
+                              child: AnimatedRotation(
+                                turns: _panelOpen ? 0.5 : 0,
+                                duration: const Duration(milliseconds: 260),
+                                child: const Icon(Icons.keyboard_arrow_up_rounded, size: 18, color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
+                    if (_panelOpen) ...[
+                      // Colours of the selected design (each image = one colour)
+                      if (_selectedStone != null &&
+                          _selectedStone!.images.length > 1 &&
+                          _coloursAreWallPhotos(_selectedStone!)) ...[
+                        _buildColourStrip(_selectedStone!),
+                        const SizedBox(height: 6),
+                      ],
+                    ],
+                    // Product carousel
+                    SizedBox(
+                      height: 76,
+                      child: PageView.builder(
+                        controller: _stonePageController,
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _filteredStones.length,
+                        onPageChanged: (index) => _selectStone(index),
+                        itemBuilder: (context, index) {
+                          final item = _filteredStones[index];
+                          final isSelected = index == _selectedStoneIndex;
+                          final thumbPath = item.images.isNotEmpty
+                              ? item.images.first
+                              : 'assets/images/placeholder_stone.png';
+
+                          return Center(
+                            child: GestureDetector(
+                              onTap: () {
+                                _stonePageController.animateToPage(
+                                  index,
+                                  duration: const Duration(milliseconds: 350),
+                                  curve: Curves.easeOutCubic,
+                                );
+                                _selectStone(index);
+                              },
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 300),
+                                margin: EdgeInsets.symmetric(horizontal: isSelected ? 6 : 12, vertical: 6),
+                                width: isSelected ? 96 : 78,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(16),
+                                  gradient: isSelected
+                                      ? const LinearGradient(
+                                          colors: [AppColors.goldWarm, AppColors.goldLight, AppColors.goldWarm],
+                                        )
+                                      : null,
+                                  color: isSelected ? null : Colors.black.withValues(alpha: 0.4),
+                                  border: !isSelected
+                                      ? Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1)
+                                      : null,
+                                  boxShadow: isSelected
+                                      ? [
+                                          BoxShadow(
+                                            color: AppColors.goldWarm.withValues(alpha: 0.4),
+                                            blurRadius: 20,
+                                            spreadRadius: 2,
+                                          ),
+                                        ]
+                                      : null,
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      SmartStoneImage(imageUrl: thumbPath, fit: BoxFit.cover),
+                                      if (isSelected)
+                                        Positioned(
+                                          bottom: 0,
+                                          left: 0,
+                                          right: 0,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                            decoration: BoxDecoration(
+                                              gradient: LinearGradient(
+                                                begin: Alignment.bottomCenter,
+                                                end: Alignment.topCenter,
+                                                colors: [Colors.black.withValues(alpha: 0.9), Colors.transparent],
+                                              ),
+                                            ),
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  item.productCode.isNotEmpty
+                                                      ? item.productCode
+                                                      : item.name.split(' ').first,
+                                                  style: const TextStyle(
+                                                    fontFamily: 'Inter',
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: Colors.white,
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                                if (item.size.isNotEmpty)
+                                                  Text(
+                                                    item.size,
+                                                    style: TextStyle(
+                                                      fontFamily: 'Inter',
+                                                      fontSize: 9,
+                                                      color: Colors.white.withValues(alpha: 0.7),
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+
+                    if (_panelOpen) ...[
+                      // CTAs Row
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          physics: const BouncingScrollPhysics(),
+                          child: Row(
+                            children: [
+                              _buildCtaButton(
+                                icon: Icons.arrow_forward_rounded,
+                                label: 'View Product',
+                                onTap: _navigateToProduct,
+                                isPrimary: true,
+                              ),
+                              const SizedBox(width: 8),
+                              _buildCtaButton(
+                                icon: Icons.straighten_rounded,
+                                label: 'Measure Wall',
+                                onTap: () {
+                                  HapticFeedback.selectionClick();
+                                  // The AR ruler: real anchors on the real wall, W × H feeds the quantity panel.
+                                  setState(() => _measureMode = true);
+                                },
+                                isPrimary: false,
+                              ),
+                              const SizedBox(width: 8),
+                              _buildCtaButton(
+                                icon: Icons.bookmark_add_rounded,
+                                label: 'Save Design',
+                                onTap: _saveDesign,
+                                isPrimary: false,
+                              ),
+                              const SizedBox(width: 8),
+                              _buildCtaButton(
+                                icon: Icons.request_quote_rounded,
+                                label: 'Get Quote',
+                                onTap: _requestQuote,
+                                isPrimary: false,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -2099,16 +2329,9 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 13),
         decoration: BoxDecoration(
-          color: isPrimary
-              ? AppColors.goldWarm
-              : Colors.black.withValues(alpha: 0.38),
+          color: isPrimary ? AppColors.goldWarm : Colors.black.withValues(alpha: 0.38),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isPrimary
-                ? AppColors.goldWarm
-                : Colors.white.withValues(alpha: 0.18),
-            width: 1,
-          ),
+          border: Border.all(color: isPrimary ? AppColors.goldWarm : Colors.white.withValues(alpha: 0.18), width: 1),
           boxShadow: isPrimary
               ? [
                   BoxShadow(
@@ -2123,11 +2346,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 14,
-              color: isPrimary ? Colors.black : Colors.white,
-            ),
+            Icon(icon, size: 14, color: isPrimary ? Colors.black : Colors.white),
             const SizedBox(width: 5),
             Text(
               label,
@@ -2150,10 +2369,12 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     final stone = _selectedStone;
     if (stone == null) return _kNoOverlay;
 
-    return Positioned(
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
       left: 14,
       // Opens above the designs panel (toggled from the name pill in the panel header).
-      bottom: _navClearance(context) + _kPanelHeight + 6,
+      bottom: _navClearance(context) + _panelHeight + 6,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -2170,16 +2391,12 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                       filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
                       child: Container(
                         margin: const EdgeInsets.only(bottom: 10),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 10),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                         constraints: const BoxConstraints(maxWidth: 220),
                         decoration: BoxDecoration(
                           color: Colors.black.withValues(alpha: 0.82),
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: AppColors.goldWarm.withValues(alpha: 0.3),
-                            width: 1,
-                          ),
+                          border: Border.all(color: AppColors.goldWarm.withValues(alpha: 0.3), width: 1),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -2234,15 +2451,8 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                               onTap: _navigateToProduct,
                               child: Container(
                                 padding: const EdgeInsets.all(6),
-                                decoration: const BoxDecoration(
-                                  color: AppColors.goldWarm,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.arrow_forward_rounded,
-                                  size: 14,
-                                  color: Colors.black,
-                                ),
+                                decoration: const BoxDecoration(color: AppColors.goldWarm, shape: BoxShape.circle),
+                                child: const Icon(Icons.arrow_forward_rounded, size: 14, color: Colors.black),
                               ),
                             ),
                           ],
@@ -2251,7 +2461,6 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                     ),
                   ),
           ),
-
         ],
       ),
     );
@@ -2268,20 +2477,15 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
         return StatefulBuilder(
           builder: (context, setSheetState) {
             return ClipRRect(
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(20)),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
                 child: Container(
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.9),
-                    borderRadius:
-                        const BorderRadius.vertical(top: Radius.circular(20)),
-                    border: Border.all(
-                      color: AppColors.goldWarm.withValues(alpha: 0.3),
-                      width: 0.8,
-                    ),
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                    border: Border.all(color: AppColors.goldWarm.withValues(alpha: 0.3), width: 0.8),
                   ),
                   child: SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
@@ -2319,11 +2523,20 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                           activeColor: AppColors.goldWarm,
                           title: const Text(
                             'Clip to wall (AI)',
-                            style: TextStyle(fontFamily: 'Inter', fontSize: 13.5, fontWeight: FontWeight.w600, color: Colors.white),
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
                           ),
                           subtitle: Text(
                             'Keeps doors, windows and furniture uncovered. Turn off if the stone is cut in the wrong place.',
-                            style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: Colors.white.withValues(alpha: 0.6)),
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 11,
+                              color: Colors.white.withValues(alpha: 0.6),
+                            ),
                           ),
                           onChanged: (v) {
                             HapticFeedback.selectionClick();
@@ -2337,35 +2550,35 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                         // Opacity / Scale only reach the web viewer; the native AR draws the stone at its catalogue
                         // size (a free scale would break true size) and has no opacity channel.
                         if (kIsWeb) ...[
-                        // Opacity slider
-                        _buildSliderRow(
-                          icon: Icons.opacity_rounded,
-                          label: 'Opacity',
-                          value: _textureOpacity,
-                          min: 0.1,
-                          max: 1.0,
-                          displayValue: '${(_textureOpacity * 100).round()}%',
-                          onChanged: (v) {
-                            setSheetState(() => _textureOpacity = v);
-                            _onOpacityChanged(v);
-                          },
-                        ),
-                        const SizedBox(height: 16),
+                          // Opacity slider
+                          _buildSliderRow(
+                            icon: Icons.opacity_rounded,
+                            label: 'Opacity',
+                            value: _textureOpacity,
+                            min: 0.1,
+                            max: 1.0,
+                            displayValue: '${(_textureOpacity * 100).round()}%',
+                            onChanged: (v) {
+                              setSheetState(() => _textureOpacity = v);
+                              _onOpacityChanged(v);
+                            },
+                          ),
+                          const SizedBox(height: 16),
 
-                        // Scale slider
-                        _buildSliderRow(
-                          icon: Icons.zoom_out_map_rounded,
-                          label: 'Scale',
-                          value: _textureScale,
-                          min: 0.3,
-                          max: 3.0,
-                          displayValue: '${_textureScale.toStringAsFixed(1)}x',
-                          onChanged: (v) {
-                            setSheetState(() => _textureScale = v);
-                            _onScaleChanged(v);
-                          },
-                        ),
-                        const SizedBox(height: 20),
+                          // Scale slider
+                          _buildSliderRow(
+                            icon: Icons.zoom_out_map_rounded,
+                            label: 'Scale',
+                            value: _textureScale,
+                            min: 0.3,
+                            max: 3.0,
+                            displayValue: '${_textureScale.toStringAsFixed(1)}x',
+                            onChanged: (v) {
+                              setSheetState(() => _textureScale = v);
+                              _onScaleChanged(v);
+                            },
+                          ),
+                          const SizedBox(height: 20),
                         ],
 
                         if (!_cameraReady) ...[
@@ -2375,9 +2588,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                             decoration: BoxDecoration(
                               color: const Color(0xFFD4AF37).withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: const Color(0xFFD4AF37).withValues(alpha: 0.3),
-                              ),
+                              border: Border.all(color: const Color(0xFFD4AF37).withValues(alpha: 0.3)),
                             ),
                             child: Row(
                               children: [
@@ -2401,40 +2612,41 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
                         // Fix wall angle — manual corner adjustment (web only: native AR has no corner API)
                         if (kIsWeb)
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: !_cameraReady
-                                ? null
-                                : () {
-                                    Navigator.of(context).pop();
-                                    // Only the web AR has draggable corners; native AR has no corner API, and an
-                                    // empty overlay would hide every control with no way back.
-                                    if (ARCameraView.getWallCorners() == null) {
-                                      LuxuryToast.show(
-                                        context,
-                                        message: kIsWeb
-                                            ? 'Wall corners not detected yet. Point at the wall and try again.'
-                                            : 'Not needed here: the native AR view locks the design to the real wall.',
-                                      );
-                                      return;
-                                    }
-                                    setState(() => _adjustingCorners = true);
-                                  },
-                            icon: const Icon(Icons.crop_free_rounded, size: 18),
-                            label: const Text('Fix Wall Angle'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppColors.goldWarm,
-                              disabledForegroundColor: Colors.white.withValues(alpha: 0.3),
-                              side: BorderSide(
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: !_cameraReady
+                                  ? null
+                                  : () {
+                                      Navigator.of(context).pop();
+                                      // Only the web AR has draggable corners; native AR has no corner API, and an
+                                      // empty overlay would hide every control with no way back.
+                                      if (ARCameraView.getWallCorners() == null) {
+                                        LuxuryToast.show(
+                                          context,
+                                          message: kIsWeb
+                                              ? 'Wall corners not detected yet. Point at the wall and try again.'
+                                              : 'Not needed here: the native AR view locks the design to the real wall.',
+                                        );
+                                        return;
+                                      }
+                                      setState(() => _adjustingCorners = true);
+                                    },
+                              icon: const Icon(Icons.crop_free_rounded, size: 18),
+                              label: const Text('Fix Wall Angle'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.goldWarm,
+                                disabledForegroundColor: Colors.white.withValues(alpha: 0.3),
+                                side: BorderSide(
                                   color: !_cameraReady
                                       ? Colors.white.withValues(alpha: 0.15)
-                                      : AppColors.goldWarm.withValues(alpha: 0.5)),
-                              padding: const EdgeInsets.symmetric(vertical: 13),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                      : AppColors.goldWarm.withValues(alpha: 0.5),
+                                ),
+                                padding: const EdgeInsets.symmetric(vertical: 13),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
                             ),
                           ),
-                        ),
                         const SizedBox(height: 12),
 
                         // Select wall (when multiple detected)
@@ -2453,9 +2665,10 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                               foregroundColor: AppColors.goldWarm,
                               disabledForegroundColor: Colors.white.withValues(alpha: 0.3),
                               side: BorderSide(
-                                  color: !_cameraReady
-                                      ? Colors.white.withValues(alpha: 0.15)
-                                      : AppColors.goldWarm.withValues(alpha: 0.5)),
+                                color: !_cameraReady
+                                    ? Colors.white.withValues(alpha: 0.15)
+                                    : AppColors.goldWarm.withValues(alpha: 0.5),
+                              ),
                               padding: const EdgeInsets.symmetric(vertical: 13),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
@@ -2479,9 +2692,10 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                               foregroundColor: AppColors.goldWarm,
                               disabledForegroundColor: Colors.white.withValues(alpha: 0.3),
                               side: BorderSide(
-                                  color: (!_cameraReady || _quantityResult != null)
-                                      ? Colors.white.withValues(alpha: 0.15)
-                                      : AppColors.goldWarm.withValues(alpha: 0.5)),
+                                color: (!_cameraReady || _quantityResult != null)
+                                    ? Colors.white.withValues(alpha: 0.15)
+                                    : AppColors.goldWarm.withValues(alpha: 0.5),
+                              ),
                               padding: const EdgeInsets.symmetric(vertical: 13),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
@@ -2516,12 +2730,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
           width: 55,
           child: Text(
             label,
-            style: const TextStyle(
-              fontFamily: 'Inter',
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
-            ),
+            style: const TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
           ),
         ),
         Expanded(
@@ -2531,18 +2740,11 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
               activeTrackColor: AppColors.goldWarm,
               inactiveTrackColor: Colors.white.withValues(alpha: 0.15),
               thumbColor: AppColors.goldWarm,
-              thumbShape:
-                  const RoundSliderThumbShape(enabledThumbRadius: 7),
-              overlayShape:
-                  const RoundSliderOverlayShape(overlayRadius: 14),
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
               overlayColor: AppColors.goldWarm.withValues(alpha: 0.15),
             ),
-            child: Slider(
-              value: value,
-              min: min,
-              max: max,
-              onChanged: onChanged,
-            ),
+            child: Slider(value: value, min: min, max: max, onChanged: onChanged),
           ),
         ),
         SizedBox(
@@ -2550,12 +2752,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
           child: Text(
             displayValue,
             textAlign: TextAlign.right,
-            style: TextStyle(
-              fontFamily: 'Inter',
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: AppColors.goldWarm,
-            ),
+            style: TextStyle(fontFamily: 'Inter', fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.goldWarm),
           ),
         ),
       ],

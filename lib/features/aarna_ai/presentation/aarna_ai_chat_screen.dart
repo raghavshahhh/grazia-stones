@@ -199,7 +199,6 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> with Tick
       final aiResponse = await AarnaAIService.instance.askAarna(
         userQuery: trimmed,
         catalogueStones: catalogue,
-        allCollections: collections,
         history: _messages,
       );
 

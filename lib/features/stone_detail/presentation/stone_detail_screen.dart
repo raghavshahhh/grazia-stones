@@ -272,6 +272,10 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
     );
   }
 
+  /// The stone and the shade on screen, so AR and AI Studio open the exact design being looked at.
+  String _designQuery(Stone stone) =>
+      '?stoneId=${Uri.encodeQueryComponent(stone.id)}${_currentImageIndex > 0 ? '&colour=$_currentImageIndex' : ''}';
+
   Widget _buildStoneDetail(LuxuryPalette palette, Stone stone) {
     final images = stone.images.isNotEmpty
         ? stone.images
@@ -846,7 +850,7 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                               title: 'Live AR',
                               subtitle: 'Wall View',
                               isPrimary: true,
-                              onTap: () => context.push('/ar-view?stoneId=${stone.id}'),
+                              onTap: () => context.push('/ar-view${_designQuery(stone)}'),
                             ),
                             const SizedBox(width: 10),
                             _buildVisualizerCard(
@@ -856,7 +860,7 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                               title: 'AI Studio',
                               subtitle: 'Room Render',
                               isPrimary: false,
-                              onTap: () => context.push('/ai-viz?stoneId=${stone.id}'),
+                              onTap: () => context.push('/ai-viz${_designQuery(stone)}'),
                             ),
                             const SizedBox(width: 10),
                             _buildVisualizerCard(
@@ -1092,6 +1096,18 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                                   ),
                                 ),
                               ],
+                            ),
+                            // Full estimator (wall size, wastage, pieces) for this same stone.
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton.icon(
+                                onPressed: () => context.push('/measure?stoneId=${Uri.encodeQueryComponent(stone.id)}'),
+                                icon: Icon(Icons.straighten_rounded, size: 16, color: palette.primary),
+                                label: Text(
+                                  'Measure my wall',
+                                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: palette.primary),
+                                ),
+                              ),
                             ),
                           ],
                         ),

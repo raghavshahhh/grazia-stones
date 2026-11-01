@@ -10,18 +10,18 @@ void main() {
       'Great choice!',
     ];
     for (final r in replies) {
-      expect(AarnaAIService.sanitizeResponse(r, const [], const []), r, reason: r);
+      expect(AarnaAIService.sanitizeResponse(r), r, reason: r);
     }
   });
 
   test('a reply cut off mid-sentence is closed, not left dangling', () {
-    final out = AarnaAIService.sanitizeResponse('Our ledge stones pair well with', const [], const []);
+    final out = AarnaAIService.sanitizeResponse('Our ledge stones pair well with');
     expect(out.endsWith('.') || out.endsWith('!'), isTrue);
     expect(out.contains(' with.'), isFalse);
   });
 
   test('a reply with no terminal punctuation gets a full stop', () {
-    expect(AarnaAIService.sanitizeResponse('Verona suits a feature wall', const [], const []),
+    expect(AarnaAIService.sanitizeResponse('Verona suits a feature wall'),
         'Verona suits a feature wall.');
   });
 }

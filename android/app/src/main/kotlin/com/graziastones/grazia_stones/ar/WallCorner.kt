@@ -188,4 +188,56 @@ object WallCorner {
     }
 
     private fun median(v: List<Float>): Float = v.sorted()[v.size / 2]
+
+    // Same thresholds as ARKitManager.swift (cornerMinAngleDeg, cornerMaxDistM, refineWalls 1 deg / 15 mm / 15 deg / 0.15 m).
+    const val JOIN_MIN_ANGLE_DEG = 25f
+    const val JOIN_MAX_DIST_M = 4f
+    const val ADOPT_MAX_ANGLE_COS = 0.9659f // cos 15 deg
+    const val ADOPT_MAX_OFFSET_M = 0.15f
+    const val REFINE_MIN_ANGLE_RAD = 0.01745f // 1 deg
+    const val REFINE_MIN_SHIFT_M = 0.015f
+
+    /**
+     * The vertical line where two upright walls meet, as world (x, z), or null when they are closer to parallel
+     * than [JOIN_MIN_ANGLE_DEG] or the line is farther than [JOIN_MAX_DIST_M] from either wall's origin
+     * (iOS updateCorners). [oa]/[ob] wall origins, [na]/[nb] horizontal normals; only x and z are read.
+     */
+    fun planeCorner(oa: FloatArray, na: FloatArray, ob: FloatArray, nb: FloatArray): FloatArray? {
+        val det = na[0] * nb[2] - na[2] * nb[0]
+        if (abs(det) <= kotlin.math.sin(Math.toRadians(JOIN_MIN_ANGLE_DEG.toDouble())).toFloat()) return null
+        val ca = na[0] * oa[0] + na[2] * oa[2]; val cb = nb[0] * ob[0] + nb[2] * ob[2]
+        val cx = (ca * nb[2] - cb * na[2]) / det; val cz = (na[0] * cb - nb[0] * ca) / det
+        fun d(o: FloatArray) = kotlin.math.hypot(cx - o[0], cz - o[2])
+        if (d(oa) >= JOIN_MAX_DIST_M || d(ob) >= JOIN_MAX_DIST_M) return null
+        return floatArrayOf(cx, cz)
+    }
+
+    /** Angle between two horizontal normals, degrees (90 at a square corner, as iOS logs it). */
+    fun normalAngleDeg(na: FloatArray, nb: FloatArray): Float =
+        Math.toDegrees(kotlin.math.acos((na[0] * nb[0] + na[2] * nb[2]).coerceIn(-1f, 1f).toDouble())).toFloat()
+
+    /** Is the tracked plane (point [pp], normal [pn]) the same wall as one at [o] / [n]? 15 deg, 0.15 m (iOS). */
+    fun coplanar(o: FloatArray, n: FloatArray, pp: FloatArray, pn: FloatArray): Boolean {
+        val len = kotlin.math.hypot(pn[0], pn[2]).takeIf { it > 0.05f } ?: return false
+        val ux = pn[0] / len; val uz = pn[2] / len
+        return abs(ux * n[0] + uz * n[2]) > ADOPT_MAX_ANGLE_COS && abs((o[0] - pp[0]) * ux + (o[2] - pp[2]) * uz) < ADOPT_MAX_OFFSET_M
+    }
+
+    /**
+     * One step of a placed wall toward the tracked plane it follows: half-way, and only for a change over
+     * 1 deg / 15 mm so the stone does not crawl with ARCore's jitter (iOS refineWalls). Returns (origin, normal)
+     * or null when it is already close enough. [n] is the wall's normal (toward the camera).
+     */
+    fun refineStep(o: FloatArray, n: FloatArray, pp: FloatArray, pn: FloatArray): Pair<FloatArray, FloatArray>? {
+        val len = kotlin.math.hypot(pn[0], pn[2]).takeIf { it > 0.05f } ?: return null
+        var px = pn[0] / len; var pz = pn[2] / len
+        if (px * n[0] + pz * n[2] < 0f) { px = -px; pz = -pz }
+        val off = (o[0] - pp[0]) * px + (o[2] - pp[2]) * pz
+        val target = floatArrayOf(o[0] - px * off, o[1], o[2] - pz * off)
+        val angle = kotlin.math.acos((px * n[0] + pz * n[2]).coerceIn(-1f, 1f))
+        if (angle <= REFINE_MIN_ANGLE_RAD && abs(off) <= REFINE_MIN_SHIFT_M) return null
+        val sx = n[0] + px; val sz = n[2] + pz
+        val sl = kotlin.math.hypot(sx, sz).takeIf { it > 1e-4f } ?: return null
+        return floatArrayOf((o[0] + target[0]) / 2f, o[1], (o[2] + target[2]) / 2f) to floatArrayOf(sx / sl, 0f, sz / sl)
+    }
 }

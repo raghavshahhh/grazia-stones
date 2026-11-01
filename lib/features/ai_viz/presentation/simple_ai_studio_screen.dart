@@ -182,8 +182,10 @@ const List<_SamplePreset> _sampleStones = [
 /// Ultra-Premium AI Room Studio Screen
 class SimpleAIStudioScreen extends ConsumerStatefulWidget {
   final String? preSelectedStoneId;
+  /// `&colour=` index into the stone's images: the shade the user was looking at on the product page.
+  final int? preSelectedColour;
 
-  const SimpleAIStudioScreen({super.key, this.preSelectedStoneId});
+  const SimpleAIStudioScreen({super.key, this.preSelectedStoneId, this.preSelectedColour});
 
   @override
   ConsumerState<SimpleAIStudioScreen> createState() => _SimpleAIStudioScreenState();
@@ -247,7 +249,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
   @override
   void didUpdateWidget(covariant SimpleAIStudioScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.preSelectedStoneId != widget.preSelectedStoneId) {
+    if (oldWidget.preSelectedStoneId != widget.preSelectedStoneId || oldWidget.preSelectedColour != widget.preSelectedColour) {
       if (widget.preSelectedStoneId != null) {
         _loadPreSelectedStone(widget.preSelectedStoneId!);
       } else {
@@ -271,17 +273,15 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
       if (stone == null) {
         final all = ref.read(allStonesProvider).valueOrNull;
         if (all != null && all.isNotEmpty) {
-          final query = stoneId.toLowerCase().trim();
           // Never fall back to an unrelated stone: a wrong design in the render is worse than none.
-          stone = all.where((s) =>
-                  s.id.toLowerCase() == query || s.productCode.toLowerCase() == query || s.name.toLowerCase() == query)
-              .followedBy(all.where((s) => s.name.toLowerCase().contains(query)))
-              .firstOrNull;
+          stone = findStone(all, stoneId);
         }
       }
       if (stone == null) return;
 
-      final imageUrl = stone.arTexture ??
+      final colour = widget.preSelectedColour;
+      final imageUrl = (colour != null && colour > 0 && colour < stone.images.length ? stone.images[colour] : null) ??
+          stone.arTexture ??
           stone.arTextureUrl ??
           stone.mainImageUrl ??
           (stone.images.isNotEmpty ? stone.images.first : null);
@@ -1367,7 +1367,8 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
                         onPressed: () {
                           final back = widget.preSelectedStoneId == null
                               ? '/ai-viz'
-                              : '/ai-viz?stoneId=${Uri.encodeComponent(widget.preSelectedStoneId!)}';
+                              : '/ai-viz?stoneId=${Uri.encodeComponent(widget.preSelectedStoneId!)}'
+                                  '${widget.preSelectedColour == null ? '' : '&colour=${widget.preSelectedColour}'}';
                           context.push('/login?redirect=${Uri.encodeComponent(back)}');
                         },
                         child: Text('Log in', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
