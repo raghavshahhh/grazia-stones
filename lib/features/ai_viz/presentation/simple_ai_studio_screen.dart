@@ -1179,7 +1179,8 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
                     // Order Sample Tile button
                     OutlinedButton.icon(
                       onPressed: () {
-                        context.push('/samples/request');
+                        final s = _selectedStone;
+                        context.push(s == null ? '/sample-order' : '/sample-order?stoneId=${Uri.encodeComponent(s.id)}');
                       },
                       icon: Icon(Icons.shopping_bag_outlined, size: 16, color: accentGold),
                       label: Text(

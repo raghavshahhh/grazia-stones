@@ -21,15 +21,7 @@ class AdminDashboardScreen extends ConsumerStatefulWidget {
 class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   bool _isLoading = true;
   String? _error;
-
-  int _totalProducts = 0;
-  int _totalCollections = 0;
-  int _totalDealers = 0;
-  int _totalOrders = 0;
-  int _pendingOrders = 0;
-  int _totalQuotes = 0;
-  int _totalUsers = 0;
-  double _totalRevenue = 0;
+  Map<String, int> _n = const {};
 
   @override
   void initState() {
@@ -38,42 +30,33 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   }
 
   Future<void> _loadMetrics() async {
+    setState(() {
+      _isLoading = _n.isEmpty;
+      _error = null;
+    });
     try {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-      });
-
-      final client = SupabaseService.instance.client;
-
-      // These 6 queries are independent — they were previously awaited one
-      // at a time (6 sequential round trips), which is exactly the kind of
-      // thing that makes an admin dashboard feel slow to open. Firing them
-      // together cuts load time to roughly the slowest single query instead
-      // of the sum of all six.
-      final results = await Future.wait([
-        client.from('stones').select('id'),
-        client.from('collections').select('id'),
-        client.from('dealers').select('id'),
-        client.from('orders').select('id, status, total'),
-        client.from('quote_requests').select('id'),
-        client.from('profiles').select('id'),
-      ]);
-
-      _totalProducts = (results[0] as List).length;
-      _totalCollections = (results[1] as List).length;
-      _totalDealers = (results[2] as List).length;
-
-      final ordersList = results[3] as List;
-      _totalOrders = ordersList.length;
-      _pendingOrders = ordersList.where((o) => (o['status'] ?? '').toString().toLowerCase() == 'pending').length;
-      _totalRevenue = ordersList.fold(0.0, (sum, o) => sum + ((o['total'] ?? 0) as num).toDouble());
-
-      _totalQuotes = (results[4] as List).length;
-      _totalUsers = (results[5] as List).length;
-
+      final c = SupabaseService.instance.client;
+      // Count-only queries, fired together: one round trip's worth of latency, no rows downloaded.
+      final q = <String, Future<int>>{
+        'products': c.from('stones').count(),
+        'live': c.from('stones').count().eq('active', true),
+        'collections': c.from('collections').count(),
+        'orders': c.from('orders').count(),
+        'ordersPending': c.from('orders').count().eq('status', 'pending'),
+        'quotes': c.from('quote_requests').count(),
+        'quotesPending': c.from('quote_requests').count().eq('status', 'pending'),
+        'samples': c.from('sample_requests').count(),
+        'samplesPending': c.from('sample_requests').count().eq('status', 'pending'),
+        'aiQueued': c.from('ai_jobs').count().inFilter('status', ['queued', 'processing']),
+        'dealers': c.from('dealers').count(),
+        'clients': c.from('profiles').count(),
+      };
+      final values = await Future.wait(q.values);
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _n = Map.fromIterables(q.keys, values);
+          _isLoading = false;
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -101,9 +84,41 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     );
   }
 
+  String _pending(String total, String pending, String noun) {
+    final p = _n[pending] ?? 0;
+    return p > 0 ? '$p pending' : '${_n[total] ?? 0} $noun';
+  }
+
   @override
   Widget build(BuildContext context) {
     final palette = ref.watch(themePaletteProvider);
+    void go(String route) {
+      HapticFeedback.lightImpact();
+      context.push(route).then((_) => _loadMetrics());
+    }
+
+    final hidden = (_n['products'] ?? 0) - (_n['live'] ?? 0);
+    final sections = <(String, List<_Tile>)>[
+      ('Catalogue', [
+        _Tile('Products', hidden > 0 ? '${_n['products']} · $hidden hidden' : '${_n['products'] ?? 0} items', Icons.diamond_outlined, () => go('/admin/products')),
+        _Tile('Collections', '${_n['collections'] ?? 0} series', Icons.grid_view_rounded, () => go('/admin/collections')),
+        _Tile('Add product', 'New stone', Icons.add_rounded, () => go('/admin/products/add'), accent: true),
+      ]),
+      ('Sales', [
+        _Tile('Orders', _pending('orders', 'ordersPending', 'total'), Icons.local_shipping_outlined, () => go('/admin/orders')),
+        _Tile('Quotes', _pending('quotes', 'quotesPending', 'total'), Icons.request_quote_outlined, () => go('/admin/quotes')),
+        _Tile('Samples', _pending('samples', 'samplesPending', 'total'), Icons.layers_outlined, () => go('/admin/samples')),
+      ]),
+      ('AI Studio', [
+        _Tile('AI jobs', (_n['aiQueued'] ?? 0) > 0 ? '${_n['aiQueued']} in queue' : 'Queue clear', Icons.auto_awesome_outlined, () => go('/admin/ai-jobs')),
+        _Tile('AI usage', 'Per user', Icons.insights_outlined, () => go('/admin/ai-usage')),
+        _Tile('Plans', 'Plus / Pro', Icons.workspace_premium_outlined, () => go('/admin/plans')),
+      ]),
+      ('People', [
+        _Tile('Dealers', '${_n['dealers'] ?? 0} showrooms', Icons.storefront_outlined, () => go('/admin/dealers')),
+        _Tile('Clients', '${_n['clients'] ?? 0} accounts', Icons.people_outline_rounded, () => _showRegisteredClientsSheet(context, palette)),
+      ]),
+    ];
 
     return Scaffold(
       backgroundColor: palette.background,
@@ -112,36 +127,21 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/');
-            }
-          },
+          tooltip: 'Back',
+          onPressed: () => context.canPop() ? context.pop() : context.go('/'),
           icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
         ),
-        title: Text(
-          'Admin Console',
-          style: GoogleFonts.playfairDisplay(
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            color: palette.textPrimary,
-          ),
-        ),
+        title: Text('Admin', style: GoogleFonts.playfairDisplay(fontSize: 20, fontWeight: FontWeight.w700, color: palette.textPrimary)),
         actions: [
           IconButton(
-            tooltip: 'Refresh Metrics',
+            tooltip: 'Refresh',
             onPressed: () {
               HapticFeedback.lightImpact();
               _loadMetrics();
             },
             icon: Icon(Icons.refresh_rounded, color: palette.primary),
           ),
-          AdminQuickNavButton(
-            currentRoute: '/admin/dashboard',
-            palette: palette,
-          ),
+          AdminQuickNavButton(currentRoute: '/admin/dashboard', palette: palette),
           const SizedBox(width: 6),
         ],
       ),
@@ -150,475 +150,162 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           : _isLoading
               ? Center(child: CircularProgressIndicator(color: palette.primary))
               : RefreshIndicator(
-              color: palette.primary,
-              backgroundColor: palette.surface,
-              onRefresh: _loadMetrics,
-              child: Align(
-                alignment: Alignment.topCenter,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1080),
-                  child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Header Banner
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                          decoration: BoxDecoration(
-                            gradient: palette.primaryGradient,
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: palette.primary.withValues(alpha: 0.2),
-                                blurRadius: 16,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: const Icon(Icons.admin_panel_settings_outlined, color: Colors.white, size: 24),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Grazia Operations',
-                                      style: GoogleFonts.playfairDisplay(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      'Real-time Supabase database control & inventory',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 12,
-                                        color: Colors.white.withValues(alpha: 0.85),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 22),
-
-                        // Metrics Grid
-                        Text(
-                          'DATABASE OVERVIEW',
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.6,
-                            color: palette.textTertiary,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            final width = constraints.maxWidth;
-                            final int crossAxisCount;
-                            final double mainAxisExtent;
-                            if (width >= 860) {
-                              crossAxisCount = 4;
-                              mainAxisExtent = 76;
-                            } else if (width >= 560) {
-                              crossAxisCount = 4;
-                              mainAxisExtent = 76;
-                            } else if (width >= 360) {
-                              crossAxisCount = 2;
-                              mainAxisExtent = 72;
-                            } else {
-                              crossAxisCount = 1;
-                              mainAxisExtent = 68;
-                            }
-
-                            return GridView.count(
-                              crossAxisCount: crossAxisCount,
-                              crossAxisSpacing: 10,
-                              mainAxisSpacing: 10,
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              mainAxisExtent: mainAxisExtent,
-                              children: [
-                                _MetricCard(
-                                  title: 'Total Revenue',
-                                  value: '₹${_totalRevenue.toInt()}',
-                                  icon: Icons.currency_rupee_rounded,
-                                  palette: palette,
-                                  onTap: () => context.push('/admin/orders'),
-                                ),
-                                _MetricCard(
-                                  title: 'Total Orders',
-                                  value: '$_totalOrders',
-                                  icon: Icons.inventory_2_outlined,
-                                  palette: palette,
-                                  onTap: () => context.push('/admin/orders'),
-                                ),
-                                _MetricCard(
-                                  title: 'Pending Orders',
-                                  value: '$_pendingOrders',
-                                  icon: Icons.pending_actions_rounded,
-                                  palette: palette,
-                                  onTap: () => context.push('/admin/orders?status=pending'),
-                                ),
-                                _MetricCard(
-                                  title: 'Catalog Stones',
-                                  value: '$_totalProducts',
-                                  icon: Icons.diamond_outlined,
-                                  palette: palette,
-                                  onTap: () => context.push('/admin/products'),
-                                ),
-                                _MetricCard(
-                                  title: 'Collections',
-                                  value: '$_totalCollections',
-                                  icon: Icons.grid_view_rounded,
-                                  palette: palette,
-                                  onTap: () => context.push('/admin/collections'),
-                                ),
-                                _MetricCard(
-                                  title: 'Quote Inquiries',
-                                  value: '$_totalQuotes',
-                                  icon: Icons.request_quote_outlined,
-                                  palette: palette,
-                                  onTap: () => context.push('/admin/quotes'),
-                                ),
-                                _MetricCard(
-                                  title: 'Showrooms / Dealers',
-                                  value: '$_totalDealers',
-                                  icon: Icons.storefront_outlined,
-                                  palette: palette,
-                                  onTap: () => context.push('/admin/dealers'),
-                                ),
-                                _MetricCard(
-                                  title: 'Registered Clients',
-                                  value: '$_totalUsers',
-                                  icon: Icons.people_outline_rounded,
-                                  palette: palette,
-                                  onTap: () => _showRegisteredClientsSheet(context, palette),
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-
-                        const SizedBox(height: 26),
-
-                        // Management Sections
-                        Text(
-                          'MANAGEMENT MODULES',
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.6,
-                            color: palette.textTertiary,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            final width = constraints.maxWidth;
-                            final isWide = width >= 680;
-                            final modules = [
-                              _NavModuleData(
-                                title: 'Product Catalog Management',
-                                subtitle: 'Add, edit, price, stock & image upload for stones',
-                                icon: Icons.diamond_outlined,
-                                route: '/admin/products',
-                              ),
-                              _NavModuleData(
-                                title: 'Curated Collections',
-                                subtitle: 'Organize stone categories, slugs and banners',
-                                icon: Icons.category_outlined,
-                                route: '/admin/collections',
-                              ),
-                              _NavModuleData(
-                                title: 'Orders & Fulfillment',
-                                subtitle: 'Inspect orders, update status, view items & addresses',
-                                icon: Icons.local_shipping_outlined,
-                                route: '/admin/orders',
-                              ),
-                              _NavModuleData(
-                                title: 'Architectural Quotes',
-                                subtitle: 'Review incoming quote requests, square footage & notes',
-                                icon: Icons.request_quote_outlined,
-                                route: '/admin/quotes',
-                              ),
-                              _NavModuleData(
-                                title: 'Sample Dispatch Requests',
-                                subtitle: 'Manage sample order boxes & studio deliveries',
-                                icon: Icons.layers_outlined,
-                                route: '/admin/samples',
-                              ),
-                              _NavModuleData(
-                                title: 'Authorized Dealers & Showrooms',
-                                subtitle: 'Manage dealer list, locations, phones and ratings',
-                                icon: Icons.location_city_outlined,
-                                route: '/admin/dealers',
-                              ),
-                              _NavModuleData(
-                                title: 'AI Studio & Render Jobs',
-                                subtitle: 'Monitor photorealistic rendering queue and analytics',
-                                icon: Icons.auto_awesome_rounded,
-                                route: '/admin/ai-jobs',
-                              ),
-                              _NavModuleData(
-                                title: 'AI Studio Plans',
-                                subtitle: 'Find a user, see AI render usage, grant or revoke Plus / Pro',
-                                icon: Icons.workspace_premium_outlined,
-                                route: '/admin/plans',
-                              ),
-                              _NavModuleData(
-                                title: 'AI Usage',
-                                subtitle: 'Renders, Aarna chats and Gemini tokens per user',
-                                icon: Icons.insights_outlined,
-                                route: '/admin/ai-usage',
-                              ),
-                            ];
-
-                            if (isWide) {
-                              return GridView.builder(
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                itemCount: modules.length,
-                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 2,
-                                  crossAxisSpacing: 10,
-                                  mainAxisSpacing: 10,
-                                  mainAxisExtent: 72,
-                                ),
-                                itemBuilder: (context, index) {
-                                  final m = modules[index];
-                                  return _AdminNavTile(
-                                    title: m.title,
-                                    subtitle: m.subtitle,
-                                    icon: m.icon,
-                                    palette: palette,
-                                    onTap: () => context.push(m.route),
-                                  );
-                                },
+                  color: palette.primary,
+                  backgroundColor: palette.surface,
+                  onRefresh: _loadMetrics,
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 900),
+                      child: ListView(
+                        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
+                        children: [
+                          _Overview(palette: palette, figures: [
+                            _Figure('${_n['live'] ?? 0}', 'Live products', () => go('/admin/products?status=active')),
+                            _Figure('${_n['quotesPending'] ?? 0}', 'Open quotes', () => go('/admin/quotes?status=pending')),
+                            _Figure('${_n['samplesPending'] ?? 0}', 'Sample requests', () => go('/admin/samples?status=pending')),
+                            _Figure('${_n['ordersPending'] ?? 0}', 'Pending orders', () => go('/admin/orders?status=pending')),
+                          ]),
+                          for (final (title, tiles) in sections) ...[
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(2, 20, 2, 8),
+                              child: Text(title,
+                                  style: GoogleFonts.playfairDisplay(fontSize: 15, fontWeight: FontWeight.w700, color: palette.textPrimary)),
+                            ),
+                            LayoutBuilder(builder: (context, box) {
+                              final cols = box.maxWidth >= 600 ? 4 : 3;
+                              const gap = 8.0;
+                              final w = (box.maxWidth - gap * (cols - 1)) / cols;
+                              return Wrap(
+                                spacing: gap,
+                                runSpacing: gap,
+                                children: [for (final t in tiles) SizedBox(width: w, child: _TileView(tile: t, palette: palette))],
                               );
-                            }
-
-                            return Column(
-                              children: modules.map((m) => Padding(
-                                padding: const EdgeInsets.only(bottom: 10),
-                                child: _AdminNavTile(
-                                  title: m.title,
-                                  subtitle: m.subtitle,
-                                  icon: m.icon,
-                                  palette: palette,
-                                  onTap: () => context.push(m.route),
-                                ),
-                              )).toList(),
-                            );
-                          },
-                        ),
-
-                        const SizedBox(height: 48),
-                      ],
+                            }),
+                          ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
     );
   }
 }
 
-class _NavModuleData {
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final String route;
-
-  const _NavModuleData({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.route,
-  });
+class _Figure {
+  final String value;
+  final String label;
+  final VoidCallback onTap;
+  const _Figure(this.value, this.label, this.onTap);
 }
 
-class _MetricCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final IconData icon;
+/// One panel, four figures split by hairlines — reads as a single summary, not four more boxes.
+class _Overview extends StatelessWidget {
   final LuxuryPalette palette;
-  final VoidCallback? onTap;
-
-  const _MetricCard({
-    required this.title,
-    required this.value,
-    required this.icon,
-    required this.palette,
-    this.onTap,
-  });
+  final List<_Figure> figures;
+  const _Overview({required this.palette, required this.figures});
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap != null
-            ? () {
-                HapticFeedback.lightImpact();
-                onTap!();
-              }
-            : null,
+    return Container(
+      decoration: BoxDecoration(
+        color: palette.surface,
         borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: palette.surface,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: palette.border.withValues(alpha: 0.7)),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: palette.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: palette.primary, size: 20),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      value,
-                      style: GoogleFonts.inter(
-                        color: palette.textPrimary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.2,
+        border: Border.all(color: palette.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          Container(height: 3, color: palette.primary),
+          IntrinsicHeight(
+            child: Row(
+              children: [
+                for (var i = 0; i < figures.length; i++) ...[
+                  if (i > 0) VerticalDivider(width: 1, thickness: 1, color: palette.border, indent: 12, endIndent: 12),
+                  Expanded(
+                    child: Semantics(
+                      button: true,
+                      label: '${figures[i].value} ${figures[i].label}',
+                      excludeSemantics: true,
+                      child: InkWell(
+                        onTap: figures[i].onTap,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(10, 12, 6, 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Text(figures[i].value,
+                                    style: GoogleFonts.playfairDisplay(
+                                        fontSize: 24, height: 1.1, fontWeight: FontWeight.w700, color: palette.textPrimary)),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(figures[i].label,
+                                  maxLines: 2,
+                                  style: GoogleFonts.inter(fontSize: 11, height: 1.25, color: palette.textSecondary)),
+                            ],
+                          ),
+                        ),
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      title,
-                      style: GoogleFonts.inter(
-                        color: palette.textSecondary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              if (onTap != null)
-                Icon(
-                  Icons.chevron_right_rounded,
-                  size: 16,
-                  color: palette.textTertiary,
-                ),
-            ],
+                  ),
+                ],
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 }
 
-class _AdminNavTile extends StatelessWidget {
+class _Tile {
   final String title;
-  final String subtitle;
+  final String caption;
   final IconData icon;
-  final LuxuryPalette palette;
   final VoidCallback onTap;
+  final bool accent;
+  const _Tile(this.title, this.caption, this.icon, this.onTap, {this.accent = false});
+}
 
-  const _AdminNavTile({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.palette,
-    required this.onTap,
-  });
+class _TileView extends StatelessWidget {
+  final _Tile tile;
+  final LuxuryPalette palette;
+  const _TileView({required this.tile, required this.palette});
 
   @override
   Widget build(BuildContext context) {
+    final fg = tile.accent ? palette.primary : palette.textPrimary;
     return Material(
-      color: Colors.transparent,
+      color: tile.accent ? palette.primary.withValues(alpha: 0.08) : palette.surface,
+      borderRadius: BorderRadius.circular(12),
       child: InkWell(
-        onTap: () {
-          HapticFeedback.lightImpact();
-          onTap();
-        },
-        borderRadius: BorderRadius.circular(14),
+        onTap: tile.onTap,
+        borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          height: 84,
+          padding: const EdgeInsets.fromLTRB(10, 10, 8, 9),
           decoration: BoxDecoration(
-            color: palette.surface,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: palette.border.withValues(alpha: 0.7)),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: tile.accent ? palette.primary.withValues(alpha: 0.5) : palette.border),
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: palette.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: palette.primary, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      title,
-                      style: GoogleFonts.inter(
-                        color: palette.textPrimary,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: GoogleFonts.inter(
-                        color: palette.textSecondary,
-                        fontSize: 11,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.arrow_forward_ios_rounded, size: 12, color: palette.textTertiary),
+              Icon(tile.icon, size: 20, color: palette.primary),
+              const Spacer(),
+              Text(tile.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: fg)),
+              const SizedBox(height: 1),
+              Text(tile.caption,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(fontSize: 11, color: palette.textSecondary)),
             ],
           ),
         ),

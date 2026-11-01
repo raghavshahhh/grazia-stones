@@ -208,15 +208,52 @@ class AdminProductRepository {
     });
   }
 
-  /// Permanently delete product
+  /// Permanently delete product, plus the photos admins uploaded for it (products/ folder).
+  /// Shared catalogue images (catalogue/...) stay in storage.
   Future<void> permanentlyDeleteProduct(String stoneId) async {
     _verifyAdmin();
 
     await _executeWithRetry(() async {
-      await _sb.client.from('stones').delete().eq('id', stoneId);
+      final rows = await _sb.client.from('stones').delete().eq('id', stoneId).select('images');
+      if (rows.isEmpty) throw Exception('Product not deleted (not found or no permission)');
       debugPrint('✅ Product permanently deleted: $stoneId');
       await CacheService.instance.invalidateNamespace('stones');
+      final images = List<String>.from(rows.first['images'] ?? const []);
+      for (final url in images.where(isAdminUpload)) {
+        await deleteProductImage(url);
+      }
     });
+  }
+
+  /// Raw row for the edit form (admins can read archived rows too).
+  Future<Map<String, dynamic>> getProductRow(String stoneId) async {
+    _verifyAdmin();
+    return _executeWithRetry(() => _sb.client.from('stones').select().eq('id', stoneId).single());
+  }
+
+  /// Insert ([stoneId] null) or update a product from a form row; returns the id.
+  Future<String> saveProductRow(Map<String, dynamic> row, {String? stoneId}) async {
+    _verifyAdmin();
+    final data = {...row, 'updated_at': DateTime.now().toIso8601String()};
+    final saved = stoneId == null
+        ? await _sb.client.from('stones').insert(data).select('id').single()
+        : await _sb.client.from('stones').update(data).eq('id', stoneId).select('id').maybeSingle();
+    if (saved == null) throw Exception('Product not saved (not found or no permission)');
+    await CacheService.instance.invalidateNamespace('stones');
+    return saved['id'].toString();
+  }
+
+  /// Publish / hide a product in the catalogue.
+  Future<void> setActive(String stoneId, bool active) async {
+    _verifyAdmin();
+    final row = await _sb.client
+        .from('stones')
+        .update({'active': active, 'updated_at': DateTime.now().toIso8601String()})
+        .eq('id', stoneId)
+        .select('id')
+        .maybeSingle();
+    if (row == null) throw Exception('Product not updated (not found or no permission)');
+    await CacheService.instance.invalidateNamespace('stones');
   }
 
   /// Upload product image to Supabase Storage
@@ -225,28 +262,43 @@ class AdminProductRepository {
 
     return await _executeWithRetry(() async {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final path = 'products/${timestamp}_$fileName';
-      
-      await _sb.client.storage.from('stones').uploadBinary(path, bytes);
-      
+      final safe = fileName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9.]+'), '_');
+      final path = 'products/${timestamp}_$safe';
+      final ext = safe.split('.').last;
+      final type = switch (ext) { 'png' => 'image/png', 'webp' => 'image/webp', 'heic' => 'image/heic', _ => 'image/jpeg' };
+
+      await _sb.client.storage.from('stones').uploadBinary(path, bytes, fileOptions: FileOptions(contentType: type));
+
       final publicUrl = _sb.client.storage.from('stones').getPublicUrl(path);
       debugPrint('✅ Product image uploaded: $path');
       return publicUrl;
     });
   }
 
-  /// Delete product image from storage
-  Future<void> deleteProductImage(String imageUrl) async {
-    _verifyAdmin();
+  /// '…/storage/v1/object/public/stones/products/x.jpg' -> 'products/x.jpg'; null if not in the stones bucket.
+  static String? storagePath(String url) {
+    final seg = Uri.tryParse(url)?.pathSegments ?? const [];
+    final i = seg.indexOf('public');
+    if (i < 0 || i + 2 >= seg.length || seg[i + 1] != 'stones') return null;
+    return seg.sublist(i + 2).join('/');
+  }
 
+  /// Only photos uploaded from the admin form are owned by one product and safe to delete.
+  static bool isAdminUpload(String url) => storagePath(url)?.startsWith('products/') ?? false;
+
+  /// Delete product image from storage. Returns false when nothing was removed (RLS returns an
+  /// empty list instead of an error when the delete is not allowed).
+  Future<bool> deleteProductImage(String imageUrl) async {
+    _verifyAdmin();
+    final path = storagePath(imageUrl);
+    if (path == null) return false;
     try {
-      final uri = Uri.parse(imageUrl);
-      final path = uri.pathSegments.skip(3).join('/'); // Skip /storage/v1/object/public/stones/
-      
-      await _sb.client.storage.from('stones').remove([path]);
-      debugPrint('✅ Product image deleted: $path');
+      final removed = await _sb.client.storage.from('stones').remove([path]);
+      debugPrint('${removed.isEmpty ? '⚠️ Not removed' : '✅ Product image deleted'}: $path');
+      return removed.isNotEmpty;
     } catch (e) {
       debugPrint('⚠️ Failed to delete image: $e');
+      return false;
     }
   }
 

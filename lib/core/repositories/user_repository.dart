@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:supabase_flutter/supabase_flutter.dart' show FileOptions;
 import '../models/user.dart';
 import '../services/supabase_service.dart';
 
@@ -50,10 +51,14 @@ class UserRepository {
   }
 
   Future<String> uploadAvatar(Uint8List bytes, String fileExtension) async {
-    final fileName = '$_userId/avatar_${DateTime.now().millisecondsSinceEpoch}.$fileExtension';
+    // The bucket only accepts photo types (migration 20261103000000), so send an explicit image type
+    // and never let the picked file's name decide the extension.
+    final ext = fileExtension.toLowerCase();
+    final type = const {'png': 'image/png', 'webp': 'image/webp', 'heic': 'image/heic', 'heif': 'image/heif', 'gif': 'image/gif'}[ext];
+    final fileName = '$_userId/avatar_${DateTime.now().millisecondsSinceEpoch}.${type == null ? 'jpg' : ext}';
     await _sb.client.storage
         .from('avatars')
-        .uploadBinary(fileName, bytes);
+        .uploadBinary(fileName, bytes, fileOptions: FileOptions(contentType: type ?? 'image/jpeg'));
     final publicUrl = _sb.client.storage.from('avatars').getPublicUrl(fileName);
     await updateProfile(avatarUrl: publicUrl);
     return publicUrl;

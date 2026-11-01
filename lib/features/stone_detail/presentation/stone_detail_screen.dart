@@ -876,6 +876,24 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                             ),
                           ],
                         ),
+                        const SizedBox(height: 10),
+                        // Free swatch of this design; more designs can be added on the sample page.
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: () => context.push('/sample-order?stoneId=${Uri.encodeComponent(stone.id)}'),
+                            icon: Icon(Icons.inventory_2_outlined, size: 16, color: palette.primary),
+                            label: Text(
+                              'Order a free sample',
+                              style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: palette.primary),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: palette.primary.withValues(alpha: 0.6)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
+                        ),
 
                         const SizedBox(height: 24),
 

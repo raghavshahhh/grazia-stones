@@ -768,8 +768,8 @@ void main() {
       expect(true, isTrue);
     });
 
-    test('kAdminModules exposes all 8 designated admin modules with valid routes', () {
-      expect(kAdminModules.length, 8);
+    test('kAdminModules exposes all 10 designated admin modules with valid routes', () {
+      expect(kAdminModules.length, 10);
       final routes = kAdminModules.map((m) => m.route).toList();
       expect(routes, contains('/admin/dashboard'));
       expect(routes, contains('/admin/products'));
@@ -779,6 +779,8 @@ void main() {
       expect(routes, contains('/admin/samples'));
       expect(routes, contains('/admin/dealers'));
       expect(routes, contains('/admin/ai-jobs'));
+      expect(routes, contains('/admin/ai-usage'));
+      expect(routes, contains('/admin/plans'));
     });
 
     test('Three-layer RBAC: Profile card visibility condition across 4 user states', () {

@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -15,6 +15,9 @@ import 'package:grazia_stones/core/services/supabase_service.dart';
 import 'package:grazia_stones/core/widgets/error_boundary.dart';
 
 void main() async {
+  // debugPrint is not stripped from release builds (it lands in logcat / os_log), and ~400 calls print
+  // raw errors, user ids and emails. Silence it in release.
+  if (kReleaseMode) debugPrint = (String? message, {int? wrapWidth}) {};
   WidgetsFlutterBinding.ensureInitialized();
 
   // Web defaults to hash-based routing (`/#/admin/dashboard`), so a plain

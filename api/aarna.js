@@ -179,7 +179,8 @@ const handler = async (req, res) => {
   } catch {
     originValue = '';
   }
-  const isVercel = originValue.endsWith('.vercel.app');
+  // Only this project's own Vercel URLs (prod + previews), not every *.vercel.app site.
+  const isVercel = /^https:\/\/grazia-stones(-[a-z0-9-]+)?\.vercel\.app$/.test(originValue);
   const isLocal =
     originValue.startsWith('http://localhost:') || originValue.startsWith('http://127.0.0.1:');
   const originAllowed =
@@ -321,7 +322,8 @@ const handler = async (req, res) => {
     }
     await logged;
   } catch (err) {
-    res.status(500).json({ error: `Aarna failed: ${err.message}` });
+    console.error('[aarna] failed', err.message);
+    res.status(500).json({ error: 'Aarna failed. Please try again.' });
   }
 };
 

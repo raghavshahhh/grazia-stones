@@ -101,7 +101,8 @@ module.exports = async (req, res) => {
   } catch {
     originValue = '';
   }
-  const isVercel = originValue.endsWith('.vercel.app');
+  // Only this project's own Vercel URLs (prod + previews), not every *.vercel.app site.
+  const isVercel = /^https:\/\/grazia-stones(-[a-z0-9-]+)?\.vercel\.app$/.test(originValue);
   const isLocal = originValue.startsWith('http://localhost:') || originValue.startsWith('http://127.0.0.1:');
   const originAllowed = !originValue || isVercel || isLocal || ALLOWED_ORIGINS.includes(originValue);
 
@@ -154,7 +155,13 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const { image, designImage, stoneName, color, finish, variantIndex, designSpec } = req.body || {};
+  const body = req.body || {};
+  const { image, designImage, variantIndex, designSpec } = body;
+  // Free text goes into the image prompt: strings only, short.
+  const short = (v) => (typeof v === 'string' ? v.slice(0, 80) : undefined);
+  const stoneName = short(body.stoneName);
+  const color = short(body.color);
+  const finish = short(body.finish);
   if (!image || typeof image !== 'string' || !image.startsWith('data:image/')) {
     res.status(400).json({ error: 'image must be a data:image/... base64 URL' });
     return;
@@ -281,7 +288,9 @@ module.exports = async (req, res) => {
       const status = geminiRes.status === 429 ? 429 : 502;
       const message = geminiRes.status === 429
         ? 'AI render quota is used up for now. Please try again later.'
-        : `AI render failed (upstream ${geminiRes.status}). ${errText.slice(0, 120)}`;
+        : `AI render failed (upstream ${geminiRes.status}). Please try again.`;
+      // Upstream text can name the Google project or quota; keep it in the server log only.
+      console.error('[generate-visualization] upstream', geminiRes.status, errText.slice(0, 300));
       res.status(status).json({ error: message });
       await logged;
       return;
@@ -316,6 +325,7 @@ module.exports = async (req, res) => {
     await logged;
   } catch (err) {
     await refundCredit();
-    res.status(500).json({ error: `Generation failed: ${err.message}` });
+    console.error('[generate-visualization] failed', err.message);
+    res.status(500).json({ error: 'Generation failed. Please try again.' });
   }
 };

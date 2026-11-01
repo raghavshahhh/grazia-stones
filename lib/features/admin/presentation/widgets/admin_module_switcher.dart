@@ -67,6 +67,18 @@ const List<AdminModuleItem> kAdminModules = [
     route: '/admin/ai-jobs',
     icon: Icons.auto_awesome_rounded,
   ),
+  AdminModuleItem(
+    title: 'AI Usage',
+    subtitle: 'Renders, Aarna chats and tokens per user',
+    route: '/admin/ai-usage',
+    icon: Icons.insights_outlined,
+  ),
+  AdminModuleItem(
+    title: 'AI Studio Plans',
+    subtitle: 'Grant or revoke Plus / Pro',
+    route: '/admin/plans',
+    icon: Icons.workspace_premium_outlined,
+  ),
 ];
 
 /// Reusable quick navigation button for the AppBar of all Admin screens.

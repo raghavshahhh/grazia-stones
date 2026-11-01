@@ -14,6 +14,8 @@ import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/services/supabase_service.dart';
 import 'package:grazia_stones/core/widgets/error_boundary.dart';
 import 'package:grazia_stones/main.dart' as app;
+import 'package:grazia_stones/shared/theme/colors.dart';
+import 'package:grazia_stones/shared/theme/theme_provider.dart';
 
 const _email = String.fromEnvironment('QA_EMAIL');
 const _password = String.fromEnvironment('QA_PASSWORD');
@@ -21,6 +23,8 @@ const _password = String.fromEnvironment('QA_PASSWORD');
 const _only = String.fromEnvironment('ROUTES');
 // Optional: also scroll each page to its end and take a second '<name>_end' shot (--dart-define=SCROLL_END=true).
 const _scrollEnd = bool.fromEnvironment('SCROLL_END');
+// Optional: sweep in the dark gold palette (--dart-define=DARK=true); the light palette is restored at the end.
+const _dark = bool.fromEnvironment('DARK');
 
 const _routes = [
   '/home',
@@ -179,6 +183,7 @@ Future<void> main() async {
   debugPrint('SWEEP SKIPPED ${jsonEncode(skipped)}');
 
   final router = container.read(appRouterProvider);
+  if (_dark) container.read(themePaletteProvider.notifier).setPalette(GLuxuryPalettes.goldDark);
   final results = <Map<String, dynamic>>[];
   var i = 0;
   for (final route in routes) {
@@ -218,6 +223,7 @@ Future<void> main() async {
     }
   }
   current = 'done';
+  if (_dark) await container.read(themePaletteProvider.notifier).setPalette(GLuxuryPalettes.gold);
   debugPrint('SWEEP DONE');
   for (final r in results) {
     debugPrint('SWEEP JSON ${jsonEncode(r)}');

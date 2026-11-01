@@ -174,7 +174,8 @@ module.exports = async (req, res) => {
   } catch {
     originValue = '';
   }
-  const isVercel = originValue.endsWith('.vercel.app');
+  // Only this project's own Vercel URLs (prod + previews), not every *.vercel.app site.
+  const isVercel = /^https:\/\/grazia-stones(-[a-z0-9-]+)?\.vercel\.app$/.test(originValue);
   const isLocal = originValue.startsWith('http://localhost:') || originValue.startsWith('http://127.0.0.1:');
   const originAllowed = !originValue || isVercel || isLocal || ALLOWED_ORIGINS.includes(originValue);
 

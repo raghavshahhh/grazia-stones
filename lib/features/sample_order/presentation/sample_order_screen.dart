@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/models/stone.dart';
+import 'package:grazia_stones/core/providers/stone_providers.dart' show allStonesProvider;
 import 'package:grazia_stones/core/utils/validators.dart';
 import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
@@ -254,6 +255,106 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  static const _kMaxSwatches = 10;
+
+  /// Searchable list of every design; tapped designs join the kit (selected) at the top of the list.
+  Future<void> _openAddDesigns(dynamic palette) async {
+    final all = await ref.read(allStonesProvider.future);
+    if (!mounted) return;
+    var query = '';
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: palette.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          final q = query.toLowerCase();
+          final list = all
+              .where((s) => q.isEmpty || s.name.toLowerCase().contains(q) || s.collection.toLowerCase().contains(q))
+              .toList();
+          return SizedBox(
+            height: MediaQuery.of(ctx).size.height * 0.8,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: TextField(
+                    autofocus: false,
+                    onChanged: (v) => setSheet(() => query = v),
+                    style: TextStyle(color: palette.textPrimary),
+                    decoration: InputDecoration(
+                      hintText: 'Search designs',
+                      prefixIcon: const Icon(Icons.search_rounded),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('${_selectedStones.length} of $_kMaxSwatches in kit',
+                        style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary)),
+                  ),
+                ),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: list.length,
+                    itemBuilder: (ctx, i) {
+                      final s = list[i];
+                      final inKit = _selectedStones.contains(s.id);
+                      return ListTile(
+                        leading: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: SizedBox(
+                              width: 44, height: 44, child: SmartStoneImage(imageUrl: s.imageUrl, fit: BoxFit.cover, palette: palette)),
+                        ),
+                        title: Text(s.name, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w600)),
+                        subtitle: Text(s.collection, style: TextStyle(color: palette.textSecondary, fontSize: 12)),
+                        trailing: Icon(inKit ? Icons.check_circle_rounded : Icons.add_circle_outline_rounded,
+                            color: inKit ? palette.primary : palette.textSecondary),
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          setState(() {
+                            if (inKit) {
+                              _selectedStones.remove(s.id);
+                            } else if (_selectedStones.length >= _kMaxSwatches) {
+                              showErrorSnackbar(context, Exception('Up to $_kMaxSwatches swatches per kit'));
+                            } else {
+                              _selectedStones.add(s.id);
+                              if (!_stones.any((x) => x.id == s.id)) _stones = [s, ..._stones];
+                            }
+                          });
+                          setSheet(() {});
+                        },
+                      );
+                    },
+                  ),
+                ),
+                SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: palette.primary,
+                        minimumSize: const Size.fromHeight(48),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: Text('Done', style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: Colors.black)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _submitOrder() async {
@@ -686,13 +787,13 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
                                   onChanged: (val) {
                                     setState(() {
                                       if (val == true) {
-                                        _selectedStones.add(stone.id);
-                                      } else {
-                                        if (_selectedStones.length > 1) {
-                                          _selectedStones.remove(stone.id);
+                                        if (_selectedStones.length >= _kMaxSwatches) {
+                                          showErrorSnackbar(context, Exception('Up to $_kMaxSwatches swatches per kit'));
                                         } else {
-                                          showErrorSnackbar(context, Exception('At least 1 swatch is required in kit'));
+                                          _selectedStones.add(stone.id);
                                         }
+                                      } else {
+                                        _selectedStones.remove(stone.id);
                                       }
                                     });
                                     HapticFeedback.selectionClick();
@@ -702,7 +803,20 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
                             ),
                           );
                         }),
-                        
+
+                        // Add other designs to the same kit
+                        OutlinedButton.icon(
+                          onPressed: () => _openAddDesigns(palette),
+                          icon: Icon(Icons.add_rounded, size: 18, color: palette.primary),
+                          label: Text('Add more designs',
+                              style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: palette.primary)),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(46),
+                            side: BorderSide(color: palette.primary.withValues(alpha: 0.6)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                        ),
+
                         const SizedBox(height: 24),
                         
                         // Delivery Address section
