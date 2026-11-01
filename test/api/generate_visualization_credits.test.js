@@ -1,5 +1,5 @@
 // Run: node --test test/api/generate_visualization_credits.test.js
-// Checks the AI Studio gate: login required, daily/total limits, refund on failure.
+// Checks the AI Studio gate: login required, daily/monthly plan limits (402), refund on failure.
 const test = require('node:test');
 const assert = require('node:assert');
 
@@ -16,8 +16,9 @@ function call(headers, rpc) {
   global.fetch = async (url, opts) => {
     calls.push(url);
     if (url.endsWith('/auth/v1/user')) return { ok: true, json: async () => ({ id: 'u1' }) };
-    if (url.includes('/rpc/consume_ai_credit')) return { ok: true, json: async () => [rpc] };
-    if (url.includes('/rpc/refund_ai_credit')) return { ok: true, json: async () => null };
+    if (url.includes('/rpc/consume_ai_render')) return { ok: true, text: async () => JSON.stringify([rpc]) };
+    if (url.includes('/rpc/refund_ai_render')) return { ok: true, text: async () => '' };
+    if (url.includes('/rest/v1/ai_usage_events')) return { ok: true, status: 201 };
     if (url.includes('generativelanguage')) return { ok: false, status: 500, text: async () => 'boom' };
     throw new Error('unexpected ' + url);
   };
@@ -33,21 +34,25 @@ test('guest is refused before any credit or Gemini call', async () => {
   assert.ok(!calls.some((u) => u.includes('generativelanguage')));
 });
 
-test('daily limit returns 429 and never calls Gemini', async () => {
-  const { res, calls } = await call({ authorization: 'Bearer t' }, { ok: false, reason: 'daily_limit', credits_remaining: 9, daily_remaining: 0 });
-  assert.equal(res.code, 429);
+const usage = { plan: 'free', source: null, period_end: null, trial_ends_at: null, monthly_limit: 3, monthly_used: 1, daily_limit: 3, daily_used: 3, resets_at: null };
+
+test('daily limit returns 402 and never calls Gemini', async () => {
+  const { res, calls } = await call({ authorization: 'Bearer t' }, { ok: false, reason: 'daily_limit', ...usage });
+  assert.equal(res.code, 402);
   assert.equal(res.body.code, 'daily_limit');
+  assert.equal(res.body.usage.dailyUsed, 3);
   assert.ok(!calls.some((u) => u.includes('generativelanguage')));
 });
 
-test('no credits left returns 429', async () => {
-  const { res } = await call({ authorization: 'Bearer t' }, { ok: false, reason: 'no_credits', credits_remaining: 0, daily_remaining: 3 });
-  assert.equal(res.code, 429);
-  assert.equal(res.body.code, 'no_credits');
+test('monthly limit returns 402', async () => {
+  const { res } = await call({ authorization: 'Bearer t' }, { ok: false, reason: 'monthly_limit', ...usage, monthly_used: 3 });
+  assert.equal(res.code, 402);
+  assert.equal(res.body.code, 'monthly_limit');
 });
 
-test('credit is refunded when Gemini fails', async () => {
-  const { res, calls } = await call({ authorization: 'Bearer t' }, { ok: true, reason: null, credits_remaining: 11, daily_remaining: 2 });
+test('render is refunded and logged as failed when Gemini fails', async () => {
+  const { res, calls } = await call({ authorization: 'Bearer t' }, { ok: true, reason: null, ...usage, daily_used: 1 });
   assert.equal(res.code, 502);
-  assert.ok(calls.some((u) => u.includes('/rpc/refund_ai_credit')));
+  assert.ok(calls.some((u) => u.includes('/rpc/refund_ai_render')));
+  assert.ok(calls.some((u) => u.includes('/rest/v1/ai_usage_events')));
 });

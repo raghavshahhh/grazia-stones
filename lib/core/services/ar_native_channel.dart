@@ -201,12 +201,14 @@ class ARNativeChannel {
   // MARK: - Texture Management
   
   /// Set the texture for the selected wall
-  static Future<void> setTexture(Uint8List imageData, {double? patchHeightM, bool seamCut = false}) async {
+  static Future<void> setTexture(Uint8List imageData, {double? patchHeightM, bool seamCut = false, double trimFraction = 0.08}) async {
     try {
       await _channel.invokeMethod('setTexture', {
         'imageData': imageData,
         'patchHeightM': ?patchHeightM,
         'seamCut': seamCut,
+        // Share of the photo cut off each side before tiling; 0 for clean module crops (catalogue_specs).
+        'trimFraction': trimFraction,
       });
       debugPrint('[ARNativeChannel] Texture set (${imageData.length} bytes)');
     } on PlatformException catch (e) {
@@ -331,12 +333,13 @@ class ARNativeChannel {
   
   /// Places the selected design on the real surface under a screen tap (Android). Returns null when no
   /// real surface was hit; `{placed:false, reason:'not_vertical'}` for floors/ceilings.
-  static Future<Map<String, dynamic>?> placeWallAtScreenPoint(Offset screenPoint) async {
+  static Future<Map<String, dynamic>?> placeWallAtScreenPoint(Offset screenPoint, {bool auto = false}) async {
     try {
       final nativePoint = _toNativeScreenPoint(screenPoint);
       final result = await _channel.invokeMethod('placeWallAtScreenPoint', {
         'screenX': nativePoint.dx,
         'screenY': nativePoint.dy,
+        if (auto) 'auto': true,
       });
       if (result == null) return null;
       return Map<String, dynamic>.from(result as Map);

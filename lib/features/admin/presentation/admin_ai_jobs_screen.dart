@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/models/ai_job.dart';
 import 'package:grazia_stones/features/admin/presentation/widgets/admin_module_switcher.dart';
 import 'package:grazia_stones/features/ai_viz/providers/ai_job_provider.dart';
@@ -356,6 +355,11 @@ class _AdminAIJobsScreenState extends ConsumerState<AdminAIJobsScreen> {
 // ADMIN JOB CARD
 // ═══════════════════════════════════════════════════════════════════════════
 
+// ponytail: no server-side worker runs AI jobs; they are processed in the customer's app. A retry from here would
+// create a queued job owned by the admin that nothing picks up, so the action stays disabled until a worker exists.
+const _retryUnavailable =
+    'Retry is not available here: AI jobs run in the customer\'s app. The customer can retry from their AI Jobs screen.';
+
 class _AdminJobCard extends ConsumerWidget {
   final AIJob job;
   final LuxuryPalette palette;
@@ -534,23 +538,22 @@ class _AdminJobCard extends ConsumerWidget {
               // Admin actions
               if (job.status == 'failed') ...[
                 const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () async {
-                      final repo = ref.read(aiJobRepositoryProvider);
-                      await repo.retryJob(job.id);
-                      ref.invalidate(adminAllJobsProvider);
-                      ref.invalidate(adminJobStatisticsProvider);
-                    },
-                    icon: const Icon(Icons.refresh_rounded, size: 14),
-                    label: const Text('Retry Job'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: palette.primary,
-                      side: BorderSide(color: palette.primary),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                Tooltip(
+                  message: _retryUnavailable,
+                  triggerMode: TooltipTriggerMode.tap,
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: null,
+                      icon: const Icon(Icons.refresh_rounded, size: 14),
+                      label: const Text('Retry Job'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: palette.primary,
+                        side: BorderSide(color: palette.primary),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                     ),
                   ),
@@ -772,26 +775,24 @@ class _AdminJobDetailsSheet extends ConsumerWidget {
             // Admin actions
             const SizedBox(height: 24),
             if (job.status == 'failed')
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () async {
-                    final repo = ref.read(aiJobRepositoryProvider);
-                    await repo.retryJob(job.id);
-                    ref.invalidate(adminAllJobsProvider);
-                    ref.invalidate(adminJobStatisticsProvider);
-                    if (context.mounted) context.pop();
-                  },
-                  icon: const Icon(Icons.refresh_rounded, size: 16),
-                  label: const Text('Retry Job'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: palette.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+              Tooltip(
+                message: _retryUnavailable,
+                triggerMode: TooltipTriggerMode.tap,
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: null,
+                    icon: const Icon(Icons.refresh_rounded, size: 16),
+                    label: const Text('Retry Job'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: palette.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
                     ),
-                    elevation: 0,
                   ),
                 ),
               ),

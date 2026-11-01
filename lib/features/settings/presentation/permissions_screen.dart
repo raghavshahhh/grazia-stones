@@ -121,21 +121,6 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
             ],
           ),
 
-          const Divider(height: 1),
-
-          // Location Permission
-          _buildPermissionSection(
-            context: context,
-            permission: AppPermission.location,
-            label: 'Location',
-            description: 'For finding nearby dealers',
-            icon: Icons.location_on_rounded,
-            features: [
-              'Find authorized dealers',
-              'Show distance to locations',
-              'Location-based recommendations',
-            ],
-          ),
 
           const Divider(height: 1),
 

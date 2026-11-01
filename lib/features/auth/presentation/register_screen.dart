@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/grazia_text_field.dart';
 import 'package:grazia_stones/shared/widgets/grazia_button.dart';
@@ -14,6 +15,8 @@ import 'package:grazia_stones/core/utils/user_friendly_error.dart';
 import 'package:grazia_stones/core/services/storage_service.dart';
 import 'package:grazia_stones/shared/widgets/grazia_logo.dart';
 import 'package:grazia_stones/shared/widgets/google_brand_logo.dart';
+import 'package:grazia_stones/features/auth/presentation/login_screen.dart'
+    show googleSignInAvailable, appleSignInAvailable;
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -103,7 +106,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
     }
 
     if (!_agreedToTerms) {
-      setState(() => _errorMessage = 'Please agree to the Terms of Service & Privacy Policy');
+      setState(
+        () => _errorMessage =
+            'Please agree to the Terms of Service & Privacy Policy',
+      );
       _triggerShake();
       return;
     }
@@ -125,9 +131,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
       final name = _nameController.text.trim();
       final email = _emailController.text.trim();
       final password = _passwordController.text;
-      final phone = _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim();
+      final phone = _phoneController.text.trim().isEmpty
+          ? null
+          : _phoneController.text.trim();
 
-      await ref.read(authRiverpodProvider.notifier).register(
+      await ref
+          .read(authRiverpodProvider.notifier)
+          .register(
             name,
             email,
             password,
@@ -139,12 +149,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
       if (mounted) {
         setState(() => _isLoading = false);
         if (state.isLoggedIn) {
-          unawaited(StorageService.instance.saveClientProfile(
-            name: name,
-            email: email,
-            phone: phone,
-            company: 'Grazia $_selectedRole Studio',
-          ));
+          unawaited(
+            StorageService.instance.saveClientProfile(
+              name: name,
+              email: email,
+              phone: phone,
+              company: 'Grazia $_selectedRole Studio',
+            ),
+          );
 
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -159,10 +171,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
 
           _navigateAfterAuth();
         } else if (state.error != null) {
-          setState(() => _errorMessage = UserFriendlyError.from(
-                state.error,
-                fallbackMessage: 'Could not create account. Please check your information.',
-              ).message);
+          setState(
+            () => _errorMessage = UserFriendlyError.from(
+              state.error,
+              fallbackMessage:
+                  'Could not create account. Please check your information.',
+            ).message,
+          );
           _triggerShake();
         }
       }
@@ -172,7 +187,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
           _isLoading = false;
           _errorMessage = UserFriendlyError.from(
             e,
-            fallbackMessage: 'Could not create account. Please check your details.',
+            fallbackMessage:
+                'Could not create account. Please check your details.',
           ).message;
         });
         _triggerShake();
@@ -180,7 +196,21 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
     }
   }
 
-  Future<void> _signInWithGoogle() async {
+  Future<void> _signInWithGoogle() => _socialSignIn(
+    'Google',
+    ref.read(authRiverpodProvider.notifier).signInWithGoogle,
+  );
+  Future<void> _signInWithApple() => _socialSignIn(
+    'Apple',
+    ref.read(authRiverpodProvider.notifier).signInWithApple,
+  );
+
+  /// Google on Android/iOS without native client IDs opens the browser and finishes through the
+  /// graziastones://auth-callback deep link: the router then leaves Login on its own (authRedirect).
+  Future<void> _socialSignIn(
+    String name,
+    Future<void> Function() signIn,
+  ) async {
     HapticFeedback.mediumImpact();
     setState(() {
       _isLoading = true;
@@ -188,23 +218,30 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
     });
 
     try {
-      await ref.read(authRiverpodProvider.notifier).signInWithGoogle();
+      await signIn();
       final state = ref.read(authRiverpodProvider);
       if (state.isLoggedIn) {
-        unawaited(StorageService.instance.saveClientProfile(
-          email: (state.userEmail?.isNotEmpty ?? false) ? state.userEmail : null,
-          name: state.userName != 'Guest User' ? state.userName : null,
-        ));
+        unawaited(
+          StorageService.instance.saveClientProfile(
+            email: (state.userEmail?.isNotEmpty ?? false)
+                ? state.userEmail
+                : null,
+            name: state.userName != 'Guest User' ? state.userName : null,
+          ),
+        );
       }
       if (mounted) {
         setState(() => _isLoading = false);
         if (state.isLoggedIn) {
           _navigateAfterAuth();
         } else if (state.error != null) {
-          setState(() => _errorMessage = UserFriendlyError.from(
-                state.error,
-                fallbackMessage: 'Google sign-in could not be completed. Please try again.',
-              ).message);
+          setState(
+            () => _errorMessage = UserFriendlyError.from(
+              state.error,
+              fallbackMessage:
+                  '$name sign-in could not be completed. Please try again.',
+            ).message,
+          );
           _triggerShake();
         }
       }
@@ -214,7 +251,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
           _isLoading = false;
           _errorMessage = UserFriendlyError.from(
             e,
-            fallbackMessage: 'Google sign-in failed. Please try again.',
+            fallbackMessage: '$name sign-in failed. Please try again.',
           ).message;
         });
         _triggerShake();
@@ -226,470 +263,91 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
   Widget build(BuildContext context) {
     final palette = ref.watch(themePaletteProvider);
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF0D0D0C),
-      body: Stack(
-        children: [
-          // ── 1. Architectural Luxury Stone Background Image ──
-          Positioned.fill(
-            child: Image.asset(
-              'assets/images/auth_luxury_background.jpg',
-              fit: BoxFit.cover,
-              alignment: Alignment.center,
-              errorBuilder: (_, _, _) => Container(
-                color: const Color(0xFF0D0D0C),
+    // Dark screen: light status-bar icons (they were dark on near-black).
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: const Color(0xFF0D0D0C),
+        body: Stack(
+          children: [
+            // ── 1. Architectural Luxury Stone Background Image ──
+            Positioned.fill(
+              child: Image.asset(
+                'assets/images/auth_luxury_background.jpg',
+                fit: BoxFit.cover,
+                alignment: Alignment.center,
+                errorBuilder: (_, _, _) =>
+                    Container(color: const Color(0xFF0D0D0C)),
               ),
             ),
-          ),
 
-          // ── 2. Atmospheric Dark Luxury Vignette & Gradient Overlay ──
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    const Color(0xFF0D0D0C).withValues(alpha: 0.70),
-                    const Color(0xFF0D0D0C).withValues(alpha: 0.90),
-                    const Color(0xFF0D0D0C).withValues(alpha: 0.98),
-                    const Color(0xFF0D0D0C),
-                  ],
-                  stops: const [0.0, 0.35, 0.75, 1.0],
+            // ── 2. Atmospheric Dark Luxury Vignette & Gradient Overlay ──
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      const Color(0xFF0D0D0C).withValues(alpha: 0.70),
+                      const Color(0xFF0D0D0C).withValues(alpha: 0.90),
+                      const Color(0xFF0D0D0C).withValues(alpha: 0.98),
+                      const Color(0xFF0D0D0C),
+                    ],
+                    stops: const [0.0, 0.35, 0.75, 1.0],
+                  ),
                 ),
               ),
             ),
-          ),
 
-          // ── 3. Golden Ambient Glow ──
-          Positioned(
-            top: 60,
-            left: MediaQuery.of(context).size.width / 2 - 130,
-            child: Container(
-              width: 260,
-              height: 260,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    const Color(0xFFD4AF37).withValues(alpha: 0.12),
-                    Colors.transparent,
-                  ],
+            // ── 3. Golden Ambient Glow ──
+            Positioned(
+              top: 60,
+              left: MediaQuery.of(context).size.width / 2 - 130,
+              child: Container(
+                width: 260,
+                height: 260,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      const Color(0xFFD4AF37).withValues(alpha: 0.12),
+                      Colors.transparent,
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
 
-          // ── 4. Main Scrollable Content ──
-          SafeArea(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 12),
+            // ── 4. Main Scrollable Content ──
+            SafeArea(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 12),
 
-                    // Top Bar: Back Button
-                    Row(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.15),
-                                  width: 0.8,
-                                ),
-                              ),
-                              child: IconButton(
-                                onPressed: () {
-                                  if (context.canPop()) {
-                                    context.pop();
-                                  } else {
-                                    context.go('/login');
-                                  }
-                                },
-                                icon: const Icon(
-                                  Icons.arrow_back_ios_new_rounded,
-                                  color: Colors.white,
-                                  size: 18,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 18),
-
-                    // Centered Brand Logo
-                    const Center(
-                      child: GraziaLogo(
-                        variant: GraziaLogoVariant.full,
-                        colorStyle: GraziaLogoColor.gold,
-                        height: 76,
-                        enableGlow: true,
-                      ),
-                    ),
-
-                    const SizedBox(height: 22),
-
-                    // Title & Subtitle with Shake
-                    AnimatedBuilder(
-                      animation: _shakeAnimation,
-                      builder: (context, child) {
-                        return Transform.translate(
-                          offset: Offset(_shakeAnimation.value, 0),
-                          child: child,
-                        );
-                      },
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      // Top Bar: Back Button
+                      Row(
                         children: [
-                          Text(
-                            'Create Account',
-                            style: GoogleFonts.playfairDisplay(
-                              fontSize: 32,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                              letterSpacing: 0.3,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Register to customize natural stones, generate live 3D wall renders, and request architectural quotes.',
-                            style: GoogleFonts.inter(
-                              fontSize: 13,
-                              color: Colors.white.withValues(alpha: 0.72),
-                              height: 1.45,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // ── Glassmorphic Auth Card Container ──
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(22),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                        child: Container(
-                          padding: const EdgeInsets.all(22),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF161514).withValues(alpha: 0.82),
-                            borderRadius: BorderRadius.circular(22),
-                            border: Border.all(
-                              color: const Color(0xFFD4AF37).withValues(alpha: 0.28),
-                              width: 1.0,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.55),
-                                blurRadius: 30,
-                                offset: const Offset(0, 14),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Error Message banner
-                              if (_errorMessage != null) ...[
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 10),
-                                  margin: const EdgeInsets.only(bottom: 16),
-                                  decoration: BoxDecoration(
-                                    color: palette.error.withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: palette.error.withValues(alpha: 0.45),
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.error_outline_rounded,
-                                        color: palette.error,
-                                        size: 18,
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Text(
-                                          _errorMessage!,
-                                          style: GoogleFonts.inter(
-                                            color: palette.error,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.15),
+                                    width: 0.8,
                                   ),
                                 ),
-                              ],
-
-                              // Full Name Field
-                              GraziaTextField(
-                                label: 'Full Name',
-                                controller: _nameController,
-                                focusNode: _nameFocusNode,
-                                keyboardType: TextInputType.name,
-                                prefixIcon: Icons.person_outline_rounded,
-                                validator: (v) => v == null || v.trim().isEmpty
-                                    ? 'Please enter your full name'
-                                    : null,
-                              ),
-
-                              const SizedBox(height: 14),
-
-                              // Email Address Field
-                              GraziaTextField(
-                                label: 'Email Address',
-                                controller: _emailController,
-                                focusNode: _emailFocusNode,
-                                keyboardType: TextInputType.emailAddress,
-                                prefixIcon: Icons.email_outlined,
-                                validator: Validators.email,
-                              ),
-
-                              const SizedBox(height: 14),
-
-                              // Optional Phone Number Field (informational only, no OTP)
-                              GraziaTextField(
-                                label: 'Phone Number (Optional)',
-                                controller: _phoneController,
-                                focusNode: _phoneFocusNode,
-                                keyboardType: TextInputType.phone,
-                                maxLength: 10,
-                                prefix: Padding(
-                                  padding: const EdgeInsets.only(left: 16),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        '+91',
-                                        style: GoogleFonts.inter(
-                                          color: const Color(0xFFD4AF37),
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 13,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Container(
-                                        width: 1,
-                                        height: 18,
-                                        color: Colors.white24,
-                                      ),
-                                      const SizedBox(width: 8),
-                                    ],
-                                  ),
-                                ),
-                              ),
-
-                              const SizedBox(height: 14),
-
-                              // Role / Profession Selector
-                              Text(
-                                'Professional Role',
-                                style: GoogleFonts.inter(
-                                  color: Colors.white70,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: _roles.map((role) {
-                                  final isSelected = _selectedRole == role;
-                                  return GestureDetector(
-                                    onTap: () {
-                                      HapticFeedback.selectionClick();
-                                      setState(() => _selectedRole = role);
-                                    },
-                                    child: AnimatedContainer(
-                                      duration: const Duration(milliseconds: 200),
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 14, vertical: 8),
-                                      decoration: BoxDecoration(
-                                        color: isSelected
-                                            ? const Color(0xFFD4AF37)
-                                            : Colors.white.withValues(alpha: 0.05),
-                                        borderRadius: BorderRadius.circular(20),
-                                        border: Border.all(
-                                          color: isSelected
-                                              ? const Color(0xFFD4AF37)
-                                              : Colors.white.withValues(alpha: 0.15),
-                                          width: 0.8,
-                                        ),
-                                      ),
-                                      child: Text(
-                                        role,
-                                        style: GoogleFonts.inter(
-                                          fontSize: 12,
-                                          fontWeight: isSelected
-                                              ? FontWeight.w700
-                                              : FontWeight.w500,
-                                          color: isSelected
-                                              ? Colors.black
-                                              : Colors.white70,
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                }).toList(),
-                              ),
-
-                              const SizedBox(height: 16),
-
-                              // Password Field
-                              GraziaTextField(
-                                label: 'Password (min. 6 characters)',
-                                controller: _passwordController,
-                                focusNode: _passwordFocusNode,
-                                obscure: _obscurePassword,
-                                prefixIcon: Icons.lock_outline_rounded,
-                                suffix: IconButton(
-                                  icon: Icon(
-                                    _obscurePassword
-                                        ? Icons.visibility_off_outlined
-                                        : Icons.visibility_outlined,
-                                    color: Colors.white54,
-                                    size: 19,
-                                  ),
-                                  onPressed: () => setState(() =>
-                                      _obscurePassword = !_obscurePassword),
-                                ),
-                                validator: (v) {
-                                  if (v == null || v.isEmpty) {
-                                    return 'Please enter a password';
-                                  }
-                                  if (v.length < 6) {
-                                    return 'Password must be at least 6 characters';
-                                  }
-                                  return null;
-                                },
-                              ),
-
-                              const SizedBox(height: 14),
-
-                              // Confirm Password Field
-                              GraziaTextField(
-                                label: 'Confirm Password',
-                                controller: _confirmPasswordController,
-                                focusNode: _confirmPasswordFocusNode,
-                                obscure: _obscureConfirmPassword,
-                                prefixIcon: Icons.lock_reset_rounded,
-                                suffix: IconButton(
-                                  icon: Icon(
-                                    _obscureConfirmPassword
-                                        ? Icons.visibility_off_outlined
-                                        : Icons.visibility_outlined,
-                                    color: Colors.white54,
-                                    size: 19,
-                                  ),
-                                  onPressed: () => setState(() =>
-                                      _obscureConfirmPassword =
-                                          !_obscureConfirmPassword),
-                                ),
-                                validator: (v) {
-                                  if (v == null || v.isEmpty) {
-                                    return 'Please confirm your password';
-                                  }
-                                  if (v != _passwordController.text) {
-                                    return 'Passwords do not match';
-                                  }
-                                  return null;
-                                },
-                              ),
-
-                              const SizedBox(height: 14),
-
-                              // Terms and Conditions agreement
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  SizedBox(
-                                    width: 24,
-                                    height: 24,
-                                    child: Checkbox(
-                                      value: _agreedToTerms,
-                                      activeColor: const Color(0xFFD4AF37),
-                                      checkColor: Colors.black,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      side: BorderSide(
-                                        color: Colors.white.withValues(alpha: 0.4),
-                                      ),
-                                      onChanged: (val) => setState(
-                                          () => _agreedToTerms = val ?? false),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: GestureDetector(
-                                      onTap: () => setState(
-                                          () => _agreedToTerms = !_agreedToTerms),
-                                      child: RichText(
-                                        text: TextSpan(
-                                          text: 'I agree to the ',
-                                          style: GoogleFonts.inter(
-                                            color: Colors.white70,
-                                            fontSize: 12,
-                                          ),
-                                          children: [
-                                            TextSpan(
-                                              text: 'Terms of Service',
-                                              style: GoogleFonts.inter(
-                                                color: const Color(0xFFD4AF37),
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                            const TextSpan(text: ' & '),
-                                            TextSpan(
-                                              text: 'Privacy Policy',
-                                              style: GoogleFonts.inter(
-                                                color: const Color(0xFFD4AF37),
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-
-                              const SizedBox(height: 20),
-
-                              // Primary CTA: Create Account
-                              GraziaButton(
-                                label: 'Create Account',
-                                icon: Icons.arrow_forward_rounded,
-                                onPressed: _isLoading ? null : _registerAccount,
-                                isLoading: _isLoading,
-                              ),
-
-                              const SizedBox(height: 14),
-
-                              // Already have an account? Sign In
-                              Center(
-                                child: TextButton(
+                                child: IconButton(
                                   onPressed: () {
                                     if (context.canPop()) {
                                       context.pop();
@@ -697,78 +355,514 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
                                       context.go('/login');
                                     }
                                   },
-                                  child: RichText(
-                                    text: TextSpan(
-                                      text: 'Already have an account? ',
-                                      style: GoogleFonts.inter(
-                                        color: Colors.white70,
-                                        fontSize: 13,
+                                  icon: const Icon(
+                                    Icons.arrow_back_ios_new_rounded,
+                                    color: Colors.white,
+                                    size: 18,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 18),
+
+                      // Centered Brand Logo
+                      const Center(
+                        child: GraziaLogo(
+                          variant: GraziaLogoVariant.full,
+                          colorStyle: GraziaLogoColor.gold,
+                          height: 76,
+                          enableGlow: true,
+                        ),
+                      ),
+
+                      const SizedBox(height: 22),
+
+                      // Title & Subtitle with Shake
+                      AnimatedBuilder(
+                        animation: _shakeAnimation,
+                        builder: (context, child) {
+                          return Transform.translate(
+                            offset: Offset(_shakeAnimation.value, 0),
+                            child: child,
+                          );
+                        },
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Create Account',
+                              style: GoogleFonts.playfairDisplay(
+                                fontSize: 32,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Register to customize natural stones, generate live 3D wall renders, and request architectural quotes.',
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: Colors.white.withValues(alpha: 0.72),
+                                height: 1.45,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // ── Glassmorphic Auth Card Container ──
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(22),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                          child: Container(
+                            padding: const EdgeInsets.all(22),
+                            decoration: BoxDecoration(
+                              color: const Color(
+                                0xFF161514,
+                              ).withValues(alpha: 0.82),
+                              borderRadius: BorderRadius.circular(22),
+                              border: Border.all(
+                                color: const Color(
+                                  0xFFD4AF37,
+                                ).withValues(alpha: 0.28),
+                                width: 1.0,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.55),
+                                  blurRadius: 30,
+                                  offset: const Offset(0, 14),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Error Message banner
+                                if (_errorMessage != null) ...[
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 10,
+                                    ),
+                                    margin: const EdgeInsets.only(bottom: 16),
+                                    decoration: BoxDecoration(
+                                      color: palette.error.withValues(
+                                        alpha: 0.15,
                                       ),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: palette.error.withValues(
+                                          alpha: 0.45,
+                                        ),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Row(
                                       children: [
-                                        TextSpan(
-                                          text: 'Sign In',
-                                          style: GoogleFonts.inter(
-                                            color: const Color(0xFFD4AF37),
-                                            fontWeight: FontWeight.w700,
+                                        Icon(
+                                          Icons.error_outline_rounded,
+                                          color: palette.error,
+                                          size: 18,
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Text(
+                                            _errorMessage!,
+                                            style: GoogleFonts.inter(
+                                              color: palette.error,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w500,
+                                            ),
                                           ),
                                         ),
                                       ],
                                     ),
                                   ),
+                                ],
+
+                                // Full Name Field
+                                GraziaTextField(
+                                  label: 'Full Name',
+                                  controller: _nameController,
+                                  focusNode: _nameFocusNode,
+                                  keyboardType: TextInputType.name,
+                                  prefixIcon: Icons.person_outline_rounded,
+                                  validator: (v) =>
+                                      v == null || v.trim().isEmpty
+                                      ? 'Please enter your full name'
+                                      : null,
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
 
-                    const SizedBox(height: 24),
+                                const SizedBox(height: 14),
 
-                    // ── Alternative Sign Up Divider ──
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Container(
-                            height: 0.6,
-                            color: Colors.white.withValues(alpha: 0.18),
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
-                          child: Text(
-                            'or sign up with',
-                            style: GoogleFonts.inter(
-                              color: Colors.white.withValues(alpha: 0.55),
-                              fontSize: 12,
-                              letterSpacing: 0.3,
+                                // Email Address Field
+                                GraziaTextField(
+                                  label: 'Email Address',
+                                  controller: _emailController,
+                                  focusNode: _emailFocusNode,
+                                  keyboardType: TextInputType.emailAddress,
+                                  prefixIcon: Icons.email_outlined,
+                                  validator: Validators.email,
+                                ),
+
+                                const SizedBox(height: 14),
+
+                                // Optional Phone Number Field (informational only, no OTP)
+                                GraziaTextField(
+                                  label: 'Phone Number (Optional)',
+                                  controller: _phoneController,
+                                  focusNode: _phoneFocusNode,
+                                  keyboardType: TextInputType.phone,
+                                  maxLength: 10,
+                                  prefix: Padding(
+                                    padding: const EdgeInsets.only(left: 16),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          '+91',
+                                          style: GoogleFonts.inter(
+                                            color: const Color(0xFFD4AF37),
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Container(
+                                          width: 1,
+                                          height: 18,
+                                          color: Colors.white24,
+                                        ),
+                                        const SizedBox(width: 8),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+
+                                const SizedBox(height: 14),
+
+                                // Role / Profession Selector
+                                Text(
+                                  'Professional Role',
+                                  style: GoogleFonts.inter(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: _roles.map((role) {
+                                    final isSelected = _selectedRole == role;
+                                    return GestureDetector(
+                                      onTap: () {
+                                        HapticFeedback.selectionClick();
+                                        setState(() => _selectedRole = role);
+                                      },
+                                      child: AnimatedContainer(
+                                        duration: const Duration(
+                                          milliseconds: 200,
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 14,
+                                          vertical: 8,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: isSelected
+                                              ? const Color(0xFFD4AF37)
+                                              : Colors.white.withValues(
+                                                  alpha: 0.05,
+                                                ),
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                          border: Border.all(
+                                            color: isSelected
+                                                ? const Color(0xFFD4AF37)
+                                                : Colors.white.withValues(
+                                                    alpha: 0.15,
+                                                  ),
+                                            width: 0.8,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          role,
+                                          style: GoogleFonts.inter(
+                                            fontSize: 12,
+                                            fontWeight: isSelected
+                                                ? FontWeight.w700
+                                                : FontWeight.w500,
+                                            color: isSelected
+                                                ? Colors.black
+                                                : Colors.white70,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+
+                                const SizedBox(height: 16),
+
+                                // Password Field
+                                GraziaTextField(
+                                  label: 'Password (min. 6 characters)',
+                                  controller: _passwordController,
+                                  focusNode: _passwordFocusNode,
+                                  obscure: _obscurePassword,
+                                  prefixIcon: Icons.lock_outline_rounded,
+                                  suffix: IconButton(
+                                    icon: Icon(
+                                      _obscurePassword
+                                          ? Icons.visibility_off_outlined
+                                          : Icons.visibility_outlined,
+                                      color: Colors.white54,
+                                      size: 19,
+                                    ),
+                                    onPressed: () => setState(
+                                      () =>
+                                          _obscurePassword = !_obscurePassword,
+                                    ),
+                                  ),
+                                  validator: (v) {
+                                    if (v == null || v.isEmpty) {
+                                      return 'Please enter a password';
+                                    }
+                                    if (v.length < 6) {
+                                      return 'Password must be at least 6 characters';
+                                    }
+                                    return null;
+                                  },
+                                ),
+
+                                const SizedBox(height: 14),
+
+                                // Confirm Password Field
+                                GraziaTextField(
+                                  label: 'Confirm Password',
+                                  controller: _confirmPasswordController,
+                                  focusNode: _confirmPasswordFocusNode,
+                                  obscure: _obscureConfirmPassword,
+                                  prefixIcon: Icons.lock_reset_rounded,
+                                  suffix: IconButton(
+                                    icon: Icon(
+                                      _obscureConfirmPassword
+                                          ? Icons.visibility_off_outlined
+                                          : Icons.visibility_outlined,
+                                      color: Colors.white54,
+                                      size: 19,
+                                    ),
+                                    onPressed: () => setState(
+                                      () => _obscureConfirmPassword =
+                                          !_obscureConfirmPassword,
+                                    ),
+                                  ),
+                                  validator: (v) {
+                                    if (v == null || v.isEmpty) {
+                                      return 'Please confirm your password';
+                                    }
+                                    if (v != _passwordController.text) {
+                                      return 'Passwords do not match';
+                                    }
+                                    return null;
+                                  },
+                                ),
+
+                                const SizedBox(height: 14),
+
+                                // Terms and Conditions agreement
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: Checkbox(
+                                        value: _agreedToTerms,
+                                        activeColor: const Color(0xFFD4AF37),
+                                        checkColor: Colors.black,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        side: BorderSide(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.4,
+                                          ),
+                                        ),
+                                        onChanged: (val) => setState(
+                                          () => _agreedToTerms = val ?? false,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: GestureDetector(
+                                        onTap: () => setState(
+                                          () =>
+                                              _agreedToTerms = !_agreedToTerms,
+                                        ),
+                                        child: RichText(
+                                          text: TextSpan(
+                                            text: 'I agree to the ',
+                                            style: GoogleFonts.inter(
+                                              color: Colors.white70,
+                                              fontSize: 12,
+                                            ),
+                                            children: [
+                                              TextSpan(
+                                                text: 'Terms of Service',
+                                                style: GoogleFonts.inter(
+                                                  color: const Color(
+                                                    0xFFD4AF37,
+                                                  ),
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                              const TextSpan(text: ' & '),
+                                              TextSpan(
+                                                text: 'Privacy Policy',
+                                                style: GoogleFonts.inter(
+                                                  color: const Color(
+                                                    0xFFD4AF37,
+                                                  ),
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+
+                                const SizedBox(height: 20),
+
+                                // Primary CTA: Create Account
+                                GraziaButton(
+                                  label: 'Create Account',
+                                  icon: Icons.arrow_forward_rounded,
+                                  onPressed: _isLoading
+                                      ? null
+                                      : _registerAccount,
+                                  isLoading: _isLoading,
+                                ),
+
+                                const SizedBox(height: 14),
+
+                                // Already have an account? Sign In
+                                Center(
+                                  child: TextButton(
+                                    onPressed: () {
+                                      if (context.canPop()) {
+                                        context.pop();
+                                      } else {
+                                        context.go('/login');
+                                      }
+                                    },
+                                    child: RichText(
+                                      text: TextSpan(
+                                        text: 'Already have an account? ',
+                                        style: GoogleFonts.inter(
+                                          color: Colors.white70,
+                                          fontSize: 13,
+                                        ),
+                                        children: [
+                                          TextSpan(
+                                            text: 'Sign In',
+                                            style: GoogleFonts.inter(
+                                              color: const Color(0xFFD4AF37),
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
-                        Expanded(
-                          child: Container(
-                            height: 0.6,
-                            color: Colors.white.withValues(alpha: 0.18),
-                          ),
+                      ),
+
+                      if (googleSignInAvailable()) ...[
+                        const SizedBox(height: 24),
+
+                        // ── Alternative Sign Up Divider ──
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Container(
+                                height: 0.6,
+                                color: Colors.white.withValues(alpha: 0.18),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                              ),
+                              child: Text(
+                                'or sign up with',
+                                style: GoogleFonts.inter(
+                                  color: Colors.white.withValues(alpha: 0.55),
+                                  fontSize: 12,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Container(
+                                height: 0.6,
+                                color: Colors.white.withValues(alpha: 0.18),
+                              ),
+                            ),
+                          ],
                         ),
+
+                        const SizedBox(height: 18),
+
+                        // Google Sign-In Luxury Button (Real 4-Color Logo)
+                        _buildGoogleAuthButton(
+                          label: 'Continue with Google',
+                          onPressed: _signInWithGoogle,
+                        ),
+                        if (appleSignInAvailable()) ...[
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            height: 52,
+                            child: SignInWithAppleButton(
+                              onPressed: _signInWithApple,
+                              style: SignInWithAppleButtonStyle.white,
+                              borderRadius: const BorderRadius.all(
+                                Radius.circular(14),
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
-                    ),
 
-                    const SizedBox(height: 18),
-
-                    // Google Sign-In Luxury Button (Real 4-Color Logo)
-                    _buildGoogleAuthButton(
-                      label: 'Continue with Google',
-                      onPressed: _signInWithGoogle,
-                    ),
-
-                    const SizedBox(height: 32),
-                  ],
+                      const SizedBox(height: 32),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

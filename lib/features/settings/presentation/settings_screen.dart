@@ -184,7 +184,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          onPressed: () => context.pop(),
+          onPressed: () => context.canPop() ? context.pop() : context.go('/home'),
           icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
         ),
         title: Text(
@@ -200,45 +200,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
         children: [
-          // Notifications Section
-          _buildSectionHeader('NOTIFICATIONS & ALERTS', palette),
-          const SizedBox(height: 8),
-          
-          _buildSwitchTile(
-            palette,
-            'Push Notifications',
-            'Order tracking and status updates',
-            settings.notificationsEnabled,
-            (v) {
-              ref.read(settingsProvider.notifier).setNotificationsEnabled(v);
-              HapticFeedback.lightImpact();
-            },
-          ),
-          
-          _buildSwitchTile(
-            palette,
-            'Email Quote Alerts',
-            'Email updates for customized pricing quotes',
-            settings.emailUpdatesEnabled,
-            (v) {
-              ref.read(settingsProvider.notifier).setEmailUpdatesEnabled(v);
-              HapticFeedback.lightImpact();
-            },
-          ),
-          
-          _buildSwitchTile(
-            palette,
-            'SMS Delivery Notices',
-            'Transit and site delivery text alerts',
-            settings.smsUpdatesEnabled,
-            (v) {
-              ref.read(settingsProvider.notifier).setSmsUpdatesEnabled(v);
-              HapticFeedback.lightImpact();
-            },
-          ),
-          
-          const SizedBox(height: 24),
-          
+          // Notification toggles removed: nothing consumed them (no push/email/SMS
+          // delivery wired). Add them back with the real channel.
+
           // Preferences
           _buildSectionHeader('APP PREFERENCES', palette),
           const SizedBox(height: 8),
@@ -259,20 +223,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               HapticFeedback.lightImpact();
               ref.read(themePaletteProvider.notifier).toggleTheme();
             },
-          ),
-          _buildTile(
-            palette,
-            Icons.currency_rupee,
-            'Currency',
-            '${settings.currency} (₹ / ${settings.measurementUnit.areaUnit})',
-            () {},
-          ),
-          _buildTile(
-            palette,
-            Icons.language_outlined,
-            'Language',
-            'English (India)',
-            () {},
           ),
           _buildTile(
             palette,
@@ -387,54 +337,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         color: palette.textTertiary,
         letterSpacing: 1.6,
         fontWeight: FontWeight.w700,
-      ),
-    );
-  }
-
-  Widget _buildSwitchTile(LuxuryPalette palette, String title, String subtitle, bool value, ValueChanged<bool> onChanged) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: palette.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: palette.border),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: GoogleFonts.inter(
-                    color: palette.textPrimary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
-                ),
-                if (subtitle.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: GoogleFonts.inter(color: palette.textSecondary, fontSize: 12),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeThumbColor: palette.primary,
-            inactiveThumbColor: palette.textTertiary,
-            inactiveTrackColor: palette.border.withValues(alpha: 0.5),
-            trackOutlineColor: WidgetStateProperty.resolveWith(
-              (states) => states.contains(WidgetState.selected) ? Colors.transparent : palette.border,
-            ),
-          ),
-        ],
       ),
     );
   }

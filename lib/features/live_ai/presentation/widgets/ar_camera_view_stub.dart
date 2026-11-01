@@ -23,7 +23,7 @@ class ARCameraView extends StatelessWidget {
   final double opacity;
 
   /// No-op on non-web platforms
-  static void updateStone(String? assetPath, double opacity, {double? patchHeightM, bool seamCut = false}) {}
+  static void updateStone(String? assetPath, double opacity, {double? patchHeightM, bool seamCut = false, double trimFraction = 0.08}) {}
   static void updateOpacity(double opacity) {}
   static void showWallBoundary(bool show) {}
   static Future<void> setWallClipping(bool enabled) async {}

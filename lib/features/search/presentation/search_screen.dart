@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:grazia_stones/core/utils/formatters.dart';
 import 'package:grazia_stones/core/utils/responsive.dart';
 import 'package:grazia_stones/features/wishlist/wishlist_feedback.dart';
@@ -8,7 +10,6 @@ import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/models/collection.dart';
-import 'package:grazia_stones/core/services/mock_data_service.dart';
 import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
@@ -39,7 +40,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> with SingleTickerPr
   List<Collection> _collections = [];
   bool _isLoading = true;
   bool _isSearching = false;
-  String? _error;
+  Object? _error;
+  Timer? _debounce;
 
   // Filters
   String _searchQuery = '';
@@ -80,6 +82,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> with SingleTickerPr
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _searchController.dispose();
     _tabController.dispose();
     super.dispose();
@@ -87,17 +90,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> with SingleTickerPr
 
   Future<void> _loadInitialData() async {
     try {
-      setState(() => _isLoading = true);
-      
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+
+      // Mock data (ENABLE_MOCK_DATA) is handled inside StoneRepository; an
+      // empty result here is real and shows the empty state.
       final stoneRepo = ref.read(stoneRepositoryProvider);
-      var collections = await stoneRepo.getCollections();
-      if (collections.isEmpty) {
-        collections = MockDataService.collections;
-      }
-      var stones = await stoneRepo.getAllStones();
-      if (stones.isEmpty) {
-        stones = MockDataService.stones;
-      }
+      final collections = await stoneRepo.getCollections();
+      final stones = await stoneRepo.getAllStones();
 
       if (mounted) {
         setState(() {
@@ -109,8 +111,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> with SingleTickerPr
     } catch (e) {
       if (mounted) {
         setState(() {
-          _collections = MockDataService.collections;
-          _stones = MockDataService.stones;
+          _error = e;
           _isLoading = false;
         });
       }
@@ -129,13 +130,20 @@ class _SearchScreenState extends ConsumerState<SearchScreen> with SingleTickerPr
     }).toList();
   }
 
+  /// Retry after a failure: reload collections + stones, then re-apply the
+  /// current query/filters.
+  Future<void> _retry() async {
+    await _loadInitialData();
+    if (mounted && _error == null) await _performSearch();
+  }
+
   Future<void> _performSearch() async {
+    if (!mounted) return;
     setState(() => _isSearching = true);
 
     try {
       final stoneRepo = ref.read(stoneRepositoryProvider);
       var results = await stoneRepo.getAllStones();
-      if (results.isEmpty) results = MockDataService.stones;
 
       // Apply filters
       results = results.where((stone) {
@@ -210,8 +218,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> with SingleTickerPr
       if (mounted) {
         setState(() {
           _isSearching = false;
+          _error = e;
         });
-        showErrorSnackbar(context, e);
       }
     }
   }
@@ -536,7 +544,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> with SingleTickerPr
           autofocus: false,
           onChanged: (v) {
             setState(() => _searchQuery = v);
-            Future.delayed(const Duration(milliseconds: 500), _performSearch);
+            _debounce?.cancel();
+            _debounce = Timer(const Duration(milliseconds: 500), _performSearch);
           },
           onSubmitted: (_) => _performSearch(),
           style: GoogleFonts.inter(fontSize: 14, color: palette.textPrimary),
@@ -561,7 +570,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> with SingleTickerPr
         ],
       ),
       body: _error != null
-          ? ErrorHandlerWidget(error: Exception(_error), onRetry: _loadInitialData)
+          ? ErrorHandlerWidget(error: _error, onRetry: _retry, palette: palette)
           : Column(
               children: [
                 // Luxury Tabs: Collections & Suites vs All Stones
@@ -677,31 +686,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> with SingleTickerPr
 
                             // 2. Individual Stones (Second tab)
                             _stones.isEmpty
-                                ? Center(
-                                    child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Icon(Icons.search_off_rounded, size: 64, color: palette.textTertiary),
-                                        const SizedBox(height: 16),
-                                        Text(
-                                          'No stones found',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
-                                            color: palette.textPrimary,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          'Try adjusting your filters',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 13,
-                                            color: palette.textSecondary,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  )
+                                ? _buildEmptyState(palette, Icons.search_off_rounded)
                                 : _isGridView
                                     ? _buildGridView(palette, wishlistState)
                                     : _buildListView(palette, wishlistState),
@@ -713,31 +698,64 @@ class _SearchScreenState extends ConsumerState<SearchScreen> with SingleTickerPr
     );
   }
 
-  Widget _buildCollectionsView(LuxuryPalette palette) {
-    final collections = _filteredCollections;
-    if (collections.isEmpty) {
-      return Center(
+  bool get _hasActiveSearch =>
+      _searchQuery.isNotEmpty ||
+      _selectedCollections.isNotEmpty ||
+      _selectedCategories.isNotEmpty ||
+      _selectedFinishes.isNotEmpty ||
+      _minPrice > 0 ||
+      _maxPrice < 10000;
+
+  Widget _buildEmptyState(LuxuryPalette palette, IconData icon) {
+    final title = _searchQuery.isNotEmpty
+        ? 'No designs match "$_searchQuery"'
+        : _hasActiveSearch
+            ? 'No designs match your filters'
+            : 'No designs available yet';
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.category_outlined, size: 56, color: palette.textTertiary),
-            const SizedBox(height: 14),
+            Icon(icon, size: 64, color: palette.textTertiary),
+            const SizedBox(height: 16),
             Text(
-              'No collections found',
-              style: GoogleFonts.playfairDisplay(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
+              title,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
                 color: palette.textPrimary,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text(
-              'Try searching for "Patina", "3D", "Ledge", or "Brick"',
+              _hasActiveSearch
+                  ? 'Try a different name, category or finish.'
+                  : 'Please check back soon.',
+              textAlign: TextAlign.center,
               style: GoogleFonts.inter(fontSize: 13, color: palette.textSecondary),
             ),
+            if (_hasActiveSearch) ...[
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: _clearFilters,
+                icon: const Icon(Icons.clear, size: 18),
+                label: const Text('Clear search'),
+                style: OutlinedButton.styleFrom(foregroundColor: palette.primary),
+              ),
+            ],
           ],
         ),
-      );
+      ),
+    );
+  }
+
+  Widget _buildCollectionsView(LuxuryPalette palette) {
+    final collections = _filteredCollections;
+    if (collections.isEmpty) {
+      return _buildEmptyState(palette, Icons.category_outlined);
     }
 
     return ListView.builder(

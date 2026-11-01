@@ -6,7 +6,6 @@ import '../../../core/services/supabase_service.dart';
 import '../../../core/models/user.dart';
 import '../../../core/repositories/auth_repository.dart';
 import '../../../core/services/storage_service.dart';
-import '../../../core/config/env_config.dart';
 
 // ─── State ───
 class AuthRiverpodState {
@@ -21,6 +20,11 @@ class AuthRiverpodState {
   final bool isLoading;
   final String? error;
   final String? verificationId; // For OTP flow
+  /// Set when a password-reset link opened the app; the user must choose a new password.
+  final bool isPasswordRecovery;
+  /// False until the saved session has been checked at launch; Splash waits for it, so a signed-in user is not
+  /// bounced to Login while the session restores.
+  final bool sessionChecked;
 
   AuthRiverpodState({
     this.userId,
@@ -34,6 +38,8 @@ class AuthRiverpodState {
     this.isLoading = false,
     this.error,
     this.verificationId,
+    this.isPasswordRecovery = false,
+    this.sessionChecked = false,
   });
 
   bool get isAdmin => userRole.toLowerCase() == 'admin';
@@ -63,6 +69,8 @@ class AuthRiverpodState {
     bool? isLoading,
     String? error,
     String? verificationId,
+    bool? isPasswordRecovery,
+    bool? sessionChecked,
     bool clearError = false,
     bool clearVerificationId = false,
   }) {
@@ -78,6 +86,8 @@ class AuthRiverpodState {
       isLoading: isLoading ?? this.isLoading,
       error: clearError ? null : (error ?? this.error),
       verificationId: clearVerificationId ? null : (verificationId ?? this.verificationId),
+      isPasswordRecovery: isPasswordRecovery ?? this.isPasswordRecovery,
+      sessionChecked: sessionChecked ?? this.sessionChecked,
     );
   }
 }
@@ -101,6 +111,7 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
     }
     if (!mounted) return;
     await _loadPersistedState();
+    if (mounted) state = state.copyWith(sessionChecked: true);
     _listenForDeepLinkSignIn();
   }
 
@@ -111,7 +122,12 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
     final auth = SupabaseService.instance.authOrNull;
     if (auth == null) return;
     _authSub = auth.onAuthStateChange.listen((data) async {
-      if (data.event != sb.AuthChangeEvent.signedIn) return;
+      if (data.event == sb.AuthChangeEvent.passwordRecovery) {
+        state = state.copyWith(isPasswordRecovery: true);
+        return;
+      }
+      // tokenRefreshed: a session that was expired at startup (offline) came back once the network did.
+      if (data.event != sb.AuthChangeEvent.signedIn && data.event != sb.AuthChangeEvent.tokenRefreshed) return;
       if (data.session == null || state.isLoggedIn) return;
       try {
         await _saveAndSetState(await _repo.getProfile());
@@ -131,8 +147,15 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
     try {
       final onboardingComplete = _storage.getOnboardingCompleted();
 
-      // Check if Supabase has an active session
-      if (_repo.isLoggedIn()) {
+      // Logged in only with a valid Supabase session. A cached user without one made every write go out as a
+      // guest (quotes/samples missing from the user's history), so drop the cache instead.
+      final sessionUserId = await _validSessionUserId();
+      if (sessionUserId == null) {
+        await _storage.clearUser();
+        state = state.copyWith(onboardingComplete: onboardingComplete);
+        return;
+      }
+      try {
         final user = await _repo.getProfile();
         state = state.copyWith(
           userId: user.id,
@@ -145,25 +168,22 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
           onboardingComplete: onboardingComplete,
         );
         debugPrint('✅ Auth state restored from Supabase session (Role: ${user.role})');
-      } else {
-        // No session — check local cache
+      } catch (e) {
+        // Session is valid but the profile read failed (e.g. flaky network): use the cache for display only if it
+        // belongs to the same account. Admin still needs a live profile read.
         final userData = _storage.getUser();
-        // 'guest' rows came from the old fake guest login — not a real account
-        if (userData != null && userData['id'] != 'guest') {
-          state = state.copyWith(
-            userId: userData['id'] as String?,
-            userName: userData['name'] as String?,
-            userPhone: userData['phone'] as String?,
-            userEmail: userData['email'] as String?,
-            avatarUrl: userData['avatar_url'] as String?,
-            // Offline cache only: browsing stays signed in, but admin needs a live session and profile.
-            userRole: (userData['role'] as String? ?? 'customer') == 'admin' ? 'customer' : userData['role'] as String? ?? 'customer',
-            isLoggedIn: true,
-            onboardingComplete: onboardingComplete,
-          );
-        } else {
-          state = state.copyWith(onboardingComplete: onboardingComplete);
-        }
+        if (userData == null || userData['id'] != sessionUserId) rethrow;
+        final cachedRole = userData['role'] as String? ?? 'customer';
+        state = state.copyWith(
+          userId: sessionUserId,
+          userName: userData['name'] as String?,
+          userPhone: userData['phone'] as String?,
+          userEmail: userData['email'] as String?,
+          avatarUrl: userData['avatar_url'] as String?,
+          userRole: cachedRole == 'admin' ? 'customer' : cachedRole,
+          isLoggedIn: true,
+          onboardingComplete: onboardingComplete,
+        );
       }
     } catch (e) {
       debugPrint('❌ Error loading persisted auth state: $e');
@@ -172,6 +192,23 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
     }
   }
 
+
+  /// Id of the signed-in user if Supabase holds a session that is valid now (refreshed if expired), else null.
+  Future<String?> _validSessionUserId() async {
+    final auth = SupabaseService.instance.authOrNull;
+    final session = auth?.currentSession;
+    if (auth == null || session == null) return null;
+    if (session.isExpired) {
+      try {
+        final refreshed = await auth.refreshSession();
+        if (refreshed.session == null || refreshed.session!.isExpired) return null;
+      } catch (e) {
+        debugPrint('❌ Session refresh failed: $e');
+        return null;
+      }
+    }
+    return auth.currentUser?.id;
+  }
 
   /// Send OTP to phone number
   Future<bool> sendOTP(String phoneNumber) async {
@@ -183,7 +220,7 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
         isLoading: false,
         userPhone: phoneNumber,
       );
-      debugPrint('✅ OTP sent to $phoneNumber');
+      debugPrint('✅ OTP sent'); // no phone number in device logs
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -262,17 +299,16 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
   }
 
   /// Sign in with Google
-  Future<void> signInWithGoogle() async {
-    if (!kIsWeb && !EnvConfig().isGoogleOAuthConfigured) {
-      state = state.copyWith(
-        isLoading: false,
-        error: 'CONFIGURATION REQUIRED: Google OAuth Client IDs (GOOGLE_IOS_CLIENT_ID / GOOGLE_WEB_CLIENT_ID) are missing.',
-      );
-      return;
-    }
+  Future<void> signInWithGoogle() => _socialSignIn(_repo.signInWithGoogle);
+
+  /// Sign in with Apple (iPhone)
+  Future<void> signInWithApple() => _socialSignIn(_repo.signInWithApple);
+
+  /// A null user means a browser flow was started; [_listenForDeepLinkSignIn] finishes it.
+  Future<void> _socialSignIn(Future<User?> Function() signIn) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final user = await _repo.signInWithGoogle();
+      final user = await signIn();
       if (user == null) {
         state = state.copyWith(isLoading: false);
         return;
@@ -289,7 +325,7 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
     try {
       await _repo.resetPassword(email);
       state = state.copyWith(isLoading: false);
-      debugPrint('✅ Password reset email sent to $email');
+      debugPrint('✅ Password reset email sent'); // no email in device logs
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
       debugPrint('❌ Password reset error: $e');
@@ -297,16 +333,25 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
     }
   }
 
-  /// Update password (when logged in)
+  /// Update password (when logged in, or in the recovery session a reset link opens)
   Future<void> updatePassword(String newPassword) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
       await _repo.updatePassword(newPassword);
-      state = state.copyWith(isLoading: false);
+      state = state.copyWith(isLoading: false, isPasswordRecovery: false);
+      // A recovery link signs in without a signedIn event; mirror that session now that the password is set.
+      if (!state.isLoggedIn && _repo.isLoggedIn()) {
+        try {
+          await _saveAndSetState(await _repo.getProfile());
+        } catch (e) {
+          debugPrint('❌ Post-reset sign-in sync failed: $e');
+        }
+      }
       debugPrint('✅ Password updated');
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
       debugPrint('❌ Password update error: $e');
+      rethrow;
     }
   }
 
@@ -369,6 +414,10 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
 
   /// Update profile
   Future<void> updateProfile({String? name, String? phone, String? email, String? avatarUrl}) async {
+    // Guests have no profile row; caching an id-less user made the next launch act as a ghost signed-in user.
+    if (!state.isLoggedIn || state.userId == null) {
+      throw StateError('Sign in to save your profile.');
+    }
     try {
       state = state.copyWith(isLoading: true);
 

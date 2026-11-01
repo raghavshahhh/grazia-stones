@@ -9,6 +9,16 @@ import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
 import 'package:grazia_stones/features/cart/presentation/cart_screen.dart';
 
+/// Bottom space a shell tab's scroll view (home, collections, profile) needs so its last item
+/// clears the floating nav bar and, while the cart has items, this bar, which overlays the content.
+/// In the shell (extendBody) MediaQuery padding.bottom already covers the nav bar + home indicator.
+double shellScrollBottomInset(BuildContext context, WidgetRef ref) {
+  final navInset = MediaQuery.paddingOf(context).bottom;
+  final cartBarVisible = ref.watch(cartProvider).isNotEmpty;
+  // 8 gap below the bar + ~58 bar height + breathing room.
+  return navInset + (cartBarVisible ? 88 : 24);
+}
+
 /// Blinkit / Apple-style Floating Glass Cart Bar that appears dynamically above the bottom navigation bar
 class FloatingGlassCartBar extends ConsumerStatefulWidget {
   const FloatingGlassCartBar({super.key});

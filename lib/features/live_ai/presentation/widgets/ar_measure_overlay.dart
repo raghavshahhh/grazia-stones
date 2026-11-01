@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:flutter/services.dart';
@@ -498,7 +499,8 @@ class _ArMeasureOverlayState extends State<ArMeasureOverlay>
             if (_currentMode == _MeasureMode.measure) _buildActionControlDeck(),
 
             // 5b. Auto: outline the object under the reticle and measure all its sides
-            if (_currentMode == _MeasureMode.measure) _buildAutoButton(),
+            // (Android only: object outlining is an ARCore/segmenter feature; iOS answered "unsupported".)
+            if (_currentMode == _MeasureMode.measure && defaultTargetPlatform == TargetPlatform.android) _buildAutoButton(),
 
             // 6. Bottom Segmented Capsule (Measure | Level)
             _buildBottomSegmentedPill(),

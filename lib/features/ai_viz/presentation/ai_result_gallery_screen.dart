@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:http/http.dart' as http;
 
 import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/models/ai_job.dart';
 import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 import 'package:grazia_stones/features/ai_viz/providers/ai_job_provider.dart';
+import 'package:grazia_stones/features/ai_viz/services/branded_render.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 
 /// Shows the 4 variants produced by one "Generate" tap in AI Studio.
@@ -370,32 +370,24 @@ class _FullscreenViewerState extends ConsumerState<_FullscreenViewer> {
     }
   }
 
-  Future<void> _download() async {
+  Future<void> _download() => _withRenderBytes(saveRenderToGallery);
+
+  Future<void> _share() => _withRenderBytes(shareRender);
+
+  /// Fetches the render, then hands it to the watermarked save/share path the AI Studio uses.
+  Future<void> _withRenderBytes(Future<void> Function(BuildContext, Uint8List) action) async {
     setState(() => _isDownloading = true);
     HapticFeedback.mediumImpact();
     try {
-      final uri = Uri.parse(widget.job.resultImageUrl!);
-      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!launched) throw Exception('Could not open image');
+      final response = await http.get(Uri.parse(widget.job.resultImageUrl!));
+      if (response.statusCode != 200) throw Exception('Image request failed (${response.statusCode})');
       if (!mounted) return;
-      showSuccessSnackbar(context, 'Opening image — save it from there');
+      await action(context, response.bodyBytes);
     } catch (e) {
       if (!mounted) return;
-      showErrorSnackbar(context, e, customMessage: 'Could not download this image');
+      showErrorSnackbar(context, e, customMessage: 'Could not load this image');
     } finally {
       if (mounted) setState(() => _isDownloading = false);
-    }
-  }
-
-  Future<void> _share() async {
-    HapticFeedback.lightImpact();
-    try {
-      await Share.share(
-        'Grazia Stones AI Studio — ${widget.job.stoneName} (${widget.job.finish ?? 'Natural'} finish)\n${widget.job.resultImageUrl}',
-      );
-    } catch (e) {
-      if (!mounted) return;
-      showErrorSnackbar(context, e, customMessage: 'Could not share this design');
     }
   }
 

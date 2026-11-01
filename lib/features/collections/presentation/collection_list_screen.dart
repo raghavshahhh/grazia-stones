@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:grazia_stones/shared/widgets/floating_glass_cart_bar.dart';
 import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/widgets/animated_widgets.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
@@ -320,7 +321,7 @@ class _CollectionListScreenState extends ConsumerState<CollectionListScreen> {
               // each opening its own series. Chips and search still show series cards.
               if (_selectedCategory == 'All' && _searchQuery.isEmpty && nonTest.isNotEmpty) {
                 return SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 140),
+                  padding: EdgeInsets.fromLTRB(16, 4, 16, shellScrollBottomInset(context, ref)),
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {
@@ -377,7 +378,7 @@ class _CollectionListScreenState extends ConsumerState<CollectionListScreen> {
               }
 
               return SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 140),
+                padding: EdgeInsets.fromLTRB(16, 4, 16, shellScrollBottomInset(context, ref)),
                 sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {

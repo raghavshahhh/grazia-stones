@@ -31,7 +31,8 @@ class SmartStoneImage extends StatelessWidget {
 
     final hasNetworkUrl = imageUrl != null &&
         (imageUrl!.startsWith('http://') || imageUrl!.startsWith('https://'));
-    final hasLocalAsset = localAsset != null && localAsset!.isNotEmpty;
+    // Callers often pass stone.images.first here, which is a network URL; Image.asset on it throws.
+    final hasLocalAsset = localAsset != null && localAsset!.isNotEmpty && !localAsset!.startsWith('http');
 
     if (hasNetworkUrl) {
       return CachedNetworkImage(

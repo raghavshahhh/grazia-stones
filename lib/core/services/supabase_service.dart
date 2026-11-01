@@ -126,8 +126,14 @@ class SupabaseService {
   }
 
   /// Sign in with Google OAuth
-  Future<bool> signInWithOAuth(OAuthProvider provider) async {
-    return await _withAuthRetryBool(() => auth.signInWithOAuth(provider));
+  /// Browser OAuth. On a phone the session comes back through [redirectTo] (the app's deep link); Safari /
+  /// Chrome itself, not an in-app view, so Google's own sign-in session and passkeys work.
+  Future<bool> signInWithOAuth(OAuthProvider provider, {String? redirectTo}) async {
+    return await _withAuthRetryBool(() => auth.signInWithOAuth(
+          provider,
+          redirectTo: redirectTo,
+          authScreenLaunchMode: kIsWeb ? LaunchMode.platformDefault : LaunchMode.externalApplication,
+        ));
   }
 
   /// Sign in with a Google ID token obtained from the native SDK (iOS/Android)
@@ -135,11 +141,13 @@ class SupabaseService {
     OAuthProvider provider,
     String idToken, {
     String? accessToken,
+    String? nonce,
   }) async {
     return await _withAuthRetry(() => auth.signInWithIdToken(
           provider: provider,
           idToken: idToken,
           accessToken: accessToken,
+          nonce: nonce,
         ));
   }
 
@@ -179,7 +187,8 @@ class SupabaseService {
 
   /// Update profile
   Future<void> updateProfile(Map<String, dynamic> updates) async {
-    if (!isLoggedIn) return;
+    // Throw instead of returning: a silent no-op let callers report a save that never happened.
+    if (!isLoggedIn) throw StateError('Sign in to save your profile.');
     await _withRetry(() async {
       await client.from('profiles').upsert({
         'id': currentUser!.id,
@@ -188,9 +197,13 @@ class SupabaseService {
     });
   }
 
+  /// Password-reset link target. Triple slash: go_router reads the URI path as the route (see build/audit/01_routes_pages.md).
+  /// Must be allow-listed in Supabase Auth -> URL Configuration -> Redirect URLs.
+  static const String resetPasswordUrl = 'graziastones:///reset-password';
+
   /// Reset password
   Future<void> resetPassword(String email) async {
-    await _withAuthRetry(() => auth.resetPasswordForEmail(email));
+    await _withAuthRetry(() => auth.resetPasswordForEmail(email, redirectTo: kIsWeb ? null : resetPasswordUrl));
   }
 
   /// Update password (when logged in)

@@ -1,0 +1,107 @@
+{
+ "exposure": 1.15,
+ "shots": [
+  {
+   "name": "aarna_head_idle",
+   "clip": "Idle",
+   "dur": 6.0,
+   "fps": 15,
+   "px": 192,
+   "orbit": "8deg 84deg 1.72m",
+   "target": "0m 0.63m 0m",
+   "fov": "28deg"
+  },
+  {
+   "name": "aarna_head_wave",
+   "clip": "Wave",
+   "dur": 3.8,
+   "fps": 15,
+   "px": 192,
+   "orbit": "8deg 84deg 1.72m",
+   "target": "0m 0.63m 0m",
+   "fov": "28deg"
+  },
+  {
+   "name": "aarna_head_think",
+   "clip": "Think",
+   "dur": 3.0,
+   "fps": 15,
+   "px": 192,
+   "orbit": "8deg 84deg 1.72m",
+   "target": "0m 0.63m 0m",
+   "fov": "28deg"
+  },
+  {
+   "name": "aarna_body_wave",
+   "clip": "Wave",
+   "dur": 3.8,
+   "fps": 15,
+   "px": 240,
+   "orbit": "15deg 82deg 2.4m",
+   "target": "0m 0.45m 0m",
+   "fov": "28deg"
+  },
+  {
+   "name": "aarna_body_think",
+   "clip": "Think",
+   "dur": 3.0,
+   "fps": 15,
+   "px": 240,
+   "orbit": "-20deg 82deg 2.4m",
+   "target": "0m 0.45m 0m",
+   "fov": "28deg"
+  },
+  {
+   "name": "aarna_body_idle",
+   "clip": "Idle",
+   "dur": 6.0,
+   "fps": 15,
+   "px": 240,
+   "orbit": "25deg 80deg 2.4m",
+   "target": "0m 0.45m 0m",
+   "fov": "28deg"
+  },
+  {
+   "name": "aarna_body_hop",
+   "clip": "Hop",
+   "dur": 1.0,
+   "fps": 15,
+   "px": 240,
+   "orbit": "-10deg 84deg 2.4m",
+   "target": "0m 0.45m 0m",
+   "fov": "28deg"
+  },
+  {
+   "name": "aarna_body_idle_alt",
+   "clip": "Idle",
+   "dur": 6.0,
+   "fps": 15,
+   "px": 240,
+   "orbit": "-30deg 78deg 2.4m",
+   "target": "0m 0.45m 0m",
+   "fov": "28deg"
+  },
+  {
+   "name": "aarna_poster_full",
+   "clip": "Idle",
+   "dur": 0.1,
+   "fps": 10,
+   "px": 720,
+   "still": true,
+   "orbit": "0deg 82deg 2.4m",
+   "target": "0m 0.45m 0m",
+   "fov": "28deg"
+  },
+  {
+   "name": "aarna_poster_head",
+   "clip": "Idle",
+   "dur": 0.1,
+   "fps": 10,
+   "px": 256,
+   "still": true,
+   "orbit": "8deg 84deg 1.72m",
+   "target": "0m 0.63m 0m",
+   "fov": "28deg"
+  }
+ ]
+}

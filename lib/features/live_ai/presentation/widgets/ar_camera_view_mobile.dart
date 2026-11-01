@@ -4,6 +4,7 @@ library;
 
 import 'dart:async';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:grazia_stones/shared/widgets/luxury_toast.dart';
 import 'package:flutter/material.dart' hide Colors;
 import 'package:flutter/services.dart' show rootBundle, HapticFeedback, SystemUiOverlayStyle;
@@ -45,6 +46,7 @@ class ARCameraView extends StatefulWidget {
   /// Real-world height (m) of the current texture photo, from the catalogue PDFs.
   static double? _patchHeightM;
   static bool _seamCut = false;
+  static double _trimFraction = 0.08;
 
   /// 'erase' / 'restore' while the user fixes the cut edges by hand; null = taps place the design.
   static final ValueNotifier<String?> brushMode = ValueNotifier<String?>(null);
@@ -57,19 +59,30 @@ class ARCameraView extends StatefulWidget {
     double opacity, {
     double? patchHeightM,
     bool seamCut = false,
+    double trimFraction = 0.08,
   }) {
     _patchHeightM = patchHeightM;
     _seamCut = seamCut;
+    _trimFraction = trimFraction;
     _controller.add(_ARUpdate(stone: assetPath, opacity: opacity));
     if (assetPath != null) {
       _loadAndSendTexture(assetPath, opacity);
     }
   }
 
+  // The selection path, the widget update and the controller stream all ask for the same texture; one download
+  // per selection, and a slow download for a stone the user already swiped past must not land on the wall.
+  static String? _wantedTexture;
+  static String? _sentTexture;
+
   static Future<void> _loadAndSendTexture(
     String assetPath,
     double opacity,
   ) async {
+    if (assetPath == _wantedTexture && _sentTexture == assetPath) return;
+    if (assetPath == _wantedTexture && _sentTexture != assetPath && _loading) return;
+    _wantedTexture = assetPath;
+    _loading = true;
     try {
       Uint8List bytes;
       if (assetPath.startsWith('http://') || assetPath.startsWith('https://')) {
@@ -85,11 +98,17 @@ class ARCameraView extends StatefulWidget {
         final ByteData data = await rootBundle.load(assetPath);
         bytes = data.buffer.asUint8List();
       }
-      await ARNativeChannel.setTexture(bytes, patchHeightM: _patchHeightM, seamCut: _seamCut);
+      if (assetPath != _wantedTexture) return; // superseded while downloading
+      await ARNativeChannel.setTexture(bytes, patchHeightM: _patchHeightM, seamCut: _seamCut, trimFraction: _trimFraction);
+      _sentTexture = assetPath;
     } catch (e) {
       debugPrint('[ARCameraView] Failed to load texture: $e');
+    } finally {
+      if (assetPath == _wantedTexture) _loading = false;
     }
   }
+
+  static bool _loading = false;
 
   static void updateOpacity(double opacity) {
     _controller.add(_ARUpdate(opacity: opacity));
@@ -325,9 +344,11 @@ class _ARCameraViewState extends State<ARCameraView>
       // Start AR session
       await ARNativeChannel.startSession();
       _nativeARStarted = true;
+      ARCameraView._sentTexture = null; // a new native session has no texture yet
       _loadCameraAspect();
       // The native manager is a process singleton: drop the design left by Live AR so the ruler sees a bare wall.
       if (widget.measureOnly) await ARNativeChannel.clearTexture();
+      _startIosAutoPlace();
 
       if (mounted) {
         setState(() => _isInitialized = true);
@@ -446,6 +467,26 @@ class _ARCameraViewState extends State<ARCameraView>
     ARNativeChannel.editMask(point, erase: mode == 'erase');
   }
 
+  Timer? _iosAutoPlace;
+
+  /// Android places the design natively (ARCoreManager.autoPlace); ARKit only places on a tap. On iOS, keep trying
+  /// the screen centre until ARKit has the wall under it, so the stone appears on its own like on Android.
+  void _startIosAutoPlace() {
+    if (defaultTargetPlatform != TargetPlatform.iOS || widget.measureOnly) return;
+    var busy = false;
+    _iosAutoPlace = Timer.periodic(const Duration(milliseconds: 700), (_) async {
+      final size = context.size;
+      if (!mounted || busy || !_nativeARStarted || _displayStoneTexture == null || size == null) return;
+      if (ARCameraView.brushMode.value != null || ARCameraView.calibrationTaps.value != null) return;
+      busy = true;
+      // Keeps scanning while the camera pans: each newly tracked wall under the centre gets the stone too
+      // (native skips walls that already have it), so a corner fills in without tapping.
+      final res = await ARNativeChannel.placeWallAtScreenPoint(Offset(size.width / 2, size.height * 0.45), auto: true);
+      busy = false;
+      if (res?['placed'] == true && mounted) HapticFeedback.lightImpact();
+    });
+  }
+
   Future<void> _placeDesignAt(Offset point) async {
     final dpr = MediaQuery.of(context).devicePixelRatio;
     final layer = context.size;
@@ -502,6 +543,7 @@ class _ARCameraViewState extends State<ARCameraView>
 
   @override
   void dispose() {
+    _iosAutoPlace?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _updateSubscription?.cancel();
     _wallDetectedSubscription?.cancel();
@@ -540,6 +582,10 @@ class _ARCameraViewState extends State<ARCameraView>
 
     if (_isPermissionDenied) return _buildPermissionDenied();
     if (_error != null) return _buildErrorState();
+
+    // ARKit aspect-fills its view and raycasts in view points itself, so iOS gets the whole screen (the 3:4 box
+    // left the bottom 40 % black on an iPhone 13 Pro). Android's wall mask maps camera pixels, hence the box there.
+    if (defaultTargetPlatform == TargetPlatform.iOS) return _buildARStack();
 
     // Top-left anchored so screen and AR-view coordinates stay the same for every overlay; the rest stays black.
     // Below a 16:9 camera on a 20:9 phone sits the action row and nav bar; a charcoal panel with a gold hairline
@@ -603,7 +649,29 @@ class _ARCameraViewState extends State<ARCameraView>
                       debugPrint('[Calibrate] tap ${taps.length + 1}/4 at ${d.localPosition} in ${context.size}');
                       ARCameraView.calibrationTaps.value = [...taps, d.localPosition];
                     },
-                    child: CustomPaint(painter: _CalibrationPainter(taps)),
+                    child: Stack(
+                      children: [
+                        Positioned.fill(child: CustomPaint(painter: _CalibrationPainter(taps))),
+                        // A way out of corner-tapping before the 4th tap (the design stays hidden until then).
+                        Positioned(
+                          right: 16,
+                          top: MediaQuery.of(context).padding.top + 150,
+                          child: material.TextButton.icon(
+                            onPressed: () {
+                              debugPrint('[Calibrate] cancelled after ${taps.length} taps');
+                              ARCameraView.calibrationTaps.value = null;
+                            },
+                            style: material.TextButton.styleFrom(
+                              backgroundColor: material.Colors.black.withValues(alpha: 0.6),
+                              foregroundColor: material.Colors.white,
+                              shape: const StadiumBorder(),
+                            ),
+                            icon: const Icon(material.Icons.close_rounded, size: 16),
+                            label: const Text('Cancel'),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
         ),
@@ -693,7 +761,10 @@ class _ARCameraViewState extends State<ARCameraView>
       value: SystemUiOverlayStyle.light,
       child: Container(
         color: material.Colors.black,
-        child: Center(
+        // Upper part of the screen: Live AR's shutter and design panel float over the lower half and covered
+        // the end of this text when it was centred.
+        child: Align(
+          alignment: const Alignment(0, -0.35),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 36),
             child: Column(

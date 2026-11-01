@@ -217,6 +217,17 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
 
+    if (!ref.read(authRiverpodProvider).isLoggedIn) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please sign in to save your profile.'),
+          behavior: SnackBarBehavior.floating,
+          action: SnackBarAction(label: 'Sign in', onPressed: () => context.push('/login')),
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
     HapticFeedback.mediumImpact();
 

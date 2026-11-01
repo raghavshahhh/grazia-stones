@@ -120,7 +120,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
 
     // On-device wall segmentation for Live AR (EfficientViT-Seg B1, ADE20K, Apache-2.0; see WallSegmenter).
-    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.31.1")
 }
 
 flutter {

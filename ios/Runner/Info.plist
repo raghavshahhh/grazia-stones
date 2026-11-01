@@ -89,5 +89,13 @@
 	<string>Grazia Stones needs your location to find nearby dealers and show distance.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Grazia Stones needs your location to find nearby dealers.</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>tel</string>
+		<string>mailto</string>
+		<string>whatsapp</string>
+		<string>https</string>
+		<string>http</string>
+	</array>
 </dict>
 </plist>

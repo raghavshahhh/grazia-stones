@@ -1,4 +1,6 @@
-// Returns the signed-in user's remaining AI Studio credits (does not spend any).
+// Returns the signed-in user's AI Studio plan usage (does not spend anything):
+// {plan, source, periodEnd, trialEndsAt, monthlyLimit, monthlyUsed, dailyLimit, dailyUsed, resetsAt}
+// plus the legacy keys creditsRemaining / dailyRemaining / dailyLimit for old builds.
 
 const { verifyRequestAuth } = require('./_supabaseAuth');
 const credits = require('./_aiCredits');
@@ -27,8 +29,7 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const s = await credits.status(auth.userId);
-    res.status(200).json({ ...s, dailyLimit: credits.DAILY_LIMIT });
+    res.status(200).json(await credits.status(auth.userId));
   } catch (err) {
     res.status(503).json({ error: 'Credits unavailable', code: 'credits_unavailable' });
   }

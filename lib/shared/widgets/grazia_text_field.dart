@@ -57,7 +57,9 @@ class _GraziaTextFieldState extends State<GraziaTextField> {
 
   @override
   Widget build(BuildContext context) {
-    final palette = GLuxuryPalettes.gold;
+    // Only the auth screens use this field and they are all dark glass cards; the light palette drew #171717
+    // text on #161514, so typed text was invisible (iPhone, 2026-10-30).
+    final palette = GLuxuryPalettes.goldDark;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -71,7 +73,7 @@ class _GraziaTextFieldState extends State<GraziaTextField> {
               fontSize: 12,
               fontWeight: FontWeight.w600,
               color:
-                  _isFocused ? palette.primary : palette.textTertiary,
+                  _isFocused ? palette.primary : palette.textPrimary.withValues(alpha: 0.7),
               letterSpacing: 0.5,
             ),
           ),
@@ -122,11 +124,14 @@ class _GraziaTextFieldState extends State<GraziaTextField> {
                 ),
                 cursorColor: palette.primary,
                 decoration: InputDecoration(
+                  // The glass container above is the background. The app theme fills inputs with its surface colour
+                  // (white in the light theme), which hid the white text on Android (Play review screenshot).
+                  filled: false,
                   hintText: widget.hint,
                   hintStyle: TextStyle(
                     fontFamily: 'Inter',
                     fontSize: 14,
-                    color: palette.textTertiary.withValues(alpha: 0.5),
+                    color: palette.textPrimary.withValues(alpha: 0.38),
                   ),
                   prefixIcon: widget.prefix ??
                       (widget.prefixIcon != null
@@ -134,7 +139,7 @@ class _GraziaTextFieldState extends State<GraziaTextField> {
                               size: 20,
                               color: _isFocused
                                   ? palette.primary
-                                  : palette.textTertiary)
+                                  : palette.textPrimary.withValues(alpha: 0.55))
                           : null),
                   suffixIcon: widget.suffix,
                   counterText: '',

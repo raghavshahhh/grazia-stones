@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:grazia_stones/shared/widgets/floating_glass_cart_bar.dart';
 import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
@@ -9,6 +10,7 @@ import 'package:grazia_stones/features/cart/presentation/cart_screen.dart';
 import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/shared/widgets/powered_by_ragspro.dart';
 import 'package:grazia_stones/features/wishlist/providers/wishlist_provider.dart';
+import 'package:grazia_stones/features/pro/presentation/widgets/plan_widgets.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -319,6 +321,8 @@ class ProfileScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // AI Studio plan + usage (hidden for guests / when the server has no plan data).
+                  const PlanUsageCard(),
                   // Admin card — visible only to real admins (backend
                   // profiles role), never auto-elevated.
                   if (ref.watch(authRiverpodProvider.select((s) => s.isAdmin))) ...[
@@ -564,7 +568,7 @@ class ProfileScreen extends ConsumerWidget {
                     child: PoweredByRagspro(textColor: palette.textTertiary, accentColor: palette.primary),
                   ),
 
-                  const SizedBox(height: 80),
+                  SizedBox(height: shellScrollBottomInset(context, ref)),
                 ],
               ),
             ),

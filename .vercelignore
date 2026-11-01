@@ -18,3 +18,14 @@ integration_test/
 *.aab
 build/web/assets/assets/catalogues
 build/web/assets/assets/video
+# Secrets and app sources never go to Vercel (it only serves api/).
+.env
+.env.*
+build/
+lib/
+assets/
+docs/
+tool/
+scripts/
+supabase/
+web/

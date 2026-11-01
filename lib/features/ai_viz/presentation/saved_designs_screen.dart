@@ -9,10 +9,8 @@ import 'package:grazia_stones/core/models/saved_design.dart';
 import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:grazia_stones/features/ai_viz/services/branded_render.dart';
 import 'package:http/http.dart' as http;
-import 'dart:io';
 
 class SavedDesignsScreen extends ConsumerStatefulWidget {
   const SavedDesignsScreen({super.key});
@@ -102,71 +100,38 @@ class _SavedDesignsScreenState extends ConsumerState<SavedDesignsScreen> {
     }
   }
 
-  Future<void> _shareDesign(SavedDesign design) async {
+  Future<void> _shareDesign(SavedDesign design) => _withRenderBytes(design, shareRender);
+
+  Future<void> _downloadDesign(SavedDesign design) => _withRenderBytes(design, saveRenderToGallery);
+
+  /// Fetches the stored render behind a spinner, then hands the bytes to the watermarked
+  /// save/share path the AI Studio uses (which shows its own toasts).
+  Future<void> _withRenderBytes(
+    SavedDesign design,
+    Future<void> Function(BuildContext, Uint8List) action,
+  ) async {
     HapticFeedback.lightImpact();
-    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(
+        child: CircularProgressIndicator(color: Colors.white),
+      ),
+    );
+    Uint8List? bytes;
     try {
-      // Download image first for better sharing experience
       final response = await http.get(Uri.parse(design.generatedImageUrl));
-      if (response.statusCode == 200) {
-        final tempDir = await getTemporaryDirectory();
-        final file = File('${tempDir.path}/grazia_design_${design.id}.jpg');
-        await file.writeAsBytes(response.bodyBytes);
-        
-        await Share.shareXFiles(
-          [XFile(file.path)],
-          text: 'Check out my custom architectural concept with Grazia Stones (${design.stoneName})',
-        );
-      } else {
-        // Fallback to URL sharing
-        await Share.share(
-          'Check out my custom architectural concept with Grazia Stones (${design.stoneName}): ${design.generatedImageUrl}',
-        );
-      }
+      if (response.statusCode == 200) bytes = response.bodyBytes;
     } catch (e) {
-      // Fallback to URL sharing
-      await Share.share(
-        'Check out my custom architectural concept with Grazia Stones (${design.stoneName}): ${design.generatedImageUrl}',
-      );
+      debugPrint('[SavedDesigns] image fetch failed: $e');
     }
-  }
-
-  Future<void> _downloadDesign(SavedDesign design) async {
-    HapticFeedback.lightImpact();
-    
-    try {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => const Center(
-          child: CircularProgressIndicator(color: Colors.white),
-        ),
-      );
-
-      final response = await http.get(Uri.parse(design.generatedImageUrl));
-      if (response.statusCode == 200) {
-        // For mobile, save to downloads
-        final directory = Platform.isAndroid
-            ? Directory('/storage/emulated/0/Download')
-            : await getApplicationDocumentsDirectory();
-            
-        final fileName = 'grazia_design_${DateTime.now().millisecondsSinceEpoch}.jpg';
-        final file = File('${directory.path}/$fileName');
-        await file.writeAsBytes(response.bodyBytes);
-
-        if (mounted) {
-          Navigator.pop(context); // Close loading dialog
-          showSuccessSnackbar(context, 'Image saved to ${Platform.isAndroid ? "Downloads" : "Documents"}');
-        }
-      } else {
-        throw Exception('Failed to download image');
-      }
-    } catch (e) {
-      if (mounted) {
-        Navigator.pop(context); // Close loading dialog
-        showErrorSnackbar(context, Exception('Failed to download: ${e.toString()}'));
-      }
+    if (!mounted) return;
+    Navigator.pop(context); // Close loading dialog
+    if (bytes == null) {
+      showErrorSnackbar(context, Exception('Could not load this design. Check your connection.'));
+      return;
     }
+    await action(context, bytes);
   }
 
   void _showSortOptions(LuxuryPalette palette) {

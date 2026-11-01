@@ -94,7 +94,7 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> with Tick
     'Living room luxury feature wall ideas',
     '3D Fluted panels for modern TV lounge',
     'Exterior villa facade weather-proof stones',
-    'Curated stones under ₹350/sq.ft',
+    'Budget-friendly stones for large walls',
     'Grand fireplace natural stone textures',
   ];
 
@@ -1270,7 +1270,7 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> with Tick
                             onTap: () {
                               HapticFeedback.selectionClick();
                               context.push(
-                                '/live-ai?stoneId=${Uri.encodeComponent(stone.id)}',
+                                '/ar-view?stoneId=${Uri.encodeComponent(stone.id)}',
                               );
                             },
                             child: Container(
@@ -1757,7 +1757,7 @@ class _AarnaAIChatScreenState extends ConsumerState<AarnaAIChatScreen> with Tick
       (
         icon: Icons.view_in_ar_rounded,
         label: 'Live AR',
-        route: '/live-ai$q', // /ar-view redirects and drops the query
+        route: '/ar-view$q', // root-navigator AR page; /live-ai is the shell tab and renders blank from here
         color: const Color(0xFFD4AF37),
       ),
       (

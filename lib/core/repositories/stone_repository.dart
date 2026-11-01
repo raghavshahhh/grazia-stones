@@ -79,19 +79,9 @@ class StoneRepository {
   /// The bundled AR texture for a catalogue row, or null to use the product's own photo (Stone.arTextureUrl).
   /// One function so the app and the Live AR texture audit (tool/live_ar_audit) resolve products identically.
   static String? arTextureFor(Map<String, dynamic> row, CatalogueSpec? spec) =>
-      row['ar_texture'] ?? row['texture_url'] ?? spec?.arTexture ?? findTextureByName((row['name'] ?? '').toString());
-
-  static String? findTextureByName(String name) {
-    final lower = name.toLowerCase();
-    if (lower.contains('athena')) return 'assets/images/athena_3d_tex.png';
-    if (lower.contains('verona')) return 'assets/images/verona_3d_tex.png';
-    if (lower.contains('mountain')) return 'assets/images/mountain_ledge_m08_tex.png';
-    if (lower.contains('classic')) return 'assets/images/classic_ledge_07_tex.png';
-    if (lower.contains('opus')) return 'assets/images/opus_ledge_15_tex.png';
-    if (lower.contains('vantage')) return 'assets/images/vantage_v12_tex.png';
-    if (lower.contains('grande')) return 'assets/images/grande_ledge_ta02_tex.png';
-    return null;
-  }
+      row['ar_texture'] ?? row['texture_url'] ?? spec?.arTexture;
+  // No name-based fallback: it sent Grande, Mountain, Classic, Opus and Vantage to placeholder textures of other
+  // stones (texture audit 2026-10-30), drawn at a scale measured on a different photo. Their own photo is used.
 
   /// Execute a Supabase query with retry logic
   Future<T> _executeWithRetry<T>(Future<T> Function() operation) async {

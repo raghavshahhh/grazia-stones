@@ -113,7 +113,8 @@ extension ARKitPlugin {
         case "setTexture":
             if let args = call.arguments as? [String: Any],
                let imageData = args["imageData"] as? FlutterStandardTypedData {
-                arKitManager.setTexture(imageData.data, patchHeightM: (args["patchHeightM"] as? Double) ?? 0)
+                arKitManager.setTexture(imageData.data, patchHeightM: (args["patchHeightM"] as? Double) ?? 0,
+                                        trimFraction: (args["trimFraction"] as? Double) ?? 0.08)
                 result(nil)
             } else {
                 result(FlutterError(code: "INVALID_ARGS", message: "Missing imageData", details: nil))
@@ -254,7 +255,7 @@ extension ARKitPlugin {
         case "placeWallAtScreenPoint":
             if let args = call.arguments as? [String: Any],
                let sx = args["screenX"] as? Double, let sy = args["screenY"] as? Double {
-                result(arKitManager.placeWallAtScreenPoint(CGPoint(x: sx, y: sy)))
+                result(arKitManager.placeWallAtScreenPoint(CGPoint(x: sx, y: sy), auto: args["auto"] as? Bool ?? false))
             } else {
                 result(FlutterError(code: "INVALID_ARGS", message: "Missing screen coordinates", details: nil))
             }
@@ -266,6 +267,47 @@ extension ARKitPlugin {
         case "setWallClipping":
             arKitManager.setWallClipping((call.arguments as? [String: Any])?["enabled"] as? Bool ?? true)
             result(nil)
+
+        // Screen points below are Flutter logical pixels = UIKit points of the ARSCNView (Dart scales only on
+        // Android), the same convention as placeWallAtScreenPoint.
+        case "getPlacementInfo":
+            result(arKitManager.getPlacementInfo())
+
+        case "setDesignVisible":
+            arKitManager.setDesignVisible((call.arguments as? [String: Any])?["visible"] as? Bool ?? true)
+            result(nil)
+
+        case "setWallSelected":
+            let args = call.arguments as? [String: Any]
+            result(arKitManager.setWallSelected(args?["id"] as? Int ?? -1, selected: args?["selected"] as? Bool ?? true))
+
+        case "calibrateRectangle":
+            let args = call.arguments as? [String: Any]
+            let points = (args?["points"] as? [NSNumber])?.map { $0.doubleValue } ?? []
+            result(arKitManager.calibrateRectangle(points,
+                                                   widthM: Float((args?["widthM"] as? Double) ?? 0),
+                                                   heightM: Float((args?["heightM"] as? Double) ?? 0)))
+
+        case "calibrateKnownLength":
+            if let args = call.arguments as? [String: Any],
+               let x1 = args["x1"] as? Double, let y1 = args["y1"] as? Double,
+               let x2 = args["x2"] as? Double, let y2 = args["y2"] as? Double,
+               let len = args["lengthM"] as? Double {
+                result(arKitManager.calibrateKnownLength(CGPoint(x: x1, y: y1), CGPoint(x: x2, y: y2), lengthM: Float(len)))
+            } else {
+                result(FlutterError(code: "INVALID_ARGS", message: "Missing points or length", details: nil))
+            }
+
+        case "editMask":
+            if let args = call.arguments as? [String: Any],
+               let sx = args["screenX"] as? Double, let sy = args["screenY"] as? Double {
+                result(arKitManager.editMask(CGPoint(x: sx, y: sy), erase: args["erase"] as? Bool ?? true))
+            } else {
+                result(FlutterError(code: "INVALID_ARGS", message: "Missing screen coordinates", details: nil))
+            }
+
+        case "getCameraAspect":
+            result(arKitManager.getCameraAspect())
 
         case "setApproximateDistance":
             // iOS raycasts against LiDAR / estimated planes; there is no guessed-distance placement to adjust.

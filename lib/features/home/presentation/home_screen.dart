@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:grazia_stones/shared/widgets/floating_glass_cart_bar.dart';
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/typography.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
@@ -369,7 +370,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ),
                       ),
 
-                      const SliverToBoxAdapter(child: SizedBox(height: 150)),
+                      SliverToBoxAdapter(child: SizedBox(height: shellScrollBottomInset(context, ref))),
                     ],
                   ),
                 ),

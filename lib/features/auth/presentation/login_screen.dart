@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kReleaseMode;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb, kReleaseMode;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/grazia_text_field.dart';
 import 'package:grazia_stones/shared/widgets/grazia_button.dart';
@@ -15,6 +17,21 @@ import 'package:grazia_stones/core/utils/user_friendly_error.dart';
 import 'package:grazia_stones/core/services/storage_service.dart';
 import 'package:grazia_stones/shared/widgets/grazia_logo.dart';
 import 'package:grazia_stones/shared/widgets/google_brand_logo.dart';
+
+/// Google works everywhere: the native SDK when the client IDs are in .env, else Supabase's browser flow.
+bool googleSignInAvailable() => true;
+
+/// Sign in with Apple on iPhone (App Store guideline 4.8 requires it next to Google there). Off until the app is
+/// signed by a paid Apple Developer Program team: the current team is a personal one, which cannot carry the
+/// capability (Xcode, 2026-10-30). To turn on: entitlement com.apple.developer.applesignin on Runner, Apple
+/// provider in Supabase with client id com.graziastones.graziaStones, then set this to true.
+const _appleSignInReady = false;
+bool appleSignInAvailable({
+  TargetPlatform? platform,
+  bool web = kIsWeb,
+  bool ready = _appleSignInReady,
+}) =>
+    ready && !web && (platform ?? defaultTargetPlatform) == TargetPlatform.iOS;
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -108,25 +125,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     HapticFeedback.mediumImpact();
 
     try {
-      await ref.read(authRiverpodProvider.notifier).loginWithApi(
-            _emailController.text.trim(),
-            _passwordController.text,
-          );
+      await ref
+          .read(authRiverpodProvider.notifier)
+          .loginWithApi(_emailController.text.trim(), _passwordController.text);
 
       final state = ref.read(authRiverpodProvider);
       if (mounted) {
         setState(() => _isLoading = false);
         if (state.isLoggedIn) {
-          unawaited(StorageService.instance.saveClientProfile(
-            email: _emailController.text.trim(),
-            name: state.userName != 'Guest User' ? state.userName : null,
-          ));
+          unawaited(
+            StorageService.instance.saveClientProfile(
+              email: _emailController.text.trim(),
+              name: state.userName != 'Guest User' ? state.userName : null,
+            ),
+          );
           _navigateAfterAuth();
         } else if (state.error != null) {
-          setState(() => _errorMessage = UserFriendlyError.from(
-                state.error,
-                fallbackMessage: 'Invalid email or password. Please verify your credentials.',
-              ).message);
+          setState(
+            () => _errorMessage = UserFriendlyError.from(
+              state.error,
+              fallbackMessage:
+                  'Invalid email or password. Please verify your credentials.',
+            ).message,
+          );
           _triggerShake();
         }
       }
@@ -136,7 +157,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           _isLoading = false;
           _errorMessage = UserFriendlyError.from(
             e,
-            fallbackMessage: 'Invalid email or password. Please verify your credentials.',
+            fallbackMessage:
+                'Invalid email or password. Please verify your credentials.',
           ).message;
         });
         _triggerShake();
@@ -144,7 +166,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     }
   }
 
-  Future<void> _signInWithGoogle() async {
+  Future<void> _signInWithGoogle() => _socialSignIn(
+    'Google',
+    ref.read(authRiverpodProvider.notifier).signInWithGoogle,
+  );
+  Future<void> _signInWithApple() => _socialSignIn(
+    'Apple',
+    ref.read(authRiverpodProvider.notifier).signInWithApple,
+  );
+
+  /// Google on Android/iOS without native client IDs opens the browser and finishes through the
+  /// graziastones://auth-callback deep link: the router then leaves Login on its own (authRedirect).
+  Future<void> _socialSignIn(
+    String name,
+    Future<void> Function() signIn,
+  ) async {
     HapticFeedback.mediumImpact();
     setState(() {
       _isLoading = true;
@@ -152,23 +188,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     });
 
     try {
-      await ref.read(authRiverpodProvider.notifier).signInWithGoogle();
+      await signIn();
       final state = ref.read(authRiverpodProvider);
       if (state.isLoggedIn) {
-        unawaited(StorageService.instance.saveClientProfile(
-          email: (state.userEmail?.isNotEmpty ?? false) ? state.userEmail : null,
-          name: state.userName != 'Guest User' ? state.userName : null,
-        ));
+        unawaited(
+          StorageService.instance.saveClientProfile(
+            email: (state.userEmail?.isNotEmpty ?? false)
+                ? state.userEmail
+                : null,
+            name: state.userName != 'Guest User' ? state.userName : null,
+          ),
+        );
       }
       if (mounted) {
         setState(() => _isLoading = false);
         if (state.isLoggedIn) {
           _navigateAfterAuth();
         } else if (state.error != null) {
-          setState(() => _errorMessage = UserFriendlyError.from(
-                state.error,
-                fallbackMessage: 'Google sign-in could not be completed. Please try again.',
-              ).message);
+          setState(
+            () => _errorMessage = UserFriendlyError.from(
+              state.error,
+              fallbackMessage:
+                  '$name sign-in could not be completed. Please try again.',
+            ).message,
+          );
           _triggerShake();
         }
       }
@@ -178,7 +221,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           _isLoading = false;
           _errorMessage = UserFriendlyError.from(
             e,
-            fallbackMessage: 'Google sign-in failed. Please try again.',
+            fallbackMessage: '$name sign-in failed. Please try again.',
           ).message;
         });
         _triggerShake();
@@ -190,472 +233,510 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   Widget build(BuildContext context) {
     final palette = ref.watch(themePaletteProvider);
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF0D0D0C),
-      body: Stack(
-        children: [
-          // ── 1. Architectural Luxury Stone Background Image ──
-          Positioned.fill(
-            child: Image.asset(
-              'assets/images/auth_luxury_background.jpg',
-              fit: BoxFit.cover,
-              alignment: Alignment.center,
-              errorBuilder: (_, _, _) => Container(
-                color: const Color(0xFF0D0D0C),
+    // Dark screen: light status-bar icons (they were dark on near-black).
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: const Color(0xFF0D0D0C),
+        body: Stack(
+          children: [
+            // ── 1. Architectural Luxury Stone Background Image ──
+            Positioned.fill(
+              child: Image.asset(
+                'assets/images/auth_luxury_background.jpg',
+                fit: BoxFit.cover,
+                alignment: Alignment.center,
+                errorBuilder: (_, _, _) =>
+                    Container(color: const Color(0xFF0D0D0C)),
               ),
             ),
-          ),
 
-          // ── 2. Atmospheric Dark Luxury Vignette & Gradient Overlay ──
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    const Color(0xFF0D0D0C).withValues(alpha: 0.70),
-                    const Color(0xFF0D0D0C).withValues(alpha: 0.88),
-                    const Color(0xFF0D0D0C).withValues(alpha: 0.98),
-                    const Color(0xFF0D0D0C),
-                  ],
-                  stops: const [0.0, 0.35, 0.75, 1.0],
+            // ── 2. Atmospheric Dark Luxury Vignette & Gradient Overlay ──
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      const Color(0xFF0D0D0C).withValues(alpha: 0.70),
+                      const Color(0xFF0D0D0C).withValues(alpha: 0.88),
+                      const Color(0xFF0D0D0C).withValues(alpha: 0.98),
+                      const Color(0xFF0D0D0C),
+                    ],
+                    stops: const [0.0, 0.35, 0.75, 1.0],
+                  ),
                 ),
               ),
             ),
-          ),
 
-          // ── 3. Subtle Golden Ambient Glow Behind Form ──
-          Positioned(
-            top: 70,
-            left: MediaQuery.of(context).size.width / 2 - 130,
-            child: Container(
-              width: 260,
-              height: 260,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    const Color(0xFFD4AF37).withValues(alpha: 0.14),
-                    Colors.transparent,
-                  ],
+            // ── 3. Subtle Golden Ambient Glow Behind Form ──
+            Positioned(
+              top: 70,
+              left: MediaQuery.of(context).size.width / 2 - 130,
+              child: Container(
+                width: 260,
+                height: 260,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      const Color(0xFFD4AF37).withValues(alpha: 0.14),
+                      Colors.transparent,
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
 
-          // ── 4. Main Scrollable Content ──
-          SafeArea(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 12),
+            // ── 4. Main Scrollable Content ──
+            SafeArea(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 12),
 
-                    // Top Bar: Back Button only (Guest options removed)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.15),
-                                  width: 0.8,
-                                ),
-                              ),
-                              child: IconButton(
-                                onPressed: () {
-                                  if (context.canPop()) {
-                                    context.pop();
-                                  } else {
-                                    context.go('/home');
-                                  }
-                                },
-                                icon: const Icon(
-                                  Icons.arrow_back_ios_new_rounded,
-                                  color: Colors.white,
-                                  size: 18,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        // First launch lands here straight from onboarding: browsing must not need an account.
-                        if (!context.canPop())
-                          TextButton(
-                            onPressed: () => context.go('/home'),
-                            child: Text(
-                              'Skip for now',
-                              style: GoogleFonts.inter(
-                                color: Colors.white.withValues(alpha: 0.85),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        // Quick Demo Fill Action Chip
-                        if (!kReleaseMode)
-                        GestureDetector(
-                          onTap: _fillDemoCredentials,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 7,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFD4AF37).withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: const Color(0xFFD4AF37).withValues(alpha: 0.40),
-                                width: 0.8,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.flash_on_rounded,
-                                  size: 14,
-                                  color: Color(0xFFD4AF37),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Quick Demo Login',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: const Color(0xFFD4AF37),
-                                    letterSpacing: 0.2,
+                      // Top Bar: Back Button only (Guest options removed)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.15),
+                                    width: 0.8,
                                   ),
                                 ),
-                              ],
+                                child: IconButton(
+                                  onPressed: () {
+                                    if (context.canPop()) {
+                                      context.pop();
+                                    } else {
+                                      context.go('/onboarding');
+                                    }
+                                  },
+                                  icon: const Icon(
+                                    Icons.arrow_back_ios_new_rounded,
+                                    color: Colors.white,
+                                    size: 18,
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 22),
-
-                    // Centered Brand Logo
-                    const Center(
-                      child: GraziaLogo(
-                        variant: GraziaLogoVariant.full,
-                        colorStyle: GraziaLogoColor.gold,
-                        height: 82,
-                        enableGlow: true,
-                      ),
-                    ),
-
-                    const SizedBox(height: 26),
-
-                    // Title & Subtitle with Shake
-                    AnimatedBuilder(
-                      animation: _shakeAnimation,
-                      builder: (context, child) {
-                        return Transform.translate(
-                          offset: Offset(_shakeAnimation.value, 0),
-                          child: child,
-                        );
-                      },
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Welcome Back',
-                            style: GoogleFonts.playfairDisplay(
-                              fontSize: 32,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                              letterSpacing: 0.3,
+                          // Quick Demo Fill Action Chip
+                          if (!kReleaseMode)
+                            GestureDetector(
+                              onTap: _fillDemoCredentials,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 7,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(
+                                    0xFFD4AF37,
+                                  ).withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: const Color(
+                                      0xFFD4AF37,
+                                    ).withValues(alpha: 0.40),
+                                    width: 0.8,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.flash_on_rounded,
+                                      size: 14,
+                                      color: Color(0xFFD4AF37),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Quick Demo Login',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: const Color(0xFFD4AF37),
+                                        letterSpacing: 0.2,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Sign in with your email and password to access your luxury stone collection & visualizers.',
-                            style: GoogleFonts.inter(
-                              fontSize: 13,
-                              color: Colors.white.withValues(alpha: 0.72),
-                              height: 1.45,
-                            ),
-                          ),
                         ],
                       ),
-                    ),
 
-                    const SizedBox(height: 22),
+                      const SizedBox(height: 22),
 
-                    // ── Glassmorphic Auth Card Container ──
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(22),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                        child: Container(
-                          padding: const EdgeInsets.all(22),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF161514).withValues(alpha: 0.82),
-                            borderRadius: BorderRadius.circular(22),
-                            border: Border.all(
-                              color: const Color(0xFFD4AF37).withValues(alpha: 0.28),
-                              width: 1.0,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.55),
-                                blurRadius: 30,
-                                offset: const Offset(0, 14),
+                      // Centered Brand Logo
+                      const Center(
+                        child: GraziaLogo(
+                          variant: GraziaLogoVariant.full,
+                          colorStyle: GraziaLogoColor.gold,
+                          height: 82,
+                          enableGlow: true,
+                        ),
+                      ),
+
+                      const SizedBox(height: 26),
+
+                      // Title & Subtitle with Shake
+                      AnimatedBuilder(
+                        animation: _shakeAnimation,
+                        builder: (context, child) {
+                          return Transform.translate(
+                            offset: Offset(_shakeAnimation.value, 0),
+                            child: child,
+                          );
+                        },
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Welcome Back',
+                              style: GoogleFonts.playfairDisplay(
+                                fontSize: 32,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                letterSpacing: 0.3,
                               ),
-                            ],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Error Message banner
-                              if (_errorMessage != null) ...[
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 10),
-                                  margin: const EdgeInsets.only(bottom: 16),
-                                  decoration: BoxDecoration(
-                                    color: palette.error.withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: palette.error.withValues(alpha: 0.45),
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.error_outline_rounded,
-                                        color: palette.error,
-                                        size: 18,
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Text(
-                                          _errorMessage!,
-                                          style: GoogleFonts.inter(
-                                            color: palette.error,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Sign in with your email and password to access your luxury stone collection & visualizers.',
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: Colors.white.withValues(alpha: 0.72),
+                                height: 1.45,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 22),
+
+                      // ── Glassmorphic Auth Card Container ──
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(22),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                          child: Container(
+                            padding: const EdgeInsets.all(22),
+                            decoration: BoxDecoration(
+                              color: const Color(
+                                0xFF161514,
+                              ).withValues(alpha: 0.82),
+                              borderRadius: BorderRadius.circular(22),
+                              border: Border.all(
+                                color: const Color(
+                                  0xFFD4AF37,
+                                ).withValues(alpha: 0.28),
+                                width: 1.0,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.55),
+                                  blurRadius: 30,
+                                  offset: const Offset(0, 14),
                                 ),
                               ],
-
-                              // Email Field
-                              GraziaTextField(
-                                label: 'Email Address',
-                                controller: _emailController,
-                                focusNode: _emailFocusNode,
-                                keyboardType: TextInputType.emailAddress,
-                                prefixIcon: Icons.email_outlined,
-                                validator: Validators.email,
-                              ),
-
-                              const SizedBox(height: 16),
-
-                              // Password Field
-                              GraziaTextField(
-                                label: 'Password',
-                                controller: _passwordController,
-                                focusNode: _passwordFocusNode,
-                                obscure: _obscurePassword,
-                                prefixIcon: Icons.lock_outline_rounded,
-                                suffix: IconButton(
-                                  icon: Icon(
-                                    _obscurePassword
-                                        ? Icons.visibility_off_outlined
-                                        : Icons.visibility_outlined,
-                                    color: Colors.white54,
-                                    size: 19,
-                                  ),
-                                  onPressed: () => setState(() =>
-                                      _obscurePassword = !_obscurePassword),
-                                ),
-                                validator: (v) => v == null || v.isEmpty
-                                    ? 'Please enter your password'
-                                    : null,
-                              ),
-
-                              const SizedBox(height: 6),
-
-                              // Forgot Password link
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: TextButton(
-                                  onPressed: _isLoading
-                                      ? null
-                                      : () => context.push('/forgot-password'),
-                                  style: TextButton.styleFrom(
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Error Message banner
+                                if (_errorMessage != null) ...[
+                                  Container(
                                     padding: const EdgeInsets.symmetric(
-                                        horizontal: 4, vertical: 4),
-                                    minimumSize: Size.zero,
-                                    tapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
-                                  ),
-                                  child: Text(
-                                    'Forgot Password?',
-                                    style: GoogleFonts.inter(
-                                      color: const Color(0xFFD4AF37),
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 12,
+                                      horizontal: 14,
+                                      vertical: 10,
                                     ),
-                                  ),
-                                ),
-                              ),
-
-                              const SizedBox(height: 18),
-
-                              // Primary CTA: Sign In
-                              GraziaButton(
-                                label: 'Sign In',
-                                icon: Icons.arrow_forward_rounded,
-                                onPressed:
-                                    _isLoading ? null : _loginWithEmailPassword,
-                                isLoading: _isLoading,
-                              ),
-
-                              const SizedBox(height: 14),
-
-                              // Register Link
-                              Center(
-                                child: TextButton(
-                                  onPressed: () => context.push('/register'),
-                                  child: RichText(
-                                    text: TextSpan(
-                                      text: "Don't have an account? ",
-                                      style: GoogleFonts.inter(
-                                        color: Colors.white70,
-                                        fontSize: 13,
+                                    margin: const EdgeInsets.only(bottom: 16),
+                                    decoration: BoxDecoration(
+                                      color: palette.error.withValues(
+                                        alpha: 0.15,
                                       ),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: palette.error.withValues(
+                                          alpha: 0.45,
+                                        ),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Row(
                                       children: [
-                                        TextSpan(
-                                          text: 'Create Account',
-                                          style: GoogleFonts.inter(
-                                            color: const Color(0xFFD4AF37),
-                                            fontWeight: FontWeight.w700,
+                                        Icon(
+                                          Icons.error_outline_rounded,
+                                          color: palette.error,
+                                          size: 18,
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Text(
+                                            _errorMessage!,
+                                            style: GoogleFonts.inter(
+                                              color: palette.error,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w500,
+                                            ),
                                           ),
                                         ),
                                       ],
                                     ),
                                   ),
+                                ],
+
+                                // Email Field
+                                GraziaTextField(
+                                  label: 'Email Address',
+                                  controller: _emailController,
+                                  focusNode: _emailFocusNode,
+                                  keyboardType: TextInputType.emailAddress,
+                                  prefixIcon: Icons.email_outlined,
+                                  validator: Validators.email,
                                 ),
-                              ),
-                            ],
+
+                                const SizedBox(height: 16),
+
+                                // Password Field
+                                GraziaTextField(
+                                  label: 'Password',
+                                  controller: _passwordController,
+                                  focusNode: _passwordFocusNode,
+                                  obscure: _obscurePassword,
+                                  prefixIcon: Icons.lock_outline_rounded,
+                                  suffix: IconButton(
+                                    icon: Icon(
+                                      _obscurePassword
+                                          ? Icons.visibility_off_outlined
+                                          : Icons.visibility_outlined,
+                                      color: Colors.white54,
+                                      size: 19,
+                                    ),
+                                    onPressed: () => setState(
+                                      () =>
+                                          _obscurePassword = !_obscurePassword,
+                                    ),
+                                  ),
+                                  validator: (v) => v == null || v.isEmpty
+                                      ? 'Please enter your password'
+                                      : null,
+                                ),
+
+                                const SizedBox(height: 6),
+
+                                // Forgot Password link
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton(
+                                    onPressed: _isLoading
+                                        ? null
+                                        : () =>
+                                              context.push('/forgot-password'),
+                                    style: TextButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                        vertical: 4,
+                                      ),
+                                      minimumSize: Size.zero,
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                    child: Text(
+                                      'Forgot Password?',
+                                      style: GoogleFonts.inter(
+                                        color: const Color(0xFFD4AF37),
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+
+                                const SizedBox(height: 18),
+
+                                // Primary CTA: Sign In
+                                GraziaButton(
+                                  label: 'Sign In',
+                                  icon: Icons.arrow_forward_rounded,
+                                  onPressed: _isLoading
+                                      ? null
+                                      : _loginWithEmailPassword,
+                                  isLoading: _isLoading,
+                                ),
+
+                                const SizedBox(height: 14),
+
+                                // Register Link
+                                Center(
+                                  child: TextButton(
+                                    onPressed: () => context.push('/register'),
+                                    child: RichText(
+                                      text: TextSpan(
+                                        text: "Don't have an account? ",
+                                        style: GoogleFonts.inter(
+                                          color: Colors.white70,
+                                          fontSize: 13,
+                                        ),
+                                        children: [
+                                          TextSpan(
+                                            text: 'Create Account',
+                                            style: GoogleFonts.inter(
+                                              color: const Color(0xFFD4AF37),
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
 
-                    const SizedBox(height: 26),
+                      if (googleSignInAvailable()) ...[
+                        const SizedBox(height: 26),
 
-                    // ── Alternative Sign In Divider ──
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Container(
-                            height: 0.6,
-                            color: Colors.white.withValues(alpha: 0.18),
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
-                          child: Text(
-                            'or continue with',
-                            style: GoogleFonts.inter(
-                              color: Colors.white.withValues(alpha: 0.55),
-                              fontSize: 12,
-                              letterSpacing: 0.3,
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: Container(
-                            height: 0.6,
-                            color: Colors.white.withValues(alpha: 0.18),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 18),
-
-                    // ── Official Google Sign-In Luxury Button (Real 4-Color Logo) ──
-                    _buildGoogleAuthButton(
-                      label: 'Continue with Google',
-                      onPressed: _signInWithGoogle,
-                    ),
-
-                    const SizedBox(height: 28),
-
-                    // Legal & Concierge Footer
-                    Center(
-                      child: Wrap(
-                        alignment: WrapAlignment.center,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        spacing: 10,
-                        runSpacing: 6,
-                        children: [
-                          GestureDetector(
-                            onTap: () => context.push('/privacy'),
-                            child: Text(
-                              'Privacy Policy',
-                              style: GoogleFonts.inter(
-                                color: Colors.white38,
-                                fontSize: 11,
+                        // ── Alternative Sign In Divider ──
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Container(
+                                height: 0.6,
+                                color: Colors.white.withValues(alpha: 0.18),
                               ),
                             ),
-                          ),
-                          const Text('•',
-                              style: TextStyle(color: Colors.white38, fontSize: 11)),
-                          GestureDetector(
-                            onTap: () => context.push('/terms'),
-                            child: Text(
-                              'Terms of Service',
-                              style: GoogleFonts.inter(
-                                color: Colors.white38,
-                                fontSize: 11,
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                              ),
+                              child: Text(
+                                'or continue with',
+                                style: GoogleFonts.inter(
+                                  color: Colors.white.withValues(alpha: 0.55),
+                                  fontSize: 12,
+                                  letterSpacing: 0.3,
+                                ),
                               ),
                             ),
-                          ),
-                          const Text('•',
-                              style: TextStyle(color: Colors.white38, fontSize: 11)),
-                          GestureDetector(
-                            onTap: () => context.push('/help'),
-                            child: Text(
-                              'Concierge Help',
-                              style: GoogleFonts.inter(
-                                color: const Color(0xFFD4AF37),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
+                            Expanded(
+                              child: Container(
+                                height: 0.6,
+                                color: Colors.white.withValues(alpha: 0.18),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 18),
+
+                        // ── Official Google Sign-In Luxury Button (Real 4-Color Logo) ──
+                        _buildGoogleAuthButton(
+                          label: 'Continue with Google',
+                          onPressed: _signInWithGoogle,
+                        ),
+                        if (appleSignInAvailable()) ...[
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            height: 52,
+                            child: SignInWithAppleButton(
+                              onPressed: _signInWithApple,
+                              style: SignInWithAppleButtonStyle.white,
+                              borderRadius: const BorderRadius.all(
+                                Radius.circular(14),
                               ),
                             ),
                           ),
                         ],
-                      ),
-                    ),
+                      ],
 
-                    const SizedBox(height: 28),
-                  ],
+                      const SizedBox(height: 28),
+
+                      // Legal & Concierge Footer
+                      Center(
+                        child: Wrap(
+                          alignment: WrapAlignment.center,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 10,
+                          runSpacing: 6,
+                          children: [
+                            GestureDetector(
+                              onTap: () => context.push('/privacy'),
+                              child: Text(
+                                'Privacy Policy',
+                                style: GoogleFonts.inter(
+                                  color: Colors.white38,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ),
+                            const Text(
+                              '•',
+                              style: TextStyle(
+                                color: Colors.white38,
+                                fontSize: 11,
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () => context.push('/terms'),
+                              child: Text(
+                                'Terms of Service',
+                                style: GoogleFonts.inter(
+                                  color: Colors.white38,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ),
+                            const Text(
+                              '•',
+                              style: TextStyle(
+                                color: Colors.white38,
+                                fontSize: 11,
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () => context.push('/help'),
+                              child: Text(
+                                'Concierge Help',
+                                style: GoogleFonts.inter(
+                                  color: const Color(0xFFD4AF37),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 28),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

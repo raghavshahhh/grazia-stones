@@ -1,19 +1,19 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:image/image.dart' as img;
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:grazia_stones/core/services/ai_endpoint_client.dart';
+import 'package:grazia_stones/core/providers/ai_usage_provider.dart';
+import 'package:grazia_stones/features/ai_viz/services/branded_render.dart';
+import 'package:grazia_stones/features/pro/presentation/grazia_pro_screen.dart' show openPaywall;
+import 'package:grazia_stones/features/pro/presentation/widgets/plan_widgets.dart' show AiUsageChip;
 import 'package:grazia_stones/core/di.dart';
 import 'package:grazia_stones/core/models/stone.dart';
 import 'package:grazia_stones/core/providers/stone_providers.dart' show allStonesProvider;
@@ -201,6 +201,16 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
   StudioColorVariant get _activeVariant => _studioColorVariants.first;
 
   String? _resultImage; // data URL
+  // Decoded once per render so the Image widgets and the reveal key off one stable instance.
+  Uint8List? _resultBytesCache;
+  String? _resultBytesFor;
+  Uint8List get _resultBytes {
+    if (!identical(_resultBytesFor, _resultImage)) {
+      _resultBytesFor = _resultImage;
+      _resultBytesCache = base64Decode(_resultImage!.split(',').last);
+    }
+    return _resultBytesCache!;
+  }
   bool _generating = false;
   double _generationProgress = 0.0;
   String _generationStatusText = 'Creating image';
@@ -521,6 +531,9 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
     String statusNote = 'AI render';
     // Any failure ends here as a message: the screen never shows a stand-in image as the AI result.
     String? blockedMessage;
+    // Set on a 402 (plan limit): the reason is shown and the paywall opens.
+    String? limitReason;
+    bool offerUpgrade = false;
 
     final inferenceFuture = () async {
       try {
@@ -550,7 +563,12 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
         final body = e.response?.data;
         final serverMessage = body is Map && body['error'] is String ? body['error'] as String : null;
         if (body is Map && body['code'] == 'login_required') _needsLogin = true;
+        if (code == 402) {
+          limitReason = limitReachedMessage(body);
+          offerUpgrade = limitReachedUsage(body)?.plan != 'pro';
+        }
         blockedMessage = switch (code) {
+          402 => limitReason,
           401 || 429 || 502 || 504 => serverMessage ?? 'AI render is unavailable right now. Please try again.',
           503 => 'AI Studio is not set up on the server yet. Please contact Grazia support.',
           413 => 'The photos are too large. Please use smaller images.',
@@ -595,11 +613,15 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
     await Future.delayed(const Duration(milliseconds: 350));
     if (!mounted) return;
 
+    // Renders and refusals both change the counts on the usage chip.
+    ref.invalidate(aiUsageProvider);
+
     if (blockedMessage != null) {
       setState(() {
         _generating = false;
         _error = blockedMessage;
       });
+      if (limitReason != null && offerUpgrade) openPaywall(context, reason: limitReason);
       return;
     }
 
@@ -609,7 +631,7 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
         _generating = false;
         _statusNote = statusNote;
       });
-      HapticFeedback.mediumImpact();
+      // The haptic fires from _RenderReveal when the render lands.
       _scrollToResult();
     } else {
       setState(() {
@@ -650,103 +672,12 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
   Future<void> _downloadImage() async {
     if (_resultImage == null) return;
     HapticFeedback.mediumImpact();
-    try {
-      final bytes = base64Decode(_resultImage!.split(',').last);
-      final fileName = 'Grazia_Stones_${_activeVariant.id}_${DateTime.now().millisecondsSinceEpoch}.png';
-      if (kIsWeb) {
-        // Browser: triggers a file download (dart:io File doesn't exist on web)
-        await XFile.fromData(bytes, mimeType: 'image/png', name: fileName).saveTo(fileName);
-      } else {
-        final dir = await getApplicationDocumentsDirectory();
-        await File('${dir.path}/$fileName').writeAsBytes(bytes);
-      }
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: const Color(0xFF161618),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: const BorderSide(color: Color(0xFFD4AF37), width: 1.2),
-          ),
-          margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-          duration: const Duration(seconds: 3),
-          content: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFD4AF37),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.check, color: Colors.black, size: 16),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Saved to Device',
-                      style: GoogleFonts.inter(
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                        fontSize: 13,
-                      ),
-                    ),
-                    Text(
-                      'High-resolution architectural render downloaded.',
-                      style: GoogleFonts.inter(
-                        color: const Color(0xFF8E8E93),
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not save image: $e')),
-      );
-    }
+    await saveRenderToGallery(context, _resultBytes);
   }
 
-  Future<void> _shareToWhatsApp() async {
-    if (_resultImage == null) return;
-    HapticFeedback.mediumImpact();
-    try {
-      final bytes = base64Decode(_resultImage!.split(',').last);
-      final file = XFile.fromData(bytes, mimeType: 'image/png', name: 'grazia_${_activeVariant.id}_preview.png');
-
-      final message = '✨ *Grazia Stones — AI Room Visualization*\n'
-          '🏛 Stone Design: ${_preSelectedStoneName ?? "Luxury Natural Stone"}\n'
-          '🎨 Color & Finish: ${_activeVariant.name} (${_activeVariant.finishName})\n'
-          '📍 Applied to: ${_roomLabel ?? "Living Room Feature Wall"}\n\n'
-          'Explore Grazia Natural Stone Collections: https://graziastones.com';
-
-      final whatsappUrl = Uri.parse('whatsapp://send?text=${Uri.encodeComponent(message)}');
-      if (await canLaunchUrl(whatsappUrl)) {
-        await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
-      }
-
-      await Share.shareXFiles(
-        [file],
-        text: message,
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('WhatsApp share: $e')),
-      );
-    }
-  }
+  // WhatsApp has no URL scheme that takes an image, so this opens the share sheet with the
+  // watermarked file; WhatsApp is one tap there and keeps the caption.
+  Future<void> _shareToWhatsApp() => _shareResult();
 
   void _scrollToResult() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -783,19 +714,8 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
 
   Future<void> _shareResult() async {
     if (_resultImage == null) return;
-    try {
-      final bytes = base64Decode(_resultImage!.split(',').last);
-      final file = XFile.fromData(bytes, mimeType: 'image/png', name: 'grazia_${_activeVariant.id}_${DateTime.now().millisecondsSinceEpoch}.png');
-      await Share.shareXFiles(
-        [file],
-        text: 'My Grazia Stones ${_activeVariant.name} room visualization',
-      );
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not share the result.')),
-      );
-    }
+    HapticFeedback.mediumImpact();
+    await shareRender(context, _resultBytes);
   }
 
   void _showApiInfo() {
@@ -1018,23 +938,11 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
                       borderRadius: BorderRadius.circular(16),
                       child: Stack(
                         children: [
-                          AnimatedCrossFade(
-                            duration: const Duration(milliseconds: 250),
-                            crossFadeState: _showOriginal
-                                ? CrossFadeState.showSecond
-                                : CrossFadeState.showFirst,
-                            firstChild: Image.memory(
-                              base64Decode(_resultImage!.split(',').last),
-                              fit: BoxFit.cover,
-                              width: double.infinity,
-                            ),
-                            secondChild: _roomBytes != null
-                                ? Image.memory(
-                                    _roomBytes!,
-                                    fit: BoxFit.cover,
-                                    width: double.infinity,
-                                  )
-                                : const SizedBox.shrink(),
+                          _RenderReveal(
+                            key: ObjectKey(_resultBytes),
+                            resultBytes: _resultBytes,
+                            originalBytes: _roomBytes,
+                            showOriginal: _showOriginal,
                           ),
 
                           // Top-left Variant Tag
@@ -1297,6 +1205,10 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
               isDark: isDark,
             ),
             const SizedBox(height: 24),
+
+            // Plan usage; tap opens the paywall. Renders nothing for guests.
+            const Align(alignment: Alignment.centerLeft, child: AiUsageChip()),
+            const SizedBox(height: 10),
 
             // Generate Action Button
             SizedBox(
@@ -2264,6 +2176,138 @@ class _ApiArchitectureSheet extends ConsumerWidget {
 }
 
 /// Animated Neural Synthesis Screen matching User's Dot Matrix AI generation design (Screenshots 3 & 4)
+/// Lands a fresh render over the room photo it came from: a soft diagonal wipe with a gold
+/// leading edge, blur-to-sharp and a slight scale settle, then a haptic as it lands. Reduce
+/// Motion shows the render at once. Afterwards it hosts the Compare (before/after) cross-fade.
+class _RenderReveal extends StatefulWidget {
+  final Uint8List resultBytes;
+  final Uint8List? originalBytes;
+  final bool showOriginal;
+
+  const _RenderReveal({
+    super.key,
+    required this.resultBytes,
+    required this.originalBytes,
+    required this.showOriginal,
+  });
+
+  @override
+  State<_RenderReveal> createState() => _RenderRevealState();
+}
+
+class _RenderRevealState extends State<_RenderReveal> with SingleTickerProviderStateMixin {
+  static const _feather = 0.22;
+
+  late final MemoryImage _render = MemoryImage(widget.resultBytes);
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  );
+  late final Animation<double> _t = CurvedAnimation(parent: _controller, curve: Curves.easeInOutCubic);
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _controller.value = 1;
+      HapticFeedback.mediumImpact();
+      return;
+    }
+    // Decode first so the wipe never runs over an empty frame.
+    precacheImage(_render, context).then((_) {
+      if (!mounted) return;
+      _controller.forward().then((_) {
+        if (mounted) HapticFeedback.mediumImpact();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final render = Image(image: _render, fit: BoxFit.cover, width: double.infinity, gaplessPlayback: true);
+    return Stack(
+      children: [
+        // The room photo: what the render wipes over, and the Compare view afterwards.
+        if (widget.originalBytes != null)
+          Positioned.fill(
+            child: Image.memory(widget.originalBytes!, fit: BoxFit.cover, gaplessPlayback: true),
+          ),
+        AnimatedOpacity(
+          opacity: widget.showOriginal ? 0 : 1,
+          duration: const Duration(milliseconds: 250),
+          child: AnimatedBuilder(
+            animation: _t,
+            child: render,
+            builder: (context, child) {
+              final t = _t.value;
+              if (t >= 1) return child!;
+              final edge = t * (1 + _feather) - _feather;
+              final sigma = 14 * (1 - t);
+              return ShaderMask(
+                blendMode: BlendMode.dstIn,
+                shaderCallback: (rect) => LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: const [Colors.white, Colors.white, Colors.transparent, Colors.transparent],
+                  stops: [0, edge.clamp(0.0, 1.0), (edge + _feather).clamp(0.0, 1.0), 1],
+                ).createShader(rect),
+                child: Transform.scale(
+                  scale: 1.06 - 0.06 * t,
+                  child: ImageFiltered(
+                    enabled: sigma > 0.3,
+                    imageFilter: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+                    child: child,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        // Gold light riding the wipe front, fading out as the render settles.
+        Positioned.fill(
+          child: IgnorePointer(
+            child: AnimatedBuilder(
+              animation: _t,
+              builder: (context, _) {
+                final t = _t.value;
+                if (t <= 0 || t >= 1) return const SizedBox.shrink();
+                final edge = t * (1 + _feather) - _feather;
+                return DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.transparent,
+                        const Color(0xFFF3D98B).withValues(alpha: 0.45 * (1 - t)),
+                        Colors.transparent,
+                      ],
+                      stops: [
+                        edge.clamp(0.0, 1.0),
+                        (edge + _feather / 2).clamp(0.0, 1.0),
+                        (edge + _feather).clamp(0.0, 1.0),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _NeuralSynthesisWidget extends StatefulWidget {
   final double progress;
   final String statusText;
@@ -2287,7 +2331,18 @@ class _NeuralSynthesisWidgetState extends State<_NeuralSynthesisWidget>
     _waveController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1600),
-    )..repeat();
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reduce Motion: hold the dots and the shimmer still; the % pill and status text still update.
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _waveController.stop();
+    } else if (!_waveController.isAnimating) {
+      _waveController.repeat();
+    }
   }
 
   @override
@@ -2322,16 +2377,19 @@ class _NeuralSynthesisWidgetState extends State<_NeuralSynthesisWidget>
         children: [
           // Animated Dot Matrix Painter
           Positioned.fill(
-            child: AnimatedBuilder(
-              animation: _waveController,
-              builder: (context, _) {
-                return CustomPaint(
-                  painter: _DotMatrixPainter(
-                    progress: widget.progress,
-                    wavePhase: _waveController.value,
-                  ),
-                );
-              },
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: AnimatedBuilder(
+                animation: _waveController,
+                builder: (context, _) {
+                  return CustomPaint(
+                    painter: _DotMatrixPainter(
+                      progress: widget.progress,
+                      wavePhase: _waveController.value,
+                    ),
+                  );
+                },
+              ),
             ),
           ),
 
@@ -2429,6 +2487,16 @@ class _DotMatrixPainter extends CustomPainter {
     final inactivePaint = Paint()
       ..color = const Color(0xFF0F172A)
       ..style = PaintingStyle.fill;
+
+    // Soft light band sweeping across while the render is made (off-canvas when the wave is held).
+    final sweepX = (wavePhase * 1.6 - 0.3) * size.width;
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()
+        ..shader = const LinearGradient(
+          colors: [Color(0x00FFFFFF), Color(0x12FFFFFF), Color(0x00FFFFFF)],
+        ).createShader(Rect.fromLTWH(sweepX - size.width * 0.25, 0, size.width * 0.5, size.height)),
+    );
 
     for (int r = 0; r < rows; r++) {
       for (int c = 0; c < cols; c++) {

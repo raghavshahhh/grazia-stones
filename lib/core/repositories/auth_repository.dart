@@ -1,4 +1,8 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../config/env_config.dart';
 import '../models/user.dart';
@@ -70,14 +74,16 @@ class AuthRepository {
   /// Mobile: native Google SDK -> ID token -> Supabase (returns the user).
   /// Web: Supabase OAuth redirect; the page navigates away and the session
   /// is restored on return, so this returns null.
+  /// Null when the browser flow was started: the session arrives later through the auth-callback deep link.
   Future<User?> signInWithGoogle() async {
-    if (kIsWeb) {
-      final launched = await _sb.signInWithOAuth(OAuthProvider.google);
+    final env = EnvConfig();
+    if (kIsWeb || !env.isGoogleOAuthConfigured) {
+      final launched = await _sb.signInWithOAuth(OAuthProvider.google,
+          redirectTo: kIsWeb ? null : SupabaseService.authCallbackUrl);
       if (!launched) throw Exception('Google sign-in failed');
       return null;
     }
 
-    final env = EnvConfig();
     final google = GoogleSignIn(
       clientId: env.googleIosClientId.isEmpty ? null : env.googleIosClientId,
       serverClientId:
@@ -97,6 +103,34 @@ class AuthRepository {
       accessToken: tokens.accessToken,
     );
     if (res.user == null) throw Exception('Google sign-in failed');
+    return _userFromSession()!;
+  }
+
+  /// Native Sign in with Apple (iPhone). The hashed nonce goes to Apple, the raw one to Supabase, which checks
+  /// they match so a stolen ID token cannot be replayed.
+  Future<User?> signInWithApple() async {
+    final rawNonce = _sb.auth.generateRawNonce();
+    final AuthorizationCredentialAppleID credential;
+    try {
+      credential = await SignInWithApple.getAppleIDCredential(
+        scopes: [AppleIDAuthorizationScopes.email, AppleIDAuthorizationScopes.fullName],
+        nonce: sha256.convert(utf8.encode(rawNonce)).toString(),
+      );
+    } on SignInWithAppleAuthorizationException catch (e) {
+      if (e.code == AuthorizationErrorCode.canceled) return null;   // the user closed the sheet: no error
+      rethrow;
+    }
+    final idToken = credential.identityToken;
+    if (idToken == null) throw Exception('Apple did not return an ID token');
+    final res = await _sb.signInWithIdToken(OAuthProvider.apple, idToken, nonce: rawNonce);
+    if (res.user == null) throw Exception('Apple sign-in failed');
+    // Apple sends the name only on the very first sign-in; keep it.
+    final name = [credential.givenName, credential.familyName].whereType<String>().join(' ').trim();
+    if (name.isNotEmpty) {
+      try {
+        await _sb.auth.updateUser(UserAttributes(data: {'full_name': name}));
+      } catch (_) {}
+    }
     return _userFromSession()!;
   }
 

@@ -378,6 +378,18 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                 icon: Icons.auto_awesome_rounded,
                                 route: '/admin/ai-jobs',
                               ),
+                              _NavModuleData(
+                                title: 'AI Studio Plans',
+                                subtitle: 'Find a user, see AI render usage, grant or revoke Plus / Pro',
+                                icon: Icons.workspace_premium_outlined,
+                                route: '/admin/plans',
+                              ),
+                              _NavModuleData(
+                                title: 'AI Usage',
+                                subtitle: 'Renders, Aarna chats and Gemini tokens per user',
+                                icon: Icons.insights_outlined,
+                                route: '/admin/ai-usage',
+                              ),
                             ];
 
                             if (isWide) {

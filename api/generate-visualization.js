@@ -131,8 +131,8 @@ module.exports = async (req, res) => {
     return;
   }
 
-  // Generation is the expensive call, so it needs a real account: credits are
-  // per user (12 on signup, max 3 per day).
+  // Generation is the expensive call, so it needs a real account: renders are
+  // counted per user against their plan (see _aiCredits.js / ai_plan_limits).
   if (!auth.authenticated) {
     res.status(401).json({ error: 'Please log in to use AI Studio', code: 'login_required' });
     return;
@@ -199,18 +199,24 @@ module.exports = async (req, res) => {
     return;
   }
   if (!spent.ok) {
-    res.status(429).json({
+    // 402 opens the paywall in new builds; the legacy keys keep old builds' message working.
+    res.status(402).json({
       error:
         spent.reason === 'daily_limit'
-          ? 'You have used all 3 AI renders for today. Try again tomorrow.'
-          : 'You have used all your free AI credits. Contact Grazia to get more.',
+          ? 'You have used all your AI renders for today. Try again tomorrow or upgrade your plan.'
+          : 'You have used all your AI renders for this month. Upgrade to Plus or Pro for more.',
       code: spent.reason,
-      creditsRemaining: spent.creditsRemaining,
-      dailyRemaining: spent.dailyRemaining,
+      usage: spent.usage,
+      creditsRemaining: spent.usage.creditsRemaining,
+      dailyRemaining: spent.usage.dailyRemaining,
     });
     return;
   }
   const refundCredit = () => credits.refund(auth.userId).catch((e) => console.error('[generate-visualization] refund failed', e.message));
+  let usedModel = null;
+  // Started before the response is sent and awaited after it, so it adds no latency; never throws.
+  const logUsage = (ok, usageMetadata) =>
+    credits.logUsage({ userId: auth.userId, kind: 'render', model: usedModel, usageMetadata, ok });
 
   try {
     const safeSpec = typeof designSpec === 'string' ? designSpec.slice(0, 200) : '';
@@ -235,6 +241,7 @@ module.exports = async (req, res) => {
     });
     let geminiRes;
     for (const model of GEMINI_IMAGE_MODELS) {
+      usedModel = model;
       try {
         geminiRes = await fetch(geminiUrl(model), {
           method: 'POST',
@@ -250,12 +257,15 @@ module.exports = async (req, res) => {
     }
 
     if (!geminiRes) {
+      const logged = logUsage(false);
       await refundCredit();
       res.status(504).json({ error: 'The AI render took too long. Please try again.' });
+      await logged;
       return;
     }
     if (!geminiRes.ok) {
       const errText = await geminiRes.text().catch(() => '');
+      const logged = logUsage(false);
       await refundCredit();
       // Quota exhaustion is a 429 for the client too, so it shows the real reason instead of a generic failure.
       const status = geminiRes.status === 429 ? 429 : 502;
@@ -263,6 +273,7 @@ module.exports = async (req, res) => {
         ? 'AI render quota is used up for now. Please try again later.'
         : `AI render failed (upstream ${geminiRes.status}). ${errText.slice(0, 120)}`;
       res.status(status).json({ error: message });
+      await logged;
       return;
     }
 
@@ -272,17 +283,23 @@ module.exports = async (req, res) => {
     const inline = imagePart?.inline_data || imagePart?.inlineData;
 
     if (!inline?.data) {
+      const logged = logUsage(false, result?.usageMetadata);
       await refundCredit();
       res.status(502).json({ error: 'Gemini did not return an image' });
+      await logged;
       return;
     }
+
+    const logged = logUsage(true, result?.usageMetadata);
 
     res.status(200).json({
       resultImage: `data:${inline.mime_type || inline.mimeType || 'image/png'};base64,${inline.data}`,
       variantIndex: variant,
-      creditsRemaining: spent.creditsRemaining,
-      dailyRemaining: spent.dailyRemaining,
+      usage: spent.usage,
+      creditsRemaining: spent.usage.creditsRemaining,
+      dailyRemaining: spent.usage.dailyRemaining,
     });
+    await logged;
   } catch (err) {
     await refundCredit();
     res.status(500).json({ error: `Generation failed: ${err.message}` });

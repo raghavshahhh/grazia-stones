@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.2+8
+version: 1.0.4+12
 
 environment:
   sdk: ^3.12.2
@@ -75,6 +75,7 @@ dependencies:
 
   # Utils
   share_plus: ^10.1.4
+  gal: ^2.3.0  # save AI Studio renders to Photos / Gallery
   permission_handler: ^11.3.1
   image_picker: ^1.1.2
   url_launcher: ^6.3.1
@@ -87,7 +88,9 @@ dependencies:
   crypto: ^3.0.3
   google_sign_in: ^6.2.1
 
-  # Payment
+  # Payment (Play Billing / StoreKit for AI Studio plans)
+  in_app_purchase: ^3.2.3
+  in_app_purchase_android: ^0.5.5  # upgrade/downgrade params (ChangeSubscriptionParam)
 
   # AR & ML
   # DEMO MODE: Plugins disabled due to iOS dependency conflicts
@@ -109,6 +112,7 @@ dependencies:
   flutter_cache_manager: any
   webview_flutter: ^4.14.1
   sensors_plus: ^7.1.1
+  sign_in_with_apple: ^8.2.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -1,6 +1,5 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -37,6 +36,7 @@ import '../shared/theme/theme_provider.dart';
 import '../features/home/presentation/widgets/grazia_brand_launch_overlay.dart';
 
 import '../features/auth/presentation/forgot_password_screen.dart';
+import '../features/auth/presentation/reset_password_screen.dart';
 import '../features/profile/presentation/edit_profile_screen.dart';
 import '../features/profile/presentation/addresses_screen.dart';
 import '../features/ai_viz/presentation/saved_designs_screen.dart';
@@ -50,6 +50,9 @@ import '../features/admin/presentation/admin_orders_screen.dart';
 import '../features/admin/presentation/admin_quotes_screen.dart';
 import '../features/admin/presentation/admin_samples_screen.dart';
 import '../features/admin/presentation/admin_ai_jobs_screen.dart';
+import '../features/admin/presentation/admin_plans_screen.dart';
+import '../features/admin/presentation/admin_ai_usage_screen.dart';
+import '../features/pro/presentation/grazia_pro_screen.dart';
 import '../features/about/presentation/about_screen.dart';
 import '../features/legal/presentation/delete_account_screen.dart';
 import '../features/legal/presentation/privacy_policy_screen.dart';
@@ -188,7 +191,6 @@ class _ShellWithNavState extends ConsumerState<_ShellWithNav> {
 
   void _onTabTap(int i) {
     if (i == _currentTab) return;
-    HapticFeedback.lightImpact();
     setState(() => _currentTab = i);
     context.go(_tabRoutes[i]);
   }
@@ -252,6 +254,36 @@ class _AuthRefreshNotifier extends ChangeNotifier {
   }
 }
 
+/// Admin gate plus the way back out of it. A cold-start deep link to /admin runs [redirect] before the
+/// Supabase session is restored, so it lands on /login?redirect=/admin. When the restore finishes,
+/// [_AuthRefreshNotifier] re-runs this on /login, and a now signed-in user is forwarded to the saved target
+/// (which still has to pass the admin check). Only in-app paths are honoured, never another host.
+/// Everything else needs an account: a signed-out user is sent to Login and forwarded back after signing in.
+const _publicPaths = {
+  '/', '/onboarding', '/login', '/register', '/forgot-password', '/reset-password', '/privacy', '/terms', '/help', '/about',
+};
+
+@visibleForTesting
+String? authRedirect(Uri uri, {required bool isLoggedIn, required bool isAdmin}) {
+  if (!isLoggedIn && !_publicPaths.contains(uri.path)) {
+    return '/login?redirect=${Uri.encodeComponent(uri.toString())}';
+  }
+  if (uri.path.startsWith('/admin')) {
+    return isAdmin ? null : '/login?redirect=${Uri.encodeComponent(uri.toString())}';
+  }
+  // Signed in on Login/Register (also when a Google browser sign-in finishes through the deep link): go on.
+  if ((uri.path == '/login' || uri.path == '/register') && isLoggedIn) {
+    final target = uri.queryParameters['redirect'];
+    if (target == null || !target.startsWith('/') || target.startsWith('//')) return '/home';
+    final targetUri = Uri.tryParse(target);
+    if (targetUri == null || targetUri.hasScheme || targetUri.hasAuthority) return '/home';
+    // A signed-in non-admin stays on Login rather than looping /admin -> /login.
+    if (targetUri.path.startsWith('/admin') && !isAdmin) return null;
+    return target;
+  }
+  return null;
+}
+
 final appRouterProvider = Provider<GoRouter>((ref) {
   final refresh = _AuthRefreshNotifier(ref);
   ref.onDispose(refresh.dispose);
@@ -262,12 +294,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     refreshListenable: refresh,
     redirect: (context, state) {
       final authState = ref.read(authRiverpodProvider);
-      final isLocAdmin = state.uri.path.startsWith('/admin');
-      if (isLocAdmin && !authState.isAdmin) {
-        final intended = Uri.encodeComponent(state.uri.toString());
-        return '/login?redirect=$intended';
-      }
-      return null;
+      // A recovery link signs the user in with a one-time session: send them to set a new password first.
+      if (authState.isPasswordRecovery && state.uri.path != '/reset-password') return '/reset-password';
+      return authRedirect(state.uri, isLoggedIn: authState.isLoggedIn, isAdmin: authState.isAdmin);
     },
     errorPageBuilder: (context, state) =>
         _fadePage(NotFoundScreen(uri: state.uri.toString()), state),
@@ -298,6 +327,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
             _slideRightPage(const ForgotPasswordScreen(), state),
+      ),
+      // The password-recovery email returns here (graziastones:///reset-password).
+      GoRoute(
+        path: '/reset-password',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _slideRightPage(const ResetPasswordScreen(), state),
       ),
 
       // --- Bottom nav shell (floating pill + crossfade) ---
@@ -385,7 +421,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // button only showed a toast. Nothing links to them; keep deep links safe.
       GoRoute(
         path: '/pro',
-        redirect: (context, state) => '/home',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => _slideUpPage(
+          GraziaProScreen(
+            initialPlan: state.uri.queryParameters['plan'] ?? 'pro',
+            reason: state.uri.queryParameters['reason'],
+          ),
+          state,
+        ),
+      ),
+      GoRoute(
+        path: '/admin/plans',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => _slideUpPage(const AdminPlansScreen(), state),
+      ),
+      GoRoute(
+        path: '/admin/ai-usage',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => _slideUpPage(const AdminAiUsageScreen(), state),
       ),
       GoRoute(
         path: '/resources',

@@ -390,7 +390,11 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                   const SizedBox(width: 8),
                 ],
                 flexibleSpace: FlexibleSpaceBar(
-                  background: Stack(
+                  // Light status-bar icons over the photo (top scrim below keeps them readable on pale stones);
+                  // gone once the bar collapses onto the page colour.
+                  background: AnnotatedRegion<SystemUiOverlayStyle>(
+                    value: SystemUiOverlayStyle.light,
+                    child: Stack(
                     fit: StackFit.expand,
                     children: [
                       PageView.builder(
@@ -440,6 +444,27 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                                   ),
                           );
                         },
+                      ),
+                      // Top scrim behind the status bar so the light icons read on pale stone photos
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: 110,
+                        child: IgnorePointer(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.black.withValues(alpha: 0.35),
+                                  Colors.transparent,
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                       // Subtle dark vignette gradient scrim so white tags pop clearly
                       Positioned(
@@ -580,7 +605,7 @@ class _StoneDetailScreenState extends ConsumerState<StoneDetailScreen>
                           ),
                         ),
                     ],
-                  ),
+                  )),
                 ),
               ),
 

@@ -3,6 +3,7 @@
 // as api/generate-visualization.js and api/wall-detect.js.
 
 const { verifyRequestAuth } = require('./_supabaseAuth');
+const { logUsage } = require('./_aiCredits');
 const CATALOGUE_FACTS = require('./_aarnaKnowledge');
 
 // Tried in order; Google retires/overloads models often, so a busy or retired one falls through to the next.
@@ -168,7 +169,9 @@ module.exports = async (req, res) => {
       generationConfig: { temperature: 0.7, maxOutputTokens: 1500 },
     });
     let geminiRes;
+    let usedModel = null;
     for (const model of GEMINI_MODELS) {
+      usedModel = model;
       try {
         geminiRes = await fetch(geminiUrl(model), {
           method: 'POST',
@@ -199,11 +202,20 @@ module.exports = async (req, res) => {
       .map((p) => p.text || '')
       .join('')
       .trim();
+    // Started before the response is sent and awaited after it, so it adds no latency; never throws.
+    const logged = logUsage({
+      userId: auth.authenticated ? auth.userId : null,
+      kind: 'chat',
+      model: usedModel,
+      usageMetadata: data?.usageMetadata,
+      ok: Boolean(text),
+    });
     if (!text) {
       res.status(502).json({ error: 'Aarna returned an empty answer' });
-      return;
+    } else {
+      res.status(200).json({ text });
     }
-    res.status(200).json({ text });
+    await logged;
   } catch (err) {
     res.status(500).json({ error: `Aarna failed: ${err.message}` });
   }

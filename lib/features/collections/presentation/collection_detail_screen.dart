@@ -1,7 +1,9 @@
 import 'package:grazia_stones/core/widgets/animated_widgets.dart';
 import 'package:grazia_stones/core/utils/formatters.dart';
+import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 import 'package:grazia_stones/features/wishlist/wishlist_feedback.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -36,25 +38,26 @@ class CollectionDetailScreen extends ConsumerWidget {
           backgroundColor: palette.background,
           elevation: 0,
           leading: IconButton(
-            onPressed: () => context.pop(),
+            onPressed: () => context.canPop() ? context.pop() : context.go('/collections'),
             icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
           ),
         ),
         body: Center(child: CircularProgressIndicator(color: palette.primary)),
       ),
-      error: (e, _) => _buildNotFound(context, palette),
+      error: (e, _) => _buildError(context, palette, e, () => ref.invalidate(allCollectionsProvider)),
       data: (collections) {
         if (collections.isEmpty) {
           return _buildNotFound(context, palette);
         }
 
         final target = collectionId.toLowerCase().trim();
+        // Exact id / name / slug only (stone detail links by name). No fallback:
+        // an unknown id must show "not found", never some other collection.
         final collection = collections.where((c) =>
           c.id.toLowerCase() == target ||
-          c.name.toLowerCase().replaceAll(' ', '-') == target ||
-          c.name.toLowerCase().contains(target) ||
-          target.contains(c.id.toLowerCase())
-        ).firstOrNull ?? collections.firstOrNull;
+          c.name.toLowerCase() == target ||
+          c.name.toLowerCase().replaceAll(' ', '-') == target
+        ).firstOrNull;
 
         if (collection == null) {
           return _buildNotFound(context, palette);
@@ -67,30 +70,43 @@ class CollectionDetailScreen extends ConsumerWidget {
               backgroundColor: palette.background,
               elevation: 0,
               leading: IconButton(
-                onPressed: () => context.pop(),
+                onPressed: () => context.canPop() ? context.pop() : context.go('/collections'),
                 icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
               ),
             ),
             body: Center(child: CircularProgressIndicator(color: palette.primary)),
           ),
-          error: (e, _) => _buildScreen(context, ref, palette, collection, []),
+          error: (e, _) => _buildError(context, palette, e, () => ref.invalidate(allStonesProvider)),
           data: (allStones) {
+            // Stone.collection is the joined collection name (or the raw collection_id
+            // when the join is missing). Exact match only, so stones with no
+            // collection never leak into every collection.
             final colName = collection.name.toLowerCase();
+            final colId = collection.id.toLowerCase();
             final stones = allStones.where((s) {
               final sc = s.collection.toLowerCase();
-              final scSlug = sc.replaceAll(' ', '-');
-              return scSlug == target ||
-                     sc == colName ||
-                     sc.contains(colName) ||
-                     colName.contains(sc) ||
-                     (target.length > 4 && (sc.contains(target.split('-').first) || target.contains(scSlug)));
+              return sc.isNotEmpty && (sc == colName || sc == colId);
             }).toList();
 
-            final displayStones = stones.isNotEmpty ? stones : allStones.take(6).toList();
-            return _buildScreen(context, ref, palette, collection, displayStones);
+            return _buildScreen(context, ref, palette, collection, stones);
           },
         );
       },
+    );
+  }
+
+  Widget _buildError(BuildContext context, LuxuryPalette palette, Object error, VoidCallback onRetry) {
+    return Scaffold(
+      backgroundColor: palette.background,
+      appBar: AppBar(
+        backgroundColor: palette.background,
+        elevation: 0,
+        leading: IconButton(
+          onPressed: () => context.canPop() ? context.pop() : context.go('/collections'),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.textPrimary, size: 18),
+        ),
+      ),
+      body: ErrorHandlerWidget(error: error, onRetry: onRetry, palette: palette),
     );
   }
 
@@ -270,7 +286,10 @@ class CollectionDetailScreen extends ConsumerWidget {
                   );
                 },
               ),
-              background: Stack(
+              // Light status-bar icons over the dark hero; gone once the bar collapses onto the page colour.
+              background: AnnotatedRegion<SystemUiOverlayStyle>(
+                value: SystemUiOverlayStyle.light,
+                child: Stack(
                 fit: StackFit.expand,
                 children: [
                   SmartStoneImage(
@@ -295,7 +314,7 @@ class CollectionDetailScreen extends ConsumerWidget {
                     ),
                   ),
                 ],
-              ),
+              )),
             ),
           ),
 
@@ -420,8 +439,37 @@ class CollectionDetailScreen extends ConsumerWidget {
             ),
           ),
 
+          if (stones.isEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 32, 24, 120),
+                child: Column(
+                  children: [
+                    Icon(Icons.grid_off_rounded, size: 48, color: palette.textTertiary),
+                    const SizedBox(height: 12),
+                    Text(
+                      'No designs in this collection yet',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600, color: palette.textPrimary),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Designs are being added. Browse our other collections in the meantime.',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(fontSize: 13, color: palette.textSecondary, height: 1.4),
+                    ),
+                    const SizedBox(height: 16),
+                    OutlinedButton(
+                      onPressed: () => context.go('/collections'),
+                      style: OutlinedButton.styleFrom(foregroundColor: palette.primary),
+                      child: const Text('Browse all collections'),
+                    ),
+                  ],
+                ),
+              ),
+            )
           // One design, many colours: show every colour; tap opens it full screen (zoom / 3D).
-          if (_isColourDesign(stones))
+          else if (_isColourDesign(stones))
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
               sliver: _DesignColourGrid(stone: stones.first, palette: palette),

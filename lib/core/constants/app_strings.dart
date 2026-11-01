@@ -75,7 +75,6 @@ class AppStrings {
   static const String finish = 'Finish';
   static const String size = 'Size';
   static const String orderSampleFor = 'Order Sample';
-  static const String samplePrice = '₹99';
   static const String visualizeOnWall = 'Visualize on Wall';
   static const String viewInAr = 'View in AR';
   static const String getQuote = 'Get Quote';

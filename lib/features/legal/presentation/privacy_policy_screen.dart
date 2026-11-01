@@ -112,7 +112,7 @@ class PrivacyPolicyScreen extends ConsumerWidget {
             _buildSection(
               palette,
               '4. PAYMENT SECURITY & ENCRYPTION',
-              '• The app does not take payments. Quotes and payments are arranged directly with Grazia Stones outside the app.\n'
+              '• Material orders and payments are arranged directly with Grazia Stones. Optional AI Studio plans are billed by Google Play or the App Store; the app never sees your card or bank details.\n'
               '• Grazia Stones does not collect or store credit/debit card numbers, CVVs, or NetBanking credentials through this app.\n'
               '• All communication between your device and our database is protected using 256-bit TLS/SSL encryption.',
             ),

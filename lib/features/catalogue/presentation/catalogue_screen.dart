@@ -1,6 +1,7 @@
 import 'package:grazia_stones/core/utils/formatters.dart';
 import 'package:grazia_stones/features/wishlist/wishlist_feedback.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -63,14 +64,21 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
 
   Future<void> _loadData() async {
     try {
-      setState(() => _isLoading = true);
+      // Clear any previous error so Retry actually shows loading and re-fetches.
+      setState(() {
+        _error = null;
+        _isLoading = true;
+      });
 
       final stoneRepo = ref.read(stoneRepositoryProvider);
       final collections = await stoneRepo.getCollections();
 
+      // On Retry, reload the collection the user was on (a failed tab switch),
+      // not the one from the original route.
+      final wantedId = _selectedCollection?.id ?? widget.collectionId;
       Collection? selectedCollection;
-      if (widget.collectionId != null && widget.collectionId!.isNotEmpty) {
-        final target = widget.collectionId!.toLowerCase().trim();
+      if (wantedId != null && wantedId.isNotEmpty) {
+        final target = wantedId.toLowerCase().trim();
         selectedCollection = collections.where((c) =>
           c.id.toLowerCase() == target ||
           c.name.toLowerCase().replaceAll(' ', '-') == target ||
@@ -81,7 +89,10 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
         selectedCollection = collections.isNotEmpty ? collections.first : null;
       }
 
-      final stones = await stoneRepo.getStonesByCollection(selectedCollection?.id ?? '');
+      // No collections: nothing to query (collection_id '' is not a valid uuid).
+      final stones = selectedCollection == null
+          ? <Stone>[]
+          : await stoneRepo.getStonesByCollection(selectedCollection.id);
 
       if (mounted) {
         setState(() {
@@ -167,7 +178,7 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                       if (context.canPop()) {
                         context.pop();
                       } else {
-                        context.go('/');
+                        context.go('/home');
                       }
                     },
                     icon: Container(
@@ -210,8 +221,12 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                             ),
                           )
                         : null,
+                    // Light status-bar icons over the dark banner photo; the region disappears with the
+                    // faded background once the bar collapses onto the light surface.
                     background: _selectedCollection != null
-                        ? Stack(
+                        ? AnnotatedRegion<SystemUiOverlayStyle>(
+                          value: SystemUiOverlayStyle.light,
+                          child: Stack(
                             fit: StackFit.expand,
                             children: [
                               SmartStoneImage(
@@ -232,7 +247,7 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                                 ),
                               ),
                             ],
-                          )
+                          ))
                         : Container(
                             color: palette.primary.withValues(alpha: 0.15),
                             child: Icon(Icons.collections_outlined, size: 64, color: palette.primary),

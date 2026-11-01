@@ -31,42 +31,42 @@ class _ChooseDesignScreenState extends ConsumerState<ChooseDesignScreen> {
       'name': 'Ivory Waves',
       'category': '3D Panels',
       'image': 'assets/images/classic_ledge_07.png',
-      'price': '₹480/sq.ft'
+      'price': 'Price on request'
     },
     {
       'id': 'desert_stone',
       'name': 'Desert Stone',
       'category': '3D Panels',
       'image': 'assets/images/grande_ledge_ta02.png',
-      'price': '₹580/sq.ft'
+      'price': 'Price on request'
     },
     {
       'id': 'classic_beige',
       'name': 'Classic Beige',
       'category': 'Fluted',
       'image': 'assets/images/mountain_ledge_m08.png',
-      'price': '₹450/sq.ft'
+      'price': 'Price on request'
     },
     {
       'id': 'grey_texture',
       'name': 'Grey Texture',
       'category': 'Fluted',
       'image': 'assets/images/opus_ledge_15.png',
-      'price': '₹520/sq.ft'
+      'price': 'Price on request'
     },
     {
       'id': 'crystal_white',
       'name': 'Crystal White',
       'category': 'CNC',
       'image': 'assets/images/verona_3d.png',
-      'price': '₹620/sq.ft'
+      'price': 'Price on request'
     },
     {
       'id': 'earth_brown',
       'name': 'Earth Brown',
       'category': 'CNC',
       'image': 'assets/images/vantage_v12.png',
-      'price': '₹550/sq.ft'
+      'price': 'Price on request'
     },
   ];
 

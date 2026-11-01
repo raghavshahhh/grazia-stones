@@ -67,18 +67,46 @@ def rd(name):
 
 
 # ── Cultured series (Ledge / Design Surface / Brick / CNC) ───────────────────
-# ponytail: patch height = real height of the catalogue photo, ESTIMATED by
-# counting stone courses against the PDF tile size; refine on a real device.
-# grande 0.82: measured 2026-10-28 from the panel seams in aty_10.jpeg (seam rows ~62 px apart
-# = one 195 mm panel, 260 px photo); the old course-count guess 1.3 drew the stones ~1.6x too big.
-SERIES_PATCH_M = {
-    'grande': 0.82, 'country': 1.1, 'mountain': 1.1, 'classic': 0.9, 'opus': 1.2, 'vantage': 1.0,
-    'rockface linear': 1.0, 'castle': 0.55, 'cuarzo': 1.25, 'venetian': 1.3, 'andorra': 1.3,
-    'european stack': 0.9, 'veines': 1.0, 'travertine': 1.0, 'sleepwood': 1.3, 'sierra': 0.8,
-    'fossile rock': 0.35, 'tevoli': 0.9, 'rustic brick': 0.56, 'tarnished brick': 0.6,
-    'colonial brick': 0.65, 'lakhori brick': 0.6, 'florentine': 1.1, 'foliage': 0.6, 'flora': 0.6,
-    'vine': 0.8, 'hexa': 0.7, 'modena': 0.9, 'cave': 1.0, 'egyptian': 0.35, 'weave': 0.75,
-    'milano': 0.6, 'alpine': 0.9,
+# key -> (patchHeightM, renderType, measured, reference image + how). patchHeightM is the real height of the
+# WHOLE reference image (native trims trimFraction per side and scales by 1 - 2*trim).
+# measured = derived from joints/courses counted on that image against the PDF size (design setup 2026-10-30,
+# build/audit/06_design_setup.md); otherwise an ESTIMATE ("est." in the UI) to be tuned on a real device.
+# pattern = irregular stone/brick, tiled at photo height; module = fixed tiles/carved panels in a grid;
+# artwork = one large design (must not be tiled at a guessed size).
+SERIES = {
+    'grande': (0.82, 'pattern', True, '1.jpg 460x260: panel seam rows ~62 px apart = 195 mm (2026-10-28)'),
+    'rustic brick': (0.46, 'pattern', True, '1.jpg 460x260: brick pitch 116 px = 195+10 mm, course 39 px = 69 mm (both agree)'),
+    'tarnished brick': (0.41, 'pattern', True, '1.jpg 460x260: brick pitch 126 px = 190+10 mm, course joints 44.75 px = 71 mm'),
+    'colonial brick': (0.60, 'pattern', True, '1.jpg 460x260: brick pitch 107 px = 235+10 mm, course joints 33.5 px = 77 mm'),
+    'castle': (0.49, 'pattern', True, '1.jpg 460x260: course joints at y 76/170 = 94 px = 165+10 mm'),
+    'veines': (0.81, 'module', True, '1.jpg 460x260: slab course joints y 38/118/200 = 81 px = 250 mm'),
+    'florentine': (0.97, 'module', True, '1.jpg 460x260: course joints every 33.5 px = 125 mm strip'),
+    'egyptian': (0.31, 'module', True, 'ar_textures/egyptian.jpg 306x182: strip joints y 17/76/135 = 59 px = 100 mm'),
+    'flora': (0.62, 'module', True, '1.jpg 460x260: tile joints x 183/372 = 189 px = 450 mm (height 300 mm = 126 px)'),
+    'foliage': (0.56, 'module', True, '1.jpg 369x208: tile joints y 44/156 = 112 px = 300 mm; photo holds < 1 full repeat'),
+    'hexa': (0.43, 'module', False, '1.jpg 460x260: one hex ~120 px flat-to-flat = 200 mm, by eye; lattice not exact in photo'),
+    'country': (1.1, 'pattern', False, '1.jpg: course count vs PDF tile, ESTIMATE'),
+    'mountain': (1.1, 'pattern', False, '1.jpg: course count vs PDF tile, ESTIMATE'),
+    'classic': (0.9, 'pattern', False, '1.jpg: course count vs PDF tile, ESTIMATE'),
+    'opus': (1.2, 'pattern', False, '1.jpg: course count, no PDF size, ESTIMATE'),
+    'vantage': (1.0, 'pattern', False, '1.jpg: course count vs PDF tile, ESTIMATE'),
+    'rockface linear': (1.0, 'pattern', False, '1.jpg: course count vs PDF tile, ESTIMATE'),
+    'cuarzo': (1.25, 'pattern', False, '1.jpg: course count vs PDF tile, ESTIMATE'),
+    'venetian': (1.3, 'pattern', False, '1.jpg: course count vs PDF tile, ESTIMATE'),
+    'andorra': (1.3, 'pattern', False, '1.jpg: course count vs PDF tile, ESTIMATE'),
+    'european stack': (0.9, 'pattern', False, '1.jpg: course count, no PDF size, ESTIMATE'),
+    'travertine': (1.0, 'module', False, '1.jpg 369x208: one slab joint at y 102, 755x500 slabs not countable, ESTIMATE'),
+    'sleepwood': (1.3, 'pattern', False, '1.jpg: plank count vs PDF, ESTIMATE'),
+    'sierra': (0.8, 'pattern', False, '1.jpg: no PDF size, ESTIMATE'),
+    'fossile rock': (0.35, 'pattern', False, 'ar_textures/fossil_rock.jpg (collage cell), no PDF size, ESTIMATE'),
+    'tevoli': (0.9, 'pattern', False, '1.jpg: course count vs PDF tile, ESTIMATE'),
+    'lakhori brick': (0.6, 'pattern', False, 'ar_textures/lakhori_brick.jpg (collage cell): courses unclear, ESTIMATE'),
+    'vine': (0.8, 'module', False, '1.jpg 216x373: flutes, no tile joint visible, ESTIMATE'),
+    'modena': (0.9, 'module', False, '1.jpg 369x209: ~6 strips of 150 mm by eye, ESTIMATE'),
+    'cave': (1.0, 'module', False, '1.jpg 369x209: 300 mm tile edges not visible, ESTIMATE'),
+    'weave': (0.75, 'module', False, '1.jpg 321x183: weave squares ~80 px if 300 mm, by eye, ESTIMATE'),
+    'milano': (0.6, 'artwork', False, '1.jpg 293x167: part of one 895x595 carved panel, ESTIMATE; needs a whole-panel photo'),
+    'alpine': (0.9, 'module', False, '1.jpg 259x458: no tile joint visible, ESTIMATE'),
 }
 # CSV series name (normalized) -> app catalogue key (DB names differ in spelling)
 ALIAS = {'venecia': 'venetian', 'andorra': 'andorra', 'travertino': 'travertine',
@@ -117,6 +145,34 @@ for k, (sq, sz, th) in APP_FALLBACK.items():
 CLEAN_SERIES_TEXTURE = {'fossile rock': 'fossil_rock', 'egyptian': 'egyptian', 'lakhori brick': 'lakhori_brick'}
 
 # ── Premium 3D Surface (22 designs) ─────────────────────────────────────────
+# key -> (patchHeightM, measured, texture, trimFraction, renderType, how). Textures ending _tile.jpg are period-exact
+# crops of the design's own bundled photo (one whole number of module repeats, lighting flattened with a
+# one-repeat box filter): they tile edge to edge, so trimFraction 0 (a trim would shift the grid).
+# px/mm comes from module joints counted on the image against the PDF module size.
+SURFACE = {
+    'athena': (1.2, True, '3d_athena_tile', 0.0, 'module', '3d_athena_tile 981x327: square block 54.5 px = 200 mm (two 100x200 pieces), repeat 109 px = 400 mm, 3 rows'),
+    'blanco': (0.4, True, '3d_blanco_tile', 0.0, 'module', '3d_blanco_tile 972x354: column 88.4 px = 100 mm, Y repeat 354 px = one 400 mm piece'),
+    'pietra': (0.4, True, '3d_pietra_tile', 0.0, 'module', '3d_pietra_tile 850x396: column 94.4 px = 100 mm, Y repeat 396 px = one 400 mm piece'),
+    'kite': (1.219, True, '3d_kite_tile', 0.0, 'module', '3d_kite_tile 989x377: X 47.1 px = 152.4 mm, Y 94.3 px = 304.8 mm, 4 rows'),
+    'feather': (0.4, True, '3d_feather_tile', 0.0, 'module', '3d_feather_tile 994x221: column 55.2 px = 100 mm, 221 px = one 400 mm piece'),
+    '2-barcode': (1.067, True, '3d_2_barcode_tile', 0.0, 'module', '3d_2_barcode_tile 819x382: panel 136.5 px = 381 mm, joints y 96/478 = 1066.8 mm'),
+    '5-barcode': (1.067, True, '3d_5_barcode_tile', 0.0, 'module', '3d_5_barcode_tile 801x498: joints y 19/517 = 498 px = 1066.8 mm; X repeat 267 px (autocorrelation) x3'),
+    'archo': (1.219, True, '3d_archo_tile', 0.0, 'module', '3d_archo_tile 958x543: row joints y 30/302/573 = 271.5 px = 609.6 mm (24 in), 2 rows; width = whole photo, not a proven repeat'),
+    'cairo': (0.973, True, '3d_cairo_tile', 0.0, 'module', '3d_cairo_tile 938x367: tall rows 160 px = 424 mm, repeat 367 px = 2 tall + 1 short row; width = whole photo'),
+    'toran': (1.8, True, '3d_toran_tile', 0.0, 'module', '3d_toran_tile 776x582: piece 97 px = 300 mm, row 291 px = 900 mm, 2 rows composed from both rows in the photo'),
+    'toran 2.0': (0.9, True, '3d_toran_2_0_tile', 0.0, 'module', '3d_toran_2_0_tile 837x504: column 167.4 px = 300 mm, Y repeat 504 px = 900 mm piece'),
+    's-wave': (1.25, True, '3d_s_wave_tile', 0.0, 'module', '3d_s_wave_tile 795x442: column 88.3 px = 250 mm, 442 px = 1250 mm piece'),
+    'granito': (0.9, True, '3d_granito_tile', 0.0, 'module', '3d_granito_tile 912x302: row joints every 151 px = 450 mm, 2 rows'),
+    'flute fusion': (0.6, True, '3d_flute_fusion_tile', 0.0, 'module', '3d_flute_fusion_tile 370x244: module joints x 305/675 = 3 x 300 mm, 244 px = 2 modules'),
+    'cosmic flutes': (1.8, True, '3d_cosmic_flutes', 0.08, 'module', '3d_cosmic_flutes 1024x960: column joints every 203 px = 381 mm; vertical repeat not in photo'),
+    'scale': (1.96, False, '3d_scale_tile', 0.0, 'module', '3d_scale_tile 772x892: X repeat 193 px read as the 424 mm diagonal of a 300 mm piece; Y pitch disagrees, ESTIMATE'),
+    'rover': (1.27, False, '3d_rover_tile', 0.0, 'module', '3d_rover_tile 523x543: 12 strips of 43.6 px = 101.6 mm; row joints (136 px) do not match 508 mm, ESTIMATE'),
+    'verona': (1.31, False, '3d_verona', 0.08, 'module', '3d_verona 1024x619: X period 37.8 px = 80 mm; Y period 86 px matches no PDF length (foreshortened), ESTIMATE'),
+    'hydes': (2.5, False, '3d_hydes', 0.08, 'pattern', '3d_hydes 1024x870: free-form 651 mm pieces span ~220 px by eye, ESTIMATE'),
+    'mobis': (2.3, False, '3d_mobis', 0.08, 'module', '3d_mobis 990x819: column pitch 50-57 px (perspective) = 152.4 mm, ESTIMATE; needs a frontal photo'),
+    'ferro': (3.0, False, '3d_ferro', 0.08, 'module', '3d_ferro 957x795: skewed; 609.6 mm piece ~160 px from its slot, ESTIMATE; needs a frontal photo'),
+    'vegas': (1.0, False, '3d_vegas', 0.08, 'module', '3d_vegas 1024x684: perspective + light falloff, no consistent module pitch; old 1.0 kept, ESTIMATE; needs a frontal photo'),
+}
 d3 = {}
 for r in rd('premium_3d_surface_designs'):
     dims = re.search(r'(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)', r['dimensions_mm'].replace('X', 'x'))
@@ -130,28 +186,52 @@ for r in rd('premium_3d_surface_designs'):
         thickness=f'{dims.group(3)} mm' if dims else None,
         pieces=int(pcs.group()) if pcs else None, sqft=sq,
         asset='3d_' + slug(r['name']))
+assert set(SURFACE) == set(d3), set(SURFACE) ^ set(d3)
 
 # ── Exclusive Patina (39 designs) ───────────────────────────────────────────
+# 600 x 1200 mm panels carrying one composed design are 'artwork' (the crop is a slice of one panel, so the
+# tiled slice is not the real repeat); the rest are 'module' grids of small tiles/strips. Every Exclusive crop is
+# a perspective-skewed slice of a tilted panel shot, so no module can be counted: scale stays an ESTIMATE and the
+# product needs a clean frontal photo from the client.
+EX_ARTWORK = {'baroque copper patina', 'fleur lattice panel', 'fluid wave panel', 'midnight scallop mosaic',
+              'ornate nickel scales', 'river pebble panel', 'timber flow panel', 'turquoise fleur heritage',
+              'turquoise lava panel', 'turquoise scallop pattern'}
 ex = {}
 for r in rd('exclusive_patina_designs'):
     size = mm_pair(r['size'])
     t = thick(r['thickness'])
-    patch = 0.6  # ESTIMATE: the crop is a ~0.35 m wide slice of the panel photo
-    ex[r['name'].strip().lower()] = dict(size=size, thickness=t, patch=patch, asset='ex_' + slug(r['name']))
+    patch = 0.6  # ESTIMATE for all 39: crops are perspective-skewed slices of tilted panel photos
+    ex[r['name'].strip().lower()] = dict(size=size, thickness=t, patch=patch, asset='ex_' + slug(r['name']),
+                                         kind='artwork' if r['name'].strip().lower() in EX_ARTWORK else 'module')
 
 # ── write Dart ──────────────────────────────────────────────────────────────
 have = set(os.listdir(AR_DIR)) if os.path.isdir(AR_DIR) else set()
 def asset(a):
     return f"'assets/ar_textures/{a}.jpg'" if f'{a}.jpg' in have else 'null'
 
+def render(patch, trim, kind, measured):
+    t = '' if trim == 0.08 else f', trimFraction: {trim}'
+    return f"patchHeightM: {opt_num(patch)}{t}, renderType: {dart_str(kind)}, patchMeasured: {'true' if measured else 'false'}"
+
 L = ['// GENERATED by scripts/gen_catalogue_specs.py from the client catalogue PDFs. Do not edit by hand.',
      '// The stones table has no size / thickness / sqft-per-box data; these fill the gaps.',
-     '// patchHeightM is the real-world height of the AR texture photo: exact where the PDF gives the',
-     '// panel size, otherwise ESTIMATED (see the script) and meant to be tuned on a real device.',
+     '// patchHeightM is the real-world height of the whole AR texture image. patchMeasured = counted from module',
+     '// joints on that image against the PDF size; false = ESTIMATE, to be tuned on a real device.',
+     '// Each entry\'s trailing comment names the reference image and how the value was measured',
+     '// (details: build/audit/06_design_setup.md).',
      '', 'class CatalogueSpec {',
      '  final String? size;', '  final String? thickness;', '  final double? sqftPerBox;', '  final int? piecesPerBox;',
      '  final double? patchHeightM;', '  final String? arTexture;',
-     '  const CatalogueSpec({this.size, this.thickness, this.sqftPerBox, this.piecesPerBox, this.patchHeightM, this.arTexture});',
+     '  /// Fraction of the image cut off each side before tiling (native scales patchHeightM by 1 - 2 * trimFraction).',
+     '  /// 0 for period-exact crops: a trim would cut into the module and break the repeat.',
+     '  final double trimFraction;',
+     "  /// 'pattern' (irregular stone, tile the photo), 'module' (fixed tiles/panels in a grid) or 'artwork' (one large",
+     '  /// design; the bundled image is only part of it, so tiling it is not the real repeat).',
+     '  final String renderType;',
+     '  /// True when patchHeightM was measured on this exact image; false = estimate.',
+     '  final bool patchMeasured;',
+     "  const CatalogueSpec({this.size, this.thickness, this.sqftPerBox, this.piecesPerBox, this.patchHeightM, this.arTexture,",
+     "      this.trimFraction = 0.08, this.renderType = 'pattern', this.patchMeasured = false});",
      '}', '', 'class CatalogueSpecs {',
      "  static String _norm(String s) => s.toLowerCase().replaceAll(RegExp(r'\\b(series|collection|ledge)\\b'), '').replaceAll(RegExp(r'\\s+'), ' ').trim();",
      '',
@@ -170,18 +250,21 @@ L = ['// GENERATED by scripts/gen_catalogue_specs.py from the client catalogue P
      '  static const _series = <String, CatalogueSpec>{']
 for k in sorted(series):
     s = series[k]
-    L.append(f"    {dart_str(k)}: CatalogueSpec(size: {opt_str(s['size'])}, thickness: {opt_str(s['thickness'])}, sqftPerBox: {opt_num(s['sqft'])}, patchHeightM: {opt_num(SERIES_PATCH_M.get(k))}, arTexture: {asset(CLEAN_SERIES_TEXTURE[k]) if k in CLEAN_SERIES_TEXTURE else 'null'}),")
+    patch, kind, measured, how = SERIES[k]
+    L.append(f"    {dart_str(k)}: CatalogueSpec(size: {opt_str(s['size'])}, thickness: {opt_str(s['thickness'])}, sqftPerBox: {opt_num(s['sqft'])}, {render(patch, 0.08, kind, measured)}, arTexture: {asset(CLEAN_SERIES_TEXTURE[k]) if k in CLEAN_SERIES_TEXTURE else 'null'}), // {how}")
 L += ['  };', '', '  static const _surface3d = <String, CatalogueSpec>{']
 for k in sorted(d3):
     s = d3[k]
-    L.append(f"    {dart_str(k)}: CatalogueSpec(size: {opt_str(s['size'])}, thickness: {opt_str(s['thickness'])}, sqftPerBox: {opt_num(s['sqft'])}, piecesPerBox: {opt_num(s['pieces'])}, patchHeightM: 1.0, arTexture: {asset(s['asset'])}),")
+    patch, measured, tex, trim, kind, how = SURFACE[k]
+    L.append(f"    {dart_str(k)}: CatalogueSpec(size: {opt_str(s['size'])}, thickness: {opt_str(s['thickness'])}, sqftPerBox: {opt_num(s['sqft'])}, piecesPerBox: {opt_num(s['pieces'])}, {render(patch, trim, kind, measured)}, arTexture: {asset(tex)}), // {how}")
 L += ['  };', '', '  static const _exclusive = <String, CatalogueSpec>{']
 for k in sorted(ex):
     s = ex[k]
-    L.append(f"    {dart_str(k)}: CatalogueSpec(size: {opt_str(s['size'])}, thickness: {opt_str(s['thickness'])}, patchHeightM: {s['patch']}, arTexture: {asset(s['asset'])}),")
+    L.append(f"    {dart_str(k)}: CatalogueSpec(size: {opt_str(s['size'])}, thickness: {opt_str(s['thickness'])}, {render(s['patch'], 0.08, s['kind'], False)}, arTexture: {asset(s['asset'])}), // {s['asset']}.jpg: skewed slice of a tilted panel, ESTIMATE")
 L += ['  };', '}', '']
+assert 'null), //' not in '\n'.join(l for l in L if '_tile' in l), 'missing tile asset'
 os.makedirs(os.path.dirname(OUT), exist_ok=True)
 open(OUT, 'w').write('\n'.join(L))
 print('series', len(series), '3d', len(d3), 'exclusive', len(ex), '->', os.path.normpath(OUT))
-missing = [k for k in SERIES_PATCH_M if k not in series]
-print('patch table keys without series data:', missing)
+missing = sorted(set(SERIES) ^ set(series))
+print('render table keys vs series data mismatch:', missing)

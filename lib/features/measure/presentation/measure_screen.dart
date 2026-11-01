@@ -27,7 +27,7 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
   final _widthController = TextEditingController(text: '10');
   final _heightController = TextEditingController(text: '4');
   final _wastageController = TextEditingController(text: '15');
-  final _customRateController = TextEditingController(text: '450');
+  final _customRateController = TextEditingController(); // no invented default rate
 
   String _unit = 'feet'; // 'feet', 'meters', 'inches'
   String _shape = 'Rectangle'; // 'Rectangle', 'L-Shape', 'Circle'
@@ -127,11 +127,16 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
     return v > 0 ? '~$v sqft/box' : '~10.5 sqft/box (estimate)';
   }
 
+  String get _customRateLabel {
+    final t = _customRateController.text.trim();
+    return t.isEmpty ? 'Enter rate' : '₹$t/sqft';
+  }
+
   void _calculate({bool silent = false}) {
     final l = double.tryParse(_lengthController.text.trim()) ?? 0.0;
     final w = double.tryParse(_widthController.text.trim()) ?? 0.0;
     final wastagePct = double.tryParse(_wastageController.text.trim()) ?? 10.0;
-    final customRate = double.tryParse(_customRateController.text.trim()) ?? 450.0;
+    final customRate = double.tryParse(_customRateController.text.trim()) ?? 0.0;
 
     if (l <= 0 || w <= 0) {
       if (!silent) {
@@ -273,19 +278,23 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
 
   void _onAddToCart() {
     HapticFeedback.mediumImpact();
-    if (_selectedStone != null) {
-      // Cart quantity is sq ft (priced as pricePerSqFt × qty), same as the tile visualiser
-      ref.read(cartProvider.notifier).addItem(_selectedStone!, quantity: _grossAreaSqFt.ceil());
+    final stone = _selectedStone;
+    if (_useCustomRate || stone == null) {
+      // A custom rate is not a catalogue item, so the cart (priced from the stone's listed rate) cannot hold it.
       LuxuryToast.show(
         context,
-        message: '$_boxCount boxes of ${_selectedStone!.name} added to Project Cart!',
+        message: 'Custom rates cannot be added to the cart. Please request a quote and our team will confirm pricing.',
       );
-    } else {
-      LuxuryToast.show(
-        context,
-        message: '$_boxCount boxes (approx. ${_grossAreaSqFt.toStringAsFixed(1)} sq ft) added to Project Schedule!',
-      );
+      _onRequestQuote();
+      return;
     }
+    // Cart quantity is sq ft (priced as pricePerSqFt × qty), same as the tile visualiser
+    final sqFt = _grossAreaSqFt.ceil();
+    ref.read(cartProvider.notifier).addItem(stone, quantity: sqFt);
+    LuxuryToast.show(
+      context,
+      message: '$sqFt sq ft (approx. $_boxCount boxes) of ${stone.name} added to your cart',
+    );
     context.push('/cart');
   }
 
@@ -464,7 +473,7 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
 
     final stoneName = _selectedStone?.name ?? 'Custom Specification';
     final stoneRate = _useCustomRate || _selectedStone == null
-        ? '₹${_customRateController.text}/sqft'
+        ? _customRateLabel
         : Formatters.pricePerSqFt(_selectedStone!.pricePerSqFt);
 
     return Container(
@@ -1102,14 +1111,19 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(
-                                    Formatters.pricePerSqFt(stone.pricePerSqFt),
-                                    style: GoogleFonts.inter(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w800,
-                                      color: palette.primary,
+                                  Flexible(
+                                    child: Text(
+                                      Formatters.pricePerSqFt(stone.pricePerSqFt),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800,
+                                        color: palette.primary,
+                                      ),
                                     ),
                                   ),
+                                  const SizedBox(width: 4),
                                   Text(
                                     '${stone.sqftPerBox} sf/b',
                                     style: GoogleFonts.inter(
@@ -1162,7 +1176,7 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            '₹${_customRateController.text}/sqft',
+                            _customRateLabel,
                             style: GoogleFonts.inter(
                               fontSize: 11,
                               fontWeight: FontWeight.w800,
@@ -1215,7 +1229,7 @@ class _MeasureScreenState extends ConsumerState<MeasureScreen> with TickerProvid
         border: Border.all(color: palette.border),
       ),
       child: Text(
-        'Using Standard Architectural Rate: ₹450 / sq ft',
+        'Catalogue unavailable. Price on request.',
         style: GoogleFonts.inter(fontSize: 12, color: palette.textPrimary),
       ),
     );

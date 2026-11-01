@@ -39,35 +39,30 @@ class _CustomDesignScreenState extends ConsumerState<CustomDesignScreen> {
       'name': '3D Fluted Ribbed',
       'subtitle': 'Vertical linear fluting for modern lobbies',
       'icon': Icons.view_headline_rounded,
-      'basePrice': 450.0,
       'asset': 'assets/images/home_hero_living_room.jpg',
     },
     {
       'name': 'Hexagonal 3D Relief',
       'subtitle': 'Interlocking geometric architectural blocks',
       'icon': Icons.hexagon_outlined,
-      'basePrice': 480.0,
       'asset': 'assets/images/auth_luxury_background.jpg',
     },
     {
       'name': 'Bookmatched Slabs',
       'subtitle': 'Mirrored vein continuity across walls',
       'icon': Icons.filter_frames_rounded,
-      'basePrice': 520.0,
       'asset': 'assets/images/home_hero_living_room.jpg',
     },
     {
       'name': 'Organic Wave Strata',
       'subtitle': 'Fluid undulating carved stone surface',
       'icon': Icons.waves_rounded,
-      'basePrice': 490.0,
       'asset': 'assets/images/auth_luxury_background.jpg',
     },
     {
       'name': 'Linear Split Ledge',
       'subtitle': 'Deep dimensional natural split stone',
       'icon': Icons.splitscreen_rounded,
-      'basePrice': 390.0,
       'asset': 'assets/images/home_hero_living_room.jpg',
     },
   ];
@@ -77,31 +72,26 @@ class _CustomDesignScreenState extends ConsumerState<CustomDesignScreen> {
       'name': 'Travertine Beige',
       'color': Color(0xFFD8C4A2),
       'origin': 'Tivoli, Italy',
-      'multiplier': 1.0,
     },
     {
       'name': 'Statuario White',
       'color': Color(0xFFEBEBEB),
       'origin': 'Carrara, Italy',
-      'multiplier': 1.25,
     },
     {
       'name': 'Charcoal Basalt',
       'color': Color(0xFF2C2C2B),
       'origin': 'Deccan Plateau',
-      'multiplier': 1.1,
     },
     {
       'name': 'Forest Emerald Quartzite',
       'color': Color(0xFF233E32),
       'origin': 'Rajasthan Quarry',
-      'multiplier': 1.35,
     },
     {
       'name': 'Desert Ochre Sandstone',
       'color': Color(0xFFC79D67),
       'origin': 'Dholpur Heritage',
-      'multiplier': 0.95,
     },
   ];
 
@@ -137,16 +127,8 @@ class _CustomDesignScreenState extends ConsumerState<CustomDesignScreen> {
     return w * h;
   }
 
-  double get _estimatedRate {
-    final pattern = _patterns[_selectedPatternIndex];
-    final mat = _materials[_selectedMaterialIndex];
-    double rate = (pattern['basePrice'] as double) * (mat['multiplier'] as double);
-    if (_hasBrassInlay) rate += 65.0;
-    if (_hasLedBacklight) rate += 45.0;
-    return rate;
-  }
-
-  double get _estimatedTotal => _calculatedArea * _estimatedRate;
+  // No rates here: these patterns/materials are not catalogue stones and the owner
+  // never publishes invented prices, so the UI says 'Price on request' and the quote is priced by the team.
 
   Future<void> _submitCustomDesign() async {
     if (_phoneController.text.trim().length < 10) {
@@ -188,9 +170,9 @@ class _CustomDesignScreenState extends ConsumerState<CustomDesignScreen> {
 • Stone Material: $material (${_materials[_selectedMaterialIndex]['origin']})
 • Surface Finish: $finish
 • Wall Dimensions: ${_widthController.text.trim()} ft (W) × ${_heightController.text.trim()} ft (H) = ${area.toStringAsFixed(1)} sq.ft
-• Brass Metal Inlays: ${_hasBrassInlay ? 'YES (+₹65/sqft)' : 'NO'}
-• LED Lighting Channel: ${_hasLedBacklight ? 'YES (+₹45/sqft)' : 'NO'}
-• Estimated Budget: ₹${_estimatedTotal.toInt()} (approx ₹${_estimatedRate.toInt()}/sqft)
+• Brass Metal Inlays: ${_hasBrassInlay ? 'YES' : 'NO'}
+• LED Lighting Channel: ${_hasLedBacklight ? 'YES' : 'NO'}
+• Pricing: on request (to be quoted by Grazia team)
 • Site Location: ${_cityController.text.trim().isNotEmpty ? _cityController.text.trim() : 'To be confirmed'}
 • Client Notes: ${_notesController.text.trim().isNotEmpty ? _notesController.text.trim() : 'Standard custom architectural execution'}
 ──────────────────────────────────────
@@ -294,6 +276,7 @@ class _CustomDesignScreenState extends ConsumerState<CustomDesignScreen> {
       backgroundColor: const Color(0xFF0F0E0D),
       appBar: AppBar(
         backgroundColor: const Color(0xFF0F0E0D),
+        systemOverlayStyle: SystemUiOverlayStyle.light, // always-dark screen: light status bar text
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
@@ -414,7 +397,7 @@ class _CustomDesignScreenState extends ConsumerState<CustomDesignScreen> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
-                              '≈ ₹${_estimatedRate.toInt()}/sqft',
+                              'Price on request',
                               style: GoogleFonts.inter(
                                 fontSize: 10.5,
                                 fontWeight: FontWeight.w800,
@@ -426,7 +409,7 @@ class _CustomDesignScreenState extends ConsumerState<CustomDesignScreen> {
                       ),
                     ),
 
-                    // Bottom Floating Strip: Dimension & Estimated Price
+                    // Bottom Floating Strip: Dimension & pricing status
                     Positioned(
                       bottom: 12,
                       left: 12,
@@ -450,7 +433,7 @@ class _CustomDesignScreenState extends ConsumerState<CustomDesignScreen> {
                               ),
                             ),
                             Text(
-                              'Total: ₹${_estimatedTotal.toInt()}',
+                              'Price on request',
                               style: GoogleFonts.inter(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w800,
@@ -527,7 +510,7 @@ class _CustomDesignScreenState extends ConsumerState<CustomDesignScreen> {
                             overflow: TextOverflow.ellipsis,
                           ),
                           Text(
-                            'from ₹${(p['basePrice'] as double).toInt()}/sqft',
+                            'Price on request',
                             style: GoogleFonts.inter(
                               fontSize: 9.5,
                               color: const Color(0xFFD4AF37),
@@ -648,7 +631,7 @@ class _CustomDesignScreenState extends ConsumerState<CustomDesignScreen> {
                 Expanded(
                   child: FilterChip(
                     label: Text(
-                      'Brass Metal Inlay (+₹65)',
+                      'Brass Metal Inlay',
                       style: GoogleFonts.inter(fontSize: 11, color: Colors.white),
                     ),
                     selected: _hasBrassInlay,
@@ -871,7 +854,7 @@ class _CustomDesignScreenState extends ConsumerState<CustomDesignScreen> {
                           const Icon(Icons.send_rounded, size: 17, color: Colors.black),
                           const SizedBox(width: 8),
                           Text(
-                            'Request Custom Design Quote (₹${_estimatedTotal.toInt()})',
+                            'Request Custom Design Quote',
                             style: GoogleFonts.inter(
                               fontSize: 13.5,
                               fontWeight: FontWeight.w800,

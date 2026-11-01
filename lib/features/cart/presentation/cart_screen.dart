@@ -300,10 +300,8 @@ class CartScreen extends ConsumerWidget {
     final items = ref.watch(cartProvider);
     final bottomPadding = MediaQuery.of(context).padding.bottom;
 
-    double subtotal = items.fold(0, (s, i) => s + i.total);
-    double gst = subtotal * 0.18;
-    double shipping = subtotal > 10000 ? 0 : 500;
-    double total = subtotal + gst + shipping;
+    // Indicative only: the app takes no payments, and taxes and delivery are set in the quote, never invented here.
+    final double subtotal = items.fold(0, (s, i) => s + i.total);
 
     return Scaffold(
       backgroundColor: palette.background,
@@ -450,22 +448,20 @@ class CartScreen extends ConsumerWidget {
                                 ),
                               ),
                               const SizedBox(height: 16),
-                              _PriceRow(label: 'Subtotal', amount: subtotal, palette: palette),
-                              const SizedBox(height: 12),
-                              _PriceRow(label: 'GST (18%)', amount: gst, palette: palette),
-                              const SizedBox(height: 12),
                               _PriceRow(
-                                label: 'Shipping / Transit Insurance',
-                                amount: shipping,
-                                palette: palette,
-                                highlight: shipping == 0,
-                              ),
-                              Divider(color: palette.border, height: 28),
-                              _PriceRow(
-                                label: 'Estimated Total',
-                                amount: total,
+                                label: 'Indicative Subtotal',
+                                amount: subtotal,
                                 palette: palette,
                                 isTotal: true,
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                'Based on listed per sq ft rates. The final price, taxes and delivery charges are confirmed in your quote.',
+                                style: GoogleFonts.inter(
+                                  fontSize: 11.5,
+                                  color: palette.textSecondary,
+                                  height: 1.4,
+                                ),
                               ),
                             ],
                           ),
@@ -553,64 +549,6 @@ class CartScreen extends ConsumerWidget {
                       ),
                     ),
 
-                    // Free Shipping Progress Card
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      sliver: SliverToBoxAdapter(
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: palette.primary.withValues(alpha: isDark ? 0.12 : 0.08),
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: palette.primary.withValues(alpha: 0.25)),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(Icons.local_shipping_outlined, color: palette.primary, size: 22),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Text(
-                                      subtotal >= 10000
-                                          ? 'Complimentary Delivery & Insurance Unlocked!'
-                                          : 'Free Delivery on orders above ₹10,000',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 13,
-                                        color: palette.textPrimary,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(4),
-                                child: LinearProgressIndicator(
-                                  value: (subtotal / 10000).clamp(0.0, 1.0),
-                                  backgroundColor: palette.border,
-                                  valueColor: AlwaysStoppedAnimation<Color>(palette.primary),
-                                  minHeight: 6,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                subtotal < 10000
-                                    ? 'Add ₹${(10000 - subtotal).toInt()} more to unlock complimentary white-glove transit'
-                                    : 'Complimentary white-glove delivery & transit insurance applied ✓',
-                                style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  color: palette.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-
                     // Trust Badges
                     SliverPadding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 110),
@@ -619,7 +557,7 @@ class CartScreen extends ConsumerWidget {
                           children: [
                             Expanded(child: _buildTrustBadge(Icons.verified_outlined, '100% Genuine', 'Quarry certified', palette)),
                             const SizedBox(width: 10),
-                            Expanded(child: _buildTrustBadge(Icons.security_outlined, 'Insured Transit', 'Zero-breakage cover', palette)),
+                            Expanded(child: _buildTrustBadge(Icons.request_quote_outlined, 'Firm Quote', 'Final price confirmed', palette)),
                             const SizedBox(width: 10),
                             Expanded(child: _buildTrustBadge(Icons.support_agent_outlined, 'Expert Architect', 'Dedicated support', palette)),
                           ],
@@ -669,13 +607,14 @@ class CartScreen extends ConsumerWidget {
                         ),
                         child: Row(
                           children: [
-                            // Total price column
-                            Column(
+                            // Total price column (takes the leftover width so the buttons never overflow)
+                            Expanded(
+                              child: Column(
                               mainAxisSize: MainAxisSize.min,
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Estimated Total',
+                                  'Indicative Subtotal',
                                   style: GoogleFonts.inter(
                                     fontSize: 10,
                                     color: palette.textSecondary,
@@ -684,7 +623,9 @@ class CartScreen extends ConsumerWidget {
                                 ),
                                 const SizedBox(height: 1),
                                 Text(
-                                  '₹${total.toInt()}',
+                                  '₹${subtotal.toInt()}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: GoogleFonts.inter(
                                     fontSize: 17,
                                     color: palette.primary,
@@ -693,8 +634,8 @@ class CartScreen extends ConsumerWidget {
                                   ),
                                 ),
                               ],
+                              ),
                             ),
-                            const Spacer(),
                             // Order Sample Button
                             ApplePressable(
                               onTap: () {
@@ -1205,13 +1146,11 @@ class _PriceRow extends StatelessWidget {
   final double amount;
   final LuxuryPalette palette;
   final bool isTotal;
-  final bool highlight;
   const _PriceRow({
     required this.label,
     required this.amount,
     required this.palette,
     this.isTotal = false,
-    this.highlight = false,
   });
 
   @override
@@ -1228,13 +1167,11 @@ class _PriceRow extends StatelessWidget {
           ),
         ),
         Text(
-          highlight && amount == 0 ? 'FREE ✓' : '₹${amount.toInt()}',
+          '₹${amount.toInt()}',
           style: GoogleFonts.inter(
             fontSize: isTotal ? 18 : 13,
             fontWeight: isTotal ? FontWeight.w800 : FontWeight.w600,
-            color: highlight && amount == 0
-                ? palette.success
-                : (isTotal ? palette.primary : palette.textPrimary),
+            color: isTotal ? palette.primary : palette.textPrimary,
           ),
         ),
       ],

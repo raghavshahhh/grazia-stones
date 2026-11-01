@@ -37,6 +37,7 @@ class AIJobRepository {
     String? color,
     String? finish,
     Map<String, dynamic>? metadata,
+    bool requirePersisted = false,
   }) async {
     try {
       debugPrint('📤 Creating AI visualization job...');
@@ -80,8 +81,11 @@ class AIJobRepository {
               .single();
           createdJob = AIJob.fromJson(response);
         } catch (insertErr) {
+          if (requirePersisted) rethrow;
           debugPrint('⚠️ Supabase insert warning, maintaining local job cache: $insertErr');
         }
+      } else if (requirePersisted) {
+        throw StateError('Sign in to create an AI job.');
       }
 
       createdJob ??= AIJob.fromJson(data);
@@ -900,6 +904,8 @@ class AIJobRepository {
           ...?oldJob.metadata,
           'retried_from': jobId,
         },
+        // No local stand-in: a retry must be a real row, or the caller would report a job that does not exist.
+        requirePersisted: true,
       );
 
       debugPrint('✅ Job retried: ${newJob.id}');

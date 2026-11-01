@@ -144,7 +144,7 @@ class _AppInteractiveTourOverlayState extends State<AppInteractiveTourOverlay>
 
   /// Calculates the spotlight punch-out rect for the active step.
   _SpotlightTarget _getTarget(Size screenSize, double bottomPadding) {
-    final navY = screenSize.height - (bottomPadding > 0 ? bottomPadding + 6 : 14) - 32;
+    final navY = screenSize.height - GraziaBottomNav.bottomGap(bottomPadding) - 32;
     final topPadding = MediaQuery.of(context).padding.top;
 
     switch (_currentStep) {

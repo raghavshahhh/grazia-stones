@@ -53,6 +53,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
   void _navigateNext() {
     if (!mounted || _hasNavigated) return;
+    // Wait for the saved session (at most ~10 s, see AuthRiverpodNotifier._start) so a signed-in user lands on
+    // Home, not on Login while the session is still restoring.
+    if (!ref.read(authRiverpodProvider).sessionChecked) {
+      ref.listenManual(authRiverpodProvider, (_, next) {
+        if (next.sessionChecked) _navigateNext();
+      });
+      return;
+    }
     _hasNavigated = true;
 
     final onboardingComplete = StorageService.instance.getOnboardingCompleted() ||

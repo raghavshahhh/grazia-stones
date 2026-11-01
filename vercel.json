@@ -1,18 +1,31 @@
 {
   "version": 2,
-  "outputDirectory": "build/web",
+  "outputDirectory": "site",
   "functions": {
-    "api/generate-visualization.js": { "maxDuration": 180 },
-    "api/aarna.js": { "maxDuration": 90 }
+    "api/generate-visualization.js": {
+      "maxDuration": 180
+    },
+    "api/aarna.js": {
+      "maxDuration": 90
+    }
   },
   "rewrites": [
     {
       "source": "/api/(.*)",
       "destination": "/api/$1"
+    }
+  ],
+  "cleanUrls": true,
+  "redirects": [
+    {
+      "source": "/delete-account.",
+      "destination": "/delete-account",
+      "permanent": true
     },
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "source": "/privacy.",
+      "destination": "/privacy",
+      "permanent": true
     }
   ]
 }

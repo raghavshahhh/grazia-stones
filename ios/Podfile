@@ -45,6 +45,18 @@ post_install do |installer|
     # their own lower defaults (9.0-14.0) baked into Pods.xcodeproj.
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+      # permission_handler compiles every iOS permission out unless enabled here; without these it reports
+      # camera/photos/location as permanently denied and never shows the system prompt (Live AR stuck on
+      # "Camera access needed" on iPhone 13 Pro, 2026-10-30).
+      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
+      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] += [
+        'PERMISSION_CAMERA=1',
+        'PERMISSION_PHOTOS=1',
+        'PERMISSION_PHOTOS_ADD_ONLY=1',
+        'PERMISSION_LOCATION=1',
+        'PERMISSION_LOCATION_WHENINUSE=1',
+        'PERMISSION_NOTIFICATIONS=1',
+      ]
     end
   end
 end

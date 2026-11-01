@@ -250,7 +250,7 @@ class ARCoreManager private constructor(context: Context) {
         view.onTrackingFailureChanged = { reason ->
             onTrackingStateChanged?.invoke(mapTrackingFailure(reason))
         }
-        queuedTexture?.let { (bytes, patch, seam) -> setTexture(bytes, patch, seam) }
+        queuedTexture?.let { (bytes, patch, seam) -> setTexture(bytes, patch, seam, queuedTrim) }
         view.onSessionFailed = { e ->
             Log.e(TAG, "AR session failed", e)
             onError?.invoke(e.message ?: "AR session failed")
@@ -1259,16 +1259,20 @@ class ARCoreManager private constructor(context: Context) {
 
     // Dart sends the design before the AR view exists; keep it and apply it on attach instead of dropping it.
     private var queuedTexture: Triple<ByteArray, Float?, Boolean>? = null
+    private var queuedTrim = 0.08f
 
-    fun setTexture(imageData: ByteArray, patchHeightM: Float? = null, seamCut: Boolean = false) {
+    fun setTexture(imageData: ByteArray, patchHeightM: Float? = null, seamCut: Boolean = false, trimFraction: Float = 0.08f) {
         queuedTexture = Triple(imageData, patchHeightM, seamCut)
+        val trim = trimFraction.coerceIn(0f, 0.45f)
+        queuedTrim = trim
         val view = sceneView ?: return
         try {
             val raw = BitmapFactory.decodeByteArray(imageData, 0, imageData.size) ?: return
-            // Catalogue photos have a light border/vignette that tiles into a grid of seams; trim 8% per side.
-            val trimmed = android.graphics.Bitmap.createBitmap(
-                raw, raw.width * 8 / 100, raw.height * 8 / 100, raw.width * 84 / 100, raw.height * 84 / 100,
-            )
+            // Catalogue photos have a light border/vignette that tiles into a grid of seams: trim [trim] per side
+            // (catalogue_specs; 0 for clean crops of whole modules, where a trim would break the grid repeat).
+            val tx = (raw.width * trim).toInt(); val ty = (raw.height * trim).toInt()
+            val trimmed = if (tx == 0 && ty == 0) raw
+                else android.graphics.Bitmap.createBitmap(raw, tx, ty, raw.width - 2 * tx, raw.height - 2 * ty)
             // Natural cultured stone: cut seamless along the mortar lines (the repeat edge disappears). Designed
             // patterns (chevrons, stripes, medallions) are left as photographed; the cut breaks their geometry.
             val bitmap = if (seamCut) SeamlessTile.make(trimmed) else trimmed
@@ -1290,7 +1294,9 @@ class ARCoreManager private constructor(context: Context) {
             ).apply { anisotropy = 8f } // keeps the stone sharp when the wall is seen at an angle
             // Lit PBR stone with a relief normal map, so the room light rakes across the stones like real cladding.
             // Falls back to the flat unlit image material if the ubershader is unavailable.
-            texturePatchHeightM = patchHeightM ?: TEXTURE_PATCH_HEIGHT_M
+            // patchHeightM is the whole photo's real height; the trim kept the middle (1 - 2 trim), so the tile is that
+            // much shorter (without this every stone drew 1 / 0.84 = 19 % too big at the old fixed 8 % trim).
+            texturePatchHeightM = (patchHeightM ?: TEXTURE_PATCH_HEIGHT_M) * (1f - 2f * trim)
             val (normal, height) = reliefTextures(view, bitmap)
             // `adb shell setprop debug.grazia.material masked|lit|unlit` forces one material for on-device A/B.
             val wanted = debugProp("debug.grazia.material") ?: "masked"
@@ -1302,7 +1308,6 @@ class ARCoreManager private constructor(context: Context) {
                 .getOrNull() else null)
                 ?: view.materialLoader.createImageInstance(texture, sampler).twoSided().also { Log.i(TAG, "TEXTURE unlit material") }
             textureAspect = bitmap.width.toFloat() / bitmap.height.coerceAtLeast(1)
-            texturePatchHeightM = patchHeightM ?: TEXTURE_PATCH_HEIGHT_M
             updateWallVisualization()
             // Changing the stone keeps the accumulated wall outline: bind the existing mask to the new material now
             // instead of waiting up to a second for the next segmenter result.
@@ -2763,7 +2768,6 @@ class ARCoreManager private constructor(context: Context) {
             "alignment" to "vertical",
             "corners" to corners,
             "area" to (plane.extentX * plane.extentZ),
-            "confidence" to 0.9,
             "isSelected" to (id == selectedWallId),
         )
     }

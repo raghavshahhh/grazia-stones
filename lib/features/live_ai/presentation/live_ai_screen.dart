@@ -3,7 +3,7 @@ import 'package:grazia_stones/core/services/ar_native_channel.dart';
 import 'package:grazia_stones/core/data/catalogue_specs.dart';
 import 'dart:async';
 import 'dart:ui';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -64,6 +64,9 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
   // Wall tracking state (from AR engine)
   String _wallState = 'SEARCHING';
   Timer? _wallStateTimer;
+  // Live material estimate beside the camera (see _refreshEstimate); tapping it opens the full card.
+  Timer? _estimateTimer;
+  Map<String, dynamic>? _liveEstimate;
   // Why ARCore is not tracking right now (dark room, fast motion...), shown instead of the wall hint.
   String? _trackingIssue;
   StreamSubscription<String>? _trackingSub;
@@ -117,6 +120,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
       final issue = state == 'TRACKING' ? null : state;
       if (mounted && issue != _trackingIssue) setState(() => _trackingIssue = issue);
     });
+    _estimateTimer = Timer.periodic(const Duration(seconds: 2), (_) => _refreshEstimate());
     _wallStateTimer = Timer.periodic(const Duration(milliseconds: 200), (_) async {
       if (!mounted) return;
       if (!_cameraReady) return;
@@ -175,6 +179,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
   void dispose() {
     _stonePageController.dispose();
     _wallStateTimer?.cancel();
+    _estimateTimer?.cancel();
     _trackingSub?.cancel();
     ARCameraView.brushMode.removeListener(_onBrushModeChanged);
     ARCameraView.calibrationTaps.removeListener(_onCalibrationTaps);
@@ -237,7 +242,8 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
       final inGallery = (saved['uri'] ?? '').isNotEmpty;
       LuxuryToast.show(
         context,
-        message: inGallery ? 'Saved to Gallery (Pictures/Grazia). Tap Share to send it.' : 'Photo ready. Tap Share to send it.',
+        message: inGallery
+            ? (defaultTargetPlatform == TargetPlatform.iOS ? 'Saved to Photos. Tap Share to send it.' : 'Saved to Gallery (Pictures/Grazia). Tap Share to send it.') : 'Photo ready. Tap Share to send it.',
       );
     } on Object catch (e) {
       if (!mounted) return;
@@ -379,7 +385,9 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
   }
 
   Widget _buildBrushControls() {
-    final placed = _wallState == 'TRACKING' || _wallState == 'LOCKED' || _wallState == 'APPROXIMATE';
+    // NO_OUTLINE / DETECTING included: the pill tells the user to "use Fix edges" there, and a restore stroke is
+    // what makes a wall without a found outline drawable.
+    final placed = const {'TRACKING', 'LOCKED', 'APPROXIMATE', 'NO_OUTLINE', 'DETECTING'}.contains(_wallState);
     if (!placed) return _kNoOverlay;
     return Positioned(
       left: 16,
@@ -597,12 +605,21 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     );
   }
 
+  /// Brick and ledge series photograph each colour as the same wall shot, so the design's scale holds for every
+  /// colour. Premium Surface / Exclusive extra images are room renders and tilted panels, and the collage series
+  /// carry captions: drawn on the wall at the product's scale they were wrong (texture audit 2026-10-30).
+  bool _coloursAreWallPhotos(Stone stone) {
+    final c = stone.collection.toLowerCase();
+    if (c.contains('egyptian') || c.contains('fossil') || c.contains('lakhori')) return false;
+    return catalogueAllowsSeamCut(stone.collection);
+  }
+
   /// Applies another colour (image) of the same design to the AR wall.
   void _selectColour(Stone stone, int i) {
     if (i < 0 || i >= stone.images.length) return;
     HapticFeedback.selectionClick();
     setState(() => _colourIndex = i);
-    ARCameraView.updateStone(stone.images[i], _textureOpacity, patchHeightM: _patchHeightFor(stone), seamCut: _seamCutFor(stone));
+    ARCameraView.updateStone(stone.images[i], _textureOpacity, patchHeightM: _patchHeightFor(stone), seamCut: _seamCutFor(stone), trimFraction: _trimFor(stone));
   }
 
   Widget _buildColourStrip(Stone stone) {
@@ -645,7 +662,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     if (stone == null) return;
     final path = stone.arTextureUrl ?? stone.mainImageUrl;
     if (path != null) {
-      ARCameraView.updateStone(path, _textureOpacity, patchHeightM: _patchHeightFor(stone), seamCut: _seamCutFor(stone));
+      ARCameraView.updateStone(path, _textureOpacity, patchHeightM: _patchHeightFor(stone), seamCut: _seamCutFor(stone), trimFraction: _trimFor(stone));
       
       // Preload adjacent carousel textures for instant switching
       final int currentIndex = _selectedStoneIndex;
@@ -716,6 +733,9 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
   /// Real height (m) of the stone's texture photo, from the catalogue PDFs.
   bool _seamCutFor(Stone? stone) => stone != null && catalogueAllowsSeamCut(stone.collection);
 
+  double _trimFor(Stone? stone) =>
+      (stone == null ? null : CatalogueSpecs.forStone(stone.collection, stone.name)?.trimFraction) ?? 0.08;
+
   double? _patchHeightFor(Stone? stone) =>
       stone == null ? null : CatalogueSpecs.forStone(stone.collection, stone.name)?.patchHeightM;
 
@@ -729,6 +749,59 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
     final height = double.tryParse(sizeParts[1].replaceAll('mm', '').trim()) ?? 0;
     if (width <= 0 || height <= 0) return null;
     return (width, height);
+  }
+
+  /// Recomputes the estimate for the wall scanned so far, every 2 s while the plain AR view shows.
+  Future<void> _refreshEstimate() async {
+    if (!mounted || !_cameraReady || widget.measureOnly || _quantityResult != null) return;
+    final dims = _tileDimensionsMm();
+    final result = dims == null
+        ? null
+        : await ARCameraView.calculateTileQuantity(
+            tileWidth: dims.$1, tileHeight: dims.$2, tileUnit: 'mm', wastagePercent: 15.0);
+    if (!mounted) return;
+    final area = (result?['wallArea'] as num?)?.toDouble() ?? 0;
+    final next = area >= 0.3 ? result : null;   // a few mesh cells is not a wall yet
+    if (next?['recommendedQuantity'] != _liveEstimate?['recommendedQuantity'] ||
+        next?['wallArea'] != _liveEstimate?['wallArea']) {
+      setState(() => _liveEstimate = next);
+    }
+  }
+
+  Widget _buildLiveEstimate() {
+    final r = _liveEstimate!;
+    final unit = r['unit']?.toString() ?? 'm';
+    return Positioned(
+      right: 12,
+      top: MediaQuery.of(context).size.height * 0.40,
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          setState(() => _quantityResult = r);
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.62),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.goldWarm.withValues(alpha: 0.35)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('${r['recommendedQuantity']} pcs',
+                  style: const TextStyle(color: AppColors.goldWarm, fontSize: 17, fontWeight: FontWeight.w700, fontFamily: 'Inter')),
+              const SizedBox(height: 2),
+              Text('${(r['wallArea'] as num).toStringAsFixed(1)} $unit² · +${(r['wastagePercent'] as num? ?? 15).round()}% wastage',
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 11.5, fontFamily: 'Inter')),
+              Text((r['walls'] as num? ?? 1) > 1 ? '${r['walls']} walls · scanning' : 'scanning',
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 10, fontFamily: 'Inter')),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _calculateQuantity() async {
@@ -807,7 +880,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
         _updateFilteredStones(stones);
         final path = _selectedStone?.arTextureUrl ?? _selectedStone?.mainImageUrl;
         if (path != null && _cameraReady) {
-          ARCameraView.updateStone(path, _textureOpacity, patchHeightM: _patchHeightFor(_selectedStone), seamCut: _seamCutFor(_selectedStone));
+          ARCameraView.updateStone(path, _textureOpacity, patchHeightM: _patchHeightFor(_selectedStone), seamCut: _seamCutFor(_selectedStone), trimFraction: _trimFor(_selectedStone));
         }
       }
     });
@@ -876,6 +949,9 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
 
           // 7. Wall selection overlay (when multiple walls detected) — only when camera is ready
           if (_selectingWall && _cameraReady) _buildWallSelectionOverlay(),
+
+          // 8. Live material estimate (area scanned so far, pieces with wastage)
+          if (_cameraReady && !isOverlayActive && !widget.measureOnly && _liveEstimate != null) _buildLiveEstimate(),
 
           // 9. Quantity result display
           if (_quantityResult != null) _buildQuantityDisplay(),
@@ -1088,6 +1164,8 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
   /// side re-places the panel at that distance (scale provenance: "user-entered distance", not measured).
   void _showApproximateDistanceSheet() {
     HapticFeedback.selectionClick();
+    // Typing a distance only re-places a guessed (approximate) Android wall; a measured wall or ARKit ignores it.
+    final canEnterDistance = _wallState == 'APPROXIMATE' && defaultTargetPlatform == TargetPlatform.android;
     showModalBottomSheet<void>(
       context: context,
       useRootNavigator: true,
@@ -1104,17 +1182,20 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'How far is the wall?',
+              Text(
+                canEnterDistance ? 'How far is the wall?' : 'Check the true size',
                 style: TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white),
               ),
               const SizedBox(height: 6),
               Text(
-                'This wall has no trackable surface yet, so the stone is shown at an approximate size. '
-                'Enter the real distance from the phone to the wall, or tap where the wall meets the floor.',
+                canEnterDistance
+                    ? 'This wall has no trackable surface yet, so the stone is shown at an approximate size. '
+                        'Enter the real distance from the phone to the wall, or size it from something you measured.'
+                    : 'Check the stone size against something you measured with a tape: a door, a frame or an A4 sheet.',
                 style: TextStyle(fontFamily: 'Inter', fontSize: 12, height: 1.4, color: Colors.white.withValues(alpha: 0.65)),
               ),
               const SizedBox(height: 14),
+              if (canEnterDistance) ...[
               Row(
                 children: [
                   Expanded(
@@ -1156,6 +1237,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                 ),
               ),
               const SizedBox(height: 8),
+              ],
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
@@ -1345,7 +1427,10 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                           style: const TextStyle(color: Colors.white, fontFamily: 'Inter'),
                         ),
                         subtitle: Text(
-                          '${area.toStringAsFixed(1)} px² • Confidence: ${confidence.toStringAsFixed(0)}%',
+                          // Native sends the area in m² and a 0-1 confidence (ARCore/ARKit give none, so it is often absent).
+                          rawConf == null
+                              ? '${area.toStringAsFixed(1)} m² seen so far'
+                              : '${area.toStringAsFixed(1)} m² • Confidence: ${(confidence <= 1 ? confidence * 100 : confidence).toStringAsFixed(0)}%',
                           style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontFamily: 'Inter'),
                         ),
                         onTap: () => _selectWall(wall['id'] as String),
@@ -1437,6 +1522,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
             const SizedBox(height: 12),
             _buildQuantityRow('Wall Size', '${_num(r['wallWidth'])} × ${_num(r['wallHeight'])} $unit'),
             _buildQuantityRow('Wall Area', '${_num(r['wallArea'])} $unit²'),
+            if ((r['walls'] as num? ?? 1) > 1) _buildQuantityRow('Walls', '${r['walls']}'),
             if (r['tileWidth'] != null) ...[
               _buildQuantityRow('Tile Size', '${_num(r['tileWidth'])} × ${_num(r['tileHeight'])} $unit'),
               _buildQuantityRow('Tile Area', '${_num(r['tileArea'])} $unit²'),
@@ -1496,7 +1582,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
             if (widget.measureOnly) _measureMode = true;
           });
           if (assetPath != null) {
-            ARCameraView.updateStone(assetPath, _textureOpacity, patchHeightM: _patchHeightFor(_selectedStone), seamCut: _seamCutFor(_selectedStone));
+            ARCameraView.updateStone(assetPath, _textureOpacity, patchHeightM: _patchHeightFor(_selectedStone), seamCut: _seamCutFor(_selectedStone), trimFraction: _trimFor(_selectedStone));
             // Set tile dimensions for accurate pattern generation
             final stone = _selectedStone;
             if (stone != null) {
@@ -1817,7 +1903,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                   ),
                 ),
                 // Colours of the selected design (each image = one colour)
-                if (_selectedStone != null && _selectedStone!.images.length > 1) ...[
+                if (_selectedStone != null && _selectedStone!.images.length > 1 && _coloursAreWallPhotos(_selectedStone!)) ...[
                   _buildColourStrip(_selectedStone!),
                   const SizedBox(height: 6),
                 ],
@@ -2248,6 +2334,9 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                         ),
                         const SizedBox(height: 8),
 
+                        // Opacity / Scale only reach the web viewer; the native AR draws the stone at its catalogue
+                        // size (a free scale would break true size) and has no opacity channel.
+                        if (kIsWeb) ...[
                         // Opacity slider
                         _buildSliderRow(
                           icon: Icons.opacity_rounded,
@@ -2277,6 +2366,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                           },
                         ),
                         const SizedBox(height: 20),
+                        ],
 
                         if (!_cameraReady) ...[
                           Container(
@@ -2309,7 +2399,8 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                           ),
                         ],
 
-                        // Fix wall angle — manual corner adjustment
+                        // Fix wall angle — manual corner adjustment (web only: native AR has no corner API)
+                        if (kIsWeb)
                         SizedBox(
                           width: double.infinity,
                           child: OutlinedButton.icon(
