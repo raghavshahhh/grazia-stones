@@ -25,7 +25,7 @@ class DepthValidator {
         const val DECIDE_WITHIN_MS = 20_000L
         // Feature points only get a metric depth from sideways camera motion; a phone held still or only turned
         // drifts them outward (11-44 m logged for a ~2 m wall), which made every check fail and depth switch off.
-        const val MIN_PARALLAX_M = 0.20f
+        const val MIN_PARALLAX_M = 0.25f
         const val MIN_DEPTH_M = 0.3f
         const val MAX_DEPTH_M = 6f
         // A depth hit must repeat within this share, near the same screen spot, before it places anything.

@@ -283,8 +283,11 @@ class ARCoreManager private constructor(context: Context) {
     private var perfMaxGapNs = 0L; private var perfLastTs = 0L
     private var perfCbNs = 0L; private var perfCbMaxNs = 0L
     private var perfPath = 0f; private var perfLateral = 0f; private var perfRotDeg = 0f
-    // Sideways travel since the session started: feature-point depth needs parallax, so depth validation waits for it.
-    private var parallaxLateralM = 0f
+    // How far the camera has actually travelled this session (diagonal of the box around its positions): feature-point
+    // depth needs a real baseline. Summing per-frame steps let hand shake (a few mm a second) add up to the gate on a
+    // phone that never left its spot (device log 11-02 16:37:55), so the extent is used instead.
+    private var parallaxMin: FloatArray? = null; private var parallaxMax: FloatArray? = null
+    private var parallaxBaselineM = 0f
     private var perfLastPos: FloatArray? = null; private var perfLastFwd: FloatArray? = null
     private var perfWindowPos: FloatArray? = null
 
@@ -315,11 +318,14 @@ class ARCoreManager private constructor(context: Context) {
             perfPath += step
             val lateral = sqrt((step * step - along * along).coerceAtLeast(0f))
             perfLateral += lateral
-            parallaxLateralM += lateral
             val dot = (lf[0] * fwd[0] + lf[1] * fwd[1] + lf[2] * fwd[2]).coerceIn(-1f, 1f)
             perfRotDeg += Math.toDegrees(kotlin.math.acos(dot).toDouble()).toFloat()
         }
         perfLastPos = pos; perfLastFwd = fwd
+        val mn = parallaxMin ?: pos.copyOf().also { parallaxMin = it }
+        val mx = parallaxMax ?: pos.copyOf().also { parallaxMax = it }
+        for (i in 0..2) { if (pos[i] < mn[i]) mn[i] = pos[i]; if (pos[i] > mx[i]) mx[i] = pos[i] }
+        parallaxBaselineM = sqrt((mx[0] - mn[0]).let { it * it } + (mx[1] - mn[1]).let { it * it } + (mx[2] - mn[2]).let { it * it })
     }
 
     private fun perfEndFrame(cbStartNs: Long, frame: com.google.ar.core.Frame) {
@@ -357,7 +363,7 @@ class ARCoreManager private constructor(context: Context) {
         Log.i(TAG, "AR_PERF fps=${"%.1f".format(perfFrames / secs)} drop=$perfDropped maxGapMs=${perfMaxGapNs / 1_000_000} " +
             "trk=${perfTrackingFrames}/$perfFrames state=${cam.trackingState}/${cam.trackingFailureReason} " +
             "cbMs=avg${"%.1f".format(if (perfFrames > 0) perfCbNs / 1e6f / perfFrames else 0f)}/max${"%.1f".format(perfCbMaxNs / 1e6f)} " +
-            "move=path${"%.3f".format(perfPath)}m/lat${"%.3f".format(perfLateral)}m/net${net?.let { "%.3f".format(it) } ?: "-"}m rot=${"%.1f".format(perfRotDeg)}deg " +
+            "move=path${"%.3f".format(perfPath)}m/lat${"%.3f".format(perfLateral)}m/net${net?.let { "%.3f".format(it) } ?: "-"}m rot=${"%.1f".format(perfRotDeg)}deg base=${"%.2f".format(parallaxBaselineM)}m " +
             "ptDepth=n${depths.size}/near$near p10=${q(0.1f)} med=${q(0.5f)} p90=${q(0.9f)}m fx=${fx?.let { "%.1f".format(it) }} " +
             "thermal=$thermalStatus ${batteryInfo()} " +
             "msPerSec[$ours seg=${segRuns}x/${segMs} mask=$maskMs a4=${a4Runs}x/$a4Ms]")
@@ -2405,7 +2411,7 @@ class ARCoreManager private constructor(context: Context) {
             }
         }
         if (!freshDepth) return
-        val after = depthValidator.addCheck(samples, now, parallaxReady = parallaxLateralM >= DepthValidator.MIN_PARALLAX_M)
+        val after = depthValidator.addCheck(samples, now, parallaxReady = parallaxBaselineM >= DepthValidator.MIN_PARALLAX_M)
         // Medians of what was compared: feature-point depth vs depth-image depth (non-zero only). Tells "the depth
         // image is wrong" apart from "the feature points are wrong" (points at 20 m with the image at 2 m = the latter).
         val imgVals = samples.filter { it[1] > 0f }
@@ -2968,6 +2974,9 @@ class ARCoreManager private constructor(context: Context) {
         "floorTracked" to (sceneView?.let { floorHeight(it) } != null),
         // Every confirmed wall of the room (primary + corner / kept walls), for the wall picker.
         "walls" to wallsInfo(sceneView),
+        // How much real camera travel the depth check still needs (0..1); the UI shows it as a scan bar.
+        "scanProgress" to (parallaxBaselineM / DepthValidator.MIN_PARALLAX_M).coerceIn(0f, 1f).toDouble(),
+        "depthState" to depthValidator.state.name,
     )
 
     fun getWallState(): String {

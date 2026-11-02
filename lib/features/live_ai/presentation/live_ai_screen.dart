@@ -80,6 +80,8 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
   String _placementScale = 'none';
   // Native placement surface ('approximate', 'edge_floor_assumed', ...) and whether ARCore tracks the floor.
   String _placementSurface = '';
+  // Android: share of the sideways camera travel depth needs (1 = enough, or not reported, e.g. iOS LiDAR).
+  double _scanProgress = 1;
   bool _floorTracked = false;
   // Camera-to-wall distance now (m), shown once the size is measured; -1 = unknown.
   double _liveDistance = -1;
@@ -147,6 +149,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
         final scale = info['placed'] == true ? (info['scale'] as String? ?? 'approximate') : 'none';
         final surface = info['surface'] as String? ?? '';
         final floor = info['floorTracked'] == true;
+        final scan = (((info['scanProgress'] as num?)?.toDouble() ?? 1).clamp(0.0, 1.0) * 10).round() / 10;
         final live = ((info['liveDistanceM'] as num?)?.toDouble() ?? -1);
         final liveRounded = live < 0 ? -1.0 : (live * 20).round() / 20; // 5 cm steps: no flicker
         final walls = ((info['walls'] as List?) ?? const []).map((w) => Map<String, dynamic>.from(w as Map)).toList();
@@ -162,8 +165,10 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
             (scale != _placementScale ||
                 surface != _placementSurface ||
                 floor != _floorTracked ||
+                scan != _scanProgress ||
                 liveRounded != _liveDistance)) {
           setState(() {
+            _scanProgress = scan;
             _placementScale = scale;
             _placementSurface = surface;
             _floorTracked = floor;
@@ -1189,7 +1194,8 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
           'edge_ceiling' when !_floorTracked => 'Auto-sized · show the floor briefly for exact size',
           'edge_floor_assumed' || 'edge_ceiling' => 'Auto-sizing…',
           // Depth needs sideways parallax (turning on the spot gives none), so ask for a step, not a turn.
-          _ => 'Approximate size · take a slow step sideways, or show an A4 sheet',
+          _ when _scanProgress < 1 => 'Move the phone slowly left and right to measure the wall',
+          _ => 'Approximate size · show an A4 sheet, or tap to enter the distance',
         };
         icon = Icons.straighten_rounded;
         stateColor = const Color(0xFFFFB74D);
@@ -1232,39 +1238,61 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                   border: Border.all(color: stateColor.withValues(alpha: 0.45), width: 0.9),
                   boxShadow: [BoxShadow(color: stateColor.withValues(alpha: 0.15), blurRadius: 16, spreadRadius: 1)],
                 ),
-                child: Row(
+                child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      width: 7,
-                      height: 7,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: stateColor,
-                        boxShadow: [
-                          BoxShadow(color: stateColor.withValues(alpha: 0.8), blurRadius: 6, spreadRadius: 1),
-                        ],
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: stateColor,
+                            boxShadow: [
+                              BoxShadow(color: stateColor.withValues(alpha: 0.8), blurRadius: 6, spreadRadius: 1),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(icon, color: stateColor, size: 14),
+                        const SizedBox(width: 7),
+                        // Long hints wrapped off-screen on narrow phones; wrap them inside the pill instead.
+                        Flexible(
+                          child: Text(
+                            label,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 8),
-                    Icon(icon, color: stateColor, size: 14),
-                    const SizedBox(width: 7),
-                    // Long hints wrapped off-screen on narrow phones; wrap them inside the pill instead.
-                    Flexible(
-                      child: Text(
-                        label,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                          letterSpacing: 0.3,
+                    // Scan meter: fills with real sideways camera travel, so the user sees that moving works.
+                    if (_wallState == 'APPROXIMATE' && _scanProgress < 1)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: SizedBox(
+                          width: 170,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(2),
+                            child: LinearProgressIndicator(
+                              value: _scanProgress,
+                              minHeight: 3,
+                              color: stateColor,
+                              backgroundColor: Colors.white24,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
                   ],
                 ),
               ),
