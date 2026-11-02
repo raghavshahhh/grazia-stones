@@ -2229,6 +2229,9 @@ class ARCoreManager private constructor(context: Context) {
                     depths.add(zc)
                     tex.add((fl[0] * c[0] / zc + pp[0]) / dims[0]) // image x grows right
                     tex.add((pp[1] - fl[1] * c[1] / zc) / dims[1]) // image y grows down, camera +Y is up
+                    if (depths.size <= 3) Log.i(TAG, "DEPTH_PT cam=(${"%.2f".format(c[0])},${"%.2f".format(c[1])},${"%.2f".format(c[2])}) " +
+                        "tex=(${"%.2f".format(tex[tex.size - 2])},${"%.2f".format(tex[tex.size - 1])}) f=(${fl[0].toInt()},${fl[1].toInt()}) " +
+                        "pp=(${pp[0].toInt()},${pp[1].toInt()}) dims=${dims[0]}x${dims[1]}")
                 }
             }
         }
