@@ -2210,24 +2210,25 @@ class ARCoreManager private constructor(context: Context) {
         val now = android.os.SystemClock.elapsedRealtime()
         if (now - lastDepthCheckMs < (if (before == DepthValidator.State.TRUSTED) 3000L else 1000L)) return
         lastDepthCheckMs = now
-        val proj = FloatArray(16); val viewM = FloatArray(16); val vp = FloatArray(16)
-        frame.camera.getProjectionMatrix(proj, 0, 0.05f, 100f)
-        frame.camera.getViewMatrix(viewM, 0)
-        Matrix.multiplyMM(vp, 0, proj, 0, viewM, 0)
-        // Feature points -> (depth along the optical axis, view-normalized u, v)
-        val depths = ArrayList<Float>(); val uv = ArrayList<Float>()
+        // Feature points -> (depth along the optical axis, texture-normalized u, v). Projected straight through the
+        // physical camera (image-readout axes) and the GPU texture intrinsics, which the depth image shares. The old
+        // route through the display-oriented view matrix and VIEW_NORMALIZED -> TEXTURE_NORMALIZED put 70-85% of the
+        // points outside the depth image on the OnePlus (device log 2026-11-02), so depth was never validated.
+        val camInv = frame.camera.pose.inverse()
+        val intr = frame.camera.textureIntrinsics
+        val fl = intr.focalLength; val pp = intr.principalPoint; val dims = intr.imageDimensions
+        val depths = ArrayList<Float>(); val tex = ArrayList<Float>()
         runCatching {
             frame.acquirePointCloud().use { pc ->
                 val buf = pc.points
                 for (i in 0 until buf.remaining() / 4) {
-                    val x = buf.get(i * 4); val y = buf.get(i * 4 + 1); val z = buf.get(i * 4 + 2)
                     if (buf.get(i * 4 + 3) < 0.3f) continue
-                    val cw = vp[3] * x + vp[7] * y + vp[11] * z + vp[15] // = depth along the optical axis
-                    if (cw <= 0.05f) continue
-                    val nx = (vp[0] * x + vp[4] * y + vp[8] * z + vp[12]) / cw
-                    val ny = (vp[1] * x + vp[5] * y + vp[9] * z + vp[13]) / cw
-                    if (nx < -1f || nx > 1f || ny < -1f || ny > 1f) continue
-                    depths.add(cw); uv.add(nx * 0.5f + 0.5f); uv.add(0.5f - ny * 0.5f)
+                    val c = camInv.transformPoint(floatArrayOf(buf.get(i * 4), buf.get(i * 4 + 1), buf.get(i * 4 + 2)))
+                    val zc = -c[2] // the camera looks down -Z
+                    if (zc <= 0.05f) continue
+                    depths.add(zc)
+                    tex.add((fl[0] * c[0] / zc + pp[0]) / dims[0]) // image x grows right
+                    tex.add((pp[1] - fl[1] * c[1] / zc) / dims[1]) // image y grows down, camera +Y is up
                 }
             }
         }
@@ -2236,10 +2237,8 @@ class ARCoreManager private constructor(context: Context) {
         // Where feature points get lost on the way to a depth sample (diagnoses "0/0 usable samples").
         var outOfTex = 0; var zeroMm = 0; var depthInfo = "none"
         if (depths.isNotEmpty()) {
-            // The depth image follows the GPU texture (its aspect ratio, not the 4:3 CPU image's): per the Depth API
-            // guide, map into TEXTURE_NORMALIZED and scale by the depth image size. Outside [0,1] = no depth there.
-            val tex = FloatArray(uv.size)
-            frame.transformCoordinates2d(Coordinates2d.VIEW_NORMALIZED, uv.toFloatArray(), Coordinates2d.TEXTURE_NORMALIZED, tex)
+            // The depth image has the GPU texture's aspect ratio (not the 4:3 CPU image's), so texture-normalized
+            // coordinates scale straight to depth pixels. Outside [0,1] = the point is not in the camera image.
             try {
                 // This phone (OnePlus NE2211) never delivers raw depth, only the smoothed image; without the
                 // fallback the validator got 0 samples, went UNAVAILABLE and depth was switched off.
