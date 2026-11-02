@@ -2233,6 +2233,8 @@ class ARCoreManager private constructor(context: Context) {
         }
         val samples = ArrayList<FloatArray>()
         var freshDepth = true
+        // Where feature points get lost on the way to a depth sample (diagnoses "0/0 usable samples").
+        var outOfTex = 0; var zeroMm = 0; var depthInfo = "none"
         if (depths.isNotEmpty()) {
             // The depth image follows the GPU texture (its aspect ratio, not the 4:3 CPU image's): per the Depth API
             // guide, map into TEXTURE_NORMALIZED and scale by the depth image size. Outside [0,1] = no depth there.
@@ -2243,6 +2245,7 @@ class ARCoreManager private constructor(context: Context) {
                 // fallback the validator got 0 samples, went UNAVAILABLE and depth was switched off.
                 val raw = try { frame.acquireRawDepthImage16Bits() } catch (e: com.google.ar.core.exceptions.NotYetAvailableException) { null }
                 (raw ?: frame.acquireDepthImage16Bits()).use { depth ->
+                    depthInfo = "${if (raw != null) "raw" else "smooth"}${depth.width}x${depth.height}"
                     // Not every frame brings new raw depth; a repeat is a reprojection and must not count as a new check.
                     if (depth.timestamp == lastRawDepthTs) { freshDepth = false; return@use }
                     lastRawDepthTs = depth.timestamp
@@ -2254,10 +2257,11 @@ class ARCoreManager private constructor(context: Context) {
                         val cPlane = conf?.planes?.get(0)
                         for (i in depths.indices) {
                             val tx = tex[i * 2]; val ty = tex[i * 2 + 1]
-                            if (tx !in 0f..1f || ty !in 0f..1f) continue
+                            if (tx !in 0f..1f || ty !in 0f..1f) { outOfTex++; continue }
                             val px = (tx * dw).toInt().coerceAtMost(dw - 1); val py = (ty * dh).toInt().coerceAtMost(dh - 1)
                             val mm = dBuf.getShort(py * dPlane.rowStride + px * dPlane.pixelStride).toInt() and 0xFFFF
                             val c = cPlane?.let { (it.buffer.get(py * it.rowStride + px * it.pixelStride).toInt() and 0xFF) / 255f } ?: -1f
+                            if (mm == 0) zeroMm++
                             samples.add(floatArrayOf(depths[i], mm / 1000f, c))
                         }
                     } finally {
@@ -2266,13 +2270,14 @@ class ARCoreManager private constructor(context: Context) {
                 }
             } catch (e: com.google.ar.core.exceptions.NotYetAvailableException) {
                 // no depth frame yet: an empty check still runs the decision timeout
+                depthInfo = "not_yet_available"
             } catch (e: Exception) {
                 Log.w(TAG, "DEPTH_CHECK failed: ${e.javaClass.simpleName}: ${e.message}")
             }
         }
         if (!freshDepth) return
         val after = depthValidator.addCheck(samples, now)
-        Log.i(TAG, "DEPTH_CHECK points=${depths.size} ${depthValidator.lastReport}")
+        Log.i(TAG, "DEPTH_CHECK points=${depths.size} depth=$depthInfo outOfTex=$outOfTex zeroMm=$zeroMm ${depthValidator.lastReport}")
         if (after != before) {
             Log.i(TAG, "DEPTH_DECISION $before -> $after (${depthValidator.lastReport})")
             if ((after == DepthValidator.State.REJECTED || after == DepthValidator.State.UNAVAILABLE) && !depthMeasureMode) {

@@ -57,10 +57,12 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
       _selectedStones.add(widget.preSelectedStoneId!);
     }
     _selectedStones.addAll(widget.preSelectedStoneIds);
-    // Auto-select all stones from cart
-    final cartItems = ref.read(cartProvider);
-    for (final item in cartItems) {
-      _selectedStones.add(item.stone.id);
+    // Opened from the cart / sample menu: the cart's designs are the kit. Opened from one design: only that one
+    // is ticked; cart designs are listed below it to add with one tap.
+    if (widget.preSelectedStoneId == null) {
+      for (final item in ref.read(cartProvider)) {
+        _selectedStones.add(item.stone.id);
+      }
     }
 
     _loadStones();
@@ -242,7 +244,7 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
 
       setState(() {
         _stones = targetStones;
-        if (!offeredAsChoices) {
+        if (!offeredAsChoices && widget.preSelectedStoneId == null) {
           for (final s in targetStones) {
             _selectedStones.add(s.id);
           }
@@ -633,7 +635,7 @@ class _SampleOrderScreenState extends ConsumerState<SampleOrderScreen> {
                         Builder(
                           builder: (context) {
                             final cartItems = ref.watch(cartProvider);
-                            if (cartItems.isEmpty) return const SizedBox.shrink();
+                            if (cartItems.isEmpty || widget.preSelectedStoneId != null) return const SizedBox.shrink();
                             return Container(
                               margin: const EdgeInsets.only(bottom: 14),
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),

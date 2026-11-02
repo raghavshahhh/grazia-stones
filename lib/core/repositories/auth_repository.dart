@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../config/env_config.dart';
@@ -77,7 +77,11 @@ class AuthRepository {
   /// Null when the browser flow was started: the session arrives later through the auth-callback deep link.
   Future<User?> signInWithGoogle() async {
     final env = EnvConfig();
-    if (kIsWeb || !env.isGoogleOAuthConfigured) {
+    // Native Google Sign-In on Android needs the Play app-signing SHA-1 registered on an Android OAuth client;
+    // without it every Play install failed (DEVELOPER_ERROR). The browser flow through Supabase needs no SHA-1,
+    // so Android (and iOS without its own client ID) always use it.
+    final native = !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS && env.googleIosClientId.isNotEmpty;
+    if (!native) {
       final launched = await _sb.signInWithOAuth(OAuthProvider.google,
           redirectTo: kIsWeb ? null : SupabaseService.authCallbackUrl);
       if (!launched) throw Exception('Google sign-in failed');
