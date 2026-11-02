@@ -17,7 +17,8 @@ object Placement {
         // Tracked floor plane + the wall's own floor line in the image (metric distance and real angle).
         "edge_floor_tracked" -> "floor_edge"
         "DepthPoint" -> "validated_depth"
-        "Point", "pointcloud" -> "validated_pointcloud"
+        // A single feature point is not validated (7-15 m logged on a ~2 m wall); a RANSAC fit of several is.
+        "pointcloud" -> "validated_pointcloud"
         // "user_rectangle": four tapped corners of something the user measured (a painting, a door).
         "user_calibrated", "user_rectangle" -> "user_calibrated"
         // An A4 sheet found on the wall: its known 210 x 297 mm corners fix distance and angle (A4Reference).

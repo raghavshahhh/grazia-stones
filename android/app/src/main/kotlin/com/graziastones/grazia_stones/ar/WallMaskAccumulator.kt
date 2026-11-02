@@ -24,6 +24,31 @@ class WallMaskAccumulator {
         private const val BLEND = 0.45f
         // Closer than this, a plain wall fills the view with no context and the segmenter guesses; keep memory.
         private const val MIN_UPDATE_DISTANCE_M = 0.9f
+        /**
+         * ADE20K objects that hang ON a wall and that the model rarely invents on bare plaster: painting, mirror,
+         * television, poster, screen, crt screen, monitor, bulletin board, clock. Door / window / person are left
+         * out on purpose: the model calls close-up or bright plaster those (see WallGeodesic BG_* notes).
+         */
+        private val HARD_OBJECTS = intArrayOf(22, 27, 89, 100, 130, 141, 143, 144, 148)
+        /** Model wall probability (0..255) below which a hard-object pixel is cut even if it looks like the wall. */
+        private const val HARD_CUT_WALL_MAX = 64
+        /** More of the view than this called "painting" etc. is a misread textured wall, not an object: no cut. */
+        private const val HARD_MAX_SHARE = 0.25f
+        /** Grid step (m) of the fallback seed search over the quad when the placement point is off screen. */
+        private const val SEED_STEP_M = 0.25f
+        /** Model wall probability (0..255) a fallback seed must have. */
+        private const val SEED_MIN_WALL = 178
+        /**
+         * Fallback seeds stay within this distance (m) along the wall from the placement point. Further out the
+         * oversized quad's plane runs past a room corner and projects onto the side wall, which must not be seeded.
+         */
+        private const val SEED_MAX_SIDE_M = 1.5f
+
+        /** Column-major 4x4 a * b (android.opengl.Matrix.multiplyMM without the Android stub, for JVM tests). */
+        internal fun mul(a: FloatArray, b: FloatArray): FloatArray = FloatArray(16) { k ->
+            val c = k / 4; val r = k % 4
+            a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3]
+        }
     }
 
     private val acc = FloatArray(W * H)
@@ -70,14 +95,29 @@ class WallMaskAccumulator {
         seedX: Float = 0f, keepMinX: Float = -Float.MAX_VALUE, keepMaxX: Float = Float.MAX_VALUE,
     ) {
         if (camDistanceM < MIN_UPDATE_DISTANCE_M && hasData) { lastDebug = "skip=too_close"; return }
-        val m = FloatArray(16)
-        android.opengl.Matrix.multiplyMM(m, 0, vp, 0, quadToWorld, 0) // quad-local -> clip
+        val m = mul(vp, quadToWorld) // quad-local -> clip
         val gw = WallSegmenter.GW; val gh = WallSegmenter.GH
-        val seed = seedPixel(m, seedX, seedZ, gw, gh) ?: run { lastDebug = "skip=seed_off_screen"; return } // keep the remembered mask
+        val hard = hardObjects(seg, maskW, maskH)
+        var seed = seedPixel(m, seedX, seedZ, gw, gh)
+        var seedNote = ""
+        // The placement point is off screen (an edge placement seeds 1 m above an assumed floor while the camera
+        // looks at the ceiling line) or sits on a painting/TV: seed on the nearest quad point the model calls wall
+        // instead. Before, every update was skipped and a fresh placement stayed unclipped (quadCoverage=0.00).
+        if (seed == null || (hard != null && hardAt(hard, seed % gw, seed / gw, gw, gh, maskW, maskH))) {
+            val alt = fallbackSeed(m, seg, maskW, maskH, hard, seedX, seedZ, quadW, quadH, zMin, keepMinX, keepMaxX)
+            if (alt != null) { seedNote = if (seed == null) " seed_fallback" else " seed_off_object"; seed = alt }
+        }
+        if (seed == null) { lastDebug = "skip=seed_off_screen"; return } // keep the remembered mask
         // THE wall: everything reachable from where the design was placed without crossing an edge or leaving
         // the wall's colour/lighting (WallGeodesic), at camera resolution.
-        val wall = WallGeodesic.segment(seg.lab, gw, gh, seed % gw, seed / gw, seg.nonWall)
-        lastWall = wall
+        val geo = WallGeodesic.segment(seg.lab, gw, gh, seed % gw, seed / gw, seg.nonWall)
+        lastWall = geo // WallEdges / WallCorner keep the uncut outline
+        // Paintings / mirrors / TVs the same colour as the wall have no colour edge for the fill to stop at; cut
+        // them from the stone where the model (edge-refined) is sure they are not wall.
+        var cut = 0
+        val wall = if (hard == null) geo else geo.copyOf().also { s ->
+            for (k in s.indices) if (s[k] && hardAt(hard, k % gw, k / gw, gw, gh, maskW, maskH)) { s[k] = false; cut++ }
+        }
         val lum = seg.lab[0]
         // Mean brightness of the wall in this frame: the reference for "unshaded".
         var lumSum = 0f; var lumN = 0
@@ -112,7 +152,8 @@ class WallMaskAccumulator {
             }
         }
         if (seen > 0) lastCoverage = wallSeen.toFloat() / seen
-        lastDebug = "seed=(${seed % gw},${seed / gw}) fill=${wall.count { it } * 100 / wall.size}% seen=$seen"
+        lastDebug = "seed=(${seed % gw},${seed / gw})$seedNote fill=${wall.count { it } * 100 / wall.size}% seen=$seen" +
+            if (cut > 0) " hardCut=${cut * 100 / wall.size}%" else ""
         hasData = true
     }
 
@@ -127,6 +168,60 @@ class WallMaskAccumulator {
         val sx = ((nx * 0.5f + 0.5f) * maskW).toInt().coerceIn(0, maskW - 1)
         val sy = ((0.5f - ny * 0.5f) * maskH).toInt().coerceIn(0, maskH - 1)
         return sy * maskW + sx
+    }
+
+    /**
+     * MASK-grid flags: the model's arg-max is a [HARD_OBJECTS] class and its edge-refined wall probability is low.
+     * Null when there is nothing to cut or when so much of the view is "painting" that the model misread the wall.
+     */
+    private fun hardObjects(seg: WallSegmenter.Result, maskW: Int, maskH: Int): BooleanArray? {
+        val ow = WallSegmenter.OUT_W; val oh = WallSegmenter.OUT_H
+        var cells = 0
+        for (c in seg.classes) if ((c.toInt() and 0xFF) in HARD_OBJECTS) cells++
+        if (cells == 0 || cells > seg.classes.size * HARD_MAX_SHARE) return null
+        return BooleanArray(maskW * maskH) { k ->
+            val x = k % maskW; val y = k / maskW
+            val cls = seg.classes[(y * oh / maskH) * ow + x * ow / maskW].toInt() and 0xFF
+            cls in HARD_OBJECTS && (seg.wall[k].toInt() and 0xFF) < HARD_CUT_WALL_MAX
+        }
+    }
+
+    /** [hard] (MASK grid) at GW x GH grid pixel ([gx], [gy]). */
+    private fun hardAt(hard: BooleanArray, gx: Int, gy: Int, gw: Int, gh: Int, mw: Int, mh: Int): Boolean =
+        hard[(gy * mh / gh) * mw + gx * mw / gw]
+
+    /**
+     * The quad point nearest to ([seedX], [seedZ]) that is on screen (10% margin), on this wall's side of a corner,
+     * at most [SEED_MAX_SIDE_M] along the wall from it, and that the model calls wall with confidence, as a GW x GH grid index; null when there is none.
+     */
+    private fun fallbackSeed(
+        m: FloatArray, seg: WallSegmenter.Result, maskW: Int, maskH: Int, hard: BooleanArray?,
+        seedX: Float, seedZ: Float, quadW: Float, quadH: Float, zMin: Float, keepMinX: Float, keepMaxX: Float,
+    ): Int? {
+        val gw = WallSegmenter.GW; val gh = WallSegmenter.GH
+        val nx = (quadW / SEED_STEP_M).toInt(); val nz = (quadH / SEED_STEP_M).toInt()
+        val cands = ArrayList<FloatArray>(nx * nz)
+        for (i in 0..nx) for (j in 0..nz) {
+            val x = -quadW / 2f + i * SEED_STEP_M; val z = zMin + j * SEED_STEP_M
+            if (x < keepMinX || x > keepMaxX || abs(x - seedX) > SEED_MAX_SIDE_M) continue
+            cands.add(floatArrayOf(x, z, (x - seedX) * (x - seedX) + (z - seedZ) * (z - seedZ)))
+        }
+        cands.sortBy { it[2] }
+        for (c in cands) {
+            val cw = m[3] * c[0] + m[11] * c[1] + m[15]
+            if (cw <= 1e-4f) continue
+            val px = (m[0] * c[0] + m[8] * c[1] + m[12]) / cw
+            val py = (m[1] * c[0] + m[9] * c[1] + m[13]) / cw
+            if (px < -0.9f || px > 0.9f || py < -0.9f || py > 0.9f) continue
+            val mx = ((px * 0.5f + 0.5f) * maskW).toInt().coerceIn(0, maskW - 1)
+            val my = ((0.5f - py * 0.5f) * maskH).toInt().coerceIn(0, maskH - 1)
+            if ((seg.wall[my * maskW + mx].toInt() and 0xFF) < SEED_MIN_WALL) continue
+            if (hard != null && hard[my * maskW + mx]) continue
+            val gx = ((px * 0.5f + 0.5f) * gw).toInt().coerceIn(0, gw - 1)
+            val gy = ((0.5f - py * 0.5f) * gh).toInt().coerceIn(0, gh - 1)
+            return gy * gw + gx
+        }
+        return null
     }
 
     /** Paints a brush disk of [radiusM] at quad-space ([x], [z]) on the mask (see [edit]). */

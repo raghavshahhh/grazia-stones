@@ -23,6 +23,9 @@ class DepthValidator {
         const val BAD_MEDIAN_ERR = 0.25f
         const val MIN_CONFIDENCE = 0.5f
         const val DECIDE_WITHIN_MS = 20_000L
+        // Feature points only get a metric depth from sideways camera motion; a phone held still or only turned
+        // drifts them outward (11-44 m logged for a ~2 m wall), which made every check fail and depth switch off.
+        const val MIN_PARALLAX_M = 0.20f
         const val MIN_DEPTH_M = 0.3f
         const val MAX_DEPTH_M = 6f
         // A depth hit must repeat within this share, near the same screen spot, before it places anything.
@@ -44,8 +47,13 @@ class DepthValidator {
      * One comparison: each sample is (feature-point depth m, depth-image depth m, confidence 0..1 or -1 when the
      * image has none). Returns the state after this check.
      */
-    @Synchronized fun addCheck(samples: List<FloatArray>, nowMs: Long): State {
+    @Synchronized fun addCheck(samples: List<FloatArray>, nowMs: Long, parallaxReady: Boolean = true): State {
         if (state == State.REJECTED || state == State.UNAVAILABLE) return state
+        // No decision (and no timeout) until the camera has moved sideways enough to trust the feature points.
+        if (!parallaxReady) {
+            lastReport = "waiting for sideways motion"
+            return state
+        }
         if (startedMs < 0) startedMs = nowMs
         val errs = ArrayList<Float>(); val ratios = ArrayList<Float>()
         for (s in samples) {

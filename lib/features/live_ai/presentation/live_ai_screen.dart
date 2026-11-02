@@ -1188,7 +1188,8 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
           'edge_floor_assumed' ||
           'edge_ceiling' when !_floorTracked => 'Auto-sized · show the floor briefly for exact size',
           'edge_floor_assumed' || 'edge_ceiling' => 'Auto-sizing…',
-          _ => 'Stick an A4 sheet on the wall, or tilt down to the floor line',
+          // Depth needs sideways parallax (turning on the spot gives none), so ask for a step, not a turn.
+          _ => 'Approximate size · take a slow step sideways, or show an A4 sheet',
         };
         icon = Icons.straighten_rounded;
         stateColor = const Color(0xFFFFB74D);

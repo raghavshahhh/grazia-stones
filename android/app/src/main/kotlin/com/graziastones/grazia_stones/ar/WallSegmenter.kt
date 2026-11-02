@@ -15,8 +15,8 @@ import kotlin.math.exp
  * Finds the wall pixels in the live camera image, so the stone is drawn only on the wall (not on doors,
  * switchboards, furniture, floor or ceiling). ARCore cannot find plain painted walls; this can.
  *
- * Model: EfficientViT-Seg B1 trained on ADE20K (MIT HAN Lab, Apache-2.0), exported to ONNX at 288x640
- * (portrait, close to the phone's screen aspect). ADE20K class 0 is "wall". Output: 36x80 logits.
+ * Model: EfficientViT-Seg B1 trained on ADE20K (MIT HAN Lab, Apache-2.0), exported to ONNX at 160x352
+ * (portrait, close to the phone's screen aspect). ADE20K class 0 is "wall". Output: 150 x 20x44 logits.
  * The mask is produced in VIEW space (row 0 = top of the screen), which is what the wall material samples.
  */
 class WallSegmenter(private val context: Context) {
@@ -52,6 +52,27 @@ class WallSegmenter(private val context: Context) {
         }
         private val MEAN = floatArrayOf(0.485f, 0.456f, 0.406f)
         private val STD = floatArrayOf(0.229f, 0.224f, 0.225f)
+
+        /**
+         * Image-pixel coordinates of the pixel centres of a [gw] x [gh] view grid, into [out] (x, y interleaved).
+         * [v2i] = view-normalized (0,0), (1,0), (0,1) mapped to image pixels: the view -> image map is affine
+         * (rotation + crop + scale), so three points replace transforming every grid point through ARCore on the
+         * render thread (218k points per request before). tool/wall_lab/kt_mask.py makes the same assumption.
+         */
+        fun affineGrid(v2i: FloatArray, gw: Int, gh: Int, out: FloatArray) {
+            val ox = v2i[0]; val oy = v2i[1]
+            val ax = v2i[2] - ox; val ay = v2i[3] - oy
+            val bx = v2i[4] - ox; val by = v2i[5] - oy
+            for (y in 0 until gh) {
+                val v = (y + 0.5f) / gh
+                for (x in 0 until gw) {
+                    val u = (x + 0.5f) / gw
+                    val i = (y * gw + x) * 2
+                    out[i] = ox + ax * u + bx * v
+                    out[i + 1] = oy + ay * u + by * v
+                }
+            }
+        }
     }
 
     private val env = OrtEnvironment.getEnvironment()
@@ -69,19 +90,21 @@ class WallSegmenter(private val context: Context) {
         // 3 threads, not all big cores: ARCore tracking and the Flutter UI must keep their share or the AR
         // view stutters and the phone throttles.
         val threads = (Runtime.getRuntime().availableProcessors() / 2).coerceIn(2, 3)
+        // ORT's intra-op workers spin-wait for work by default. With XNNPACK's own pool next to ORT's, that is
+        // 2 x 3 threads burning big cores between ops: heat, and CPU taken from ARCore tracking. ORT's XNNPACK docs
+        // recommend turning spinning off.
+        fun opts() = OrtSession.SessionOptions().apply {
+            setIntraOpNumThreads(threads)
+            addConfigEntry("session.intra_op.allow_spinning", "0")
+        }
         val attempts = buildList<Pair<String, () -> OrtSession>> {
-            if (wanted == "nnapi") add("nnapi" to {
-                env.createSession(bytes, OrtSession.SessionOptions().apply { addNnapi(); setIntraOpNumThreads(threads) })
-            })
+            if (wanted == "nnapi") add("nnapi" to { env.createSession(bytes, opts().apply { addNnapi() }) })
             if (wanted != "cpu") add("xnnpack" to {
                 // XNNPACK takes the convolutions; the attention MatMul/Transpose ops stay on the CPU EP, and
                 // those ran single-threaded before (intraOp=1), which is why a frame took 1.5-2.5 s.
-                env.createSession(bytes, OrtSession.SessionOptions().apply {
-                    addXnnpack(mapOf("intra_op_num_threads" to "$threads"))
-                    setIntraOpNumThreads(threads)
-                })
+                env.createSession(bytes, opts().apply { addXnnpack(mapOf("intra_op_num_threads" to "$threads")) })
             })
-            add("cpu" to { env.createSession(bytes, OrtSession.SessionOptions().apply { setIntraOpNumThreads(threads) }) })
+            add("cpu" to { env.createSession(bytes, opts()) })
         }
         var created: OrtSession? = null
         for ((name, make) in attempts) {
@@ -94,23 +117,14 @@ class WallSegmenter(private val context: Context) {
     private val worker = Executors.newSingleThreadExecutor()
     @Volatile private var busy = false
 
-    // View-normalized sample grid (x, y per input pixel), mapped to camera-image pixels every request.
-    private val viewGrid = FloatArray(IN_W * IN_H * 2).also { g ->
-        for (y in 0 until IN_H) for (x in 0 until IN_W) {
-            val i = (y * IN_W + x) * 2
-            g[i] = (x + 0.5f) / IN_W
-            g[i + 1] = (y + 0.5f) / IN_H
-        }
-    }
-    private val imageCoords = FloatArray(IN_W * IN_H * 2)
-    private val gGrid = FloatArray(GW * GH * 2).also { g ->
-        for (y in 0 until GH) for (x in 0 until GW) {
-            val i = (y * GW + x) * 2
-            g[i] = (x + 0.5f) / GW
-            g[i + 1] = (y + 0.5f) / GH
-        }
-    }
-    private val gCoords = FloatArray(GW * GH * 2)
+    // Worker-only scratch (single-thread executor, one job at a time via [busy]): reused, not reallocated per run.
+    private val imageCoords = FloatArray(IN_W * IN_H * 2) // camera-image pixel per model input pixel
+    private val gCoords = FloatArray(GW * GH * 2)         // camera-image pixel per GW x GH grid pixel
+    private val inputBuf = FloatBuffer.allocate(3 * IN_W * IN_H)
+    private val lumaIn = FloatArray(IN_W * IN_H)
+    private val cuIn = FloatArray(IN_W * IN_H)
+    private val cvIn = FloatArray(IN_W * IN_H)
+    private val V2I_POINTS = floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f)
 
     /**
      * Grabs the current camera image (on the caller's thread: ARCore needs that) and segments it in the
@@ -134,23 +148,22 @@ class WallSegmenter(private val context: Context) {
         val image = try { frame.acquireCameraImage() } catch (e: Exception) { return }
         busy = true
         try {
-            frame.transformCoordinates2d(Coordinates2d.VIEW_NORMALIZED, viewGrid, Coordinates2d.IMAGE_PIXELS, imageCoords)
-            frame.transformCoordinates2d(Coordinates2d.VIEW_NORMALIZED, gGrid, Coordinates2d.IMAGE_PIXELS, gCoords)
-            val gc = gCoords.copyOf()
+            val v2i = FloatArray(6)
+            frame.transformCoordinates2d(Coordinates2d.VIEW_NORMALIZED, V2I_POINTS, Coordinates2d.IMAGE_PIXELS, v2i)
             val w = image.width; val h = image.height
             val yP = image.planes[0]; val uP = image.planes[1]; val vP = image.planes[2]
             val yBytes = ByteArray(yP.buffer.remaining()).also { yP.buffer.get(it) }
             val uBytes = ByteArray(uP.buffer.remaining()).also { uP.buffer.get(it) }
             val vBytes = ByteArray(vP.buffer.remaining()).also { vP.buffer.get(it) }
             val yRow = yP.rowStride; val uvRow = uP.rowStride; val uvPix = uP.pixelStride
-            val coords = imageCoords.copyOf()
             if (dumpEnabled && dumped < MAX_DUMPS) dumpFrame(frame, w, h, yBytes, uBytes, vBytes, yRow, uvRow, uvPix)
             image.close()
             worker.execute {
                 try {
-                    val luma = FloatArray(IN_W * IN_H)
-                    val cu = FloatArray(IN_W * IN_H); val cv = FloatArray(IN_W * IN_H)
-                    val input = toInput(coords, w, h, yBytes, uBytes, vBytes, yRow, uvRow, uvPix, luma, cu, cv)
+                    affineGrid(v2i, IN_W, IN_H, imageCoords)
+                    affineGrid(v2i, GW, GH, gCoords)
+                    val luma = lumaIn; val cu = cuIn; val cv = cvIn
+                    val input = toInput(imageCoords, w, h, yBytes, uBytes, vBytes, yRow, uvRow, uvPix, luma, cu, cv)
                     val t0 = android.os.SystemClock.elapsedRealtime()
                     var tRun = 0L
                     val mask = OnnxTensor.createTensor(env, input, longArrayOf(1, 3, IN_H.toLong(), IN_W.toLong())).use { tensor ->
@@ -163,7 +176,7 @@ class WallSegmenter(private val context: Context) {
                     }.let { refineEdges(it, luma) }
                     lastInferenceMs = android.os.SystemClock.elapsedRealtime() - t0
                     lastRunMs = tRun
-                    val lab = labGrid(gc, w, h, yBytes, uBytes, vBytes, yRow, uvRow, uvPix)
+                    val lab = labGrid(gCoords, w, h, yBytes, uBytes, vBytes, yRow, uvRow, uvPix)
                     onMask(Result(mask, upsampleVeto(lastVeto), downsampleLuma(luma), downsampleLuma(cu), downsampleLuma(cv),
                         lab, nonWallSeeds(lastNonWall), lastClasses))
                 } catch (e: Exception) {
@@ -229,7 +242,7 @@ class WallSegmenter(private val context: Context) {
         luma: FloatArray, chromaU: FloatArray, chromaV: FloatArray,
     ): FloatBuffer {
         val plane = IN_W * IN_H
-        val buf = FloatBuffer.allocate(3 * plane)
+        val buf = inputBuf.also { it.clear() }
         val arr = buf.array()
         for (i in 0 until plane) {
             val px = coords[i * 2].toInt().coerceIn(0, w - 1)

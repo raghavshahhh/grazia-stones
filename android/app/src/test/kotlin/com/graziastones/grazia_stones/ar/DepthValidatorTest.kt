@@ -13,6 +13,16 @@ class DepthValidatorTest {
         floatArrayOf(d, d * scale * (1f + (rnd.nextFloat() - 0.5f) * 2f * noise), conf)
     }
 
+    @Test fun `no decision and no timeout while the camera has not moved sideways`() {
+        val v = DepthValidator()
+        // A still phone for 60 s: bad-looking samples must neither reject depth nor run the 20 s timeout.
+        repeat(60) { assertEquals(DepthValidator.State.UNKNOWN, v.addCheck(samples(40, 8f), it * 1000L, parallaxReady = false)) }
+        assertEquals("waiting for sideways motion", v.lastReport)
+        // Once the user steps sideways, the decision runs normally.
+        repeat(3) { v.addCheck(samples(40, 1.0f), 61_000L + it * 1000L, parallaxReady = true) }
+        assertEquals(DepthValidator.State.TRUSTED, v.state)
+    }
+
     @Test fun `agreeing depth becomes trusted after three checks`() {
         val v = DepthValidator()
         assertEquals(DepthValidator.State.UNKNOWN, v.addCheck(samples(40, 1.0f), 0))

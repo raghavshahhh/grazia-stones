@@ -97,6 +97,10 @@ class ARCoreManager private constructor(context: Context) {
         const val PLACED_WALL_WIDTH_M = 3.0f
         const val PLACED_WALL_HEIGHT_M = 2.7f
         private const val TAG = "ARCoreManager"
+        // AR_PERF time slots (main-thread work inside onSessionUpdated).
+        private const val P_SEG = 0; private const val P_AUTO = 1; private const val P_JOIN = 2
+        private const val P_DEPTH = 3; private const val P_A4 = 4
+        private val PERF_NAMES = arrayOf("segMain", "auto", "join", "depth", "a4Main")
 
         @Volatile
         private var INSTANCE: ARCoreManager? = null
@@ -227,12 +231,14 @@ class ARCoreManager private constructor(context: Context) {
                     onError?.invoke("AR configuration failed: ${e.message}")
                 }
             }
+            val cbStartNs = System.nanoTime()
+            perfOnFrame(frame)
             val updated = frame.getUpdatedTrackables(Plane::class.java)
             onPlanesUpdated(updated)
             val camera = frame.camera
-            requestWallMask(view, frame)
-            autoPlace(view, camera.trackingState)
-            if (camera.trackingState == TrackingState.TRACKING) refineAndJoinWalls(view)
+            timed(P_SEG) { requestWallMask(view, frame) }
+            timed(P_AUTO) { autoPlace(view, camera.trackingState) }
+            if (camera.trackingState == TrackingState.TRACKING) timed(P_JOIN) { refineAndJoinWalls(view) }
             updateQuadTransform()
             placedAnchorNode?.let { val show = !userHidden && primarySelected && designReady(); if (shownState != show) { it.isVisible = show; shownState = show } }
             for (w in roomWalls) {
@@ -241,12 +247,13 @@ class ARCoreManager private constructor(context: Context) {
                 if (w.node.anchor.trackingState == TrackingState.TRACKING) w.mi?.let { mi -> quadTransform(mi, w.node.anchor, w.zMin) }
             }
             logTrackingDiagnostics(camera.trackingState, camera.trackingFailureReason, updated.size, view)
-            validateDepth(session, frame)
-            detectA4(view, frame)
+            timed(P_DEPTH) { validateDepth(session, frame) }
+            timed(P_A4) { detectA4(view, frame) }
             onTrackingStateChanged?.invoke(
                 if (camera.trackingState == TrackingState.TRACKING) "TRACKING"
                 else mapTrackingFailure(camera.trackingFailureReason)
             )
+            perfEndFrame(cbStartNs, frame)
         }
         view.onTrackingFailureChanged = { reason ->
             onTrackingStateChanged?.invoke(mapTrackingFailure(reason))
@@ -259,6 +266,114 @@ class ARCoreManager private constructor(context: Context) {
     }
 
     private var configuredSession: Session? = null
+
+    // ── AR_PERF: one log line per second. Instrumentation only: counters and timers, no behaviour. ──
+    // fps = new camera frames handed to us (SceneView skips repeated timestamps); drop = camera frames missing
+    // between them (timestamp gaps); cb = time inside onSessionUpdated on the main thread; path / lateral / rot =
+    // camera travel in the window (lateral = sideways to the view, the motion that gives depth parallax).
+    private val perfNs = LongArray(PERF_NAMES.size)
+    private val perfSegRuns = java.util.concurrent.atomic.AtomicInteger()
+    private val perfSegWorkMs = java.util.concurrent.atomic.AtomicLong()
+    private val perfMaskNs = java.util.concurrent.atomic.AtomicLong()
+    private val perfA4Runs = java.util.concurrent.atomic.AtomicInteger()
+    private val perfA4WorkMs = java.util.concurrent.atomic.AtomicLong()
+    private var perfPeriodNs = 33_333_333L
+    private var perfWindowMs = 0L
+    private var perfFrames = 0; private var perfTrackingFrames = 0; private var perfDropped = 0
+    private var perfMaxGapNs = 0L; private var perfLastTs = 0L
+    private var perfCbNs = 0L; private var perfCbMaxNs = 0L
+    private var perfPath = 0f; private var perfLateral = 0f; private var perfRotDeg = 0f
+    // Sideways travel since the session started: feature-point depth needs parallax, so depth validation waits for it.
+    private var parallaxLateralM = 0f
+    private var perfLastPos: FloatArray? = null; private var perfLastFwd: FloatArray? = null
+    private var perfWindowPos: FloatArray? = null
+
+    private inline fun timed(slot: Int, block: () -> Unit) {
+        val t = System.nanoTime(); block(); perfNs[slot] += System.nanoTime() - t
+    }
+
+    private fun perfOnFrame(frame: com.google.ar.core.Frame) {
+        val ts = frame.timestamp
+        if (perfLastTs != 0L && ts > perfLastTs) {
+            val gap = ts - perfLastTs
+            if (gap > perfMaxGapNs) perfMaxGapNs = gap
+            if (gap * 2 > perfPeriodNs * 3) perfDropped += ((gap + perfPeriodNs / 2) / perfPeriodNs - 1).toInt()
+        }
+        perfLastTs = ts
+        perfFrames++
+        val cam = frame.camera
+        if (cam.trackingState != TrackingState.TRACKING) { perfLastPos = null; perfLastFwd = null; return }
+        perfTrackingFrames++
+        val pose = cam.pose
+        val pos = pose.translation; val fwd = pose.getTransformedAxis(2, -1f)
+        if (perfWindowPos == null) perfWindowPos = pos
+        val lp = perfLastPos; val lf = perfLastFwd
+        if (lp != null && lf != null) {
+            val dx = pos[0] - lp[0]; val dy = pos[1] - lp[1]; val dz = pos[2] - lp[2]
+            val along = dx * fwd[0] + dy * fwd[1] + dz * fwd[2]
+            val step = sqrt(dx * dx + dy * dy + dz * dz)
+            perfPath += step
+            val lateral = sqrt((step * step - along * along).coerceAtLeast(0f))
+            perfLateral += lateral
+            parallaxLateralM += lateral
+            val dot = (lf[0] * fwd[0] + lf[1] * fwd[1] + lf[2] * fwd[2]).coerceIn(-1f, 1f)
+            perfRotDeg += Math.toDegrees(kotlin.math.acos(dot).toDouble()).toFloat()
+        }
+        perfLastPos = pos; perfLastFwd = fwd
+    }
+
+    private fun perfEndFrame(cbStartNs: Long, frame: com.google.ar.core.Frame) {
+        val cb = System.nanoTime() - cbStartNs
+        perfCbNs += cb
+        if (cb > perfCbMaxNs) perfCbMaxNs = cb
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (perfWindowMs == 0L) { perfWindowMs = now; return }
+        val windowMs = now - perfWindowMs
+        if (windowMs < 1000L) return
+        val secs = windowMs / 1000f
+        // Feature-point depth along the optical axis, same filter as the depth check (confidence >= 0.3).
+        val depths = ArrayList<Float>()
+        val cam = frame.camera
+        if (cam.trackingState == TrackingState.TRACKING) runCatching {
+            val inv = cam.pose.inverse()
+            frame.acquirePointCloud().use { pc ->
+                val b = pc.points
+                for (i in 0 until b.remaining() / 4) {
+                    if (b.get(i * 4 + 3) < 0.3f) continue
+                    val c = inv.transformPoint(floatArrayOf(b.get(i * 4), b.get(i * 4 + 1), b.get(i * 4 + 2)))
+                    if (-c[2] > DepthProjection.MIN_DEPTH_M) depths.add(-c[2])
+                }
+            }
+        }
+        depths.sort()
+        fun q(f: Float) = if (depths.isEmpty()) "-" else "%.2f".format(depths[((depths.size - 1) * f).toInt()])
+        val near = depths.count { it <= DepthValidator.MAX_DEPTH_M }
+        val net = perfWindowPos?.let { a -> perfLastPos?.let { b -> sqrt((b[0] - a[0]).let { it * it } + (b[1] - a[1]).let { it * it } + (b[2] - a[2]).let { it * it }) } }
+        val fx = runCatching { cam.textureIntrinsics.focalLength[0] }.getOrNull()
+        val segRuns = perfSegRuns.getAndSet(0); val segMs = perfSegWorkMs.getAndSet(0)
+        val a4Runs = perfA4Runs.getAndSet(0); val a4Ms = perfA4WorkMs.getAndSet(0)
+        val maskMs = perfMaskNs.getAndSet(0) / 1_000_000
+        val ours = PERF_NAMES.indices.joinToString(" ") { "${PERF_NAMES[it]}=${"%.1f".format(perfNs[it] / 1e6f / secs)}" }
+        Log.i(TAG, "AR_PERF fps=${"%.1f".format(perfFrames / secs)} drop=$perfDropped maxGapMs=${perfMaxGapNs / 1_000_000} " +
+            "trk=${perfTrackingFrames}/$perfFrames state=${cam.trackingState}/${cam.trackingFailureReason} " +
+            "cbMs=avg${"%.1f".format(if (perfFrames > 0) perfCbNs / 1e6f / perfFrames else 0f)}/max${"%.1f".format(perfCbMaxNs / 1e6f)} " +
+            "move=path${"%.3f".format(perfPath)}m/lat${"%.3f".format(perfLateral)}m/net${net?.let { "%.3f".format(it) } ?: "-"}m rot=${"%.1f".format(perfRotDeg)}deg " +
+            "ptDepth=n${depths.size}/near$near p10=${q(0.1f)} med=${q(0.5f)} p90=${q(0.9f)}m fx=${fx?.let { "%.1f".format(it) }} " +
+            "thermal=$thermalStatus ${batteryInfo()} " +
+            "msPerSec[$ours seg=${segRuns}x/${segMs} mask=$maskMs a4=${a4Runs}x/$a4Ms]")
+        perfWindowMs = now
+        perfFrames = 0; perfTrackingFrames = 0; perfDropped = 0; perfMaxGapNs = 0L; perfCbNs = 0L; perfCbMaxNs = 0L
+        perfPath = 0f; perfLateral = 0f; perfRotDeg = 0f; perfWindowPos = perfLastPos
+        perfNs.fill(0L)
+    }
+
+    private val batteryManager by lazy { appContext.getSystemService(android.content.Context.BATTERY_SERVICE) as? android.os.BatteryManager }
+    private val powerManager by lazy { appContext.getSystemService(android.content.Context.POWER_SERVICE) as? android.os.PowerManager }
+    private fun batteryInfo(): String = runCatching {
+        "batt=${batteryManager?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)}% saver=${powerManager?.isPowerSaveMode}"
+    }.getOrDefault("batt=?")
+
+    private fun median(v: List<Float>): Float? = if (v.isEmpty()) null else v.sorted()[v.size / 2]
 
     // Thermal state (PowerManager, API 29+): the segmenter slows down as the phone heats up, so tracking and
     // rendering keep their share of the CPU (performance guide). Tracking > segmentation frequency.
@@ -474,6 +589,8 @@ class ARCoreManager private constructor(context: Context) {
             Triple(w, m, dist) to facing
         }.sortedByDescending { it.second }.take(2).map { it.first }
         seg.request(frame) { result ->
+            val maskStartNs = System.nanoTime()
+            perfSegRuns.incrementAndGet(); perfSegWorkMs.addAndGet(seg.lastInferenceMs)
             // Heavy per-texel reprojection stays on the worker so the camera feed never stutters.
             // A result for a placement that has since been replaced would land in the new placement's fresh mask.
             val bytes = quadToWorld?.takeIf { gen == placementGen }?.let {
@@ -537,6 +654,7 @@ class ARCoreManager private constructor(context: Context) {
                     onWallStateChanged?.invoke(if (Placement.scale(surface) == Placement.Scale.APPROXIMATE) "APPROXIMATE" else "LOCKED")
                 }
             }
+            perfMaskNs.addAndGet(System.nanoTime() - maskStartNs) // mask accumulation + corner + edge work, worker thread
         }
     }
 
@@ -591,6 +709,7 @@ class ARCoreManager private constructor(context: Context) {
                 val corners = a4.find(bytes, w, h, stride)
                 val m = corners?.let { A4Reference.measure(it, fl[0], fl[1], pp[0], pp[1]) }
                 val ms = android.os.SystemClock.elapsedRealtime() - t0
+                perfA4Runs.incrementAndGet(); perfA4WorkMs.addAndGet(ms)
                 if (corners != null && m == null) Log.i(TAG, "A4 rejected: bright quad is not A4-shaped (${ms}ms)")
                 if (corners == null && t0 - lastA4ScanLogMs > 3000L) {
                     lastA4ScanLogMs = t0
@@ -1236,6 +1355,13 @@ class ARCoreManager private constructor(context: Context) {
                 "rawDepthSupported=${session.isDepthModeSupported(Config.DepthMode.RAW_DEPTH_ONLY)}"
         )
         runCatching {
+            val cc = session.cameraConfig
+            perfPeriodNs = 1_000_000_000L / cc.fpsRange.upper.coerceAtLeast(1)
+            Log.i(TAG, "CAMERA_CONFIG id=${cc.cameraId} facing=${cc.facingDirection} fps=${cc.fpsRange} " +
+                "depthSensor=${cc.depthSensorUsage} focus=${applied.focusMode} update=${applied.updateMode} " +
+                "instant=${applied.instantPlacementMode}")
+        }
+        runCatching {
             val all = session.getSupportedCameraConfigs(com.google.ar.core.CameraConfigFilter(session))
             Log.i(TAG, "CAMERA_CONFIGS current=${session.cameraConfig.textureSize}/${session.cameraConfig.imageSize} " +
                 "supported=${all.joinToString { "${it.textureSize.width}x${it.textureSize.height}/${it.imageSize.width}x${it.imageSize.height}@${it.fpsRange}" }}")
@@ -1788,10 +1914,12 @@ class ARCoreManager private constructor(context: Context) {
             t is Plane && t.type == Plane.Type.HORIZONTAL_UPWARD_FACING &&
                 it.distance in MIN_HIT_DISTANCE_M..MAX_MEASURE_M
         }
+        // A tap on the tracked floor is a real floor point. A ray from a wall pixel extended down to the floor plane
+        // lands behind the wall (too far: 2.40 m logged where A4 read 1.70-1.83 m), so it is only approximate.
         val floorPoint = floorHit?.hitPose?.translation ?: rayOnFloor(view, frame, screenX, screenY)
         if (floorPoint != null) {
             return anchorWall(view, floorPoint, horizontalNormal(0f, 0f, floorPoint, camT), onFloor = true,
-                surface = "floor_line", dist = distance(floorPoint, camT))
+                surface = if (floorHit != null) "floor_line" else "floor_ray", dist = distance(floorPoint, camT))
         }
 
         // 3. No floor yet: approximate wall at a guessed distance (last resort, scale is a guess).
@@ -2224,11 +2352,10 @@ class ARCoreManager private constructor(context: Context) {
                 for (i in 0 until buf.remaining() / 4) {
                     if (buf.get(i * 4 + 3) < 0.3f) continue
                     val c = camInv.transformPoint(floatArrayOf(buf.get(i * 4), buf.get(i * 4 + 1), buf.get(i * 4 + 2)))
-                    val zc = -c[2] // the camera looks down -Z
-                    if (zc <= 0.05f) continue
-                    depths.add(zc)
-                    tex.add((fl[0] * c[0] / zc + pp[0]) / dims[0]) // image x grows right
-                    tex.add((pp[1] - fl[1] * c[1] / zc) / dims[1]) // image y grows down, camera +Y is up
+                    val p = DepthProjection.toTexture(c[0], c[1], c[2], fl[0], fl[1], pp[0], pp[1], dims[0], dims[1]) ?: continue
+                    depths.add(p[0])
+                    tex.add(p[1])
+                    tex.add(p[2])
                     if (depths.size <= 3) Log.i(TAG, "DEPTH_PT cam=(${"%.2f".format(c[0])},${"%.2f".format(c[1])},${"%.2f".format(c[2])}) " +
                         "tex=(${"%.2f".format(tex[tex.size - 2])},${"%.2f".format(tex[tex.size - 1])}) f=(${fl[0].toInt()},${fl[1].toInt()}) " +
                         "pp=(${pp[0].toInt()},${pp[1].toInt()}) dims=${dims[0]}x${dims[1]}")
@@ -2258,9 +2385,9 @@ class ARCoreManager private constructor(context: Context) {
                         val dBuf = dPlane.buffer.order(java.nio.ByteOrder.nativeOrder())
                         val cPlane = conf?.planes?.get(0)
                         for (i in depths.indices) {
-                            val tx = tex[i * 2]; val ty = tex[i * 2 + 1]
-                            if (tx !in 0f..1f || ty !in 0f..1f) { outOfTex++; continue }
-                            val px = (tx * dw).toInt().coerceAtMost(dw - 1); val py = (ty * dh).toInt().coerceAtMost(dh - 1)
+                            val pix = DepthProjection.toDepthPixel(tex[i * 2], tex[i * 2 + 1], dw, dh)
+                            if (pix == null) { outOfTex++; continue }
+                            val px = pix[0]; val py = pix[1]
                             val mm = dBuf.getShort(py * dPlane.rowStride + px * dPlane.pixelStride).toInt() and 0xFFFF
                             val c = cPlane?.let { (it.buffer.get(py * it.rowStride + px * it.pixelStride).toInt() and 0xFF) / 255f } ?: -1f
                             if (mm == 0) zeroMm++
@@ -2278,8 +2405,13 @@ class ARCoreManager private constructor(context: Context) {
             }
         }
         if (!freshDepth) return
-        val after = depthValidator.addCheck(samples, now)
-        Log.i(TAG, "DEPTH_CHECK points=${depths.size} depth=$depthInfo outOfTex=$outOfTex zeroMm=$zeroMm ${depthValidator.lastReport}")
+        val after = depthValidator.addCheck(samples, now, parallaxReady = parallaxLateralM >= DepthValidator.MIN_PARALLAX_M)
+        // Medians of what was compared: feature-point depth vs depth-image depth (non-zero only). Tells "the depth
+        // image is wrong" apart from "the feature points are wrong" (points at 20 m with the image at 2 m = the latter).
+        val imgVals = samples.filter { it[1] > 0f }
+        Log.i(TAG, "DEPTH_CHECK points=${depths.size} depth=$depthInfo outOfTex=$outOfTex zeroMm=$zeroMm " +
+            "ptMed=${median(depths)?.let { "%.2f".format(it) }}m imgMed=${median(imgVals.map { it[1] })?.let { "%.2f".format(it) }}m " +
+            "ptMedWhereImg=${median(imgVals.map { it[0] })?.let { "%.2f".format(it) }}m ${depthValidator.lastReport}")
         if (after != before) {
             Log.i(TAG, "DEPTH_DECISION $before -> $after (${depthValidator.lastReport})")
             if ((after == DepthValidator.State.REJECTED || after == DepthValidator.State.UNAVAILABLE) && !depthMeasureMode) {

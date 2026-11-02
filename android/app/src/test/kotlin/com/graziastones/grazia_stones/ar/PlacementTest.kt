@@ -18,6 +18,10 @@ class PlacementTest {
         // The wall's angle from its floor/ceiling line is real, but an assumed height is not a measurement.
         assertEquals(Placement.Scale.APPROXIMATE, Placement.scale("edge_ceiling"))
         assertEquals(Placement.Scale.APPROXIMATE, Placement.scale("edge_floor_assumed"))
+        // A lone feature point and a wall-pixel ray dropped to the floor are not measurements.
+        assertEquals(Placement.Scale.APPROXIMATE, Placement.scale("Point"))
+        assertEquals(Placement.Scale.APPROXIMATE, Placement.scale("floor_ray"))
+        assertEquals(Placement.Scale.MEASURED, Placement.scale("floor_line"))
         assertEquals(Placement.Scale.APPROXIMATE, Placement.scale("approximate"))
         assertEquals(Placement.Scale.USER, Placement.scale("user_calibrated"))
     }
