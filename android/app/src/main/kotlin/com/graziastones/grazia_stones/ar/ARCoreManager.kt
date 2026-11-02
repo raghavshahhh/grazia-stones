@@ -288,6 +288,9 @@ class ARCoreManager private constructor(context: Context) {
     // phone that never left its spot (device log 11-02 16:37:55), so the extent is used instead.
     private var parallaxMin: FloatArray? = null; private var parallaxMax: FloatArray? = null
     private var parallaxBaselineM = 0f
+    // Seconds in a row with almost no feature points: a plain wall/floor the camera cannot measure at all
+    // (device log 11-02 session 4: no planes and ~0 points for 4 min), so the UI stops asking for a scan.
+    @Volatile private var lowTextureSecs = 0
     private var perfLastPos: FloatArray? = null; private var perfLastFwd: FloatArray? = null
     private var perfWindowPos: FloatArray? = null
 
@@ -350,6 +353,7 @@ class ARCoreManager private constructor(context: Context) {
                     if (-c[2] > DepthProjection.MIN_DEPTH_M) depths.add(-c[2])
                 }
             }
+            lowTextureSecs = if (depths.size < 5) lowTextureSecs + 1 else 0
         }
         depths.sort()
         fun q(f: Float) = if (depths.isEmpty()) "-" else "%.2f".format(depths[((depths.size - 1) * f).toInt()])
@@ -2977,6 +2981,7 @@ class ARCoreManager private constructor(context: Context) {
         // How much real camera travel the depth check still needs (0..1); the UI shows it as a scan bar.
         "scanProgress" to (parallaxBaselineM / DepthValidator.MIN_PARALLAX_M).coerceIn(0f, 1f).toDouble(),
         "depthState" to depthValidator.state.name,
+        "lowTexture" to (lowTextureSecs >= 8),
     )
 
     fun getWallState(): String {

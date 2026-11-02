@@ -82,6 +82,8 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
   String _placementSurface = '';
   // Android: share of the sideways camera travel depth needs (1 = enough, or not reported, e.g. iOS LiDAR).
   double _scanProgress = 1;
+  // Android: the camera has found almost nothing to track for several seconds (plain wall, dim light).
+  bool _lowTexture = false;
   bool _floorTracked = false;
   // Camera-to-wall distance now (m), shown once the size is measured; -1 = unknown.
   double _liveDistance = -1;
@@ -150,6 +152,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
         final surface = info['surface'] as String? ?? '';
         final floor = info['floorTracked'] == true;
         final scan = (((info['scanProgress'] as num?)?.toDouble() ?? 1).clamp(0.0, 1.0) * 10).round() / 10;
+        final lowTexture = info['lowTexture'] == true;
         final live = ((info['liveDistanceM'] as num?)?.toDouble() ?? -1);
         final liveRounded = live < 0 ? -1.0 : (live * 20).round() / 20; // 5 cm steps: no flicker
         final walls = ((info['walls'] as List?) ?? const []).map((w) => Map<String, dynamic>.from(w as Map)).toList();
@@ -166,9 +169,11 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                 surface != _placementSurface ||
                 floor != _floorTracked ||
                 scan != _scanProgress ||
+                lowTexture != _lowTexture ||
                 liveRounded != _liveDistance)) {
           setState(() {
             _scanProgress = scan;
+            _lowTexture = lowTexture;
             _placementScale = scale;
             _placementSurface = surface;
             _floorTracked = floor;
@@ -1194,6 +1199,9 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
           'edge_ceiling' when !_floorTracked => 'Auto-sized · show the floor briefly for exact size',
           'edge_floor_assumed' || 'edge_ceiling' => 'Auto-sizing…',
           // Depth needs sideways parallax (turning on the spot gives none), so ask for a step, not a turn.
+          // Nothing trackable in view: moving cannot help, so say so and offer the A4 sheet / typed distance.
+          _ when _scanProgress < 1 && _lowTexture =>
+            'Plain wall · the camera can\'t measure it. Show an A4 sheet, or tap to enter the distance',
           _ when _scanProgress < 1 => 'Move the phone slowly left and right to measure the wall',
           _ => 'Approximate size · show an A4 sheet, or tap to enter the distance',
         };
@@ -1277,7 +1285,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                       ],
                     ),
                     // Scan meter: fills with real sideways camera travel, so the user sees that moving works.
-                    if (_wallState == 'APPROXIMATE' && _scanProgress < 1)
+                    if (_wallState == 'APPROXIMATE' && _scanProgress < 1 && !_lowTexture)
                       Padding(
                         padding: const EdgeInsets.only(top: 6),
                         child: SizedBox(
