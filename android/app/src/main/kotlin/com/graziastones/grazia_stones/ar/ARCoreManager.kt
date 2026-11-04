@@ -59,6 +59,7 @@ class ARCoreManager private constructor(context: Context) {
         // this long, the user is asked to tap the wall or paint it with Fix edges; the uncut panel is never shown
         // on its own (it covered furniture, floor and the whole screen: device test 2026-10-29).
         const val NO_OUTLINE_AFTER_MS = 6000L
+        const val TAP_UNCUT_AFTER_MS = 2500L
         const val EDGE_AGREE_WINDOW_MS = 3000L
         const val CORNER_AGREE_WINDOW_MS = 8000L
         const val A4_INTERVAL_MS = 300L
@@ -167,11 +168,14 @@ class ARCoreManager private constructor(context: Context) {
         // Re-place right away when the current placement is the guess, so the user sees the new scale.
         mainHandler.post {
             val view = sceneView ?: return@post
-            if (Placement.scale(placedSurface) != Placement.Scale.APPROXIMATE) return@post
+            // A guessed wall, or one the user already sized this way (entering a new distance re-sizes it).
+            if (Placement.scale(placedSurface) != Placement.Scale.APPROXIMATE && placedSurface != "user_distance") return@post
             // Keep the wall's angle (it may come from its floor/ceiling line); only its distance changes.
-            if (!replaneAtDistance(view, approxDistanceM, placedSurface ?: "approximate")) {
+            if (!replaneAtDistance(view, approxDistanceM, "user_distance")) {
                 val (px, py) = wallProbePoint(view) ?: (view.width / 2f to view.height * 0.4f)
                 placeWallAtScreenPoint(px, py)
+                // The fallback places at approxDistanceM, i.e. the typed distance: label it as the user's.
+                if (placedSurface == "approximate") placedSurface = "user_distance"
             }
             Log.i(TAG, "PLACE distance ${approxDistanceM}m entered by the user (not measured)")
         }
@@ -473,7 +477,7 @@ class ARCoreManager private constructor(context: Context) {
             if (Placement.upgradable(placedSurface) && wallVisible) {
                 val before = placedAnchorNode?.anchor?.pose?.translation?.toList()
                 val previous = placedSurface
-                val real = placeWallAtScreenPoint(px, py, realWallOnly = true)
+                val real = placeAtScreenPoint(px, py, realWallOnly = true)
                 if (real?.get("placed") == true) {
                     Log.i(TAG, "AUTO upgraded $previous placement to ${real["surface"]} (${Placement.provenance(real["surface"] as String?)}): " +
                         "old=$before new=${placedAnchorNode?.anchor?.pose?.translation?.toList()} dist=${real["distanceM"]}")
@@ -504,7 +508,7 @@ class ARCoreManager private constructor(context: Context) {
         // view looks like a wall.
         // Looking at a wall the room already has (kept from earlier): nothing to place.
         if (wallVisible && view.frame?.let { roomWallCovers(view, it, px, py) } == true) { wallSeenSinceMs = 0L; return }
-        val res = placeWallAtScreenPoint(px, py, realWallOnly = true)
+        val res = placeAtScreenPoint(px, py, realWallOnly = true)
         if (res?.get("placed") != true && now - wallSeenSinceMs > AUTO_GUESS_AFTER_MS) {
             // Back on a wall measured earlier this session: its measured placement, not a fresh 2 m guess.
             if (wallVisible && restoreMeasuredWall(view, px, py)) {
@@ -513,7 +517,7 @@ class ARCoreManager private constructor(context: Context) {
                 onWallStateChanged?.invoke("LOCKED")
                 return
             }
-            val guess = if (wallVisible) placeWallAtScreenPoint(px, py, realWallOnly = false) else null
+            val guess = if (wallVisible) placeAtScreenPoint(px, py, realWallOnly = false) else null
             if (guess?.get("placed") == true) {
                 wallSeenSinceMs = 0L
                 needTap = false
@@ -660,7 +664,13 @@ class ARCoreManager private constructor(context: Context) {
                     Log.i(TAG, "WALL_EDGE accepted: $placedSurface -> $surface (${Placement.provenance(surface)}, " +
                         "${Placement.scale(surface)}) dist=${"%.2f".format(est.distanceM)}m " +
                         "n=(${"%.2f".format(est.normal[0])},${"%.2f".format(est.normal[2])})")
+                    // The old wall's fill started where the user aimed; 1 m above the floor line can be furniture or a
+                    // blanket (field log 2026-11-03: fill=4%, design hidden), so keep starting at the aimed point.
+                    val aim = placedAt?.anchor?.pose?.transformPoint(floatArrayOf(0f, 0f, placedSeedZ))
+                    val camAt = view.frame?.camera?.pose?.translation
                     anchorWall(view, est.base, est.normal, onFloor = true, surface = surface, dist = est.distanceM)
+                    if (aim != null && camAt != null) WallGeometry.rayHeightOnPlane(camAt, aim, est.base, est.normal)
+                        ?.takeIf { it in 0.1f..(MASKED_WALL_HEIGHT_M - 0.1f) }?.let { placedSeedZ = it }
                     onWallStateChanged?.invoke(if (Placement.scale(surface) == Placement.Scale.APPROXIMATE) "APPROXIMATE" else "LOCKED")
                 }
             }
@@ -1251,8 +1261,8 @@ class ARCoreManager private constructor(context: Context) {
 
     /** The walls the room has right now, for the wall picker: only walls whose outline is confirmed. */
     private fun wallsInfo(view: ARSceneView?): List<Map<String, Any>> {
-        fun state(a: Anchor): String = when (a.trackingState) {
-            TrackingState.TRACKING -> if (inCameraView(a.pose)) "IN_VIEW" else "OUT_OF_VIEW"
+        fun state(a: Anchor, quad: Node?): String = when (a.trackingState) {
+            TrackingState.TRACKING -> if (wallInView(a, quad)) "IN_VIEW" else "OUT_OF_VIEW"
             TrackingState.PAUSED -> "PAUSED"
             else -> "LOST"
         }
@@ -1260,14 +1270,14 @@ class ARCoreManager private constructor(context: Context) {
         placedAnchorNode?.let { n ->
             if (designReady() && (maskWanted() || !wallClippingEnabled)) out.add(mapOf(
                 "id" to placedWallId, "label" to label(placedWallId), "primary" to true, "selected" to primarySelected,
-                "state" to state(n.anchor), "scale" to Placement.scale(placedSurface).name.lowercase(), "angle" to "own",
+                "state" to state(n.anchor, placedQuad), "scale" to Placement.scale(placedSurface).name.lowercase(), "angle" to "own",
                 "distanceM" to ((view?.let { anchorDistance(it) }) ?: -1f).toDouble(),
             ))
         }
         roomWalls.filter { roomWallReady(it) }.forEach { w ->
             out.add(mapOf(
                 "id" to w.id, "label" to label(w.id), "primary" to false, "selected" to w.selected,
-                "state" to state(w.node.anchor), "scale" to Placement.scale(w.surface).name.lowercase(), "angle" to w.angle,
+                "state" to state(w.node.anchor, w.quad), "scale" to Placement.scale(w.surface).name.lowercase(), "angle" to w.angle,
                 "angleDeg" to w.angleDeg.toDouble(),
             ))
         }
@@ -1829,6 +1839,11 @@ class ARCoreManager private constructor(context: Context) {
      * whose surface normal is roughly horizontal (a wall), never floors or ceilings.
      */
     fun placeWallAtScreenPoint(screenX: Float, screenY: Float, realWallOnly: Boolean = false): Map<String, Any>? {
+        placingByTap = true
+        try { return placeAtScreenPoint(screenX, screenY, realWallOnly) } finally { placingByTap = false }
+    }
+
+    private fun placeAtScreenPoint(screenX: Float, screenY: Float, realWallOnly: Boolean): Map<String, Any>? {
         val view = sceneView ?: run {
             Log.w(TAG, "PLACE stage=native reason=no_scene_view")
             return null
@@ -2153,6 +2168,7 @@ class ARCoreManager private constructor(context: Context) {
         placedAnchorNode = node
         placedPlane = attachTo?.takeIf { it.trackingState == TrackingState.TRACKING && it.subsumedBy == null }
         placedAtMs = android.os.SystemClock.elapsedRealtime()
+        placedByTap = placingByTap
         lastSegRequestMs = 0L // segment the new wall on the next frame instead of up to one interval later
         placedSurface = surface
         placedDistanceM = dist
@@ -2857,12 +2873,19 @@ class ARCoreManager private constructor(context: Context) {
     // ── Wall state ───────────────────────────────────────────────────────
 
     /** True when [pose] is inside roughly +-60 degrees of where the camera is looking. */
-    private fun inCameraView(pose: Pose): Boolean {
+    private fun inCameraView(pose: Pose): Boolean = inCameraView(pose.tx(), pose.ty(), pose.tz())
+
+    // A wall's anchor sits on its floor line; tilting up at the wall put that point out of view and the UI said
+    // "Wall lost" with the wall filling the screen (field log 2026-11-03). Test the design's centre instead.
+    private fun wallInView(anchor: Anchor, quad: Node?): Boolean =
+        quad?.worldPosition?.let { inCameraView(it.x, it.y, it.z) } ?: inCameraView(anchor.pose)
+
+    private fun inCameraView(x: Float, y: Float, z: Float): Boolean {
         val cam = sceneView?.frame?.camera?.pose ?: return true
         val fwd = cam.getTransformedAxis(2, -1.0f) // the camera looks down its -Z axis
-        val dx = pose.tx() - cam.tx()
-        val dy = pose.ty() - cam.ty()
-        val dz = pose.tz() - cam.tz()
+        val dx = x - cam.tx()
+        val dy = y - cam.ty()
+        val dz = z - cam.tz()
         val len = sqrt(dx * dx + dy * dy + dz * dz)
         if (len < 1e-3f) return true
         return (fwd[0] * dx + fwd[1] * dy + fwd[2] * dz) / len > 0.5f
@@ -2956,6 +2979,9 @@ class ARCoreManager private constructor(context: Context) {
     @Volatile private var userHidden = false
     private var shownState: Boolean? = null
     private var placedAtMs = 0L
+    // The user tapped this wall: if no outline is found, they still get the wall-sized panel instead of nothing.
+    private var placingByTap = false
+    private var placedByTap = false
     private var placedSeedZ = 0f
     @Volatile private var placementGen = 0
 
@@ -2963,7 +2989,11 @@ class ARCoreManager private constructor(context: Context) {
      * Whether the placed design may be drawn: only once the wall mask clips it to the real wall. Drawing it
      * unclipped right after placement covered the whole screen (furniture, floor) before the wall was found.
      */
-    private fun designReady(): Boolean = !wallClippingEnabled || maskWanted()
+    // Plain walls with the segmenter throttled (thermal 3-4) never reached mask coverage, so a tapped design stayed
+    // hidden behind "Can't find this wall's edges" (device log 2026-11-02 session 5). A tap now shows the uncut
+    // wall-sized panel after a short wait; Fix edges still trims it. Auto-placement keeps waiting for the outline.
+    private fun designReady(): Boolean = !wallClippingEnabled || maskWanted() ||
+        (placedByTap && android.os.SystemClock.elapsedRealtime() - placedAtMs > TAP_UNCUT_AFTER_MS)
 
     /** Provenance of the current placement for the AR screen's scale badge. */
     fun getPlacementInfo(): Map<String, Any> = mapOf(
@@ -2982,6 +3012,8 @@ class ARCoreManager private constructor(context: Context) {
         "scanProgress" to (parallaxBaselineM / DepthValidator.MIN_PARALLAX_M).coerceIn(0f, 1f).toDouble(),
         "depthState" to depthValidator.state.name,
         "lowTexture" to (lowTextureSecs >= 8),
+        // PowerManager thermal status (3 = severe): segmentation slows down, so the UI says why edges lag.
+        "thermal" to thermalStatus,
     )
 
     fun getWallState(): String {
@@ -2989,16 +3021,16 @@ class ARCoreManager private constructor(context: Context) {
         val selected = selectedWallId?.let { wallPlanes[it] }
         // A kept room wall in view is a wall the design is on, even while the primary is off-screen or not cut yet.
         val roomInView = roomWalls.firstOrNull {
-            it.selected && roomWallReady(it) && it.node.anchor.trackingState == TrackingState.TRACKING && inCameraView(it.node.anchor.pose)
+            it.selected && roomWallReady(it) && it.node.anchor.trackingState == TrackingState.TRACKING && wallInView(it.node.anchor, it.quad)
         }
         val state = when {
             placed != null && roomInView != null &&
-                (placed.trackingState != TrackingState.TRACKING || !inCameraView(placed.pose) || !designReady()) ->
+                (placed.trackingState != TrackingState.TRACKING || !wallInView(placed, placedQuad) || !designReady()) ->
                 if (Placement.scale(roomInView.surface) == Placement.Scale.APPROXIMATE) "APPROXIMATE" else "TRACKING"
             placed == null && roomInView != null ->
                 if (Placement.scale(roomInView.surface) == Placement.Scale.APPROXIMATE) "APPROXIMATE" else "TRACKING"
             placed != null -> when {
-                placed.trackingState != TrackingState.TRACKING || !inCameraView(placed.pose) -> "LOST"
+                placed.trackingState != TrackingState.TRACKING || !wallInView(placed, placedQuad) -> "LOST"
                 !designReady() && android.os.SystemClock.elapsedRealtime() - placedAtMs > NO_OUTLINE_AFTER_MS -> "NO_OUTLINE"
                 !designReady() -> "DETECTING"
                 // A guessed-distance placement is not a detected wall; the UI must say so.

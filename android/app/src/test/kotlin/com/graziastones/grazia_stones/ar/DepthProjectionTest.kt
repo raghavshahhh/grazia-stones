@@ -71,4 +71,11 @@ class DepthProjectionTest {
         assertArrayEquals(intArrayOf(45, 80), DepthProjection.toDepthPixel(0.5f, 0.5f, 90, 160))
         assertArrayEquals(intArrayOf(80, 45), DepthProjection.toDepthPixel(0.5f, 0.5f, 160, 90))
     }
+
+    @Test fun `NaN and infinite cloud points are not projected`() {
+        // ARCore's point cloud held (NaN, NaN, NaN) points on a featureless wall (device log 2026-11-02 session 5).
+        assertNull(tex(Float.NaN, Float.NaN, Float.NaN))
+        assertNull(tex(0f, 0f, Float.NEGATIVE_INFINITY))
+        assertNull(tex(Float.POSITIVE_INFINITY, 0f, -2f))
+    }
 }

@@ -52,6 +52,15 @@ object WallGeometry {
         return distanceToPlane(a.normal, a.point, b.point) < offsetM
     }
 
+    /** Height above [p0] where the ray from [o] through [q] meets the plane through [p0] with normal [n]; null if it misses. */
+    fun rayHeightOnPlane(o: FloatArray, q: FloatArray, p0: FloatArray, n: FloatArray): Float? {
+        val d = floatArrayOf(q[0] - o[0], q[1] - o[1], q[2] - o[2])
+        val denom = d[0] * n[0] + d[1] * n[1] + d[2] * n[2]
+        if (abs(denom) < 1e-4f) return null
+        val t = ((p0[0] - o[0]) * n[0] + (p0[1] - o[1]) * n[1] + (p0[2] - o[2]) * n[2]) / denom
+        return if (t > 0f) o[1] + t * d[1] - p0[1] else null
+    }
+
     fun distanceToPlane(n: FloatArray, p0: FloatArray, q: FloatArray): Float =
         abs(n[0] * (q[0] - p0[0]) + n[1] * (q[1] - p0[1]) + n[2] * (q[2] - p0[2]))
 

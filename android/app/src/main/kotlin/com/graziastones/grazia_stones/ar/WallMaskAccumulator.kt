@@ -104,7 +104,7 @@ class WallMaskAccumulator {
         // looks at the ceiling line) or sits on a painting/TV: seed on the nearest quad point the model calls wall
         // instead. Before, every update was skipped and a fresh placement stayed unclipped (quadCoverage=0.00).
         if (seed == null || (hard != null && hardAt(hard, seed % gw, seed / gw, gw, gh, maskW, maskH))) {
-            val alt = fallbackSeed(m, seg, maskW, maskH, hard, seedX, seedZ, quadW, quadH, zMin, keepMinX, keepMaxX)
+            val alt = fallbackSeed(m, seg, maskW, maskH, hard, seedX, seedZ, quadW, quadH, zMin, keepMinX, keepMaxX, offScreen = seed == null)
             if (alt != null) { seedNote = if (seed == null) " seed_fallback" else " seed_off_object"; seed = alt }
         }
         if (seed == null) { lastDebug = "skip=seed_off_screen"; return } // keep the remembered mask
@@ -192,11 +192,14 @@ class WallMaskAccumulator {
 
     /**
      * The quad point nearest to ([seedX], [seedZ]) that is on screen (10% margin), on this wall's side of a corner,
+     * or, when the seed is [offScreen], the one nearest the screen centre: the nearest to an off-screen seed sits on
+     * the screen edge, where floor clutter is (field log 2026-11-03: a blanket, fill=0%), while the user aims at the wall.
      * at most [SEED_MAX_SIDE_M] along the wall from it, and that the model calls wall with confidence, as a GW x GH grid index; null when there is none.
      */
     private fun fallbackSeed(
         m: FloatArray, seg: WallSegmenter.Result, maskW: Int, maskH: Int, hard: BooleanArray?,
         seedX: Float, seedZ: Float, quadW: Float, quadH: Float, zMin: Float, keepMinX: Float, keepMaxX: Float,
+        offScreen: Boolean,
     ): Int? {
         val gw = WallSegmenter.GW; val gh = WallSegmenter.GH
         val nx = (quadW / SEED_STEP_M).toInt(); val nz = (quadH / SEED_STEP_M).toInt()
@@ -204,7 +207,13 @@ class WallMaskAccumulator {
         for (i in 0..nx) for (j in 0..nz) {
             val x = -quadW / 2f + i * SEED_STEP_M; val z = zMin + j * SEED_STEP_M
             if (x < keepMinX || x > keepMaxX || abs(x - seedX) > SEED_MAX_SIDE_M) continue
-            cands.add(floatArrayOf(x, z, (x - seedX) * (x - seedX) + (z - seedZ) * (z - seedZ)))
+            val key = if (!offScreen) (x - seedX) * (x - seedX) + (z - seedZ) * (z - seedZ) else {
+                val cw = m[3] * x + m[11] * z + m[15]
+                if (cw <= 1e-4f) continue
+                val px = (m[0] * x + m[8] * z + m[12]) / cw; val py = (m[1] * x + m[9] * z + m[13]) / cw
+                px * px + py * py
+            }
+            cands.add(floatArrayOf(x, z, key))
         }
         cands.sortBy { it[2] }
         for (c in cands) {

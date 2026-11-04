@@ -24,6 +24,8 @@ class PlacementTest {
         assertEquals(Placement.Scale.MEASURED, Placement.scale("floor_line"))
         assertEquals(Placement.Scale.APPROXIMATE, Placement.scale("approximate"))
         assertEquals(Placement.Scale.USER, Placement.scale("user_calibrated"))
+        assertEquals(Placement.Scale.USER, Placement.scale("user_distance"))
+        assertFalse(Placement.upgradable("user_distance"))
     }
 
     @Test fun `only approximate placements may be replaced automatically`() {

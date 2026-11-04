@@ -75,6 +75,19 @@ class WallMaskAccumulatorTest {
         assertTrue(m.lastCoverage > 0.9f)
     }
 
+    @Test fun `an off-screen seed starts the fill mid-screen, not on clutter at the screen edge`() {
+        // Field log 2026-11-03: phone tilted up at a wall, seed 1 m above the floor below the screen, the model
+        // calls the whole view wall, and a blanket fills the bottom 15%. Seeding at the screen edge filled only
+        // the blanket (fill=0%) and the design stayed hidden.
+        val seg = frame(0)
+        for (k in 0 until gw * gh) if ((k / gw + 0.5f) / gh > 0.85f) { seg.lab[0][k] = 35f; seg.lab[1][k] = 150f; seg.lab[2][k] = 110f }
+        val m = WallMaskAccumulator()
+        m.feed(seg, seedX = 0f, seedZ = -2f)
+        assertTrue(m.lastDebug, m.lastDebug.contains("seed_fallback"))
+        assertEquals(255, wallAt(m, 0f, 2f))
+        assertTrue(m.lastDebug, m.lastCoverage > 0.6f)
+    }
+
     @Test fun `no confident wall on screen keeps the old skip`() {
         val m = WallMaskAccumulator()
         m.feed(frame(0, modelSeesWall = false), seedX = 0f, seedZ = -2f)

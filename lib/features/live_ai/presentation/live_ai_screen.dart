@@ -84,6 +84,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
   double _scanProgress = 1;
   // Android: the camera has found almost nothing to track for several seconds (plain wall, dim light).
   bool _lowTexture = false;
+  bool _phoneHot = false;
   bool _floorTracked = false;
   // Camera-to-wall distance now (m), shown once the size is measured; -1 = unknown.
   double _liveDistance = -1;
@@ -153,6 +154,7 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
         final floor = info['floorTracked'] == true;
         final scan = (((info['scanProgress'] as num?)?.toDouble() ?? 1).clamp(0.0, 1.0) * 10).round() / 10;
         final lowTexture = info['lowTexture'] == true;
+        final hot = ((info['thermal'] as num?)?.toInt() ?? 0) >= 3;
         final live = ((info['liveDistanceM'] as num?)?.toDouble() ?? -1);
         final liveRounded = live < 0 ? -1.0 : (live * 20).round() / 20; // 5 cm steps: no flicker
         final walls = ((info['walls'] as List?) ?? const []).map((w) => Map<String, dynamic>.from(w as Map)).toList();
@@ -170,10 +172,12 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                 floor != _floorTracked ||
                 scan != _scanProgress ||
                 lowTexture != _lowTexture ||
+                hot != _phoneHot ||
                 liveRounded != _liveDistance)) {
           setState(() {
             _scanProgress = scan;
             _lowTexture = lowTexture;
+            _phoneHot = hot;
             _placementScale = scale;
             _placementSurface = surface;
             _floorTracked = floor;
@@ -1200,10 +1204,11 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
           'edge_floor_assumed' || 'edge_ceiling' => 'Auto-sizing…',
           // Depth needs sideways parallax (turning on the spot gives none), so ask for a step, not a turn.
           // Nothing trackable in view: moving cannot help, so say so and offer the A4 sheet / typed distance.
-          _ when _scanProgress < 1 && _lowTexture =>
-            'Plain wall · the camera can\'t measure it. Show an A4 sheet, or tap to enter the distance',
+          // No tap or typing: the wall sizes itself from its floor/ceiling line. A typed 2.6 m once overrode a
+          // correct automatic 1.6 m (field log 2026-11-03); the sheet stays reachable from the pill, unadvertised.
+          _ when _lowTexture => 'Plain wall · tilt slowly to show where it meets the floor or ceiling',
           _ when _scanProgress < 1 => 'Move the phone slowly left and right to measure the wall',
-          _ => 'Approximate size · show an A4 sheet, or tap to enter the distance',
+          _ => 'Approximate size · show the floor line for exact size',
         };
         icon = Icons.straighten_rounded;
         stateColor = const Color(0xFFFFB74D);
@@ -1284,6 +1289,19 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
                         ),
                       ],
                     ),
+                    // Hot phone: segmentation runs every 2 s or less often, so outlines lag. Say why.
+                    if (_phoneHot)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Phone is warm · edges update slower',
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 10.5,
+                            color: Colors.white.withValues(alpha: 0.7),
+                          ),
+                        ),
+                      ),
                     // Scan meter: fills with real sideways camera travel, so the user sees that moving works.
                     if (_wallState == 'APPROXIMATE' && _scanProgress < 1 && !_lowTexture)
                       Padding(
@@ -1318,14 +1336,17 @@ class _LiveAIScreenState extends ConsumerState<LiveAIScreen> {
   void _showApproximateDistanceSheet() {
     HapticFeedback.selectionClick();
     // Typing a distance only re-places a guessed (approximate) Android wall; a measured wall or ARKit ignores it.
-    final canEnterDistance = _wallState == 'APPROXIMATE' && defaultTargetPlatform == TargetPlatform.android;
+    final canEnterDistance =
+        (_wallState == 'APPROXIMATE' || _placementSurface == 'user_distance') &&
+        defaultTargetPlatform == TargetPlatform.android;
     showModalBottomSheet<void>(
       context: context,
       useRootNavigator: true,
       backgroundColor: Colors.transparent,
       builder: (context) => StatefulBuilder(
         builder: (context, setSheetState) => Container(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
+          // The 3-button nav bar covered the last button (field screenshot 2026-11-03).
+          padding: EdgeInsets.fromLTRB(20, 14, 20, 28 + MediaQuery.viewPaddingOf(context).bottom),
           decoration: BoxDecoration(
             color: Colors.black.withValues(alpha: 0.92),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),

@@ -53,4 +53,14 @@ class WallGeometryTest {
         assertTrue(!WallGeometry.agree(a, shifted, 0.12f))
         assertTrue(!WallGeometry.agree(a, turned, 0.12f))
     }
+
+    @Test fun `the aim ray lands at its height on the re-placed wall`() {
+        // Camera at 1.4 m aiming at a point 2 m away, 0.4 m higher; the real wall is 1.5 m away (z = -1.5).
+        val h = WallGeometry.rayHeightOnPlane(
+            floatArrayOf(0f, 1.4f, 0f), floatArrayOf(0f, 1.8f, -2f), floatArrayOf(0.3f, 0f, -1.5f), floatArrayOf(0f, 0f, 1f))!!
+        assertEquals(1.7f, h, 1e-5f)
+        // Aiming away from the wall: no hit.
+        assertNull(WallGeometry.rayHeightOnPlane(
+            floatArrayOf(0f, 1.4f, 0f), floatArrayOf(0f, 1.4f, 2f), floatArrayOf(0f, 0f, -1.5f), floatArrayOf(0f, 0f, 1f)))
+    }
 }

@@ -21,6 +21,8 @@ object Placement {
         "pointcloud" -> "validated_pointcloud"
         // "user_rectangle": four tapped corners of something the user measured (a painting, a door).
         "user_calibrated", "user_rectangle" -> "user_calibrated"
+        // The user typed the tape-measured wall distance: its distance is theirs, not a guess.
+        "user_distance" -> "user_distance"
         // An A4 sheet found on the wall: its known 210 x 297 mm corners fix distance and angle (A4Reference).
         "a4_reference" -> "reference_object"
         // "approximate", and edge placements whose height had to be assumed ("edge_floor_assumed",
@@ -29,7 +31,7 @@ object Placement {
     }
 
     fun scale(surface: String?): Scale = when (provenance(surface)) {
-        "user_calibrated" -> Scale.USER
+        "user_calibrated", "user_distance" -> Scale.USER
         "approximate", "none" -> Scale.APPROXIMATE
         else -> Scale.MEASURED
     }

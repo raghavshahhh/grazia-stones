@@ -14,13 +14,13 @@ object DepthProjection {
 
     /**
      * (depth along the optical axis in m, u, v) for camera-space point ([x], [y], [z]), or null when it is behind or
-     * at the camera. u and v are normalized by the texture [width] / [height] and may fall outside [0, 1].
+     * at the camera, or not finite. u and v are normalized by the texture [width] / [height] and may fall outside [0, 1].
      */
     fun toTexture(
         x: Float, y: Float, z: Float, fx: Float, fy: Float, cx: Float, cy: Float, width: Int, height: Int,
     ): FloatArray? {
         val depth = -z // the camera looks down -Z
-        if (depth <= MIN_DEPTH_M) return null
+        if (!(depth > MIN_DEPTH_M) || !x.isFinite() || !y.isFinite() || depth.isInfinite()) return null // ARCore's cloud holds NaN points
         return floatArrayOf(depth, (fx * x / depth + cx) / width, (cy - fy * y / depth) / height) // image y grows down
     }
 
