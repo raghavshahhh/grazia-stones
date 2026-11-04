@@ -30,6 +30,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   static bool _animationPlayedThisLaunch = false;
 
   bool _hasNavigated = false;
+  bool _waitingForSignIn = false;
   late final bool _shouldPlayAnimation;
 
   @override
@@ -61,6 +62,18 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       });
       return;
     }
+    // Google / email-confirm links reopen the app at '/' (?code=...). Wait for that session (at most 15 s) instead
+    // of bouncing through Login first, which looked like the sign-in had failed.
+    final uri = GoRouterState.of(context).uri;
+    final isAuthCallback = uri.queryParameters.containsKey('code') || uri.fragment.contains('access_token');
+    if (isAuthCallback && !ref.read(authRiverpodProvider).isLoggedIn && !_waitingForSignIn) {
+      setState(() => _waitingForSignIn = true);
+      ref.listenManual(authRiverpodProvider, (_, next) {
+        if (next.isLoggedIn) _navigateNext();
+      });
+      Future.delayed(const Duration(seconds: 15), _navigateNext);
+      return;
+    }
     _hasNavigated = true;
 
     final onboardingComplete = StorageService.instance.getOnboardingCompleted() ||
@@ -86,7 +99,15 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         child: Center(
           child: _shouldPlayAnimation
               ? GraziaAnimatedSplashLogo(onAnimationComplete: _navigateNext)
-              : const SizedBox.shrink(),
+              : _waitingForSignIn
+                  ? Column(mainAxisSize: MainAxisSize.min, children: [
+                      const SizedBox(width: 28, height: 28,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFD6B26A))),
+                      const SizedBox(height: 16),
+                      Text('Signing you in…',
+                          style: TextStyle(fontFamily: 'Inter', fontSize: 14, color: Colors.white.withValues(alpha: 0.8))),
+                    ])
+                  : const SizedBox.shrink(),
         ),
       ),
     );

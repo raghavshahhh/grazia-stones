@@ -322,6 +322,8 @@ class StorageService {
   // Interactive App Tour / First-Time Guide
   bool hasSeenAppTour() => _appBox.get('has_seen_app_tour') == true;
   Future<void> setHasSeenAppTour(bool seen) => _appBox.put('has_seen_app_tour', seen);
+  bool tourOfferedTo(String userId) => _appBox.get('tour_offered_$userId') == true;
+  Future<void> markTourOfferedTo(String userId) => _appBox.put('tour_offered_$userId', true);
 
   // Local Sample Orders
   Future<void> saveLocalSampleOrder(Map<String, dynamic> sampleJson) async {

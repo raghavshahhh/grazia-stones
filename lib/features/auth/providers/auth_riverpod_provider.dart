@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as sb;
+import 'package:url_launcher/url_launcher.dart' show closeInAppWebView;
 import '../../../core/services/supabase_service.dart';
 import '../../../core/models/user.dart';
 import '../../../core/repositories/auth_repository.dart';
@@ -129,6 +130,9 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
       // tokenRefreshed: a session that was expired at startup (offline) came back once the network did.
       if (data.event != sb.AuthChangeEvent.signedIn && data.event != sb.AuthChangeEvent.tokenRefreshed) return;
       if (data.session == null || state.isLoggedIn) return;
+      // Google sign-in runs in an in-app Safari sheet that iOS leaves on top after the app gets the session:
+      // the app looked stuck until it was killed and reopened (iPhone 13 Pro, 2026-11-04).
+      if (!kIsWeb) unawaited(closeInAppWebView().catchError((_) {}));
       try {
         await _saveAndSetState(await _repo.getProfile());
       } catch (e) {
@@ -484,6 +488,12 @@ class AuthRiverpodNotifier extends StateNotifier<AuthRiverpodState> {
       if (profile.role.isNotEmpty) role = profile.role;
     } catch (_) {
       // Profile fetch failed (e.g. trigger lag): no elevated role without proof.
+    }
+
+    // A brand-new account gets the app tour on Home once, even on a phone that already showed it to someone else.
+    if (DateTime.now().difference(user.createdAt) < const Duration(minutes: 30) && !_storage.tourOfferedTo(user.id)) {
+      await _storage.markTourOfferedTo(user.id);
+      await _storage.setHasSeenAppTour(false);
     }
 
     await _storage.saveUser({

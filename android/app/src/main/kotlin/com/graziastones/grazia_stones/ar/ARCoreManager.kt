@@ -208,6 +208,23 @@ class ARCoreManager private constructor(context: Context) {
         false
     }
 
+    // ready | install (Google Play Services for AR missing or too old) | checking (ARCore is still asking Google about
+    // this phone; ask again) | unsupported | unknown (offline or error). A phone without the AR service answers
+    // "checking" first, which isARSupported() reported as "no AR camera".
+    fun arAvailability(): String = try {
+        val a = ArCoreApk.getInstance().checkAvailability(appContext)
+        when {
+            a == ArCoreApk.Availability.SUPPORTED_INSTALLED -> "ready"
+            a.isSupported -> "install"
+            a.isTransient -> "checking"
+            a == ArCoreApk.Availability.UNSUPPORTED_DEVICE_NOT_CAPABLE -> "unsupported"
+            else -> "unknown"
+        }.also { Log.i(TAG, "AR_AVAILABILITY $a -> $it") }
+    } catch (e: Exception) {
+        Log.e(TAG, "arAvailability check failed", e)
+        "unknown"
+    }
+
     // ── View attachment (called by ARCorePlatformView) ─────────────────────
 
     fun attachSceneView(view: ARSceneView) {

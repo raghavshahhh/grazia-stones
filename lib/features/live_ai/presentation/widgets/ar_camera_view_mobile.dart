@@ -10,6 +10,7 @@ import 'package:flutter/material.dart' hide Colors;
 import 'package:flutter/services.dart' show rootBundle, HapticFeedback, SystemUiOverlayStyle;
 import 'package:http/http.dart' as http;
 import 'package:permission_handler/permission_handler.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:grazia_stones/core/services/ar_native_channel.dart';
 import 'package:grazia_stones/core/services/room_analysis_service.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
@@ -256,6 +257,8 @@ class _ARCameraViewState extends State<ARCameraView>
   double _displayOpacity = 0.72;
   bool _showWallBracket = false;
   bool _is3DStudioMode = false;
+  // Android ARCore availability (ARCoreManager.arAvailability); null on iOS.
+  String? _arAvailability;
 
   StreamSubscription? _updateSubscription;
   StreamSubscription? _wallDetectedSubscription;
@@ -303,10 +306,22 @@ class _ARCameraViewState extends State<ARCameraView>
 
   Future<void> _initializeNativeAR() async {
     try {
-      final supported = await ARNativeChannel.isARSupported().timeout(
-        const Duration(seconds: 4),
-        onTimeout: () => false,
-      );
+      bool supported;
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        var a = await ARNativeChannel.arAvailability();
+        // Without Google Play Services for AR the first answer is "checking" while ARCore asks Google about the phone.
+        for (var i = 0; a == 'checking' && i < 24; i++) {
+          await Future.delayed(const Duration(milliseconds: 250));
+          a = await ARNativeChannel.arAvailability();
+        }
+        _arAvailability = a;
+        supported = a == 'ready';
+      } else {
+        supported = await ARNativeChannel.isARSupported().timeout(
+          const Duration(seconds: 4),
+          onTimeout: () => false,
+        );
+      }
 
       if (!supported) {
         // Simulator or non-ARKit hardware: Seamlessly activate 3D Room Studio
@@ -568,6 +583,8 @@ class _ARCameraViewState extends State<ARCameraView>
     } else if (state == AppLifecycleState.resumed) {
       if (_nativeARStarted) {
         ARNativeChannel.resumeSession();
+      } else if (_is3DStudioMode && _arAvailability != 'unsupported') {
+        _retryArCheck(); // back from the Play Store after installing AR support
       }
     }
   }
@@ -777,9 +794,14 @@ class _ARCameraViewState extends State<ARCameraView>
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  widget.measureOnly
-                      ? 'Measure needs an AR camera'
-                      : 'Live AR needs an AR camera',
+                  switch (_arAvailability) {
+                    'install' => 'Install AR support',
+                    'unsupported' => 'This phone does not support AR',
+                    'checking' || 'unknown' => 'Could not check AR support',
+                    _ => widget.measureOnly
+                        ? 'Measure needs an AR camera'
+                        : 'Live AR needs an AR camera',
+                  },
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: material.Colors.white,
@@ -790,7 +812,16 @@ class _ARCameraViewState extends State<ARCameraView>
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'This device or simulator has no AR camera, so walls cannot be scanned here. Open the app on a real iPhone or Android phone with AR support.',
+                  switch (_arAvailability) {
+                    'install' =>
+                      'Live AR uses Google Play Services for AR. Install it from the Play Store (free, one time), then come back here.',
+                    'unsupported' =>
+                      'Google has not certified this phone for AR, so walls cannot be scanned live. Use AI Studio to see any design on a photo of your room.',
+                    'checking' || 'unknown' =>
+                      'Connect to the internet and try again.',
+                    _ =>
+                      'This device or simulator has no AR camera, so walls cannot be scanned here. Open the app on a real iPhone or Android phone with AR support.',
+                  },
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: material.Colors.white.withValues(alpha: 0.6),
@@ -799,12 +830,45 @@ class _ARCameraViewState extends State<ARCameraView>
                     height: 1.4,
                   ),
                 ),
+                if (_arAvailability != null && _arAvailability != 'ready' && _arAvailability != 'unsupported') ...[
+                  const SizedBox(height: 22),
+                  ElevatedButton(
+                    onPressed: _arAvailability == 'install' ? _openArInstall : _retryArCheck,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFC8A53C),
+                      foregroundColor: material.Colors.black,
+                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    ),
+                    child: Text(
+                      _arAvailability == 'install' ? 'Install from Play Store' : 'Try Again',
+                      style: const TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _openArInstall() async {
+    final market = Uri.parse('market://details?id=com.google.ar.core');
+    if (!await launchUrl(market, mode: LaunchMode.externalApplication)) {
+      await launchUrl(Uri.parse('https://play.google.com/store/apps/details?id=com.google.ar.core'),
+          mode: LaunchMode.externalApplication);
+    }
+  }
+
+  void _retryArCheck() {
+    if (!mounted) return;
+    setState(() {
+      _is3DStudioMode = false;
+      _isInitialized = false;
+    });
+    _initializeNativeAR();
   }
 
   Widget _buildPermissionDenied() {

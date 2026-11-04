@@ -626,6 +626,15 @@ class ARNativeChannel {
     }
   }
   
+  /// Android only: ready | install | checking | unsupported | unknown (see ARCoreManager.arAvailability).
+  static Future<String> arAvailability() async {
+    try {
+      return await _channel.invokeMethod<String>('arAvailability') ?? 'unknown';
+    } on PlatformException {
+      return 'unknown';
+    }
+  }
+
   /// Check if LiDAR is available
   static Future<bool> hasLiDAR() async {
     try {

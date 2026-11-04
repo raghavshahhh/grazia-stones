@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -74,10 +75,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     _completeOnboarding();
   }
 
-  void _completeOnboarding() {
+  Future<void> _completeOnboarding() async {
     HapticFeedback.mediumImpact();
     ref.read(authRiverpodProvider.notifier).completeOnboarding();
-    context.go('/login');
+    // Ask for the camera once, right after the tour of features, so Live AR and Measure open straight into the camera.
+    await Permission.camera.request();
+    if (mounted) context.go('/login');
   }
 
   @override

@@ -165,6 +165,7 @@ class ARCorePlugin : FlutterPlugin, MethodCallHandler, StreamHandler {
                 val supported = arCoreManager?.isARSupported() ?: false
                 result.success(supported)
             }
+            "arAvailability" -> result.success(arCoreManager?.arAvailability() ?: "unknown")
             "hasLiDAR" -> {
                 // Android doesn't have LiDAR, but some devices have depth API
                 result.success(false)

@@ -145,6 +145,7 @@ class EnvConfig {
 
   String get googleIosClientId => _getEnv('GOOGLE_IOS_CLIENT_ID', '');
   String get googleWebClientId => _getEnv('GOOGLE_WEB_CLIENT_ID', '');
+  bool get googleAndroidNative => _getBoolEnv('GOOGLE_ANDROID_NATIVE', false);
 
   bool get isGoogleOAuthConfigured =>
       googleIosClientId.isNotEmpty || googleWebClientId.isNotEmpty;

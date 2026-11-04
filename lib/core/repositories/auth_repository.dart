@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -80,13 +81,19 @@ class AuthRepository {
     // Native Google Sign-In on Android needs the Play app-signing SHA-1 registered on an Android OAuth client;
     // without it every Play install failed (DEVELOPER_ERROR). The browser flow through Supabase needs no SHA-1,
     // so Android (and iOS without its own client ID) always use it.
-    final native = !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS && env.googleIosClientId.isNotEmpty;
-    if (!native) {
+    // The browser flow shows Google's consent as "Sign in to <project>.supabase.co"; the native sheet shows the
+    // consent-screen app name ("Grazia Stones"). Native needs the iOS client ID, or on Android the Android OAuth
+    // clients (Play + upload SHA-1) in the same Google Cloud project: GOOGLE_ANDROID_NATIVE=true once they exist.
+    final native = !kIsWeb &&
+        ((defaultTargetPlatform == TargetPlatform.iOS && env.googleIosClientId.isNotEmpty) ||
+            (defaultTargetPlatform == TargetPlatform.android && env.googleAndroidNative && env.googleWebClientId.isNotEmpty));
+    Future<User?> browser() async {
       final launched = await _sb.signInWithOAuth(OAuthProvider.google,
           redirectTo: kIsWeb ? null : SupabaseService.authCallbackUrl);
       if (!launched) throw Exception('Google sign-in failed');
       return null;
     }
+    if (!native) return browser();
 
     final google = GoogleSignIn(
       clientId: env.googleIosClientId.isEmpty ? null : env.googleIosClientId,
@@ -94,7 +101,14 @@ class AuthRepository {
           env.googleWebClientId.isEmpty ? null : env.googleWebClientId,
       scopes: const ['email', 'profile'],
     );
-    final account = await google.signIn();
+    final GoogleSignInAccount? account;
+    try {
+      account = await google.signIn();
+    } on PlatformException catch (e) {
+      // A misconfigured client (e.g. DEVELOPER_ERROR: SHA-1 not registered) must not lock users out.
+      if (e.code == GoogleSignIn.kSignInCanceledError) throw Exception('Google sign-in was cancelled');
+      return browser();
+    }
     if (account == null) throw Exception('Google sign-in was cancelled');
 
     final tokens = await account.authentication;
@@ -152,7 +166,18 @@ class AuthRepository {
   Future<User> getProfile() async {
     final data = await _sb.getProfile();
     if (data == null) throw Exception('Profile not found');
-    return User.fromMap(data);
+    final user = User.fromMap(data);
+    // Google puts the name and photo in user_metadata ('picture' on some flows); the signup trigger copied only
+    // the name, so Google users showed the default avatar. Fill the gaps and save them once.
+    final meta = _sb.currentUser?.userMetadata ?? const <String, dynamic>{};
+    final name = user.name.isNotEmpty ? user.name : (meta['full_name'] ?? meta['name'] ?? '').toString();
+    final avatar = (user.avatarUrl?.isNotEmpty ?? false) ? user.avatarUrl : (meta['avatar_url'] ?? meta['picture'])?.toString();
+    if (name == user.name && avatar == user.avatarUrl) return user;
+    try {
+      await updateProfile(name: name.isEmpty ? null : name, avatarUrl: avatar);
+    } catch (_) {} // shown either way; saved on the next sign-in
+    return User(id: user.id, name: name, email: user.email, phone: user.phone, avatarUrl: avatar, role: user.role,
+        createdAt: user.createdAt);
   }
 
 
