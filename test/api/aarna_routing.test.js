@@ -11,6 +11,8 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';
 
 const handler = require('../../api/aarna.js');
 const { parseReply, resetCatalogue } = handler._test;
+// Keep catalogue order fixed so D-keys are predictable (j === i means no swap).
+handler._test.setRandom(() => 0.9999);
 
 const STONES = [
   { id: 'u-pietra', name: 'Pietra', colors: ['Steel Grey'], tags: ['Living Rooms'], description: 'Twisted ribbon', collections: { name: 'Premium Surface Collection' } },
@@ -97,4 +99,23 @@ test('parseReply ignores unknown keys and caps at 6', () => {
   const { designs, text } = parseReply('Hi\n[[DESIGNS: D1,D2,D3,D4,D5,D6,D7,D99]]', many);
   assert.equal(designs.length, 6);
   assert.equal(text, 'Hi');
+});
+
+test('already-shown designs are named so the model picks new ones; shuffle keeps every design', () => {
+  const { shownDesigns, shuffled } = handler._test;
+  const history = [
+    { role: 'model', text: 'Try **Pietra** for that wall, or the **Premium Surface Collection**.' },
+    { role: 'user', text: '**Grande Ledge Series**?' },
+  ];
+  assert.deepStrictEqual(shownDesigns(history, STONES), ['Pietra']);
+  const list = [1, 2, 3, 4, 5, 6];
+  assert.deepStrictEqual([...shuffled(list)].sort(), list);
+});
+
+test('repeat designs are dropped unless the user names them; list never goes empty', () => {
+  const { withoutRepeats } = handler._test;
+  const d = (name) => ({ id: name, name });
+  assert.deepStrictEqual(withoutRepeats([d('Cairo'), d('Kite')], ['Cairo'], 'more options'), [d('Kite')]);
+  assert.deepStrictEqual(withoutRepeats([d('Cairo'), d('Kite')], ['Cairo'], 'tell me about cairo'), [d('Cairo'), d('Kite')]);
+  assert.deepStrictEqual(withoutRepeats([d('Cairo')], ['Cairo'], 'more'), [d('Cairo')]);
 });

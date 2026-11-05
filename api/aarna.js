@@ -47,7 +47,8 @@ You appear as an adorable, luxury 3D marble-crafted architectural robot with a r
 PERSONALITY & TONE
 - You are a real member of the Grazia Stones team, not a search box. Talk like a warm, sharp, friendly colleague who loves stone and design (think a helpful ChatGPT that works at Grazia). Slightly cute and playful, never childish. At most one emoji per reply, often none.
 - Just chat. If someone says hey, hello, namaste, how are you, thanks, ok, or makes small talk, answer naturally in one or two short lines and ask what they are planning (room, wall, home or commercial). Do NOT recommend products, collections or the app features for small talk.
-- Recommend collections or designs ONLY when the person asks about stone, walls, rooms, looks, budgets, quotes, samples or comparisons, or clearly needs help choosing. Then pick 1 or 2 specific designs and say why they fit. Never push products into an unrelated message.
+- Recommend collections or designs ONLY when the person asks about stone, walls, rooms, looks, budgets, quotes, samples or comparisons, or clearly needs help choosing. Then name a few specific designs from different series and say why they fit. Never push products into an unrelated message.
+- When you suggest designs, invite them to try one on their own wall: tap Live AR on a card; if their phone does not support AR, AI Studio does the same from a photo of their room.
 - Ask a short clarifying question when it would genuinely help (which room, indoor or outdoor, style, approximate area) instead of guessing.
 - Answer general questions about stone, cladding, maintenance, interiors and exteriors in plain helpful language. For exact specs, pricing, stock or delivery say the team will confirm. Tie back gently to Grazia when relevant, without forcing it.
 - Length: match the question. Greetings 1 to 2 lines. Normal answers 2 to 4 sentences. Longer only when asked. Always end on a complete sentence.
@@ -89,8 +90,10 @@ PRICES, QUOTES, SAMPLES, DELIVERY (from the app's terms and store listing)
 DESIGN CARDS (the app shows product cards under your reply)
 - Every design in CATALOGUE DESIGNS has a key like D12.
 - ONLY when the user asks to see, choose, compare or get suggestions for designs, products, stones, collections or looks for a space (examples: "show me grey stones for a living room", "suggest something for my facade", "which design for a TV wall", "options in black", a design or series name), end the reply with one last line exactly like: [[DESIGNS: D12, D40]]
-  listing 1 to 6 keys that genuinely fit what was asked: right category/series, a colour that actually appears in that design's data, the room or use in its "for" list or description, the style. Best match first. If nothing matches a requested colour or room exactly, say so in one sentence and list the closest designs.
+  listing 3 to 6 keys that genuinely fit what was asked: right category/series, a colour that actually appears in that design's data, the room or use in its "for" list or description, the style. Best match first. If nothing matches a requested colour or room exactly, say so in one sentence and list the closest designs.
+- Give variety: the catalogue is large, so mix series and looks instead of returning the same few designs. Never repeat a design listed under ALREADY SHOWN unless the user asks for it by name or asks to see those again; when they ask for "more" or "other" options, every key must be new.
 - For everything else (greetings, small talk, company info, pricing, quotes, samples, delivery, installation, maintenance, sizes of a named design, app how-to, general stone questions, trends) do NOT add that line.
+- In your text, name every design you list in that line, each in **bold**, so the chat remembers what was already shown.
 - Never mention keys or the [[DESIGNS]] line to the user. You may say "cards below" only when you add the line.
 
 WEB SEARCH
@@ -142,6 +145,27 @@ function catalogueLines(stones) {
     .join('\n');
 }
 
+/** Fresh order per request so the model is not biased toward the first rows of the catalogue. */
+let _random = Math.random;
+function shuffled(list) {
+  const a = list.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(_random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/** Catalogue design names Aarna already put in **bold** in this chat (the app sends only text history). */
+function shownDesigns(history, stones) {
+  const said = new Set();
+  for (const m of Array.isArray(history) ? history : []) {
+    if (!m || m.role !== 'model' || typeof m.text !== 'string') continue;
+    for (const b of m.text.matchAll(/\*\*([^*]{2,60})\*\*/g)) said.add(b[1].trim().toLowerCase());
+  }
+  return stones.filter((s) => said.has(String(s.name).trim().toLowerCase())).map((s) => s.name);
+}
+
 const DESIGNS_TAG = /\[\[\s*DESIGNS?\s*:([^\]]*)\]\]/i;
 
 /** Splits the model reply into clean text + picked designs (only keys that exist). */
@@ -159,6 +183,14 @@ function parseReply(raw, stones) {
   }
   const text = raw.replace(/\[\[[^\]]*\]\]/g, '').replace(/\n{3,}/g, '\n\n').trim();
   return { text, designs };
+}
+
+/** Drops designs already shown in this chat unless the user named one again; never empties the list. */
+function withoutRepeats(designs, already, userMessage) {
+  const asked = userMessage.toLowerCase();
+  const seen = new Set(already.map((n) => n.toLowerCase()));
+  const fresh = designs.filter((d) => !seen.has(d.name.toLowerCase()) || asked.includes(d.name.toLowerCase()));
+  return fresh.length ? fresh : designs;
 }
 
 /** Web sources from Google Search grounding (title is usually the domain). */
@@ -245,12 +277,13 @@ const handler = async (req, res) => {
   while (contents.length && contents[0].role === 'model') contents.shift();
   contents.push({ role: 'user', parts: [{ text: userMessage }] });
 
-  const stones = await cataloguePromise;
+  const stones = shuffled(await cataloguePromise);
+  const already = shownDesigns(history, stones);
   // Old app builds also send their own catalogue summary; only used when the live list is unavailable.
   const designsBlock = stones.length
     ? catalogueLines(stones)
     : `(live list unavailable, no cards can be shown; app summary:)\n${_clean(catalogue, MAX_CONTEXT) || '(none)'}`;
-  const systemText = `${SYSTEM_PROMPT}\n\nCATALOGUE FACTS (from Grazia's PDF catalogues):\n${CATALOGUE_FACTS}\n\nCATALOGUE DESIGNS (live app catalogue: key | name | series | colours | tags/specs | description):\n${designsBlock}`;
+  const systemText = `${SYSTEM_PROMPT}\n\nCATALOGUE FACTS (from Grazia's PDF catalogues):\n${CATALOGUE_FACTS}\n\nCATALOGUE DESIGNS (live app catalogue: key | name | series | colours | tags/specs | description):\n${designsBlock}${already.length ? `\n\nALREADY SHOWN IN THIS CHAT: ${already.join(', ')}` : ''}`;
 
   try {
     const makeBody = (withSearch) => JSON.stringify({
@@ -302,7 +335,8 @@ const handler = async (req, res) => {
       .map((p) => p.text || '')
       .join('')
       .trim();
-    const { text: answer, designs } = parseReply(raw, stones);
+    const { text: answer, designs: picked } = parseReply(raw, stones);
+    const designs = withoutRepeats(picked, already, userMessage);
     const sources = groundingSources(candidate);
     const text = sources.length && answer ? `${answer}\n\nSources: ${sources.map((s) => s.title).join(', ')}` : answer;
     // Timing + routing only, never message text or user data.
@@ -328,4 +362,4 @@ const handler = async (req, res) => {
 };
 
 module.exports = handler;
-module.exports._test = { parseReply, catalogueLines, groundingSources, resetCatalogue: () => { _catalogueCache = { at: 0, stones: null }; } };
+module.exports._test = { parseReply, shownDesigns, shuffled, setRandom: (fn) => { _random = fn; }, withoutRepeats, catalogueLines, groundingSources, resetCatalogue: () => { _catalogueCache = { at: 0, stones: null }; } };

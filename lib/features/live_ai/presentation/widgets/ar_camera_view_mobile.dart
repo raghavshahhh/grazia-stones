@@ -11,6 +11,7 @@ import 'package:flutter/services.dart' show rootBundle, HapticFeedback, SystemUi
 import 'package:http/http.dart' as http;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/services/ar_native_channel.dart';
 import 'package:grazia_stones/core/services/room_analysis_service.dart';
 import 'package:grazia_stones/shared/widgets/smart_stone_image.dart';
@@ -846,12 +847,36 @@ class _ARCameraViewState extends State<ARCameraView>
                     ),
                   ),
                 ],
+                // No live AR on this phone: AI Studio shows the same design on a photo of the room.
+                if (!widget.measureOnly && (_arAvailability == null || _arAvailability == 'unsupported')) ...[
+                  const SizedBox(height: 22),
+                  ElevatedButton(
+                    onPressed: _openAiStudio,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFC8A53C),
+                      foregroundColor: material.Colors.black,
+                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    ),
+                    child: const Text(
+                      'Try it in AI Studio',
+                      style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
         ),
       ),
     );
+  }
+
+  void _openAiStudio() {
+    final stoneId = GoRouterState.of(context).uri.queryParameters['stoneId'];
+    context.push(stoneId == null || stoneId.isEmpty
+        ? '/ai-viz'
+        : '/ai-viz?stoneId=${Uri.encodeQueryComponent(stoneId)}');
   }
 
   Future<void> _openArInstall() async {
