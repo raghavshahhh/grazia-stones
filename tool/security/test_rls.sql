@@ -220,15 +220,19 @@ update public.quote_requests set assigned_dealer = 'aaaaaaaa-0000-0000-0000-0000
 insert into public.quote_requests (name, phone) values ('Unassigned', '1');
 select act('A');
 select rows_seen('dealer sees only assigned quotes', 'select * from public.quote_requests', 1);
-select allowed('dealer moves status + notes', $q$update public.quote_requests set status = 'contacted', dealer_notes = 'called' where assigned_dealer = auth.uid()$q$);
+select allowed('dealer moves status', $q$update public.quote_requests set status = 'contacted' where assigned_dealer = auth.uid()$q$);
+select allowed('dealer writes own note', $q$insert into public.quote_dealer_notes (quote_id, dealer_id, notes) select id, auth.uid(), 'called' from public.quote_requests where assigned_dealer = auth.uid()$q$);
+select denied('dealer notes an unassigned quote', $q$insert into public.quote_dealer_notes (quote_id, dealer_id, notes) select id, auth.uid(), 'x' from public.quote_requests where name = 'Unassigned'$q$);
 select denied('dealer edits customer phone', $q$update public.quote_requests set phone = '999' where assigned_dealer = auth.uid()$q$);
 select denied('dealer writes admin notes', $q$update public.quote_requests set admin_notes = 'x' where assigned_dealer = auth.uid()$q$);
 select denied('dealer unassigns self', $q$update public.quote_requests set assigned_dealer = null where assigned_dealer = auth.uid()$q$);
 select denied('dealer edits unassigned quote', $q$update public.quote_requests set status = 'quoted' where name = 'Unassigned'$q$);
 select act('B');
 select denied('customer picks a dealer', $q$insert into public.quote_requests (user_id, name, phone, assigned_dealer) values (auth.uid(), 'B', '1', 'aaaaaaaa-0000-0000-0000-000000000001')$q$);
-select denied('customer edits dealer notes', $q$update public.quote_requests set dealer_notes = 'x'$q$);
+select rows_seen('customer cannot read dealer notes on own quote', 'select * from public.quote_dealer_notes', 0);
+select denied('customer writes dealer notes', $q$insert into public.quote_dealer_notes (quote_id, dealer_id, notes) select id, auth.uid(), 'x' from public.quote_requests$q$);
 select act('ADM');
+select rows_seen('ADM reads dealer notes', 'select * from public.quote_dealer_notes', 1);
 select allowed('ADM reassigns quote', $q$update public.quote_requests set assigned_dealer = null where name = 'B'$q$);
 rollback;
 

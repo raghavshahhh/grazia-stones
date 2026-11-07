@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:grazia_stones/core/services/supabase_service.dart';
 import 'package:grazia_stones/core/widgets/error_handler_widget.dart';
 import 'package:grazia_stones/features/admin/presentation/widgets/admin_module_switcher.dart';
+import 'package:grazia_stones/features/dealer/presentation/dealer_leads_screen.dart' show dealerNotesOf;
 import 'package:grazia_stones/shared/theme/colors.dart';
 import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/luxury_toast.dart';
@@ -44,7 +45,7 @@ class _AdminQuotesScreenState extends ConsumerState<AdminQuotesScreen> {
 
       final client = SupabaseService.instance.client;
       final results = await Future.wait([
-        client.from('quote_requests').select().order('created_at', ascending: false),
+        client.from('quote_requests').select('*, quote_dealer_notes(notes)').order('created_at', ascending: false),
         client.from('profiles').select('id, full_name, email').eq('role', 'dealer').order('full_name'),
       ]);
 
@@ -567,7 +568,7 @@ class _AdminQuotesScreenState extends ConsumerState<AdminQuotesScreen> {
                                       final userNotes = q['message'] ?? q['notes'] ?? '';
                                       final adminNotes = q['admin_notes']?.toString() ?? '';
                                       final dealerId = q['assigned_dealer']?.toString();
-                                      final dealerNotes = q['dealer_notes']?.toString() ?? '';
+                                      final dealerNotes = dealerNotesOf(q);
 
                                       return Container(
                                         margin: const EdgeInsets.only(bottom: 12),

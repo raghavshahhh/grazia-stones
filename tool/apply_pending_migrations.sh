@@ -39,6 +39,7 @@ commit;" "" >/dev/null
 done
 if [[ -n "${DEALER_EMAIL:-}" ]]; then
   [[ "$DEALER_EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+$ ]] || { echo "Bad DEALER_EMAIL"; exit 1; }
-  q "update public.profiles set role = 'dealer' where lower(email) = lower('$DEALER_EMAIL') and role = 'customer' returning email, role" ""; echo
+  # Match on auth.users (verified, unique) not profiles.email, which every user can edit on their own profile.
+  q "update public.profiles set role = 'dealer' where role = 'customer' and id = (select id from auth.users where lower(email) = lower('$DEALER_EMAIL')) returning id, role" ""; echo
 fi
 echo DONE

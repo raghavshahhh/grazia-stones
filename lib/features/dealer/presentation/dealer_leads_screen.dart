@@ -11,6 +11,14 @@ import 'package:grazia_stones/shared/theme/theme_provider.dart';
 import 'package:grazia_stones/shared/widgets/luxury_toast.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+/// The dealer note embedded as `quote_dealer_notes(notes)`: PostgREST returns it as an object (one-to-one) or,
+/// on older versions, a one-item list.
+String dealerNotesOf(Map<String, dynamic> quote) {
+  final embedded = quote['quote_dealer_notes'];
+  final row = embedded is List ? (embedded.isEmpty ? null : embedded.first) : embedded;
+  return row is Map ? (row['notes']?.toString() ?? '') : '';
+}
+
 /// Dealer panel: the quote requests an admin assigned to this dealer. RLS returns only those rows and a
 /// trigger lets the dealer change just the status and their own notes (migration 20261107000000).
 class DealerLeadsScreen extends ConsumerStatefulWidget {
@@ -44,7 +52,7 @@ class _DealerLeadsScreenState extends ConsumerState<DealerLeadsScreen> {
     try {
       final data = await SupabaseService.instance.client
           .from('quote_requests')
-          .select()
+          .select('*, quote_dealer_notes(notes)')
           .eq('assigned_dealer', uid)
           .order('created_at', ascending: false);
       if (mounted) {
@@ -75,13 +83,33 @@ class _DealerLeadsScreenState extends ConsumerState<DealerLeadsScreen> {
     }
   }
 
+  // Notes live in quote_dealer_notes so the customer, who can read their own quote row, never sees them.
+  static String _notesOf(Map<String, dynamic> lead) => dealerNotesOf(lead);
+
+  Future<void> _saveNotes(String quoteId, String notes) async {
+    try {
+      await SupabaseService.instance.client.from('quote_dealer_notes').upsert({
+        'quote_id': quoteId,
+        'dealer_id': ref.read(authRiverpodProvider).userId,
+        'notes': notes,
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+      if (mounted) {
+        LuxuryToast.show(context, message: 'Notes saved');
+        _load();
+      }
+    } catch (e) {
+      if (mounted) LuxuryToast.show(context, message: e.toString(), isError: true);
+    }
+  }
+
   void _editNotes(Map<String, dynamic> lead, LuxuryPalette palette) {
-    final controller = TextEditingController(text: lead['dealer_notes']?.toString() ?? '');
+    final controller = TextEditingController(text: _notesOf(lead));
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: palette.surface,
-        title: Text('My notes', style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w700, color: palette.textPrimary)),
+        title: Text('My notes (only you and Grazia see these)', style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w700, color: palette.textPrimary)),
         content: TextField(
           controller: controller,
           maxLines: 4,
@@ -99,7 +127,7 @@ class _DealerLeadsScreenState extends ConsumerState<DealerLeadsScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: palette.primary, foregroundColor: Colors.white),
             onPressed: () {
               Navigator.pop(ctx);
-              _update(lead['id'].toString(), {'dealer_notes': controller.text.trim()}, 'Notes saved');
+              _saveNotes(lead['id'].toString(), controller.text.trim());
             },
             child: const Text('Save'),
           ),
@@ -228,7 +256,7 @@ class _DealerLeadsScreenState extends ConsumerState<DealerLeadsScreen> {
     final status = _statuses.contains(lead['status']) ? lead['status'] as String : 'pending';
     final area = lead['area_sqft'];
     final message = lead['message']?.toString() ?? '';
-    final notes = lead['dealer_notes']?.toString() ?? '';
+    final notes = _notesOf(lead);
     final created = DateTime.tryParse(lead['created_at']?.toString() ?? '')?.toLocal();
 
     return Container(
