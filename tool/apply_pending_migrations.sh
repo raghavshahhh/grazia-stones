@@ -2,11 +2,12 @@
 # Backs up the prod objects the pending migrations touch, then applies each migration in its own transaction
 # through the Supabase Management API and records it in schema_migrations. Run from the app folder.
 #   bash tool/apply_pending_migrations.sh
+#   DEALER_EMAIL=someone@x.com bash tool/apply_pending_migrations.sh   (also makes that account a dealer)
 set -euo pipefail
 REF=jrrmjtbauimrrxwjvmzh
-PENDING=(20261103000000_security_hardening_2 20261104000000_stones_storage_admin_write 20261104000001_profile_avatar_from_provider)
-# Already live on prod (checked 2026-11-07) but never recorded:
-RECORD_ONLY=(20261020000000_sample_requests_insert_policy 20261102000000_admin_unlimited_renders)
+PENDING=(20261107000000_dealer_leads)
+# Already live on prod but never recorded (none left after 2026-11-07):
+RECORD_ONLY=()
 
 TOK="$(security find-generic-password -s 'Supabase CLI' -w | sed 's/^go-keyring-base64://')"
 [[ "$TOK" == sbp_* ]] || TOK="$(echo "$TOK" | base64 -d)"
@@ -29,11 +30,15 @@ q "select json_build_object(
 echo "backup -> $BK ($(wc -c <"$BK") bytes)"
 
 record() { q "insert into supabase_migrations.schema_migrations(version, name) values ('${1%%_*}', '${1#*_}') on conflict (version) do nothing" "" >/dev/null; }
-for m in "${RECORD_ONLY[@]}"; do record "$m"; echo "recorded $m"; done
+for m in "${RECORD_ONLY[@]+"${RECORD_ONLY[@]}"}"; do record "$m"; echo "recorded $m"; done
 for m in "${PENDING[@]}"; do
   q "begin;
 $(cat "supabase/migrations/$m.sql")
 commit;" "" >/dev/null
   record "$m"; echo "applied $m"
 done
+if [[ -n "${DEALER_EMAIL:-}" ]]; then
+  [[ "$DEALER_EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+$ ]] || { echo "Bad DEALER_EMAIL"; exit 1; }
+  q "update public.profiles set role = 'dealer' where lower(email) = lower('$DEALER_EMAIL') and role = 'customer' returning email, role" ""; echo
+fi
 echo DONE

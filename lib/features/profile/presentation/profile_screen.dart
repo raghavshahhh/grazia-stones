@@ -323,6 +323,30 @@ class ProfileScreen extends ConsumerWidget {
                 children: [
                   // AI Studio plan + usage (hidden for guests / when the server has no plan data).
                   const PlanUsageCard(),
+                  // Dealer card: only for accounts the Grazia admin set to role 'dealer'.
+                  if (ref.watch(authRiverpodProvider.select((s) => s.isDealer))) ...[
+                    Card(
+                      margin: const EdgeInsets.only(bottom: 20),
+                      color: palette.surface,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                        side: BorderSide(color: palette.primary.withValues(alpha: 0.4)),
+                      ),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        leading: Icon(Icons.storefront_rounded, color: palette.primary, size: 28),
+                        title: Text('Dealer Panel',
+                            style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w700, fontSize: 16, color: palette.textPrimary)),
+                        subtitle: Text('Leads assigned to you by Grazia Stones',
+                            style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary)),
+                        trailing: Icon(Icons.chevron_right_rounded, color: palette.primary),
+                        onTap: () {
+                          HapticFeedback.mediumImpact();
+                          context.push('/dealer');
+                        },
+                      ),
+                    ),
+                  ],
                   // Admin card — visible only to real admins (backend
                   // profiles role), never auto-elevated.
                   if (ref.watch(authRiverpodProvider.select((s) => s.isAdmin))) ...[

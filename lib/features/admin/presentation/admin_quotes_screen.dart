@@ -23,6 +23,8 @@ class _AdminQuotesScreenState extends ConsumerState<AdminQuotesScreen> {
   bool _isLoading = true;
   String? _error;
   List<Map<String, dynamic>> _quotes = [];
+  // Dealer accounts (profiles.role = 'dealer') a quote can be assigned to.
+  List<Map<String, dynamic>> _dealers = [];
   String _statusFilter = 'all';
   String _searchQuery = '';
 
@@ -41,14 +43,15 @@ class _AdminQuotesScreenState extends ConsumerState<AdminQuotesScreen> {
       });
 
       final client = SupabaseService.instance.client;
-      final data = await client
-          .from('quote_requests')
-          .select()
-          .order('created_at', ascending: false);
+      final results = await Future.wait([
+        client.from('quote_requests').select().order('created_at', ascending: false),
+        client.from('profiles').select('id, full_name, email').eq('role', 'dealer').order('full_name'),
+      ]);
 
       if (mounted) {
         setState(() {
-          _quotes = List<Map<String, dynamic>>.from(data);
+          _quotes = List<Map<String, dynamic>>.from(results[0]);
+          _dealers = List<Map<String, dynamic>>.from(results[1]);
           _isLoading = false;
         });
       }
@@ -77,6 +80,70 @@ class _AdminQuotesScreenState extends ConsumerState<AdminQuotesScreen> {
     } catch (e) {
       if (mounted) LuxuryToast.show(context, message: e.toString(), isError: true);
     }
+  }
+
+  Future<void> _assignDealer(String quoteId, String? dealerId) async {
+    try {
+      await SupabaseService.instance.client
+          .from('quote_requests')
+          .update({'assigned_dealer': dealerId, 'updated_at': DateTime.now().toIso8601String()})
+          .eq('id', quoteId);
+      if (mounted) {
+        LuxuryToast.show(context, message: dealerId == null ? 'Lead unassigned' : 'Lead assigned to ${_dealerName(dealerId)}');
+        _loadQuotes();
+      }
+    } catch (e) {
+      if (mounted) LuxuryToast.show(context, message: e.toString(), isError: true);
+    }
+  }
+
+  String _dealerName(String? id) {
+    final d = _dealers.where((d) => d['id'] == id).firstOrNull;
+    if (d == null) return 'a former dealer';
+    final name = d['full_name']?.toString() ?? '';
+    return name.isNotEmpty ? name : (d['email']?.toString() ?? 'Dealer');
+  }
+
+  void _showAssignSheet(Map<String, dynamic> quote, LuxuryPalette palette) {
+    final current = quote['assigned_dealer']?.toString();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: palette.surface,
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            ListTile(
+              title: Text('Assign lead to a dealer',
+                  style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w700, color: palette.textPrimary)),
+              subtitle: _dealers.isEmpty
+                  ? Text('No dealer accounts yet. In the Admin dashboard, set a user\'s role to Dealer first.',
+                      style: GoogleFonts.inter(fontSize: 12, color: palette.textSecondary))
+                  : null,
+            ),
+            for (final d in _dealers)
+              ListTile(
+                leading: Icon(d['id'] == current ? Icons.radio_button_checked : Icons.radio_button_off, color: palette.primary),
+                title: Text(_dealerName(d['id']?.toString()), style: TextStyle(color: palette.textPrimary)),
+                subtitle: Text(d['email']?.toString() ?? '', style: TextStyle(color: palette.textSecondary, fontSize: 12)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  if (d['id'] != current) _assignDealer(quote['id'].toString(), d['id'].toString());
+                },
+              ),
+            if (current != null)
+              ListTile(
+                leading: const Icon(Icons.person_remove_outlined, color: Colors.red),
+                title: const Text('Unassign', style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _assignDealer(quote['id'].toString(), null);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _deleteQuote(String quoteId) async {
@@ -499,6 +566,8 @@ class _AdminQuotesScreenState extends ConsumerState<AdminQuotesScreen> {
                                       final status = q['status']?.toString().toLowerCase() ?? 'pending';
                                       final userNotes = q['message'] ?? q['notes'] ?? '';
                                       final adminNotes = q['admin_notes']?.toString() ?? '';
+                                      final dealerId = q['assigned_dealer']?.toString();
+                                      final dealerNotes = q['dealer_notes']?.toString() ?? '';
 
                                       return Container(
                                         margin: const EdgeInsets.only(bottom: 12),
@@ -657,6 +726,33 @@ class _AdminQuotesScreenState extends ConsumerState<AdminQuotesScreen> {
                                                 ),
                                               ),
                                             ],
+
+                                            // Dealer assignment (own line: the action row is already full on phones).
+                                            const SizedBox(height: 6),
+                                            InkWell(
+                                              borderRadius: BorderRadius.circular(8),
+                                              onTap: () => _showAssignSheet(q, palette),
+                                              child: Padding(
+                                                padding: const EdgeInsets.symmetric(vertical: 4),
+                                                child: Row(
+                                                  children: [
+                                                    Icon(dealerId == null ? Icons.person_add_alt_outlined : Icons.how_to_reg_rounded,
+                                                        size: 16, color: palette.primary),
+                                                    const SizedBox(width: 6),
+                                                    Expanded(
+                                                      child: Text(
+                                                        dealerId == null
+                                                            ? 'Assign to a dealer'
+                                                            : 'Dealer: ${_dealerName(dealerId)}${dealerNotes.isNotEmpty ? ' • "$dealerNotes"' : ''}',
+                                                        maxLines: 2,
+                                                        overflow: TextOverflow.ellipsis,
+                                                        style: GoogleFonts.inter(color: palette.primary, fontSize: 12, fontWeight: FontWeight.w600),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
 
                                             const SizedBox(height: 12),
 

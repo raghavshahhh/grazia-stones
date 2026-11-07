@@ -52,6 +52,7 @@ import '../features/admin/presentation/admin_samples_screen.dart';
 import '../features/admin/presentation/admin_ai_jobs_screen.dart';
 import '../features/admin/presentation/admin_plans_screen.dart';
 import '../features/admin/presentation/admin_ai_usage_screen.dart';
+import '../features/dealer/presentation/dealer_leads_screen.dart';
 import '../features/pro/presentation/grazia_pro_screen.dart';
 import '../features/about/presentation/about_screen.dart';
 import '../features/legal/presentation/delete_account_screen.dart';
@@ -450,6 +451,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/admin/ai-usage',
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => _slideUpPage(const AdminAiUsageScreen(), state),
+      ),
+      GoRoute(
+        path: '/dealer',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => _slideUpPage(const DealerLeadsScreen(), state),
       ),
       GoRoute(
         path: '/resources',

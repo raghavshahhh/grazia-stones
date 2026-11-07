@@ -209,4 +209,27 @@ exception when check_violation then null;
 end $$;
 rollback;
 
+-- ---------------------------------------------------------------------------
+-- Dealer panel: A becomes a dealer and gets B's quote assigned
+-- ---------------------------------------------------------------------------
+begin;
+alter table public.profiles disable trigger user;
+update public.profiles set role = 'dealer' where id = 'aaaaaaaa-0000-0000-0000-000000000001';
+alter table public.profiles enable trigger user;
+update public.quote_requests set assigned_dealer = 'aaaaaaaa-0000-0000-0000-000000000001' where user_id = 'bbbbbbbb-0000-0000-0000-000000000002';
+insert into public.quote_requests (name, phone) values ('Unassigned', '1');
+select act('A');
+select rows_seen('dealer sees only assigned quotes', 'select * from public.quote_requests', 1);
+select allowed('dealer moves status + notes', $q$update public.quote_requests set status = 'contacted', dealer_notes = 'called' where assigned_dealer = auth.uid()$q$);
+select denied('dealer edits customer phone', $q$update public.quote_requests set phone = '999' where assigned_dealer = auth.uid()$q$);
+select denied('dealer writes admin notes', $q$update public.quote_requests set admin_notes = 'x' where assigned_dealer = auth.uid()$q$);
+select denied('dealer unassigns self', $q$update public.quote_requests set assigned_dealer = null where assigned_dealer = auth.uid()$q$);
+select denied('dealer edits unassigned quote', $q$update public.quote_requests set status = 'quoted' where name = 'Unassigned'$q$);
+select act('B');
+select denied('customer picks a dealer', $q$insert into public.quote_requests (user_id, name, phone, assigned_dealer) values (auth.uid(), 'B', '1', 'aaaaaaaa-0000-0000-0000-000000000001')$q$);
+select denied('customer edits dealer notes', $q$update public.quote_requests set dealer_notes = 'x'$q$);
+select act('ADM');
+select allowed('ADM reassigns quote', $q$update public.quote_requests set assigned_dealer = null where name = 'B'$q$);
+rollback;
+
 select 'ALL RLS ATTACK TESTS PASSED' as result;
