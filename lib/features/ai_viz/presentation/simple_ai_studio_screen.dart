@@ -1143,9 +1143,14 @@ class _SimpleAIStudioScreenState extends ConsumerState<SimpleAIStudioScreen> {
                           child: OutlinedButton.icon(
                             onPressed: _shareToWhatsApp,
                             icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16, color: Color(0xFF25D366)),
-                            label: Text(
-                              'WhatsApp',
-                              style: GoogleFonts.inter(color: const Color(0xFF25D366), fontWeight: FontWeight.w600, fontSize: 12),
+                            // Scales down instead of wrapping to "WhatsAp / p" on narrow phones.
+                            label: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                'WhatsApp',
+                                maxLines: 1,
+                                style: GoogleFonts.inter(color: const Color(0xFF25D366), fontWeight: FontWeight.w600, fontSize: 12),
+                              ),
                             ),
                             style: OutlinedButton.styleFrom(
                               side: BorderSide(color: const Color(0xFF25D366).withValues(alpha: 0.4)),

@@ -119,3 +119,10 @@ test('repeat designs are dropped unless the user names them; list never goes emp
   assert.deepStrictEqual(withoutRepeats([d('Cairo'), d('Kite')], ['Cairo'], 'tell me about cairo'), [d('Cairo'), d('Kite')]);
   assert.deepStrictEqual(withoutRepeats([d('Cairo')], ['Cairo'], 'more'), [d('Cairo')]);
 });
+
+test('bullets re-presenting an already shown design are dropped from the text', () => {
+  const { withoutRepeatBullets } = handler._test;
+  const text = 'More ideas:\n- **Kite**: soft diamonds\n- **Vegas**: bevelled frames\nTry Live AR.';
+  assert.strictEqual(withoutRepeatBullets(text, ['Vegas'], [{ name: 'Kite' }], 'aur dikhao'), 'More ideas:\n- **Kite**: soft diamonds\nTry Live AR.');
+  assert.strictEqual(withoutRepeatBullets(text, ['Vegas'], [{ name: 'Kite' }], 'tell me about vegas again'), text);
+});

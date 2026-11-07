@@ -91,7 +91,7 @@ DESIGN CARDS (the app shows product cards under your reply)
 - Every design in CATALOGUE DESIGNS has a key like D12.
 - ONLY when the user asks to see, choose, compare or get suggestions for designs, products, stones, collections or looks for a space (examples: "show me grey stones for a living room", "suggest something for my facade", "which design for a TV wall", "options in black", a design or series name), end the reply with one last line exactly like: [[DESIGNS: D12, D40]]
   listing 3 to 6 keys that genuinely fit what was asked: right category/series, a colour that actually appears in that design's data, the room or use in its "for" list or description, the style. Best match first. If nothing matches a requested colour or room exactly, say so in one sentence and list the closest designs.
-- Give variety: the catalogue is large, so mix series and looks instead of returning the same few designs. Never repeat a design listed under ALREADY SHOWN unless the user asks for it by name or asks to see those again; when they ask for "more" or "other" options, every key must be new.
+- Give variety: the catalogue is large, so mix series and looks instead of returning the same few designs. Never repeat a design listed under ALREADY SHOWN unless the user asks for it by name or asks to see those again; when they ask for "more" or "other" options, every key must be new, and do not mention those designs in your text either.
 - For everything else (greetings, small talk, company info, pricing, quotes, samples, delivery, installation, maintenance, sizes of a named design, app how-to, general stone questions, trends) do NOT add that line.
 - In your text, name every design you list in that line, each in **bold**, so the chat remembers what was already shown.
 - Never mention keys or the [[DESIGNS]] line to the user. You may say "cards below" only when you add the line.
@@ -191,6 +191,18 @@ function withoutRepeats(designs, already, userMessage) {
   const seen = new Set(already.map((n) => n.toLowerCase()));
   const fresh = designs.filter((d) => !seen.has(d.name.toLowerCase()) || asked.includes(d.name.toLowerCase()));
   return fresh.length ? fresh : designs;
+}
+
+/** Drops bullet lines that re-present a design already shown in this chat (not on a card now, not asked for by name). */
+function withoutRepeatBullets(text, already, kept, userMessage) {
+  const asked = userMessage.toLowerCase();
+  const onCard = new Set(kept.map((d) => d.name.toLowerCase()));
+  const repeats = already.map((n) => n.toLowerCase()).filter((n) => !onCard.has(n) && !asked.includes(n)).map((n) => `**${n}**`);
+  if (!repeats.length) return text;
+  return text
+    .split('\n')
+    .filter((line) => !(/^\s*([-*•]|\d+\.)\s/.test(line) && repeats.some((n) => line.toLowerCase().includes(n))))
+    .join('\n');
 }
 
 /** Web sources from Google Search grounding (title is usually the domain). */
@@ -335,8 +347,9 @@ const handler = async (req, res) => {
       .map((p) => p.text || '')
       .join('')
       .trim();
-    const { text: answer, designs: picked } = parseReply(raw, stones);
+    const { text: rawAnswer, designs: picked } = parseReply(raw, stones);
     const designs = withoutRepeats(picked, already, userMessage);
+    const answer = withoutRepeatBullets(rawAnswer, already, designs, userMessage);
     const sources = groundingSources(candidate);
     const text = sources.length && answer ? `${answer}\n\nSources: ${sources.map((s) => s.title).join(', ')}` : answer;
     // Timing + routing only, never message text or user data.
@@ -362,4 +375,4 @@ const handler = async (req, res) => {
 };
 
 module.exports = handler;
-module.exports._test = { parseReply, shownDesigns, shuffled, setRandom: (fn) => { _random = fn; }, withoutRepeats, catalogueLines, groundingSources, resetCatalogue: () => { _catalogueCache = { at: 0, stones: null }; } };
+module.exports._test = { parseReply, shownDesigns, withoutRepeatBullets, shuffled, setRandom: (fn) => { _random = fn; }, withoutRepeats, catalogueLines, groundingSources, resetCatalogue: () => { _catalogueCache = { at: 0, stones: null }; } };
